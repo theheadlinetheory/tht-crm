@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>THT CRM — Deal Pipeline</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #f6f5ff;
+  --nav: #1e1b3a;
+  --purple: #7c3aed;
+  --purple-light: #ede9fe;
+  --purple-mid: #a78bfa;
+  --text: #111827;
+  --text-secondary: #6b7280;
+  --text-muted: #9ca3af;
+  --border: #e5e7eb;
+  --card: #ffffff;
+  --col-bg: #f9fafb;
+  --green: #22c55e;
+  --yellow: #eab308;
+  --red: #ef4444;
+  --radius: 8px;
+  --font: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+
+/* Top Nav */
+.topbar { background: var(--nav); height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; position: sticky; top: 0; z-index: 100; }
+.topbar-brand { font-weight: 800; font-size: 15px; color: #fff; letter-spacing: -.3px; }
+.topbar-tabs { display: flex; gap: 2px; margin-left: 18px; }
+.topbar-tab { padding: 6px 14px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; background: transparent; color: #a5b4fc; font-family: var(--font); transition: all .15s; }
+.topbar-tab.active { background: var(--purple); color: #fff; }
+.topbar-tab:hover:not(.active) { background: rgba(124,58,237,.25); }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.topbar-stat { font-size: 11px; color: #a5b4fc; }
+.btn { padding: 5px 12px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font); transition: all .12s; }
+.btn-ghost { background: #312e81; color: #c4b5fd; }
+.btn-ghost:hover { background: #3b3794; }
+.btn-primary { background: var(--purple); color: #fff; font-weight: 700; }
+.btn-primary:hover { background: #6d28d9; }
+.btn-danger { background: #fef2f2; color: var(--red); border: 1px solid #fecaca; }
+
+/* Board */
+.board { display: flex; gap: 10px; padding: 16px 14px 24px; overflow-x: auto; min-height: calc(100vh - 52px); align-items: flex-start; }
+.column { min-width: 230px; max-width: 270px; flex: 1 1 230px; display: flex; flex-direction: column; }
+.col-header { padding: 10px 12px; background: var(--card); border-radius: var(--radius) var(--radius) 0 0; border-top: 3px solid var(--purple); display: flex; justify-content: space-between; align-items: flex-start; transition: background .15s; }
+.col-header.drag-over { background: var(--purple-light); }
+.col-title { font-weight: 700; font-size: 12px; color: var(--text); margin-bottom: 2px; }
+.col-meta { font-size: 10.5px; color: var(--text-muted); }
+.col-body { flex: 1; background: var(--col-bg); padding: 6px; border-radius: 0 0 var(--radius) var(--radius); min-height: 110px; transition: background .15s; }
+.col-body.drag-over { background: #f5f3ff; }
+.col-empty { padding: 28px 0; text-align: center; font-size: 11px; color: #d1d5db; font-style: italic; }
+
+/* Deal Card */
+.deal-card { background: var(--card); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 6px; border: 1px solid var(--border); cursor: grab; transition: box-shadow .15s, transform .1s; }
+.deal-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.1); transform: translateY(-1px); }
+.deal-card.dragging { opacity: .5; }
+.deal-card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+.deal-company { font-weight: 700; font-size: 12.5px; color: var(--text); line-height: 1.3; flex: 1; margin-right: 6px; }
+.deal-contact { font-size: 11px; color: var(--text-secondary); margin-bottom: 2px; }
+.deal-detail { font-size: 10.5px; color: var(--text-muted); margin-bottom: 1px; }
+.deal-bottom { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+.deal-value { font-size: 12px; font-weight: 700; }
+.deal-tag { font-size: 9.5px; padding: 1px 6px; border-radius: 8px; background: #f3f4f6; color: var(--text-secondary); }
+
+/* Flag dot */
+.flag-dot { width: 10px; height: 10px; border-radius: 50%; cursor: pointer; flex-shrink: 0; border: 1.5px solid #d1d5db; transition: all .12s; }
+
+/* Activity Badge */
+.activity-badge { display: flex; align-items: center; gap: 4px; cursor: pointer; padding: 2px 6px; border-radius: 10px; font-size: 11px; font-weight: 600; user-select: none; position: relative; }
+.activity-badge-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.badge-dropdown { position: absolute; top: calc(100% + 4px); right: 0; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 8px; min-width: 210px; z-index: 999; max-height: 220px; overflow-y: auto; }
+.badge-dropdown-title { font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; padding: 0 4px; }
+.badge-item { display: flex; align-items: center; gap: 6px; padding: 5px 4px; border-bottom: 1px solid #f3f4f6; font-size: 11.5px; }
+.badge-item:last-child { border-bottom: none; }
+
+/* Modal */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; z-index: 9999; backdrop-filter: blur(2px); }
+.modal { background: var(--card); border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,.2); max-height: 90vh; overflow-y: auto; }
+.modal-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.modal-header h3 { font-size: 16px; font-weight: 800; }
+.modal-close { background: none; border: none; font-size: 22px; cursor: pointer; color: var(--text-muted); line-height: 1; }
+.modal-body { padding: 20px; }
+.modal-footer { padding: 12px 20px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.form-group label { font-size: 11px; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 3px; }
+.form-group input, .form-group select, .form-group textarea { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12.5px; font-family: var(--font); outline: none; transition: border-color .15s; }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--purple); }
+.form-group textarea { resize: vertical; }
+.form-span2 { grid-column: span 2; }
+
+/* Smartlead info box */
+.sl-info { background: #faf5ff; border: 1px solid #e9d5ff; border-radius: var(--radius); padding: 8px 12px; margin-bottom: 16px; font-size: 11px; }
+.sl-info-title { font-weight: 700; color: var(--purple); margin-bottom: 4px; }
+.sl-info div { color: var(--text-secondary); }
+.sl-info a { color: var(--purple); font-size: 10.5px; }
+
+/* Activities */
+.activities-section { border-top: 1px solid var(--border); padding-top: 14px; margin-top: 8px; }
+.activities-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.activities-header h4 { font-size: 13px; font-weight: 700; }
+.sop-btn { font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--purple); cursor: pointer; font-weight: 600; font-family: var(--font); transition: all .15s; }
+.sop-btn.active { background: var(--purple); color: #fff; }
+.sop-btn:not(.active) { background: #fff; color: var(--purple); }
+.sop-grid { background: #faf5ff; border-radius: var(--radius); padding: 10px; margin-bottom: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+.sop-day-btn { font-size: 11px; padding: 5px 10px; border-radius: 6px; border: 1px solid #d8b4fe; background: #fff; color: var(--purple); cursor: pointer; font-weight: 600; font-family: var(--font); }
+.sop-day-btn:hover { background: var(--purple-light); }
+.add-act-row { display: flex; gap: 6px; margin-bottom: 12px; align-items: flex-end; }
+.add-act-row select, .add-act-row input { padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 11.5px; font-family: var(--font); }
+.act-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; margin-bottom: 3px; border-radius: 6px; border: 1px solid; }
+.act-item.overdue { background: #fef2f2; border-color: #fecaca; }
+.act-item.today { background: #f0fdf4; border-color: #bbf7d0; }
+.act-item.future { background: var(--col-bg); border-color: #f3f4f6; }
+.act-item input[type="checkbox"] { accent-color: var(--purple); cursor: pointer; }
+.act-subject { flex: 1; font-size: 11.5px; color: #374151; }
+.act-day-label { font-size: 10px; color: var(--text-muted); background: #f3f4f6; padding: 1px 6px; border-radius: 8px; }
+.act-delete { background: none; border: none; color: #d1d5db; cursor: pointer; font-size: 14px; }
+.completed-toggle { font-size: 11px; color: var(--text-muted); cursor: pointer; margin-top: 8px; margin-bottom: 4px; }
+.completed-item { display: flex; align-items: center; gap: 8px; padding: 4px 8px; margin-bottom: 2px; opacity: .5; }
+.completed-item .act-subject { text-decoration: line-through; color: var(--text-muted); }
+.no-activities { font-size: 11.5px; color: #d1d5db; text-align: center; padding: 12px; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// THT CRM — The Headline Theory Deal Pipeline
+// ═══════════════════════════════════════════════════════════
+// CHANGE THIS to your deployed Apps Script URL:
+const API_URL = "https://script.google.com/macros/s/AKfycbyI_o-TL-aiKfQEMU5W5OsBadp0QMJkgZyY-RDr4dY19Wv944yxXVfgnlzxetL7-hh-/exec";
+const SYNC_INTERVAL = 30000;
+
+// ─── Configs ───
+const ACQUISITION_STAGES = [
+  { id: "Cold Email Response", label: "Cold Email Response", color: "#7c3aed" },
+  { id: "Follow-up", label: "Follow-up", color: "#6366f1" },
+  { id: "Discovery Scheduled", label: "Discovery Scheduled", color: "#2563eb" },
+  { id: "Demo Scheduled", label: "Demo Scheduled", color: "#0891b2" },
+  { id: "No Show", label: "No Show", color: "#ef4444" },
+  { id: "Waiting for Payment/Contract", label: "Waiting for Payment/Contract", color: "#d97706" },
+  { id: "Closed Won", label: "Closed Won", color: "#10b981" },
+  { id: "Closed Lost", label: "Closed Lost", color: "#64748b" },
+];
+
+const NURTURE_STAGES = [
+  { id: "Revisit", label: "Revisit", color: "#8b5cf6" },
+  { id: "Service Area Taken", label: "Service Area Taken", color: "#f97316" },
+];
+
+const PIPELINES = [
+  { id: "acquisition", label: "Acquisition" },
+  { id: "client_leads", label: "Client Leads" },
+  { id: "nurture", label: "Long Term Nurture" },
+];
+
+const ACTIVITY_TYPES = ["Call", "Text", "Email", "Discovery Call", "Demo", "Follow-up", "Meeting", "Task"];
+const ACTIVITY_ICONS = { Call: "📞", Text: "💬", Email: "✉️", "Discovery Call": "🔍", Demo: "🖥️", "Follow-up": "↩️", Meeting: "📅", Task: "✓" };
+const FLAG_COLORS = { green: "#22c55e", yellow: "#eab308", red: "#ef4444", none: "transparent" };
+const FLAG_CYCLE = ["none", "green", "yellow", "red"];
+const CLIENT_PALETTE = ["#2563eb","#7c3aed","#0891b2","#059669","#d97706","#dc2626","#6366f1","#0d9488","#b45309","#4f46e5","#be185d","#15803d"];
+
+const SOP_DAYS = {
+  "Day 1": [{type:"Text",subject:"Initial text - immediate"},{type:"Call",subject:"Call #1 - immediate"},{type:"Text",subject:"Post-call text"},{type:"Email",subject:"Initial email"},{type:"Call",subject:"Call #2 - EOD"}],
+  "Day 2": [{type:"Call",subject:"Morning call"},{type:"Text",subject:"Follow-up text"},{type:"Email",subject:"Follow-up email"},{type:"Call",subject:"Evening call"}],
+  "Day 3": [{type:"Call",subject:"Morning call"},{type:"Text",subject:"Follow-up text"},{type:"Email",subject:"Follow-up email"},{type:"Call",subject:"Evening call"}],
+  "Day 4": [{type:"Call",subject:"Morning call"},{type:"Email",subject:"Follow-up email"},{type:"Call",subject:"Evening call"}],
+  "Day 5": [{type:"Email",subject:"Follow-up email"}],
+  "Day 6": [{type:"Email",subject:"Follow-up email"},{type:"Call",subject:"Check-in call"}],
+  "Day 8": [{type:"Email",subject:"Follow-up email"}],
+  "Day 9": [{type:"Call",subject:"Check-in call"}],
+  "Day 10": [{type:"Email",subject:"Final email"}],
+  "Day 30": [{type:"Email",subject:"Last attempt email"},{type:"Call",subject:"Last attempt call"}],
+};
+
+// ─── Test Data ───
+const TODAY = new Date().toISOString().split("T")[0];
+const YESTERDAY = new Date(Date.now()-86400000).toISOString().split("T")[0];
+const TOMORROW = new Date(Date.now()+86400000).toISOString().split("T")[0];
+
+const TEST_DEALS = [
+  {id:"t1",company:"Southern Cutz Lawn & Landscape",contact:"Marcus Johnson",email:"marcus@southerncutz.com",phone:"(321) 555-0142",value:1057,stage:"Cold Email Response",pipeline:"Client",flag:"green",notes:"",website:"southerncutz.com",location:"Brevard, FL",campaignName:"FL Landscaping",leadCategory:"Interested",slLeadId:"",slCampaignId:"",smartleadUrl:"",createdDate:TODAY,lastUpdated:TODAY},
+  {id:"t2",company:"Hill's Lawn & Grounds Care",contact:"David Hill",email:"info@hillslawn.com",phone:"(303) 555-0198",value:1057,stage:"Follow-up",pipeline:"Client",flag:"green",notes:"",website:"hillslawn.com",location:"Denver, CO",campaignName:"CO Landscaping",leadCategory:"Information Request",slLeadId:"",slCampaignId:"",smartleadUrl:"",createdDate:YESTERDAY,lastUpdated:TODAY},
+  {id:"t3",company:"Denver Landscaping & Design",contact:"Sarah Chen",email:"sarah@denverld.com",phone:"",value:1057,stage:"Follow-up",pipeline:"Client",flag:"",notes:"Waiting on callback",website:"denverld.com",location:"Denver, CO",campaignName:"CO Landscaping",leadCategory:"Interested",slLeadId:"",slCampaignId:"",smartleadUrl:"",createdDate:YESTERDAY,lastUpdated:TODAY},
+  {id:"t4",company:"All Proscape LLC",contact:"Tony Rivera",email:"tony@allproscape.com",phone:"(512) 555-0167",value:1057,stage:"Discovery Scheduled",pipeline:"Acquisition",flag:"red",notes:"Missed last call",website:"allproscape.com",location:"Austin, TX",campaignName:"TX Acquisition",leadCategory:"Meeting Request",slLeadId:"",slCampaignId:"",smartleadUrl:"",createdDate:YESTERDAY,lastUpdated:TODAY},
+  {id:"t5",company:"Prestonwood Landscape Services",contact:"Mike Preston",email:"mike@prestonwood.com",phone:"(214) 555-0233",value:0,stage:"Demo Scheduled",pipeline:"Client",flag:"red",notes:"",website:"prestonwood.com",location:"Dallas, TX",campaignName:"TX Landscaping",leadCategory:"Meeting Booked",slLeadId:"",slCampaignId:"",smartleadUrl:"",createdDate:YESTERDAY,lastUpdated:TODAY},
+  {id:"t6",company:"Sapphire Property Maintenance",contact:"Jade Williams",email:"jade@sapphirepm.com",phone:"",value:1057,stage:"Waiting for Payment/Contract",pipeline:"Client",flag:"green",notes:"Contract sent 2/7",website:"sapphirepm.com",location:"Houston, TX",campaignName:"TX Landscaping",leadCategory:"Interested",slLeadId:"",slCampaignId:"",smartleadUrl:"",createdDate:"2025-02-05",lastUpdated:TODAY},
+  {id:"t7",company:"GreenEdge Landscaping",contact:"Pat O'Brien",email:"pat@greenedge.com",phone:"(720) 555-0189",value:1057,stage:"Closed Won",pipeline:"Client",flag:"green",notes:"Signed!",website:"greenedge.com",location:"Boulder, CO",campaignName:"CO Landscaping",leadCategory:"Interested",slLeadId:"",slCampaignId:"",smartleadUrl:"",createdDate:"2025-01-28",lastUpdated:TODAY},
+];
+
+const TEST_ACTIVITIES = [
+  {id:"a1",dealId:"t1",type:"Call",subject:"Call #1 - immediate",dueDate:TODAY,done:false,dayLabel:"Day 1"},
+  {id:"a2",dealId:"t1",type:"Text",subject:"Initial text",dueDate:TODAY,done:true,dayLabel:"Day 1"},
+  {id:"a3",dealId:"t1",type:"Email",subject:"Initial email",dueDate:TODAY,done:false,dayLabel:"Day 1"},
+  {id:"a4",dealId:"t2",type:"Call",subject:"Morning call",dueDate:YESTERDAY,done:false,dayLabel:"Day 2"},
+  {id:"a5",dealId:"t2",type:"Email",subject:"Follow-up email",dueDate:TOMORROW,done:false,dayLabel:"Day 2"},
+  {id:"a6",dealId:"t4",type:"Discovery Call",subject:"Discovery call",dueDate:TOMORROW,done:false,dayLabel:""},
+];
+
+const TEST_CLIENTS = [
+  {id:"c1",name:"GreenScapes Tampa",color:"#2563eb"},
+  {id:"c2",name:"Premier Lawns Austin",color:"#7c3aed"},
+  {id:"c3",name:"Elite Grounds Denver",color:"#059669"},
+];
+
+// ─── Helpers ───
+function fmt$(v){return new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",minimumFractionDigits:0}).format(v||0)}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+
+// ─── State ───
+let state = {
+  deals: [],
+  activities: [],
+  clients: [...TEST_CLIENTS],
+  pipeline: "acquisition",
+  selectedDeal: null,
+  showNew: false,
+  showAddClient: false,
+  showSop: false,
+  dragId: null,
+  overCol: null,
+  synced: false,
+  syncing: false,
+  loadFailed: false,
+};
+
+// ─── API ───
+async function apiGet(action){
+  try {
+    const r=await fetch(API_URL+"?action="+action, {redirect:"follow"});
+    const text=await r.text();
+    try { return JSON.parse(text); } catch(e) { console.warn("Parse error:",text.slice(0,200)); return null; }
+  }
+  catch(e){ console.warn("API GET error:",e); return null; }
+}
+async function apiPost(action,data){
+  try {
+    const r=await fetch(API_URL,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain"},body:JSON.stringify({action,data})});
+    const text=await r.text();
+    try { return JSON.parse(text); } catch(e) { return null; }
+  } catch(e){ console.warn("API POST error:",e); return null; }
+}
+
+async function syncFromSheet(){
+  state.syncing=true; render();
+  const data=await apiGet("get_all");
+  if(data && !data.error){
+    if(data.deals && Array.isArray(data.deals)) state.deals=data.deals;
+    if(data.activities && Array.isArray(data.activities)) state.activities=data.activities;
+    if(data.clients && Array.isArray(data.clients) && data.clients.length>0) state.clients=data.clients;
+    state.synced=true;
+    state.loadFailed=false;
+  } else {
+    // If API fails and we have no deals, show test data
+    if(state.deals.length===0){
+      state.deals=[...TEST_DEALS];
+      state.activities=[...TEST_ACTIVITIES];
+      state.loadFailed=true;
+    }
+  }
+  state.syncing=false; render();
+}
+
+// ─── Activity Badge Logic ───
+function getActivityBadge(dealId){
+  const pending=state.activities.filter(a=>a.dealId===dealId && !a.done && String(a.done)!=="TRUE");
+  if(!pending.length) return null;
+  const hasOverdue=pending.some(a=>a.dueDate && a.dueDate<TODAY);
+  const hasDueToday=pending.some(a=>a.dueDate===TODAY);
+  if(hasOverdue) return {color:"#ef4444",count:pending.length,label:"overdue"};
+  if(hasDueToday) return {color:"#22c55e",count:pending.length,label:"due today"};
+  return {color:"#9ca3af",count:pending.length,label:"upcoming"};
+}
+
+// ─── Get stages for current pipeline ───
+function getStages(){
+  if(state.pipeline==="acquisition") return ACQUISITION_STAGES;
+  if(state.pipeline==="nurture") return NURTURE_STAGES;
+  // Client Leads: fixed "Not Distributed" column + dynamic client columns
+  const clientCols=state.clients.map((c,i)=>({id:c.name,label:c.name,color:c.color||CLIENT_PALETTE[i%CLIENT_PALETTE.length]}));
+  return [{id:"Client Not Distributed",label:"Not Distributed",color:"#6b7280"},...clientCols];
+}
+
+// ─── Filter deals for pipeline ───
+function getPipelineDeals(){
+  if(state.pipeline==="acquisition"){
+    return state.deals.filter(d=>ACQUISITION_STAGES.some(s=>s.id===d.stage));
+  }
+  if(state.pipeline==="nurture") return state.deals.filter(d=>NURTURE_STAGES.some(s=>s.id===d.stage));
+  // Client leads - "Client Not Distributed" + client name columns
+  const clientNames=state.clients.map(c=>c.name);
+  return state.deals.filter(d=>d.stage==="Client Not Distributed"||clientNames.includes(d.stage));
+}
+
+// ─── CRUD ───
+async function createDeal(form){
+  const pip=state.pipeline==="acquisition"?"Client":state.pipeline==="nurture"?"Nurture":"Client Leads";
+  const deal={...form,id:uid(),pipeline:pip,flag:"",createdDate:TODAY,lastUpdated:TODAY};
+  state.deals.push(deal);render();
+  await apiPost("create_deal",deal);
+}
+
+async function saveDeal(updated){
+  state.deals=state.deals.map(d=>d.id===updated.id?{...d,...updated,lastUpdated:TODAY}:d);
+  state.selectedDeal=null;render();
+  await apiPost("update_deal",updated);
+}
+
+async function deleteDeal(id){
+  state.deals=state.deals.filter(d=>d.id!==id);
+  state.activities=state.activities.filter(a=>a.dealId!==id);
+  state.selectedDeal=null;render();
+  await apiPost("delete_deal",{id});
+}
+
+async function cycleFlag(id){
+  const d=state.deals.find(x=>x.id===id);
+  if(!d)return;
+  const idx=FLAG_CYCLE.indexOf(d.flag||"none");
+  d.flag=FLAG_CYCLE[(idx+1)%FLAG_CYCLE.length];
+  render();
+  await apiPost("update_deal",{id,flag:d.flag});
+}
+
+async function moveDeal(dealId,newStage){
+  const d=state.deals.find(x=>x.id===dealId);
+  if(d){d.stage=newStage;d.lastUpdated=TODAY;}
+  render();
+  await apiPost("move_deal_stage",{id:dealId,stage:newStage});
+}
+
+async function addActivity(dealId,act){
+  const a={id:uid(),dealId,type:act.type,subject:act.subject||act.type,dueDate:act.dueDate||TODAY,done:false,dayLabel:act.dayLabel||""};
+  state.activities.push(a);render();
+  await apiPost("create_activity",a);
+}
+
+async function toggleActivity(actId){
+  const a=state.activities.find(x=>x.id===actId);
+  if(a){a.done=!a.done;render();await apiPost("update_activity",{id:actId,done:a.done});}
+}
+
+async function deleteActivity(actId){
+  state.activities=state.activities.filter(a=>a.id!==actId);render();
+  await apiPost("delete_activity",{id:actId});
+}
+
+async function assignSequence(dealId,dayLabel,acts){
+  for(const a of acts){
+    const na={id:uid(),dealId,type:a.type,subject:a.subject,dueDate:TODAY,done:false,dayLabel};
+    state.activities.push(na);
+    await apiPost("create_activity",na);
+  }
+  render();
+}
+
+async function addClient(name){
+  const c={id:uid(),name,color:CLIENT_PALETTE[state.clients.length%CLIENT_PALETTE.length]};
+  state.clients.push(c);render();
+  await apiPost("create_client",c);
+}
+
+function removeClient(name){
+  state.clients=state.clients.filter(c=>c.name!==name);render();
+}
+
+// ─── RENDER ───
+function render(){
+  const app=document.getElementById("app");
+  const stages=getStages();
+  const deals=getPipelineDeals();
+  const totalValue=deals.reduce((s,d)=>s+(Number(d.value)||0),0);
+  const totalDeals=deals.length;
+
+  let html=`
+  <div class="topbar">
+    <div style="display:flex;align-items:center;">
+      <span class="topbar-brand">THT CRM</span>
+      <div class="topbar-tabs">
+        ${PIPELINES.map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="state.pipeline='${p.id}';render()">${p.label}</button>`).join("")}
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span class="topbar-stat">${state.loadFailed?'⚠️ Offline (test data)':state.synced?'✓ Connected':'Connecting...'}${state.synced?' · ':' '}${totalDeals} deals · ${fmt$(totalValue)}${state.syncing?' ↻':''}</span>
+      <button class="btn btn-ghost" onclick="syncFromSheet()">↻ Sync</button>
+      ${state.pipeline==='client_leads'?'<button class="btn btn-ghost" onclick="openAddClient()">+ Client</button>':''}
+      <button class="btn btn-primary" onclick="openNewDeal()">+ Deal</button>
+    </div>
+  </div>
+  <div class="board">`;
+
+  for(const stage of stages){
+    const sd=deals.filter(d=>d.stage===stage.id);
+    const sv=sd.reduce((s,d)=>s+(Number(d.value)||0),0);
+    const isOver=state.overCol===stage.id;
+
+    html+=`<div class="column"
+      ondragover="event.preventDefault();state.overCol='${esc(stage.id)}';render()"
+      ondragleave="state.overCol=null;render()"
+      ondrop="handleDrop('${esc(stage.id)}')">
+      <div class="col-header ${isOver?'drag-over':''}" style="border-top-color:${stage.color}">
+        <div>
+          <div class="col-title">${esc(stage.label)}</div>
+          <div class="col-meta">${fmt$(sv)} · ${sd.length} deal${sd.length!==1?'s':''}</div>
+        </div>
+        ${state.pipeline==='client_leads'?`<button style="background:none;border:none;color:#d1d5db;font-size:14px;cursor:pointer" onclick="if(confirm('Remove ${esc(stage.label)}?'))removeClient('${esc(stage.label)}')">×</button>`:''}
+      </div>
+      <div class="col-body ${isOver?'drag-over':''}">`;
+
+    if(sd.length===0){
+      html+=`<div class="col-empty">Drop deals here</div>`;
+    } else {
+      for(const deal of sd){
+        const badge=getActivityBadge(deal.id);
+        html+=`<div class="deal-card" draggable="true"
+          ondragstart="state.dragId='${deal.id}'"
+          onclick="openDeal('${deal.id}')">
+          <div class="deal-card-top">
+            <div class="deal-company">${esc(deal.company||deal.contact||deal.email||"New Deal")}</div>
+            <div style="display:flex;align-items:center;gap:4px">
+              ${badge?`<div class="activity-badge" style="background:${badge.color}18;color:${badge.color}" onclick="event.stopPropagation();toggleBadgeDropdown('${deal.id}')">
+                <span class="activity-badge-dot" style="background:${badge.color}"></span>${badge.count}
+                <div class="badge-dropdown" id="badge-${deal.id}" style="display:none">
+                  <div class="badge-dropdown-title">${badge.label} (${badge.count})</div>
+                  ${state.activities.filter(a=>a.dealId===deal.id&&!a.done&&String(a.done)!=="TRUE").map(a=>`
+                    <div class="badge-item">
+                      <span>${ACTIVITY_ICONS[a.type]||"✓"}</span>
+                      <span style="flex:1;color:#374151">${esc(a.subject||a.type)}</span>
+                      ${a.dayLabel?`<span style="font-size:10px;color:#9ca3af">${esc(a.dayLabel)}</span>`:''}
+                    </div>`).join("")}
+                </div>
+              </div>`:''}
+              <div class="flag-dot" onclick="event.stopPropagation();cycleFlag('${deal.id}')"
+                style="background:${FLAG_COLORS[deal.flag]||'transparent'};${deal.flag&&deal.flag!=='none'?'border:none':''}"></div>
+            </div>
+          </div>
+          ${deal.contact&&deal.contact!==deal.company?`<div class="deal-contact">${esc(deal.contact)}</div>`:''}
+          ${deal.email?`<div class="deal-detail">${esc(deal.email)}</div>`:''}
+          ${deal.phone?`<div class="deal-detail">${esc(deal.phone)}</div>`:''}
+          <div class="deal-bottom">
+            <span class="deal-value" style="color:${deal.value?'#059669':'#d1d5db'}">${fmt$(deal.value)}</span>
+            ${deal.leadCategory?`<span class="deal-tag">${esc(deal.leadCategory)}</span>`:''}
+          </div>
+        </div>`;
+      }
+    }
+    html+=`</div></div>`;
+  }
+
+  html+=`</div>`;
+
+  // Modals
+  if(state.selectedDeal) html+=renderDealModal(state.selectedDeal);
+  if(state.showNew) html+=renderNewDealModal(stages);
+  if(state.showAddClient) html+=renderAddClientModal();
+
+  app.innerHTML=html;
+}
+
+function renderDealModal(deal){
+  const stages=getStages();
+  const dealActs=state.activities.filter(a=>a.dealId===deal.id);
+  const pending=dealActs.filter(a=>!a.done&&String(a.done)!=="TRUE");
+  const completed=dealActs.filter(a=>a.done||String(a.done)==="TRUE");
+
+  let h=`<div class="modal-overlay" onclick="closeDealModal()">
+    <div class="modal" style="width:520px" onclick="event.stopPropagation()">
+      <div class="modal-header"><h3>Edit Deal</h3><button class="modal-close" onclick="closeDealModal()">×</button></div>
+      <div class="modal-body">
+        <div class="form-grid">
+          ${["company:Company","contact:Contact Name","email:Email","phone:Phone","website:Website","location:Location","value:Deal Value ($)"].map(f=>{
+            const[k,label]=f.split(":");
+            return`<div class="form-group"><label>${label}</label><input id="deal-${k}" value="${esc(String(deal[k]||''))}" onchange="updateDealField('${k}',this.value)"></div>`;
+          }).join("")}
+          <div class="form-group">
+            <label>Stage</label>
+            <select id="deal-stage" onchange="updateDealField('stage',this.value)">
+              ${stages.map(s=>`<option value="${esc(s.id)}" ${deal.stage===s.id?'selected':''}>${esc(s.label)}</option>`).join("")}
+            </select>
+          </div>
+        </div>
+        <div class="form-group form-span2" style="margin-bottom:16px">
+          <label>Notes</label>
+          <textarea id="deal-notes" rows="2" onchange="updateDealField('notes',this.value)">${esc(deal.notes||'')}</textarea>
+        </div>`;
+
+  if(deal.campaignName){
+    h+=`<div class="sl-info">
+      <div class="sl-info-title">Smartlead Source</div>
+      <div>Campaign: ${esc(deal.campaignName)}</div>
+      ${deal.leadCategory?`<div>Category: ${esc(deal.leadCategory)}</div>`:''}
+      ${deal.smartleadUrl?`<a href="${esc(deal.smartleadUrl)}" target="_blank" rel="noopener">Open in Smartlead →</a>`:''}
+    </div>`;
+  }
+
+  // Activities section
+  h+=`<div class="activities-section">
+    <div class="activities-header">
+      <h4>Activities</h4>
+      <button class="sop-btn ${state.showSop?'active':''}" onclick="state.showSop=!state.showSop;render()">📋 Assign SOP Day</button>
+    </div>`;
+
+  if(state.showSop){
+    h+=`<div class="sop-grid">${Object.entries(SOP_DAYS).map(([day,acts])=>`
+      <button class="sop-day-btn" onclick="doAssignSequence('${deal.id}','${day}')">${day} <span style="font-weight:400;color:#a78bfa">(${acts.length})</span></button>`).join("")}</div>`;
+  }
+
+  h+=`<div class="add-act-row">
+    <select id="new-act-type">${ACTIVITY_TYPES.map(t=>`<option value="${t}">${ACTIVITY_ICONS[t]||""} ${t}</option>`).join("")}</select>
+    <input id="new-act-subject" placeholder="Subject" style="flex:1">
+    <input id="new-act-date" type="date" value="${TODAY}">
+    <button class="btn btn-primary" onclick="doAddActivity('${deal.id}')">+ Add</button>
+  </div>`;
+
+  // Pending
+  for(const a of pending){
+    const overdue=a.dueDate&&a.dueDate<TODAY;
+    const dueToday=a.dueDate===TODAY;
+    const cls=overdue?'overdue':dueToday?'today':'future';
+    h+=`<div class="act-item ${cls}">
+      <input type="checkbox" onchange="toggleActivity('${a.id}')">
+      <span style="font-size:13px">${ACTIVITY_ICONS[a.type]||"✓"}</span>
+      <span class="act-subject">${esc(a.subject||a.type)}</span>
+      ${a.dayLabel?`<span class="act-day-label">${esc(a.dayLabel)}</span>`:''}
+      ${a.dueDate?`<span style="font-size:10px;color:${overdue?'#ef4444':dueToday?'#059669':'#9ca3af'}">${a.dueDate}</span>`:''}
+      <button class="act-delete" onclick="deleteActivity('${a.id}')">×</button>
+    </div>`;
+  }
+
+  // Completed
+  if(completed.length){
+    h+=`<details style="margin-top:8px"><summary class="completed-toggle">Completed (${completed.length})</summary>`;
+    for(const a of completed){
+      h+=`<div class="completed-item">
+        <input type="checkbox" checked onchange="toggleActivity('${a.id}')">
+        <span style="font-size:13px">${ACTIVITY_ICONS[a.type]||"✓"}</span>
+        <span class="act-subject">${esc(a.subject||a.type)}</span>
+      </div>`;
+    }
+    h+=`</details>`;
+  }
+
+  if(!pending.length&&!completed.length) h+=`<div class="no-activities">No activities yet</div>`;
+
+  h+=`</div></div>
+    <div class="modal-footer">
+      <button class="btn btn-danger" onclick="if(confirm('Delete this deal?'))deleteDeal('${deal.id}')">Delete</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="closeDealModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="doSaveDeal('${deal.id}')">Save</button>
+      </div>
+    </div></div></div>`;
+  return h;
+}
+
+function renderNewDealModal(stages){
+  const defVal=state.pipeline==="acquisition"?1057:0;
+  return`<div class="modal-overlay" onclick="state.showNew=false;render()">
+    <div class="modal" style="width:440px" onclick="event.stopPropagation()">
+      <div class="modal-header"><h3>New Deal</h3><button class="modal-close" onclick="state.showNew=false;render()">×</button></div>
+      <div class="modal-body">
+        <div class="form-grid">
+          ${["company:Company","contact:Contact Name","email:Email","phone:Phone","website:Website"].map(f=>{
+            const[k,label]=f.split(":");
+            return`<div class="form-group"><label>${label}</label><input id="new-${k}"></div>`;
+          }).join("")}
+          <div class="form-group"><label>Deal Value ($)</label><input id="new-value" type="number" value="${defVal}"></div>
+          <div class="form-group form-span2">
+            <label>Stage</label>
+            <select id="new-stage">${stages.map(s=>`<option value="${esc(s.id)}">${esc(s.label)}</option>`).join("")}</select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content:flex-end">
+        <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="state.showNew=false;render()">Cancel</button>
+        <button class="btn btn-primary" onclick="doCreateDeal()">Create Deal</button>
+      </div>
+    </div></div>`;
+}
+
+function renderAddClientModal(){
+  return`<div class="modal-overlay" onclick="state.showAddClient=false;render()">
+    <div class="modal" style="width:340px" onclick="event.stopPropagation()">
+      <div style="padding:20px">
+        <h3 style="margin:0 0 12px;font-size:16px;font-weight:800">Add Client</h3>
+        <input id="new-client-name" placeholder="Client name" style="width:100%;padding:8px 12px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;box-sizing:border-box;outline:none;margin-bottom:12px"
+          onkeydown="if(event.key==='Enter'){doAddClient()}">
+        <div style="display:flex;justify-content:flex-end;gap:8px">
+          <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="state.showAddClient=false;render()">Cancel</button>
+          <button class="btn btn-primary" onclick="doAddClient()">Add</button>
+        </div>
+      </div>
+    </div></div>`;
+}
+
+// ─── Event Handlers ───
+function openDeal(id){
+  state.selectedDeal=state.deals.find(d=>d.id===id);
+  state.showSop=false;
+  render();
+}
+
+function closeDealModal(){
+  state.selectedDeal=null;
+  state.showSop=false;
+  render();
+}
+
+function openNewDeal(){ state.showNew=true; render(); }
+function openAddClient(){ state.showAddClient=true; render(); }
+
+function updateDealField(key,val){
+  if(state.selectedDeal){
+    if(key==="value") val=Number(val)||0;
+    state.selectedDeal[key]=val;
+  }
+}
+
+function doSaveDeal(id){
+  const deal=state.selectedDeal;
+  if(!deal)return;
+  // Grab latest values from form inputs
+  ["company","contact","email","phone","website","location","notes"].forEach(k=>{
+    const el=document.getElementById("deal-"+k);
+    if(el) deal[k]=el.value;
+  });
+  const valEl=document.getElementById("deal-value");
+  if(valEl) deal.value=Number(valEl.value)||0;
+  const stageEl=document.getElementById("deal-stage");
+  if(stageEl) deal.stage=stageEl.value;
+  saveDeal(deal);
+}
+
+function doCreateDeal(){
+  const form={};
+  ["company","contact","email","phone","website"].forEach(k=>{
+    const el=document.getElementById("new-"+k);
+    form[k]=el?el.value:"";
+  });
+  const valEl=document.getElementById("new-value");
+  form.value=valEl?Number(valEl.value)||0:0;
+  const stageEl=document.getElementById("new-stage");
+  form.stage=stageEl?stageEl.value:getStages()[0]?.id||"";
+  form.notes="";
+  state.showNew=false;
+  createDeal(form);
+}
+
+function doAddClient(){
+  const el=document.getElementById("new-client-name");
+  const name=el?el.value.trim():"";
+  if(!name)return;
+  state.showAddClient=false;
+  addClient(name);
+}
+
+function doAddActivity(dealId){
+  const type=document.getElementById("new-act-type")?.value||"Call";
+  const subject=document.getElementById("new-act-subject")?.value||"";
+  const dueDate=document.getElementById("new-act-date")?.value||TODAY;
+  addActivity(dealId,{type,subject:subject||type,dueDate});
+  // Clear subject input
+  const subEl=document.getElementById("new-act-subject");
+  if(subEl) subEl.value="";
+}
+
+function doAssignSequence(dealId,day){
+  const acts=SOP_DAYS[day];
+  if(acts) assignSequence(dealId,day,acts);
+  state.showSop=false;
+}
+
+function handleDrop(stageId){
+  if(state.dragId){moveDeal(state.dragId,stageId);}
+  state.dragId=null;state.overCol=null;
+}
+
+function toggleBadgeDropdown(dealId){
+  const el=document.getElementById("badge-"+dealId);
+  if(el) el.style.display=el.style.display==="none"?"block":"none";
+}
+
+// Close badge dropdowns on outside click
+document.addEventListener("click",function(e){
+  if(!e.target.closest(".activity-badge")){
+    document.querySelectorAll(".badge-dropdown").forEach(el=>el.style.display="none");
+  }
+});
+
+// ─── Init ───
+render();
+syncFromSheet();
+setInterval(syncFromSheet, SYNC_INTERVAL);
+</script>
+</body>
+</html>
