@@ -69,8 +69,10 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .deal-tag { font-size: 9.5px; padding: 1px 6px; border-radius: 8px; background: #f3f4f6; color: var(--text-secondary); }
 
 /* Flag dot */
-.status-dot { width: 10px; height: 10px; border-radius: 50%; cursor: pointer; flex-shrink: 0; transition: all .12s; }
-.status-dot:hover { transform: scale(1.3); }
+.status-indicator { display: flex; align-items: center; gap: 3px; cursor: pointer; position: relative; }
+.status-indicator:hover .status-dot { transform: scale(1.2); }
+.status-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; transition: all .12s; }
+.status-count { font-size: 11px; font-weight: 700; line-height: 1; }
 
 /* Activity Badge */
 .search-input { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); border-radius: 8px; color: #fff; padding: 6px 28px 6px 10px; font-size: 13px; font-family: inherit; width: 200px; outline: none; transition: all .2s; }
@@ -487,9 +489,9 @@ function render(){
           onclick="openDeal('${deal.id}')">
           <div class="deal-card-top">
             <div class="deal-company">${esc(deal.company||deal.contact||deal.email||"New Deal")}</div>
-            <div style="display:flex;align-items:center;gap:4px;position:relative">
-              <div class="status-dot" onclick="event.stopPropagation();toggleBadgeDropdown('${deal.id}')"
-                style="background:${badge?badge.color:'#d1d5db'};border:none"></div>
+            <div class="status-indicator" onclick="event.stopPropagation();toggleBadgeDropdown('${deal.id}')">
+              <div class="status-dot" style="background:${badge?badge.color:'#d1d5db'}"></div>
+              ${badge?`<span class="status-count" style="color:${badge.color}">${badge.count}</span>`:''}
               ${badge?`<div class="badge-dropdown" id="badge-${deal.id}" style="display:none">
                   <div class="badge-dropdown-title">${badge.label} (${badge.count})</div>
                   ${state.activities.filter(a=>a.dealId===deal.id&&!a.done&&String(a.done)!=="TRUE").map(a=>`
