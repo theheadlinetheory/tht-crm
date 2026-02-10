@@ -392,6 +392,11 @@ async function addActivity(dealId,act){
   await apiPost("create_activity",a);
 }
 
+async function updateActivityDate(actId, newDate){
+  const a=state.activities.find(x=>x.id===actId);
+  if(a){ a.dueDate=newDate; render(); await apiPost("update_activity",{id:actId,dueDate:newDate}); }
+}
+
 async function toggleActivity(actId){
   const a=state.activities.find(x=>x.id===actId);
   if(a){a.done=!a.done;render();await apiPost("update_activity",{id:actId,done:a.done});}
@@ -668,7 +673,7 @@ function renderDealModal(deal){
       <span style="font-size:13px">${ACTIVITY_ICONS[a.type]||"✓"}</span>
       <span class="act-subject">${esc(a.subject||a.type)}</span>
       ${a.dayLabel?`<span class="act-day-label">${esc(a.dayLabel)}</span>`:''}
-      ${a.dueDate?`<span style="font-size:10px;color:${overdue?'#ef4444':dueToday?'#059669':'#9ca3af'}">${(a.dueDate||'').slice(0,10)}</span>`:''}
+      ${a.dueDate?`<input type="date" value="${dd}" style="font-size:10px;color:${overdue?'#ef4444':dueToday?'#059669':'#9ca3af'};background:none;border:none;cursor:pointer;padding:0;width:90px" onchange="updateActivityDate('${a.id}',this.value)">`:''}
       <button class="act-delete" onclick="deleteActivity('${a.id}')">×</button>
     </div>`;
   }
