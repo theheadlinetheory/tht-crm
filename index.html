@@ -537,7 +537,7 @@ function render(){
           <div class="col-title">${esc(stage.label)}</div>
           <div class="col-meta">${fmt$(sv)} · ${sd.length} deal${sd.length!==1?'s':''}</div>
         </div>
-        ${state.pipeline==='client_leads'?`<button style="background:none;border:none;color:#d1d5db;font-size:14px;cursor:pointer" onclick="if(confirm('Remove ${esc(stage.label)}?'))removeClient('${esc(stage.label)}')">×</button>`:''}
+        ${state.pipeline==='client_leads'?`<button style="background:none;border:none;color:#d1d5db;font-size:14px;cursor:pointer" onclick="if(confirm('Remove this client?'))removeClient(atob('${btoa(unescape(encodeURIComponent(stage.label)))}'))">×</button>`:''}
       </div>
       <div class="col-body" ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';doDragOver(this.closest('.column'))" ondrop="doDrop('${stageKey}')">`;
 
@@ -551,7 +551,7 @@ function render(){
           ondragend="clearAllDragOver()"
           ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';doDragOver(this.closest('.column'))"
           ondrop="doDrop('${stageKey}')"
-          onclick="openDeal('${deal.id}')">
+          data-deal-id="${deal.id}">
           <div class="deal-card-top">
             <div class="deal-company">${esc(deal.company||deal.contact||deal.email||"New Deal")}</div>
             <div class="status-indicator" onclick="event.stopPropagation();toggleBadgeDropdown('${deal.id}')">
@@ -589,6 +589,13 @@ function render(){
   if(state.showAddClient) html+=renderAddClientModal();
 
   app.innerHTML=html;
+  // Event delegation for deal card clicks (more robust than inline onclick)
+  app.querySelectorAll('.deal-card[data-deal-id]').forEach(card=>{
+    card.addEventListener('click',function(e){
+      if(e.target.closest('.status-indicator')||e.target.closest('.act-delete')||e.target.closest('button'))return;
+      openDeal(this.dataset.dealId);
+    });
+  });
   // Restore search input focus and cursor
   if(state.searchQuery){
     const si=document.getElementById('search-input');
