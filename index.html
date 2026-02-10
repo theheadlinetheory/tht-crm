@@ -568,8 +568,16 @@ function render(){
   }
 }
 
+function getStagesForPipeline(pip){
+  if(pip==='Acquisition') return ACQUISITION_STAGES;
+  if(pip==='Nurture') return NURTURE_STAGES;
+  // Client
+  const clientCols=state.clients.map((c,i)=>({id:c.name,label:c.name,color:c.color||CLIENT_PALETTE[i%CLIENT_PALETTE.length]}));
+  return [{id:"Client Not Distributed",label:"Not Distributed",color:"#6b7280"},...clientCols];
+}
+
 function renderDealModal(deal){
-  const stages=getStages();
+  const stages=getStagesForPipeline(deal.pipeline||'Client');
   const dealActs=state.activities.filter(a=>a.dealId===deal.id);
   const pending=dealActs.filter(a=>!a.done&&String(a.done)!=="TRUE");
   const completed=dealActs.filter(a=>a.done||String(a.done)==="TRUE");
@@ -588,6 +596,14 @@ function renderDealModal(deal){
             }
             return'<div class="form-group"><label>'+label+'</label><input id="deal-'+k+'" value="'+esc(String(deal[k]||''))+'" onchange="updateDealField(\''+k+'\',this.value)">'+extra+'</div>';
           }).join("")}
+          <div class="form-group">
+            <label>Pipeline</label>
+            <select id="deal-pipeline" onchange="changeDealPipeline(this.value)">
+              <option value="Acquisition" ${deal.pipeline==='Acquisition'?'selected':''}>Acquisition</option>
+              <option value="Client" ${deal.pipeline==='Client'?'selected':''}>Client Leads</option>
+              <option value="Nurture" ${deal.pipeline==='Nurture'?'selected':''}>Long Term Nurture</option>
+            </select>
+          </div>
           <div class="form-group">
             <label>Stage</label>
             <select id="deal-stage" onchange="updateDealField('stage',this.value)">
@@ -739,6 +755,23 @@ function closeDealModal(){
 function openNewDeal(){ state.showNew=true; render(); }
 function openAddClient(){ state.showAddClient=true; render(); }
 
+function changeDealPipeline(newPipeline){
+  if(!state.selectedDeal) return;
+  state.selectedDeal.pipeline = newPipeline;
+  // Determine appropriate stages for new pipeline
+  var newStages;
+  if(newPipeline==='Acquisition') newStages = ACQUISITION_STAGES;
+  else if(newPipeline==='Nurture') newStages = NURTURE_STAGES;
+  else newStages = state.clients.map(c=>({id:c.name,label:c.name,color:c.color||'#6366f1'}));
+  // Set stage to first stage of new pipeline
+  state.selectedDeal.stage = newStages.length ? newStages[0].id : 'Cold Email Response';
+  // Re-render the stage dropdown
+  var sel = document.getElementById('deal-stage');
+  if(sel){
+    sel.innerHTML = newStages.map(s=>'<option value="'+esc(s.id)+'" '+(state.selectedDeal.stage===s.id?'selected':'')+'>'+esc(s.label)+'</option>').join('');
+  }
+}
+
 function updateDealField(key,val){
   if(state.selectedDeal){
     if(key==="value") val=Number(val)||0;
@@ -758,6 +791,8 @@ function doSaveDeal(id){
   if(valEl) deal.value=Number(valEl.value)||0;
   const stageEl=document.getElementById("deal-stage");
   if(stageEl) deal.stage=stageEl.value;
+  const pipEl=document.getElementById("deal-pipeline");
+  if(pipEl) deal.pipeline=pipEl.value;
   saveDeal(deal);
 }
 
