@@ -405,20 +405,20 @@ function render(){
   for(const stage of stages){
     const sd=deals.filter(d=>d.stage===stage.id);
     const sv=sd.reduce((s,d)=>s+(Number(d.value)||0),0);
-    const isOver=state.overCol===stage.id;
+    const stageKey=btoa(unescape(encodeURIComponent(stage.id)));
 
-    html+=`<div class="column"
-      ondragover="event.preventDefault();state.overCol='${esc(stage.id)}';render()"
-      ondragleave="state.overCol=null;render()"
-      ondrop="handleDrop('${esc(stage.id)}')">
-      <div class="col-header ${isOver?'drag-over':''}" style="border-top-color:${stage.color}">
+    html+=`<div class="column" data-stage-key="${stageKey}"
+      ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';doDragOver(this)"
+      ondragleave="doDragLeave(event,this)"
+      ondrop="doDrop('${stageKey}')">
+      <div class="col-header" style="border-top-color:${stage.color}">
         <div>
           <div class="col-title">${esc(stage.label)}</div>
           <div class="col-meta">${fmt$(sv)} · ${sd.length} deal${sd.length!==1?'s':''}</div>
         </div>
         ${state.pipeline==='client_leads'?`<button style="background:none;border:none;color:#d1d5db;font-size:14px;cursor:pointer" onclick="if(confirm('Remove ${esc(stage.label)}?'))removeClient('${esc(stage.label)}')">×</button>`:''}
       </div>
-      <div class="col-body ${isOver?'drag-over':''}">`;
+      <div class="col-body">`;
 
     if(sd.length===0){
       html+=`<div class="col-empty">Drop deals here</div>`;
@@ -426,7 +426,8 @@ function render(){
       for(const deal of sd){
         const badge=getActivityBadge(deal.id);
         html+=`<div class="deal-card" draggable="true"
-          ondragstart="state.dragId='${deal.id}'"
+          ondragstart="event.dataTransfer.effectAllowed='move';state.dragId='${deal.id}'"
+          ondragend="clearAllDragOver()"
           onclick="openDeal('${deal.id}')">
           <div class="deal-card-top">
             <div class="deal-company">${esc(deal.company||deal.contact||deal.email||"New Deal")}</div>
@@ -683,9 +684,23 @@ function doAssignSequence(dealId,day){
   state.showSop=false;
 }
 
-function handleDrop(stageId){
+function doDragOver(colEl){
+  colEl.querySelector('.col-header').classList.add('drag-over');
+  colEl.querySelector('.col-body').classList.add('drag-over');
+}
+function doDragLeave(evt,colEl){
+  if(colEl.contains(evt.relatedTarget))return;
+  colEl.querySelector('.col-header').classList.remove('drag-over');
+  colEl.querySelector('.col-body').classList.remove('drag-over');
+}
+function clearAllDragOver(){
+  document.querySelectorAll('.drag-over').forEach(el=>el.classList.remove('drag-over'));
+}
+function doDrop(stageKey){
+  clearAllDragOver();
+  const stageId=decodeURIComponent(escape(atob(stageKey)));
   if(state.dragId){moveDeal(state.dragId,stageId);}
-  state.dragId=null;state.overCol=null;
+  state.dragId=null;
 }
 
 function toggleBadgeDropdown(dealId){
