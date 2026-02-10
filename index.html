@@ -90,6 +90,8 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .search-result-stage { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #f3f4f6; color: #6b7280; white-space: nowrap; }
 .search-result-meta { display: flex; gap: 10px; margin-top: 3px; font-size: 11px; color: #9ca3af; flex-wrap: wrap; }
 .search-empty { padding: 20px; text-align: center; color: #9ca3af; font-size: 13px; }
+.imessage-btn { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; font-size: 11px; font-weight: 600; color: #2563eb; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; text-decoration: none; cursor: pointer; transition: all .15s; white-space: nowrap; }
+.imessage-btn:hover { background: #dbeafe; border-color: #93c5fd; }
 
 .activity-badge-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
 .badge-dropdown { position: absolute; top: calc(100% + 4px); right: 0; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 8px; min-width: 210px; z-index: 999; max-height: 220px; overflow-y: auto; }
@@ -299,13 +301,19 @@ async function syncFromSheet(){
 function globalSearch(q){
   state.searchQuery=q;
   if(!q||q.length<1){state.searchResults=null;render();return;}
-  const lq=q.toLowerCase();
-  const digits=lq.replace(/[^0-9]/g,'');
+  const lq=q.toLowerCase().trim();
+  const digits=q.replace(/[^0-9]/g,'');
+  const isDigitQuery=digits.length>=2 && digits.length===q.replace(/[\s\-\(\)\+]/g,'').length;
   state.searchResults=state.deals.filter(d=>{
+    if(isDigitQuery){
+      const ph=(d.phone||'').replace(/[^0-9]/g,'');
+      if(ph.includes(digits))return true;
+      if(ph.length>1 && ph.startsWith('1') && ph.slice(1).includes(digits))return true;
+      return false;
+    }
     if((d.company||'').toLowerCase().includes(lq))return true;
     if((d.contact||'').toLowerCase().includes(lq))return true;
     if((d.email||'').toLowerCase().includes(lq))return true;
-    if(digits.length>=3 && (d.phone||'').replace(/[^0-9]/g,'').includes(digits))return true;
     if((d.website||'').toLowerCase().includes(lq))return true;
     if((d.notes||'').toLowerCase().includes(lq))return true;
     return false;
@@ -446,7 +454,6 @@ function render(){
                 ${d.contact&&d.contact!==d.company?`<span>${esc(d.contact)}</span>`:''}
                 ${d.email?`<span>${esc(d.email)}</span>`:''}
                 ${d.phone?`<span>${esc(d.phone)}</span>`:''}
-                ${d.value?`<span style="color:#059669;font-weight:600">${fmt$(d.value)}</span>`:''}
               </div>
             </div>`).join('')}
         </div>`:''}
@@ -508,7 +515,10 @@ function render(){
           </div>
           ${deal.contact&&deal.contact!==deal.company?`<div class="deal-contact">${esc(deal.contact)}</div>`:''}
           ${deal.email?`<div class="deal-detail">${esc(deal.email)}</div>`:''}
-          ${deal.phone?`<div class="deal-detail">${esc(deal.phone)}</div>`:''}
+          ${deal.phone?`<div class="deal-detail" style="display:flex;align-items:center;gap:8px">
+            <span>${esc(deal.phone)}</span>
+            <a href="sms:${deal.phone.replace(/[^0-9+]/g,'')}" class="imessage-btn" title="Open in iMessage">💬 Text</a>
+          </div>`:''}
           <div class="deal-bottom">
             <span class="deal-value" style="color:${deal.value?'#059669':'#d1d5db'}">${fmt$(deal.value)}</span>
             ${deal.leadCategory?`<span class="deal-tag">${esc(deal.leadCategory)}</span>`:''}
@@ -547,7 +557,12 @@ function renderDealModal(deal){
         <div class="form-grid">
           ${["company:Company","contact:Contact Name","email:Email","phone:Phone","website:Website","location:Location","value:Deal Value ($)"].map(f=>{
             const[k,label]=f.split(":");
-            return`<div class="form-group"><label>${label}</label><input id="deal-${k}" value="${esc(String(deal[k]||''))}" onchange="updateDealField('${k}',this.value)"></div>`;
+            let extra='';
+            if(k==='phone'&&deal.phone){
+              const cleanNum=deal.phone.replace(/[^0-9+]/g,'');
+              extra='<a href="sms:'+cleanNum+'" class="imessage-btn" style="margin-top:4px;display:inline-block" title="Open in iMessage">💬 Text in iMessage</a>';
+            }
+            return'<div class="form-group"><label>'+label+'</label><input id="deal-'+k+'" value="'+esc(String(deal[k]||''))+'" onchange="updateDealField(\''+k+'\',this.value)">'+extra+'</div>';
           }).join("")}
           <div class="form-group">
             <label>Stage</label>
