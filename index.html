@@ -69,10 +69,19 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .deal-tag { font-size: 9.5px; padding: 1px 6px; border-radius: 8px; background: #f3f4f6; color: var(--text-secondary); }
 
 /* Flag dot */
-.flag-dot { width: 10px; height: 10px; border-radius: 50%; cursor: pointer; flex-shrink: 0; border: 1.5px solid #d1d5db; transition: all .12s; }
+.status-dot { width: 10px; height: 10px; border-radius: 50%; cursor: pointer; flex-shrink: 0; transition: all .12s; }
+.status-dot:hover { transform: scale(1.3); }
 
 /* Activity Badge */
-.activity-badge { display: flex; align-items: center; gap: 4px; cursor: pointer; padding: 2px 6px; border-radius: 10px; font-size: 11px; font-weight: 600; user-select: none; position: relative; }
+.search-input { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); border-radius: 8px; color: #fff; padding: 6px 28px 6px 10px; font-size: 13px; font-family: inherit; width: 200px; outline: none; transition: all .2s; }
+.search-input::placeholder { color: rgba(255,255,255,.45); }
+.search-input:focus { background: rgba(255,255,255,.15); border-color: rgba(255,255,255,.4); width: 260px; }
+.search-clear { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: rgba(255,255,255,.5); cursor: pointer; font-size: 16px; line-height: 1; }
+.search-clear:hover { color: #fff; }
+.search-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.3); z-index: 50; display: flex; justify-content: center; padding-top: 20px; }
+.search-results-panel { background: #fff; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,.2); padding: 16px; width: 500px; max-height: 70vh; overflow-y: auto; align-self: start; }
+.search-result-card { padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: all .12s; }
+.search-result-card:hover { background: #f9fafb; border-color: var(--purple); }
 .activity-badge-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
 .badge-dropdown { position: absolute; top: calc(100% + 4px); right: 0; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 8px; min-width: 210px; z-index: 999; max-height: 220px; overflow-y: auto; }
 .badge-dropdown-title { font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; padding: 0 4px; }
@@ -235,6 +244,8 @@ let state = {
   synced: false,
   syncing: false,
   loadFailed: false,
+  searchQuery: "",
+  searchResults: null,
 };
 
 // ─── API ───
@@ -273,6 +284,23 @@ async function syncFromSheet(){
   }
   state.syncing=false; render();
 }
+
+// ─── Global Search ───
+function globalSearch(q){
+  state.searchQuery=q;
+  if(!q||q.length<2){state.searchResults=null;render();return;}
+  const lq=q.toLowerCase();
+  state.searchResults=state.deals.filter(d=>
+    (d.company||'').toLowerCase().includes(lq)||
+    (d.contact||'').toLowerCase().includes(lq)||
+    (d.email||'').toLowerCase().includes(lq)||
+    (d.phone||'').replace(/[^0-9]/g,'').includes(lq.replace(/[^0-9]/g,''))||
+    (d.website||'').toLowerCase().includes(lq)||
+    (d.notes||'').toLowerCase().includes(lq)
+  );
+  render();
+}
+function clearSearch(){state.searchQuery="";state.searchResults=null;render();}
 
 // ─── Activity Badge Logic ───
 function getActivityBadge(dealId){
@@ -326,14 +354,7 @@ async function deleteDeal(id){
   await apiPost("delete_deal",{id});
 }
 
-async function cycleFlag(id){
-  const d=state.deals.find(x=>x.id===id);
-  if(!d)return;
-  const idx=FLAG_CYCLE.indexOf(d.flag||"none");
-  d.flag=FLAG_CYCLE[(idx+1)%FLAG_CYCLE.length];
-  render();
-  await apiPost("update_deal",{id,flag:d.flag});
-}
+// cycleFlag removed - replaced with activity status dots
 
 async function moveDeal(dealId,newStage){
   const d=state.deals.find(x=>x.id===dealId);
@@ -394,6 +415,11 @@ function render(){
       </div>
     </div>
     <div class="topbar-right">
+      <div style="position:relative">
+        <input type="text" class="search-input" placeholder="Search all deals..." value="${esc(state.searchQuery)}"
+          oninput="globalSearch(this.value)" onfocus="if(this.value.length>=2)globalSearch(this.value)">
+        ${state.searchQuery?'<span class="search-clear" onclick="clearSearch()">×</span>':''}
+      </div>
       <span class="topbar-stat">${state.loadFailed?'⚠️ Offline (test data)':state.synced?'✓ Connected':'Connecting...'}${state.synced?' · ':' '}${totalDeals} deals · ${fmt$(totalValue)}${state.syncing?' ↻':''}</span>
       <button class="btn btn-ghost" onclick="syncFromSheet()">↻ Sync</button>
       ${state.pipeline==='client_leads'?'<button class="btn btn-ghost" onclick="openAddClient()">+ Client</button>':''}
@@ -401,6 +427,36 @@ function render(){
     </div>
   </div>
   <div class="board">`;
+
+  // Search results overlay
+  if(state.searchResults!==null){
+    html+=`<div class="search-overlay" onclick="if(event.target===this)clearSearch()">
+      <div class="search-results-panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <span style="font-weight:700;font-size:14px;color:#374151">Search Results (${state.searchResults.length})</span>
+          <button class="btn btn-ghost" onclick="clearSearch()" style="font-size:12px;padding:4px 8px">✕ Close</button>
+        </div>
+        ${state.searchResults.length===0?'<div style="color:#9ca3af;text-align:center;padding:24px">No deals found</div>':''}
+        ${state.searchResults.map(d=>`
+          <div class="search-result-card" onclick="clearSearch();openDeal('${d.id}')">
+            <div style="display:flex;justify-content:space-between;align-items:start">
+              <div>
+                <div style="font-weight:600;color:#1f2937">${esc(d.company||d.contact||'Unknown')}</div>
+                ${d.contact&&d.contact!==d.company?`<div style="font-size:12px;color:#6b7280">${esc(d.contact)}</div>`:''}
+              </div>
+              <span class="deal-tag">${esc(d.stage||'')}</span>
+            </div>
+            <div style="display:flex;gap:12px;margin-top:4px;font-size:12px;color:#6b7280;flex-wrap:wrap">
+              ${d.email?`<span>${esc(d.email)}</span>`:''}
+              ${d.phone?`<span>${esc(d.phone)}</span>`:''}
+              ${d.value?`<span style="color:#059669;font-weight:600">${fmt$(d.value)}</span>`:''}
+              ${d.pipeline?`<span style="opacity:.6">${esc(d.pipeline)}</span>`:''}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
+  }
 
   for(const stage of stages){
     const sd=deals.filter(d=>d.stage===stage.id);
@@ -431,21 +487,18 @@ function render(){
           onclick="openDeal('${deal.id}')">
           <div class="deal-card-top">
             <div class="deal-company">${esc(deal.company||deal.contact||deal.email||"New Deal")}</div>
-            <div style="display:flex;align-items:center;gap:4px">
-              ${badge?`<div class="activity-badge" style="background:${badge.color}18;color:${badge.color}" onclick="event.stopPropagation();toggleBadgeDropdown('${deal.id}')">
-                <span class="activity-badge-dot" style="background:${badge.color}"></span>${badge.count}
-                <div class="badge-dropdown" id="badge-${deal.id}" style="display:none">
+            <div style="display:flex;align-items:center;gap:4px;position:relative">
+              <div class="status-dot" onclick="event.stopPropagation();toggleBadgeDropdown('${deal.id}')"
+                style="background:${badge?badge.color:'#d1d5db'};border:none"></div>
+              ${badge?`<div class="badge-dropdown" id="badge-${deal.id}" style="display:none">
                   <div class="badge-dropdown-title">${badge.label} (${badge.count})</div>
                   ${state.activities.filter(a=>a.dealId===deal.id&&!a.done&&String(a.done)!=="TRUE").map(a=>`
                     <div class="badge-item">
-                      <span>${ACTIVITY_ICONS[a.type]||"✓"}</span>
+                      <span>${ACTIVITY_ICONS[a.type]||"\u2713"}</span>
                       <span style="flex:1;color:#374151">${esc(a.subject||a.type)}</span>
-                      ${a.dayLabel?`<span style="font-size:10px;color:#9ca3af">${esc(a.dayLabel)}</span>`:''}
+                      <span style="font-size:10px;color:#9ca3af">${esc(a.dueDate||'')}</span>
                     </div>`).join("")}
-                </div>
-              </div>`:''}
-              <div class="flag-dot" onclick="event.stopPropagation();cycleFlag('${deal.id}')"
-                style="background:${FLAG_COLORS[deal.flag]||'transparent'};${deal.flag&&deal.flag!=='none'?'border:none':''}"></div>
+                </div>`:''}
             </div>
           </div>
           ${deal.contact&&deal.contact!==deal.company?`<div class="deal-contact">${esc(deal.contact)}</div>`:''}
@@ -469,6 +522,11 @@ function render(){
   if(state.showAddClient) html+=renderAddClientModal();
 
   app.innerHTML=html;
+  // Restore search input focus and cursor
+  if(state.searchQuery){
+    const si=document.querySelector('.search-input');
+    if(si){si.focus();si.setSelectionRange(si.value.length,si.value.length);}
+  }
 }
 
 function renderDealModal(deal){
