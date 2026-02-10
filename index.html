@@ -57,7 +57,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .col-empty { padding: 28px 0; text-align: center; font-size: 11px; color: #d1d5db; font-style: italic; }
 
 /* Deal Card */
-.deal-card { background: var(--card); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 6px; border: 1px solid var(--border); cursor: grab; transition: box-shadow .15s, transform .1s; }
+.deal-card { background: var(--card); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 6px; border: 1px solid var(--border); cursor: pointer; transition: box-shadow .15s, transform .1s; position: relative; z-index: 1; }
 .deal-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.1); transform: translateY(-1px); }
 .deal-card.dragging { opacity: .5; }
 .deal-card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
@@ -284,7 +284,15 @@ async function syncFromSheet(){
   state.syncing=true; render();
   const data=await apiGet("get_all");
   if(data && !data.error){
-    if(data.deals && Array.isArray(data.deals)) state.deals=data.deals.filter(d=>!deletedDealIds.has(d.id));
+    if(data.deals && Array.isArray(data.deals)) {
+      state.deals=data.deals.filter(d=>!deletedDealIds.has(d.id));
+      // Normalize: ensure string fields are strings (Sheets may return numbers)
+      state.deals.forEach(d=>{
+        ['phone','company','contact','email','website','location','notes','flag','leadCategory','campaignName','smartleadUrl'].forEach(k=>{
+          if(d[k]!=null && typeof d[k]!=='string') d[k]=String(d[k]);
+        });
+      });
+    }
     if(data.activities && Array.isArray(data.activities)) state.activities=data.activities.filter(a=>!deletedActivityIds.has(a.id));
     if(data.clients && Array.isArray(data.clients) && data.clients.length>0) state.clients=data.clients;
     state.synced=true;
@@ -478,6 +486,7 @@ async function pushToLeadTracker(dealId){
 
 // ─── RENDER ───
 function render(){
+  try{
   const app=document.getElementById("app");
   const stages=getStages();
   const deals=getPipelineDeals();
@@ -551,7 +560,8 @@ function render(){
           ondragend="clearAllDragOver()"
           ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';doDragOver(this.closest('.column'))"
           ondrop="doDrop('${stageKey}')"
-          data-deal-id="${deal.id}">
+          data-deal-id="${deal.id}"
+          onclick="openDeal('${deal.id}')">
           <div class="deal-card-top">
             <div class="deal-company">${esc(deal.company||deal.contact||deal.email||"New Deal")}</div>
             <div class="status-indicator" onclick="event.stopPropagation();toggleBadgeDropdown('${deal.id}')">
@@ -589,11 +599,22 @@ function render(){
   if(state.showAddClient) html+=renderAddClientModal();
 
   app.innerHTML=html;
-  // Event delegation for deal card clicks (more robust than inline onclick)
+  // Robust click handling for deal cards - use mousedown/mouseup to distinguish from drags
   app.querySelectorAll('.deal-card[data-deal-id]').forEach(card=>{
-    card.addEventListener('click',function(e){
-      if(e.target.closest('.status-indicator')||e.target.closest('.act-delete')||e.target.closest('button'))return;
-      openDeal(this.dataset.dealId);
+    let downTime=0, downX=0, downY=0;
+    card.addEventListener('mousedown',function(e){
+      downTime=Date.now(); downX=e.clientX; downY=e.clientY;
+    });
+    card.addEventListener('mouseup',function(e){
+      const dt=Date.now()-downTime;
+      const dx=Math.abs(e.clientX-downX);
+      const dy=Math.abs(e.clientY-downY);
+      console.log('Card mouseup:', this.dataset.dealId, 'dt:', dt, 'dx:', dx, 'dy:', dy);
+      // Only open if it was a quick tap (< 300ms) with minimal movement (< 5px)
+      if(dt<300 && dx<5 && dy<5){
+        if(e.target.closest('.status-indicator')||e.target.closest('button'))return;
+        openDeal(this.dataset.dealId);
+      }
     });
   });
   // Restore search input focus and cursor
@@ -601,6 +622,7 @@ function render(){
     const si=document.getElementById('search-input');
     if(si){si.focus();si.setSelectionRange(si.value.length,si.value.length);}
   }
+  }catch(err){console.error('Render error:',err,err.stack);}
 }
 
 function getStagesForPipeline(pip){
@@ -626,7 +648,7 @@ function renderDealModal(deal){
             const[k,label]=f.split(":");
             let extra='';
             if(k==='phone'&&deal.phone){
-              const cleanNum=deal.phone.replace(/[^0-9+]/g,'');
+              const cleanNum=String(deal.phone||'').replace(/[^0-9+]/g,'');
               extra='<div style="margin-top:4px;display:flex;gap:6px"><a href="sms:'+cleanNum+'" class="imessage-btn" title="Open in iMessage">💬 Text</a><a href="tel:'+cleanNum+'" class="imessage-btn" title="Call from computer">📞 Call</a></div>';
             }
             return'<div class="form-group"><label>'+label+'</label><input id="deal-'+k+'" value="'+esc(String(deal[k]||''))+'" onchange="updateDealField(\''+k+'\',this.value)">'+extra+'</div>';
@@ -776,6 +798,7 @@ function renderAddClientModal(){
 
 // ─── Event Handlers ───
 function openDeal(id){
+  console.log('openDeal called with id:', id, 'found:', !!state.deals.find(d=>d.id===id));
   state.selectedDeal=state.deals.find(d=>d.id===id);
   state.showSop=false;
   render();
