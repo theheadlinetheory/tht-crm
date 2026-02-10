@@ -421,6 +421,29 @@ function removeClient(name){
   state.clients=state.clients.filter(c=>c.name!==name);render();
 }
 
+const LEAD_TRACKER_SHEET_ID='1zEfZQOuzbrE9s01gfTOoVvEJ-DgtOxkPIWNiZHaxaZ4';
+async function pushToLeadTracker(dealId){
+  const deal=state.deals.find(d=>d.id===dealId);
+  if(!deal) return;
+  const now=new Date();
+  const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const monthGenerated=monthNames[now.getMonth()]+'/'+String(now.getFullYear()).slice(2);
+  const dateGenerated=(now.getMonth()+1)+'/'+now.getDate()+'/'+String(now.getFullYear()).slice(2);
+  const clientName=deal.stage;
+  const leadName=deal.company||deal.contact||'Unknown';
+  const leadEmail=deal.email||'';
+  const leadCost='$200';
+  const row=[clientName,monthGenerated,leadName,leadEmail,dateGenerated,leadCost,'','','',''];
+  try{
+    await apiPost('push_lead_tracker',{sheetId:LEAD_TRACKER_SHEET_ID,sheetName:'Lead Tracker',row});
+    deal.pushedToTracker=true;
+    render();
+    alert('✅ Pushed "'+leadName+'" to Lead Tracker under '+clientName);
+  }catch(e){
+    alert('❌ Failed to push to Lead Tracker: '+e.message);
+  }
+}
+
 // ─── RENDER ───
 function render(){
   const app=document.getElementById("app");
@@ -515,10 +538,7 @@ function render(){
           </div>
           ${deal.contact&&deal.contact!==deal.company?`<div class="deal-contact">${esc(deal.contact)}</div>`:''}
           ${deal.email?`<div class="deal-detail">${esc(deal.email)}</div>`:''}
-          ${deal.phone?`<div class="deal-detail" style="display:flex;align-items:center;gap:8px">
-            <span>${esc(deal.phone)}</span>
-            <a href="sms:${deal.phone.replace(/[^0-9+]/g,'')}" class="imessage-btn" title="Open in iMessage">💬 Text</a>
-          </div>`:''}
+          ${deal.phone?`<div class="deal-detail">${esc(deal.phone)}</div>`:''}
           <div class="deal-bottom">
             <span class="deal-value" style="color:${deal.value?'#059669':'#d1d5db'}">${fmt$(deal.value)}</span>
             ${deal.leadCategory?`<span class="deal-tag">${esc(deal.leadCategory)}</span>`:''}
@@ -560,7 +580,7 @@ function renderDealModal(deal){
             let extra='';
             if(k==='phone'&&deal.phone){
               const cleanNum=deal.phone.replace(/[^0-9+]/g,'');
-              extra='<a href="sms:'+cleanNum+'" class="imessage-btn" style="margin-top:4px;display:inline-block" title="Open in iMessage">💬 Text in iMessage</a>';
+              extra='<div style="margin-top:4px;display:flex;gap:6px"><a href="sms:'+cleanNum+'" class="imessage-btn" title="Open in iMessage">💬 Text</a><a href="tel:'+cleanNum+'" class="imessage-btn" title="Call from computer">📞 Call</a></div>';
             }
             return'<div class="form-group"><label>'+label+'</label><input id="deal-'+k+'" value="'+esc(String(deal[k]||''))+'" onchange="updateDealField(\''+k+'\',this.value)">'+extra+'</div>';
           }).join("")}
@@ -582,6 +602,18 @@ function renderDealModal(deal){
       <div>Campaign: ${esc(deal.campaignName)}</div>
       ${deal.leadCategory?`<div>Category: ${esc(deal.leadCategory)}</div>`:''}
       ${deal.smartleadUrl?`<a href="${esc(deal.smartleadUrl)}" target="_blank" rel="noopener">Open in Smartlead →</a>`:''}
+    </div>`;
+  }
+
+  // Push to Lead Tracker button - only for deals assigned to a client (client_leads pipeline)
+  const clientNames=state.clients.map(c=>c.name);
+  if(clientNames.includes(deal.stage)){
+    const pushed=deal.pushedToTracker;
+    h+=`<div style="margin:12px 0">
+      <button class="btn ${pushed?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px" 
+        onclick="${pushed?'':'pushToLeadTracker(\''+deal.id+'\')'}" ${pushed?'disabled':''}>
+        ${pushed?'✅ Pushed to Lead Tracker':'📤 Push to Lead Tracker'}
+      </button>
     </div>`;
   }
 
