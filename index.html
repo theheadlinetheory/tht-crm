@@ -162,6 +162,8 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 // CHANGE THIS to your deployed Apps Script URL:
 const API_URL = "https://script.google.com/macros/s/AKfycbyI_o-TL-aiKfQEMU5W5OsBadp0QMJkgZyY-RDr4dY19Wv944yxXVfgnlzxetL7-hh-/exec";
 const SYNC_INTERVAL = 30000;
+const deletedDealIds = new Set();
+const deletedActivityIds = new Set();
 
 // ─── Configs ───
 const ACQUISITION_STAGES = [
@@ -278,16 +280,16 @@ async function apiPost(action,data){
 }
 
 async function syncFromSheet(){
+  if(state.selectedDeal) return; // Don't sync while editing
   state.syncing=true; render();
   const data=await apiGet("get_all");
   if(data && !data.error){
-    if(data.deals && Array.isArray(data.deals)) state.deals=data.deals;
-    if(data.activities && Array.isArray(data.activities)) state.activities=data.activities;
+    if(data.deals && Array.isArray(data.deals)) state.deals=data.deals.filter(d=>!deletedDealIds.has(d.id));
+    if(data.activities && Array.isArray(data.activities)) state.activities=data.activities.filter(a=>!deletedActivityIds.has(a.id));
     if(data.clients && Array.isArray(data.clients) && data.clients.length>0) state.clients=data.clients;
     state.synced=true;
     state.loadFailed=false;
   } else {
-    // If API fails and we have no deals, show test data
     if(state.deals.length===0){
       state.deals=[...TEST_DEALS];
       state.activities=[...TEST_ACTIVITIES];
@@ -371,6 +373,7 @@ async function saveDeal(updated){
 }
 
 async function deleteDeal(id){
+  deletedDealIds.add(id);
   state.deals=state.deals.filter(d=>d.id!==id);
   state.activities=state.activities.filter(a=>a.dealId!==id);
   state.selectedDeal=null;render();
@@ -394,17 +397,37 @@ async function addActivity(dealId,act){
 
 async function updateActivityDate(actId, newDate){
   const a=state.activities.find(x=>x.id===actId);
-  if(a){ a.dueDate=newDate; render(); await apiPost("update_activity",{id:actId,dueDate:newDate}); }
+  if(a){
+    a.dueDate=newDate;
+    const overlay=document.querySelector('.modal-overlay');
+    if(overlay && state.selectedDeal){
+      overlay.outerHTML=renderDealModal(state.selectedDeal);
+    } else { render(); }
+    apiPost("update_activity",{id:actId,dueDate:newDate});
+  }
 }
 
 async function toggleActivity(actId){
   const a=state.activities.find(x=>x.id===actId);
-  if(a){a.done=!a.done;render();await apiPost("update_activity",{id:actId,done:a.done});}
+  if(a){
+    a.done=!a.done;
+    // Update modal in-place if open, otherwise full render
+    const overlay=document.querySelector('.modal-overlay');
+    if(overlay && state.selectedDeal){
+      overlay.outerHTML=renderDealModal(state.selectedDeal);
+    } else { render(); }
+    apiPost("update_activity",{id:actId,done:a.done});
+  }
 }
 
 async function deleteActivity(actId){
-  state.activities=state.activities.filter(a=>a.id!==actId);render();
-  await apiPost("delete_activity",{id:actId});
+  deletedActivityIds.add(actId);
+  state.activities=state.activities.filter(a=>a.id!==actId);
+  const overlay=document.querySelector('.modal-overlay');
+  if(overlay && state.selectedDeal){
+    overlay.outerHTML=renderDealModal(state.selectedDeal);
+  } else { render(); }
+  apiPost("delete_activity",{id:actId});
 }
 
 async function assignSequence(dealId,dayLabel,acts){
