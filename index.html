@@ -425,6 +425,11 @@ const LEAD_TRACKER_SHEET_ID='1zEfZQOuzbrE9s01gfTOoVvEJ-DgtOxkPIWNiZHaxaZ4';
 async function pushToLeadTracker(dealId){
   const deal=state.deals.find(d=>d.id===dealId);
   if(!deal) return;
+  const costInput=prompt('Enter lead cost for this client (e.g. 200, 250):','250');
+  if(costInput===null) return; // cancelled
+  const costNum=parseFloat(costInput.replace(/[^0-9.]/g,''));
+  if(isNaN(costNum)){alert('Invalid cost. Please enter a number.');return;}
+  const leadCost='$'+costNum;
   const now=new Date();
   const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const monthGenerated=monthNames[now.getMonth()]+'/'+String(now.getFullYear()).slice(2);
@@ -432,13 +437,12 @@ async function pushToLeadTracker(dealId){
   const clientName=deal.stage;
   const leadName=deal.company||deal.contact||'Unknown';
   const leadEmail=deal.email||'';
-  const leadCost='$200';
   const row=[clientName,monthGenerated,leadName,leadEmail,dateGenerated,leadCost,'','','',''];
   try{
     await apiPost('push_lead_tracker',{sheetId:LEAD_TRACKER_SHEET_ID,sheetName:'Lead Tracker',row});
     deal.pushedToTracker=true;
     render();
-    alert('✅ Pushed "'+leadName+'" to Lead Tracker under '+clientName);
+    alert('✅ Pushed "'+leadName+'" to Lead Tracker under '+clientName+' at '+leadCost);
   }catch(e){
     alert('❌ Failed to push to Lead Tracker: '+e.message);
   }
