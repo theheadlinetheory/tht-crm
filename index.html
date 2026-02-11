@@ -58,6 +58,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 
 /* Deal Card */
 .deal-card { background: var(--card); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 6px; border: 1px solid var(--border); cursor: pointer; transition: box-shadow .15s, transform .1s; position: relative; z-index: 1; }
+.deal-card.badge-open { z-index: 100; }
 .deal-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.1); transform: translateY(-1px); }
 .deal-card.dragging { opacity: .5; }
 .delete-zone { display:none; position:fixed; bottom:0; left:0; right:0; height:64px; background:linear-gradient(to bottom, #fecaca, #ef4444); color:#fff; font-weight:700; font-size:14px; z-index:999; justify-content:center; align-items:center; gap:8px; transition:all .15s; border-top:2px solid #dc2626; }
@@ -72,10 +73,10 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .deal-tag { font-size: 9.5px; padding: 1px 6px; border-radius: 8px; background: #f3f4f6; color: var(--text-secondary); }
 
 /* Flag dot */
-.status-indicator { display: flex; align-items: center; gap: 3px; cursor: pointer; position: relative; }
-.status-indicator:hover .status-dot { transform: scale(1.2); }
-.status-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; transition: all .12s; }
-.status-count { font-size: 11px; font-weight: 700; line-height: 1; }
+.status-indicator { display: flex; align-items: center; gap: 4px; cursor: pointer; position: relative; }
+.status-indicator:hover .status-dot { transform: scale(1.15); }
+.status-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; transition: all .12s; border: 2px solid rgba(255,255,255,.8); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+.status-count { font-size: 13px; font-weight: 800; line-height: 1; }
 
 /* Activity Badge */
 .search-input { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); border-radius: 8px; color: #fff; padding: 6px 28px 6px 10px; font-size: 13px; font-family: inherit; width: 200px; outline: none; transition: all .2s; }
@@ -1044,14 +1045,27 @@ function doDeleteDrop(){
 }
 
 function toggleBadgeDropdown(dealId){
+  // Close all other dropdowns first
+  document.querySelectorAll(".badge-dropdown").forEach(el=>{
+    if(el.id!=="badge-"+dealId) el.style.display="none";
+  });
+  document.querySelectorAll(".deal-card.badge-open").forEach(el=>el.classList.remove("badge-open"));
   const el=document.getElementById("badge-"+dealId);
-  if(el) el.style.display=el.style.display==="none"?"block":"none";
+  if(el){
+    const show=el.style.display==="none";
+    el.style.display=show?"block":"none";
+    if(show){
+      const card=el.closest(".deal-card");
+      if(card) card.classList.add("badge-open");
+    }
+  }
 }
 
 // Close badge dropdowns on outside click
 document.addEventListener("click",function(e){
   if(!e.target.closest(".activity-badge")&&!e.target.closest(".status-indicator")){
     document.querySelectorAll(".badge-dropdown").forEach(el=>el.style.display="none");
+    document.querySelectorAll(".deal-card.badge-open").forEach(el=>el.classList.remove("badge-open"));
   }
   if(!e.target.closest('.search-wrapper')&&state.searchResults!==null){clearSearch();}
 });
