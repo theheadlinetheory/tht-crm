@@ -288,19 +288,26 @@ async function syncFromSheet(){
   const data=await apiGet("get_all");
   if(data && !data.error){
     if(data.deals && Array.isArray(data.deals)) {
-      state.deals=data.deals.filter(d=>!deletedDealIds.has(d.id));
-      // Normalize: ensure string fields are strings (Sheets may return numbers)
+      state.deals=data.deals.filter(d=>!deletedDealIds.has(String(d.id)));
+      // Normalize ALL fields to strings (Sheets returns numbers for IDs, phones, etc.)
       state.deals.forEach(d=>{
-        ['phone','company','contact','email','website','location','notes','flag','leadCategory','campaignName','smartleadUrl'].forEach(k=>{
+        Object.keys(d).forEach(k=>{
           if(d[k]!=null && typeof d[k]!=='string') d[k]=String(d[k]);
         });
-        // Fix #ERROR! phone values from Sheets
         if(d.phone && (d.phone.includes('#ERROR') || d.phone.includes('ERROR'))) d.phone='';
+        // Clean "0" values that should be empty
+        if(d.value==='0') d.value='';
       });
     }
     if(data.activities && Array.isArray(data.activities)) {
-      // Only update activities if no writes are pending
-      state.activities=data.activities.filter(a=>!deletedActivityIds.has(a.id));
+      state.activities=data.activities.filter(a=>!deletedActivityIds.has(String(a.id)));
+      // Normalize all activity fields to strings too
+      state.activities.forEach(a=>{
+        Object.keys(a).forEach(k=>{
+          if(k==='done'){ a[k]=(a[k]===true||a[k]==='true'||a[k]==='TRUE'); return; }
+          if(a[k]!=null && typeof a[k]!=='string') a[k]=String(a[k]);
+        });
+      });
     }
     if(data.clients && Array.isArray(data.clients) && data.clients.length>0) state.clients=data.clients;
     state.synced=true;
@@ -435,30 +442,32 @@ function refreshModal(){
 }
 
 function updateActivityDate(actId, newDate){
-  const a=state.activities.find(x=>x.id===actId);
+  const sid=String(actId);
+  const a=state.activities.find(x=>String(x.id)===sid);
   if(!a) return;
   a.dueDate=newDate;
   refreshModal();
-  // Fire-and-forget API call
   pendingWrites++;
-  apiPost("update_activity",{id:actId,dueDate:newDate}).finally(()=>{ pendingWrites--; });
+  apiPost("update_activity",{id:sid,dueDate:newDate}).finally(()=>{ pendingWrites--; });
 }
 
 function toggleActivity(actId){
-  const a=state.activities.find(x=>x.id===actId);
+  const sid=String(actId);
+  const a=state.activities.find(x=>String(x.id)===sid);
   if(!a) return;
   a.done=!a.done;
   refreshModal();
   pendingWrites++;
-  apiPost("update_activity",{id:actId,done:a.done}).finally(()=>{ pendingWrites--; });
+  apiPost("update_activity",{id:sid,done:a.done}).finally(()=>{ pendingWrites--; });
 }
 
 function deleteActivity(actId){
-  deletedActivityIds.add(actId);
-  state.activities=state.activities.filter(a=>a.id!==actId);
+  const sid=String(actId);
+  deletedActivityIds.add(sid);
+  state.activities=state.activities.filter(a=>String(a.id)!==sid);
   refreshModal();
   pendingWrites++;
-  apiPost("delete_activity",{id:actId}).finally(()=>{ pendingWrites--; });
+  apiPost("delete_activity",{id:sid}).finally(()=>{ pendingWrites--; });
 }
 
 function assignSequence(dealId,dayLabel,acts,targetDate){
@@ -835,8 +844,8 @@ function renderAddClientModal(){
 
 // ─── Event Handlers ───
 function openDeal(id){
-  console.log('openDeal called with id:', id, 'found:', !!state.deals.find(d=>d.id===id));
-  state.selectedDeal=state.deals.find(d=>d.id===id);
+  const sid=String(id);
+  state.selectedDeal=state.deals.find(d=>String(d.id)===sid);
   state.showSop=false;
   render();
 }
