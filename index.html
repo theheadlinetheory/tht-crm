@@ -60,6 +60,9 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .deal-card { background: var(--card); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 6px; border: 1px solid var(--border); cursor: pointer; transition: box-shadow .15s, transform .1s; position: relative; z-index: 1; }
 .deal-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.1); transform: translateY(-1px); }
 .deal-card.dragging { opacity: .5; }
+.delete-zone { display:none; position:fixed; bottom:0; left:0; right:0; height:64px; background:linear-gradient(to bottom, #fecaca, #ef4444); color:#fff; font-weight:700; font-size:14px; z-index:999; justify-content:center; align-items:center; gap:8px; transition:all .15s; border-top:2px solid #dc2626; }
+.delete-zone.visible { display:flex; }
+.delete-zone.drag-hover { background:linear-gradient(to bottom, #f87171, #b91c1c); height:80px; font-size:16px; }
 .deal-card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
 .deal-company { font-weight: 700; font-size: 12.5px; color: var(--text); line-height: 1.3; flex: 1; margin-right: 6px; }
 .deal-contact { font-size: 11px; color: var(--text-secondary); margin-bottom: 2px; }
@@ -209,6 +212,13 @@ const SOP_DAYS = {
   "Day 30": [{type:"Email",subject:"Last attempt email"},{type:"Call",subject:"Last attempt call"}],
 };
 
+const CLIENT_SOP_DAYS = {
+  "Call + Email": [{type:"Call",subject:"Follow-up call"},{type:"Email",subject:"Follow-up email"}],
+};
+function getSopDays(deal){
+  return (deal && deal.pipeline==='Client') ? CLIENT_SOP_DAYS : SOP_DAYS;
+}
+
 // ─── Test Data ───
 function getToday(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 const TODAY = getToday();
@@ -283,6 +293,8 @@ async function apiPost(action,data){
 
 async function syncFromSheet(){
   if(state.selectedDeal) return; // Don't sync while editing
+  if(state.showNew) return; // Don't sync while creating new deal
+  if(state.showAddClient) return; // Don't sync while adding client
   if(pendingWrites > 0) return; // Don't sync while writes are in-flight
   state.syncing=true; render();
   const data=await apiGet("get_all");
@@ -429,6 +441,9 @@ function refreshModal(){
   if(!state.selectedDeal) return;
   const overlay=document.querySelector('.modal-overlay');
   if(overlay){
+    // Save scroll position of the modal content
+    const modal=overlay.querySelector('.modal');
+    const savedScroll=modal?modal.scrollTop:0;
     // Save currently focused input so we don't lose user's typing
     const focused=document.activeElement;
     let focusId=null, focusVal=null, focusSel=null;
@@ -443,6 +458,9 @@ function refreshModal(){
     tmp.innerHTML=fresh;
     const newOverlay=tmp.firstElementChild;
     if(newOverlay) overlay.innerHTML=newOverlay.innerHTML;
+    // Restore scroll position
+    const newModal=overlay.querySelector('.modal');
+    if(newModal) newModal.scrollTop=savedScroll;
     // Restore focus and value
     if(focusId){
       const el=document.getElementById(focusId);
@@ -613,8 +631,8 @@ function render(){
       for(const deal of sd){
         const badge=getActivityBadge(deal.id);
         html+=`<div class="deal-card" draggable="true"
-          ondragstart="event.dataTransfer.effectAllowed='move';state.dragId='${deal.id}'"
-          ondragend="clearAllDragOver()"
+          ondragstart="event.dataTransfer.effectAllowed='move';state.dragId='${deal.id}';showDeleteZone()"
+          ondragend="clearAllDragOver();hideDeleteZone()"
           ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';doDragOver(this.closest('.column'))"
           ondrop="doDrop('${stageKey}')"
           data-deal-id="${deal.id}"
@@ -649,6 +667,12 @@ function render(){
   }
 
   html+=`</div>`;
+
+  // Drag-to-delete zone
+  html+=`<div class="delete-zone" id="delete-zone"
+    ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';this.classList.add('drag-hover')"
+    ondragleave="this.classList.remove('drag-hover')"
+    ondrop="doDeleteDrop()">🗑️ Drop here to delete</div>`;
 
   // Modals
   if(state.selectedDeal) html+=renderDealModal(state.selectedDeal);
@@ -761,12 +785,14 @@ function renderDealModal(deal){
     </div>`;
 
   if(state.showSop){
+    const sopDays=getSopDays(deal);
     h+=`<div class="sop-grid">
       <div style="width:100%;margin-bottom:8px;display:flex;align-items:center;gap:8px">
         <label style="font-size:11px;font-weight:600;color:#6b7280">Date:</label>
         <input type="date" id="sop-target-date" value="${TODAY}" style="padding:4px 8px;border:1px solid #d8b4fe;border-radius:6px;font-size:12px;font-family:inherit">
+        <span style="font-size:10px;color:#a78bfa">${deal.pipeline==='Client'?'Client SOP':'Acquisition SOP'}</span>
       </div>
-      ${Object.entries(SOP_DAYS).map(([day,acts])=>`
+      ${Object.entries(sopDays).map(([day,acts])=>`
       <button class="sop-day-btn" onclick="doAssignSequenceWithDate('${deal.id}','${day}')">${day} <span style="font-weight:400;color:#a78bfa">(${acts.length})</span></button>`).join("")}</div>`;
   }
 
@@ -952,7 +978,9 @@ function doAddActivity(dealId){
 }
 
 function doAssignSequence(dealId,day){
-  const acts=SOP_DAYS[day];
+  const deal=state.deals.find(d=>d.id===dealId);
+  const sopDays=getSopDays(deal);
+  const acts=sopDays[day];
   if(!acts) return;
   const dateInput = prompt('Schedule "' + day + '" activities for which date?\n\nFormat: YYYY-MM-DD (e.g. ' + TODAY + ')', TODAY);
   if(!dateInput) return;
@@ -963,7 +991,9 @@ function doAssignSequence(dealId,day){
 }
 
 function doAssignSequenceWithDate(dealId,day){
-  const acts=SOP_DAYS[day];
+  const deal=state.deals.find(d=>d.id===dealId);
+  const sopDays=getSopDays(deal);
+  const acts=sopDays[day];
   if(!acts) return;
   const dateEl=document.getElementById('sop-target-date');
   const targetDate=dateEl?dateEl.value:TODAY;
@@ -986,8 +1016,30 @@ function clearAllDragOver(){
 }
 function doDrop(stageKey){
   clearAllDragOver();
+  hideDeleteZone();
   const stageId=decodeURIComponent(escape(atob(stageKey)));
   if(state.dragId){moveDeal(state.dragId,stageId);}
+  state.dragId=null;
+}
+
+function showDeleteZone(){
+  const z=document.getElementById('delete-zone');
+  if(z) z.classList.add('visible');
+}
+function hideDeleteZone(){
+  const z=document.getElementById('delete-zone');
+  if(z){ z.classList.remove('visible'); z.classList.remove('drag-hover'); }
+}
+function doDeleteDrop(){
+  hideDeleteZone();
+  clearAllDragOver();
+  if(state.dragId){
+    const deal=state.deals.find(d=>d.id===state.dragId);
+    const name=deal?(deal.company||deal.contact||'this deal'):'this deal';
+    if(confirm('Delete "'+name+'"? This cannot be undone.')){
+      deleteDeal(state.dragId);
+    }
+  }
   state.dragId=null;
 }
 
