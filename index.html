@@ -409,64 +409,69 @@ async function moveDeal(dealId,newStage){
   finally { pendingWrites--; }
 }
 
-async function addActivity(dealId,act){
+function addActivity(dealId,act){
   const a={id:uid(),dealId,type:act.type,subject:act.subject||act.type,dueDate:act.dueDate||TODAY,done:false,dayLabel:act.dayLabel||""};
-  state.activities.push(a);render();
+  state.activities.push(a);
+  refreshModal();
   pendingWrites++;
-  try { await apiPost("create_activity",a); }
-  finally { pendingWrites--; }
+  apiPost("create_activity",a).finally(()=>{ pendingWrites--; });
 }
 
-async function updateActivityDate(actId, newDate){
-  const a=state.activities.find(x=>x.id===actId);
-  if(a){
-    a.dueDate=newDate;
-    const overlay=document.querySelector('.modal-overlay');
-    if(overlay && state.selectedDeal){
-      overlay.outerHTML=renderDealModal(state.selectedDeal);
-    } else { render(); }
-    pendingWrites++;
-    try { await apiPost("update_activity",{id:actId,dueDate:newDate}); }
-    finally { pendingWrites--; }
+// Fast modal refresh — swaps inner content without destroying the overlay element
+function refreshModal(){
+  if(!state.selectedDeal) return;
+  const overlay=document.querySelector('.modal-overlay');
+  if(overlay){
+    // Build fresh modal HTML, extract just the inner content
+    const fresh=renderDealModal(state.selectedDeal);
+    // Create temp container to parse new HTML
+    const tmp=document.createElement('div');
+    tmp.innerHTML=fresh;
+    const newOverlay=tmp.firstElementChild;
+    if(newOverlay) overlay.innerHTML=newOverlay.innerHTML;
+  } else {
+    render();
   }
 }
 
-async function toggleActivity(actId){
+function updateActivityDate(actId, newDate){
   const a=state.activities.find(x=>x.id===actId);
-  if(a){
-    a.done=!a.done;
-    const overlay=document.querySelector('.modal-overlay');
-    if(overlay && state.selectedDeal){
-      overlay.outerHTML=renderDealModal(state.selectedDeal);
-    } else { render(); }
-    pendingWrites++;
-    try { await apiPost("update_activity",{id:actId,done:a.done}); }
-    finally { pendingWrites--; }
-  }
+  if(!a) return;
+  a.dueDate=newDate;
+  refreshModal();
+  // Fire-and-forget API call
+  pendingWrites++;
+  apiPost("update_activity",{id:actId,dueDate:newDate}).finally(()=>{ pendingWrites--; });
 }
 
-async function deleteActivity(actId){
+function toggleActivity(actId){
+  const a=state.activities.find(x=>x.id===actId);
+  if(!a) return;
+  a.done=!a.done;
+  refreshModal();
+  pendingWrites++;
+  apiPost("update_activity",{id:actId,done:a.done}).finally(()=>{ pendingWrites--; });
+}
+
+function deleteActivity(actId){
   deletedActivityIds.add(actId);
   state.activities=state.activities.filter(a=>a.id!==actId);
-  const overlay=document.querySelector('.modal-overlay');
-  if(overlay && state.selectedDeal){
-    overlay.outerHTML=renderDealModal(state.selectedDeal);
-  } else { render(); }
+  refreshModal();
   pendingWrites++;
-  try { await apiPost("delete_activity",{id:actId}); }
-  finally { pendingWrites--; }
+  apiPost("delete_activity",{id:actId}).finally(()=>{ pendingWrites--; });
 }
 
-async function assignSequence(dealId,dayLabel,acts,targetDate){
+function assignSequence(dealId,dayLabel,acts,targetDate){
+  const newActs=[];
+  for(const a of acts){
+    const na={id:uid(),dealId,type:a.type,subject:a.subject,dueDate:targetDate||TODAY,done:false,dayLabel};
+    state.activities.push(na);
+    newActs.push(na);
+  }
+  refreshModal();
+  // Fire all API calls in parallel, fire-and-forget
   pendingWrites++;
-  try {
-    for(const a of acts){
-      const na={id:uid(),dealId,type:a.type,subject:a.subject,dueDate:targetDate||TODAY,done:false,dayLabel};
-      state.activities.push(na);
-      await apiPost("create_activity",na);
-    }
-  } finally { pendingWrites--; }
-  render();
+  Promise.all(newActs.map(na=>apiPost("create_activity",na))).finally(()=>{ pendingWrites--; });
 }
 
 async function addClient(name){
