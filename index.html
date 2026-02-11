@@ -164,6 +164,8 @@ const API_URL = "https://script.google.com/macros/s/AKfycbyI_o-TL-aiKfQEMU5W5OsB
 const SYNC_INTERVAL = 30000;
 const deletedDealIds = new Set();
 const deletedActivityIds = new Set();
+let pendingWrites = 0; // Prevent sync from overwriting during active writes
+let savedScrollLeft = 0; // Preserve horizontal scroll across renders
 
 // ─── Configs ───
 const ACQUISITION_STAGES = [
@@ -281,6 +283,7 @@ async function apiPost(action,data){
 
 async function syncFromSheet(){
   if(state.selectedDeal) return; // Don't sync while editing
+  if(pendingWrites > 0) return; // Don't sync while writes are in-flight
   state.syncing=true; render();
   const data=await apiGet("get_all");
   if(data && !data.error){
@@ -291,9 +294,14 @@ async function syncFromSheet(){
         ['phone','company','contact','email','website','location','notes','flag','leadCategory','campaignName','smartleadUrl'].forEach(k=>{
           if(d[k]!=null && typeof d[k]!=='string') d[k]=String(d[k]);
         });
+        // Fix #ERROR! phone values from Sheets
+        if(d.phone && (d.phone.includes('#ERROR') || d.phone.includes('ERROR'))) d.phone='';
       });
     }
-    if(data.activities && Array.isArray(data.activities)) state.activities=data.activities.filter(a=>!deletedActivityIds.has(a.id));
+    if(data.activities && Array.isArray(data.activities)) {
+      // Only update activities if no writes are pending
+      state.activities=data.activities.filter(a=>!deletedActivityIds.has(a.id));
+    }
     if(data.clients && Array.isArray(data.clients) && data.clients.length>0) state.clients=data.clients;
     state.synced=true;
     state.loadFailed=false;
@@ -377,7 +385,9 @@ async function createDeal(form){
 async function saveDeal(updated){
   state.deals=state.deals.map(d=>d.id===updated.id?{...d,...updated,lastUpdated:TODAY}:d);
   state.selectedDeal=null;render();
-  await apiPost("update_deal",updated);
+  pendingWrites++;
+  try { await apiPost("update_deal",updated); }
+  finally { pendingWrites--; }
 }
 
 async function deleteDeal(id){
@@ -394,13 +404,17 @@ async function moveDeal(dealId,newStage){
   const d=state.deals.find(x=>x.id===dealId);
   if(d){d.stage=newStage;d.lastUpdated=TODAY;}
   render();
-  await apiPost("move_deal_stage",{id:dealId,stage:newStage});
+  pendingWrites++;
+  try { await apiPost("move_deal_stage",{id:dealId,stage:newStage}); }
+  finally { pendingWrites--; }
 }
 
 async function addActivity(dealId,act){
   const a={id:uid(),dealId,type:act.type,subject:act.subject||act.type,dueDate:act.dueDate||TODAY,done:false,dayLabel:act.dayLabel||""};
   state.activities.push(a);render();
-  await apiPost("create_activity",a);
+  pendingWrites++;
+  try { await apiPost("create_activity",a); }
+  finally { pendingWrites--; }
 }
 
 async function updateActivityDate(actId, newDate){
@@ -411,7 +425,9 @@ async function updateActivityDate(actId, newDate){
     if(overlay && state.selectedDeal){
       overlay.outerHTML=renderDealModal(state.selectedDeal);
     } else { render(); }
-    apiPost("update_activity",{id:actId,dueDate:newDate});
+    pendingWrites++;
+    try { await apiPost("update_activity",{id:actId,dueDate:newDate}); }
+    finally { pendingWrites--; }
   }
 }
 
@@ -419,12 +435,13 @@ async function toggleActivity(actId){
   const a=state.activities.find(x=>x.id===actId);
   if(a){
     a.done=!a.done;
-    // Update modal in-place if open, otherwise full render
     const overlay=document.querySelector('.modal-overlay');
     if(overlay && state.selectedDeal){
       overlay.outerHTML=renderDealModal(state.selectedDeal);
     } else { render(); }
-    apiPost("update_activity",{id:actId,done:a.done});
+    pendingWrites++;
+    try { await apiPost("update_activity",{id:actId,done:a.done}); }
+    finally { pendingWrites--; }
   }
 }
 
@@ -435,15 +452,20 @@ async function deleteActivity(actId){
   if(overlay && state.selectedDeal){
     overlay.outerHTML=renderDealModal(state.selectedDeal);
   } else { render(); }
-  apiPost("delete_activity",{id:actId});
+  pendingWrites++;
+  try { await apiPost("delete_activity",{id:actId}); }
+  finally { pendingWrites--; }
 }
 
-async function assignSequence(dealId,dayLabel,acts){
-  for(const a of acts){
-    const na={id:uid(),dealId,type:a.type,subject:a.subject,dueDate:TODAY,done:false,dayLabel};
-    state.activities.push(na);
-    await apiPost("create_activity",na);
-  }
+async function assignSequence(dealId,dayLabel,acts,targetDate){
+  pendingWrites++;
+  try {
+    for(const a of acts){
+      const na={id:uid(),dealId,type:a.type,subject:a.subject,dueDate:targetDate||TODAY,done:false,dayLabel};
+      state.activities.push(na);
+      await apiPost("create_activity",na);
+    }
+  } finally { pendingWrites--; }
   render();
 }
 
@@ -488,6 +510,9 @@ async function pushToLeadTracker(dealId){
 function render(){
   try{
   const app=document.getElementById("app");
+  // Save scroll position before destroying DOM
+  const board=document.querySelector('.board');
+  if(board) savedScrollLeft=board.scrollLeft;
   const stages=getStages();
   const deals=getPipelineDeals();
   const totalValue=deals.reduce((s,d)=>s+(Number(d.value)||0),0);
@@ -599,7 +624,9 @@ function render(){
   if(state.showAddClient) html+=renderAddClientModal();
 
   app.innerHTML=html;
-  // Robust click handling for deal cards - use mousedown/mouseup to distinguish from drags
+  // Restore scroll position
+  const newBoard=document.querySelector('.board');
+  if(newBoard && savedScrollLeft>0) newBoard.scrollLeft=savedScrollLeft;
   app.querySelectorAll('.deal-card[data-deal-id]').forEach(card=>{
     let downTime=0, downX=0, downY=0;
     card.addEventListener('mousedown',function(e){
@@ -702,8 +729,13 @@ function renderDealModal(deal){
     </div>`;
 
   if(state.showSop){
-    h+=`<div class="sop-grid">${Object.entries(SOP_DAYS).map(([day,acts])=>`
-      <button class="sop-day-btn" onclick="doAssignSequence('${deal.id}','${day}')">${day} <span style="font-weight:400;color:#a78bfa">(${acts.length})</span></button>`).join("")}</div>`;
+    h+=`<div class="sop-grid">
+      <div style="width:100%;margin-bottom:8px;display:flex;align-items:center;gap:8px">
+        <label style="font-size:11px;font-weight:600;color:#6b7280">Date:</label>
+        <input type="date" id="sop-target-date" value="${TODAY}" style="padding:4px 8px;border:1px solid #d8b4fe;border-radius:6px;font-size:12px;font-family:inherit">
+      </div>
+      ${Object.entries(SOP_DAYS).map(([day,acts])=>`
+      <button class="sop-day-btn" onclick="doAssignSequenceWithDate('${deal.id}','${day}')">${day} <span style="font-weight:400;color:#a78bfa">(${acts.length})</span></button>`).join("")}</div>`;
   }
 
   h+=`<div class="add-act-row">
@@ -889,7 +921,22 @@ function doAddActivity(dealId){
 
 function doAssignSequence(dealId,day){
   const acts=SOP_DAYS[day];
-  if(acts) assignSequence(dealId,day,acts);
+  if(!acts) return;
+  const dateInput = prompt('Schedule "' + day + '" activities for which date?\n\nFormat: YYYY-MM-DD (e.g. ' + TODAY + ')', TODAY);
+  if(!dateInput) return;
+  const dateMatch = dateInput.match(/^\d{4}-\d{2}-\d{2}$/);
+  if(!dateMatch){ alert('Invalid date format. Use YYYY-MM-DD.'); return; }
+  assignSequence(dealId,day,acts,dateInput);
+  state.showSop=false;
+}
+
+function doAssignSequenceWithDate(dealId,day){
+  const acts=SOP_DAYS[day];
+  if(!acts) return;
+  const dateEl=document.getElementById('sop-target-date');
+  const targetDate=dateEl?dateEl.value:TODAY;
+  if(!targetDate.match(/^\d{4}-\d{2}-\d{2}$/)){ alert('Please select a valid date.'); return; }
+  assignSequence(dealId,day,acts,targetDate);
   state.showSop=false;
 }
 
