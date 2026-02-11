@@ -383,7 +383,7 @@ function getPipelineDeals(){
 
 // ─── CRUD ───
 async function createDeal(form){
-  const pip=state.pipeline==="acquisition"?"Client":state.pipeline==="nurture"?"Nurture":"Client Leads";
+  const pip=state.pipeline==="acquisition"?"Acquisition":state.pipeline==="nurture"?"Nurture":"Client";
   const deal={...form,id:uid(),pipeline:pip,flag:"",createdDate:TODAY,lastUpdated:TODAY};
   state.deals.push(deal);render();
   await apiPost("create_deal",deal);
@@ -429,13 +429,31 @@ function refreshModal(){
   if(!state.selectedDeal) return;
   const overlay=document.querySelector('.modal-overlay');
   if(overlay){
-    // Build fresh modal HTML, extract just the inner content
+    // Save currently focused input so we don't lose user's typing
+    const focused=document.activeElement;
+    let focusId=null, focusVal=null, focusSel=null;
+    if(focused && (focused.tagName==='INPUT'||focused.tagName==='TEXTAREA'||focused.tagName==='SELECT')){
+      focusId=focused.id;
+      focusVal=focused.value;
+      focusSel=focused.selectionStart;
+    }
+    // Build fresh modal HTML
     const fresh=renderDealModal(state.selectedDeal);
-    // Create temp container to parse new HTML
     const tmp=document.createElement('div');
     tmp.innerHTML=fresh;
     const newOverlay=tmp.firstElementChild;
     if(newOverlay) overlay.innerHTML=newOverlay.innerHTML;
+    // Restore focus and value
+    if(focusId){
+      const el=document.getElementById(focusId);
+      if(el){
+        el.value=focusVal;
+        el.focus();
+        if(el.setSelectionRange && focusSel!==null && el.tagName!=='SELECT'){
+          try{el.setSelectionRange(focusSel,focusSel);}catch(e){}
+        }
+      }
+    }
   } else {
     render();
   }
@@ -692,7 +710,7 @@ function renderDealModal(deal){
               const cleanNum=String(deal.phone||'').replace(/[^0-9+]/g,'');
               extra='<div style="margin-top:4px;display:flex;gap:6px"><a href="sms:'+cleanNum+'" class="imessage-btn" title="Open in iMessage">💬 Text</a><a href="tel:'+cleanNum+'" class="imessage-btn" title="Call from computer">📞 Call</a></div>';
             }
-            return'<div class="form-group"><label>'+label+'</label><input id="deal-'+k+'" value="'+esc(String(deal[k]||''))+'" onchange="updateDealField(\''+k+'\',this.value)">'+extra+'</div>';
+            return'<div class="form-group"><label>'+label+'</label><input id="deal-'+k+'" value="'+esc(String(deal[k]||''))+'" oninput="updateDealField(\''+k+'\',this.value)">'+extra+'</div>';
           }).join("")}
           <div class="form-group">
             <label>Pipeline</label>
@@ -711,7 +729,7 @@ function renderDealModal(deal){
         </div>
         <div class="form-group form-span2" style="margin-bottom:16px">
           <label>Notes</label>
-          <textarea id="deal-notes" rows="2" onchange="updateDealField('notes',this.value)">${esc(deal.notes||'')}</textarea>
+          <textarea id="deal-notes" rows="2" oninput="updateDealField('notes',this.value)">${esc(deal.notes||'')}</textarea>
         </div>`;
 
   if(deal.campaignName){
