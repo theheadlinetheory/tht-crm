@@ -153,6 +153,39 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+
+/* Settings Panel */
+.settings-overlay { position:fixed; inset:0; background:rgba(0,0,0,.3); z-index:10000; opacity:0; transition:opacity .2s; }
+.settings-overlay.open { opacity:1; }
+.settings-panel { position:fixed; top:0; right:-480px; width:460px; max-width:90vw; height:100vh; background:#fff; box-shadow:-4px 0 24px rgba(0,0,0,.15); z-index:10001; transition:right .25s ease; display:flex; flex-direction:column; }
+.settings-panel.open { right:0; }
+.settings-header { padding:16px 20px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; flex-shrink:0; }
+.settings-header h3 { font-size:16px; font-weight:800; display:flex; align-items:center; gap:8px; }
+.settings-body { flex:1; overflow-y:auto; padding:16px 20px; }
+.settings-section { margin-bottom:24px; }
+.settings-section h4 { font-size:13px; font-weight:700; color:var(--purple); margin-bottom:10px; display:flex; align-items:center; gap:6px; }
+.settings-list { list-style:none; }
+.settings-list-item { display:flex; align-items:center; gap:8px; padding:7px 8px; margin-bottom:4px; background:#f9fafb; border:1px solid var(--border); border-radius:6px; font-size:12px; cursor:grab; }
+.settings-list-item:active { cursor:grabbing; }
+.settings-list-item.dragging { opacity:.4; }
+.settings-list-item .drag-handle { color:#d1d5db; font-size:14px; cursor:grab; flex-shrink:0; }
+.settings-list-item .item-label { flex:1; font-weight:500; }
+.settings-list-item .item-color { width:14px; height:14px; border-radius:50%; border:2px solid rgba(0,0,0,.1); flex-shrink:0; cursor:pointer; }
+.settings-list-item .item-delete { background:none; border:none; color:#d1d5db; cursor:pointer; font-size:14px; padding:0 2px; }
+.settings-list-item .item-delete:hover { color:#ef4444; }
+.settings-add-row { display:flex; gap:6px; margin-top:6px; }
+.settings-add-row input { flex:1; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:var(--font); }
+.settings-add-row button { padding:6px 12px; font-size:11px; }
+.settings-footer { padding:12px 20px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:8px; flex-shrink:0; }
+.sop-sequence { background:#faf5ff; border:1px solid #e9d5ff; border-radius:6px; padding:8px 10px; margin-bottom:8px; }
+.sop-sequence-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+.sop-sequence-header span { font-size:12px; font-weight:700; color:var(--purple); }
+.sop-act-item { display:flex; align-items:center; gap:6px; padding:3px 0; font-size:11.5px; }
+.sop-act-item select { padding:3px 6px; border:1px solid #d8b4fe; border-radius:4px; font-size:11px; font-family:var(--font); }
+.sop-act-item input { flex:1; padding:3px 6px; border:1px solid #d8b4fe; border-radius:4px; font-size:11px; font-family:var(--font); }
+.settings-tab-bar { display:flex; border-bottom:1px solid var(--border); padding:0 20px; flex-shrink:0; }
+.settings-tab { padding:8px 14px; font-size:12px; font-weight:600; color:var(--text-muted); cursor:pointer; border-bottom:2px solid transparent; font-family:var(--font); background:none; border-top:none; border-left:none; border-right:none; }
+.settings-tab.active { color:var(--purple); border-bottom-color:var(--purple); }
 </style>
 </head>
 <body>
@@ -170,6 +203,9 @@ const deletedDealIds = new Set();
 const deletedActivityIds = new Set();
 let pendingWrites = 0; // Prevent sync from overwriting during active writes
 let savedScrollLeft = 0; // Preserve horizontal scroll across renders
+let settingsOpen = false;
+let settingsTab = 'stages'; // stages | activities | sop
+let settingsDraft = null; // Working copy of settings being edited
 
 // ─── Configs ───
 const ACQUISITION_STAGES = [
@@ -273,6 +309,7 @@ let state = {
   loadFailed: false,
   searchQuery: "",
   searchResults: null,
+  savedSettings: null,
 };
 
 // ─── API ───
@@ -323,6 +360,7 @@ async function syncFromSheet(){
       });
     }
     if(data.clients && Array.isArray(data.clients) && data.clients.length>0) state.clients=data.clients;
+    if(data.settings && typeof data.settings==='object' && Object.keys(data.settings).length>0) applySettings(data.settings);
     state.synced=true;
     state.loadFailed=false;
   } else {
@@ -602,6 +640,7 @@ function render(){
       <button class="btn btn-ghost" onclick="syncFromSheet()">↻ Sync</button>
       ${state.pipeline==='client_leads'?'<button class="btn btn-ghost" onclick="openAddClient()">+ Client</button>':''}
       <button class="btn btn-primary" onclick="openNewDeal()">+ Deal</button>
+      <button class="btn btn-ghost" onclick="openSettings()" title="Settings" style="font-size:16px;padding:6px 10px">⚙️</button>
     </div>
   </div>
   <div class="board">`;
@@ -1069,6 +1108,324 @@ document.addEventListener("click",function(e){
   }
   if(!e.target.closest('.search-wrapper')&&state.searchResults!==null){clearSearch();}
 });
+
+// ═══════════════════════════════════════════════════════════
+// SETTINGS PANEL
+// ═══════════════════════════════════════════════════════════
+
+function getDefaultSettings(){
+  return {
+    acquisition_stages: ACQUISITION_STAGES.map((s,i)=>({...s,order:i})),
+    nurture_stages: NURTURE_STAGES.map((s,i)=>({...s,order:i})),
+    activity_types: ACTIVITY_TYPES.map((t,i)=>({name:t,icon:ACTIVITY_ICONS[t]||"✓",order:i})),
+    sop_acquisition: Object.entries(SOP_DAYS).map(([day,acts])=>({name:day,activities:acts})),
+    sop_client: Object.entries(CLIENT_SOP_DAYS).map(([day,acts])=>({name:day,activities:acts})),
+  };
+}
+
+function openSettings(){
+  settingsDraft = getDefaultSettings();
+  // Merge saved settings if available
+  if(state.savedSettings){
+    for(const k of Object.keys(settingsDraft)){
+      if(state.savedSettings[k]) settingsDraft[k] = JSON.parse(JSON.stringify(state.savedSettings[k]));
+    }
+  }
+  settingsOpen = true;
+  renderSettingsPanel();
+}
+
+function closeSettings(){
+  settingsOpen = false;
+  const overlay = document.getElementById('settings-overlay');
+  const panel = document.getElementById('settings-panel');
+  if(overlay) overlay.classList.remove('open');
+  if(panel) panel.classList.remove('open');
+  setTimeout(()=>{
+    if(overlay) overlay.remove();
+    if(panel) panel.remove();
+  }, 250);
+}
+
+function renderSettingsPanel(){
+  // Remove existing
+  document.getElementById('settings-overlay')?.remove();
+  document.getElementById('settings-panel')?.remove();
+  
+  const overlay = document.createElement('div');
+  overlay.id='settings-overlay';
+  overlay.className='settings-overlay';
+  overlay.onclick=closeSettings;
+  document.body.appendChild(overlay);
+
+  const panel = document.createElement('div');
+  panel.id='settings-panel';
+  panel.className='settings-panel';
+  panel.onclick=e=>e.stopPropagation();
+
+  let h=`<div class="settings-header">
+    <h3>⚙️ Settings</h3>
+    <button class="modal-close" onclick="closeSettings()">×</button>
+  </div>
+  <div class="settings-tab-bar">
+    <button class="settings-tab ${settingsTab==='stages'?'active':''}" onclick="settingsTab='stages';renderSettingsPanel()">Pipeline Stages</button>
+    <button class="settings-tab ${settingsTab==='activities'?'active':''}" onclick="settingsTab='activities';renderSettingsPanel()">Activity Types</button>
+    <button class="settings-tab ${settingsTab==='sop'?'active':''}" onclick="settingsTab='sop';renderSettingsPanel()">SOP Sequences</button>
+  </div>
+  <div class="settings-body">`;
+
+  if(settingsTab==='stages') h+=renderStagesSettings();
+  else if(settingsTab==='activities') h+=renderActivityTypesSettings();
+  else if(settingsTab==='sop') h+=renderSopSettings();
+
+  h+=`</div>
+  <div class="settings-footer">
+    <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="closeSettings()">Cancel</button>
+    <button class="btn btn-primary" onclick="saveSettingsToSheet()">💾 Save Settings</button>
+  </div>`;
+
+  panel.innerHTML=h;
+  document.body.appendChild(panel);
+
+  // Animate open
+  requestAnimationFrame(()=>{
+    overlay.classList.add('open');
+    panel.classList.add('open');
+  });
+
+  // Setup drag-and-drop for lists
+  setupSettingsDrag();
+}
+
+function renderStagesSettings(){
+  let h='';
+  // Acquisition stages
+  h+=`<div class="settings-section">
+    <h4>📊 Acquisition Pipeline Stages</h4>
+    <div class="settings-list" id="settings-acq-stages" data-key="acquisition_stages">`;
+  for(const [i,s] of settingsDraft.acquisition_stages.entries()){
+    h+=`<div class="settings-list-item" draggable="true" data-idx="${i}">
+      <span class="drag-handle">⠿</span>
+      <input type="color" class="item-color" value="${s.color}" onchange="settingsDraft.acquisition_stages[${i}].color=this.value" style="width:24px;height:24px;border:none;padding:0;cursor:pointer;background:none">
+      <input class="item-label" value="${esc(s.label)}" oninput="settingsDraft.acquisition_stages[${i}].label=this.value;settingsDraft.acquisition_stages[${i}].id=this.value" style="border:none;background:transparent;font-size:12px;font-weight:500;font-family:var(--font);flex:1">
+      <button class="item-delete" onclick="settingsDraft.acquisition_stages.splice(${i},1);renderSettingsPanel()">×</button>
+    </div>`;
+  }
+  h+=`</div>
+    <div class="settings-add-row">
+      <input id="new-acq-stage" placeholder="New stage name...">
+      <button class="btn btn-primary" onclick="addSettingsStage('acquisition_stages','new-acq-stage')">+ Add</button>
+    </div>
+  </div>`;
+
+  // Nurture stages
+  h+=`<div class="settings-section">
+    <h4>🌱 Nurture Pipeline Stages</h4>
+    <div class="settings-list" id="settings-nurt-stages" data-key="nurture_stages">`;
+  for(const [i,s] of settingsDraft.nurture_stages.entries()){
+    h+=`<div class="settings-list-item" draggable="true" data-idx="${i}">
+      <span class="drag-handle">⠿</span>
+      <input type="color" class="item-color" value="${s.color}" onchange="settingsDraft.nurture_stages[${i}].color=this.value" style="width:24px;height:24px;border:none;padding:0;cursor:pointer;background:none">
+      <input class="item-label" value="${esc(s.label)}" oninput="settingsDraft.nurture_stages[${i}].label=this.value;settingsDraft.nurture_stages[${i}].id=this.value" style="border:none;background:transparent;font-size:12px;font-weight:500;font-family:var(--font);flex:1">
+      <button class="item-delete" onclick="settingsDraft.nurture_stages.splice(${i},1);renderSettingsPanel()">×</button>
+    </div>`;
+  }
+  h+=`</div>
+    <div class="settings-add-row">
+      <input id="new-nurt-stage" placeholder="New stage name...">
+      <button class="btn btn-primary" onclick="addSettingsStage('nurture_stages','new-nurt-stage')">+ Add</button>
+    </div>
+  </div>`;
+
+  h+=`<p style="font-size:11px;color:var(--text-muted);margin-top:8px">ℹ️ Client Leads stages are managed via the + Client button. Drag stages to reorder.</p>`;
+  return h;
+}
+
+function renderActivityTypesSettings(){
+  let h=`<div class="settings-section">
+    <h4>📋 Activity Types</h4>
+    <div class="settings-list" id="settings-act-types" data-key="activity_types">`;
+  for(const [i,t] of settingsDraft.activity_types.entries()){
+    h+=`<div class="settings-list-item" draggable="true" data-idx="${i}">
+      <span class="drag-handle">⠿</span>
+      <input value="${esc(t.icon)}" oninput="settingsDraft.activity_types[${i}].icon=this.value" style="width:32px;text-align:center;border:1px solid var(--border);border-radius:4px;font-size:14px;padding:2px">
+      <input class="item-label" value="${esc(t.name)}" oninput="settingsDraft.activity_types[${i}].name=this.value" style="border:none;background:transparent;font-size:12px;font-weight:500;font-family:var(--font);flex:1">
+      <button class="item-delete" onclick="settingsDraft.activity_types.splice(${i},1);renderSettingsPanel()">×</button>
+    </div>`;
+  }
+  h+=`</div>
+    <div class="settings-add-row">
+      <input id="new-act-icon" placeholder="Icon" style="width:50px;text-align:center">
+      <input id="new-act-name" placeholder="Activity type name...">
+      <button class="btn btn-primary" onclick="addSettingsActivityType()">+ Add</button>
+    </div>
+  </div>`;
+  return h;
+}
+
+function renderSopSettings(){
+  let h='';
+  // Acquisition SOPs
+  h+=`<div class="settings-section">
+    <h4>📊 Acquisition SOP Sequences</h4>`;
+  for(const [i,seq] of settingsDraft.sop_acquisition.entries()){
+    h+=renderSopSequence('sop_acquisition',i,seq);
+  }
+  h+=`<div class="settings-add-row" style="margin-top:8px">
+    <input id="new-acq-sop-name" placeholder="Sequence name (e.g. Day 11)...">
+    <button class="btn btn-primary" onclick="addSopSequence('sop_acquisition','new-acq-sop-name')">+ Add Sequence</button>
+  </div></div>`;
+
+  // Client SOPs
+  h+=`<div class="settings-section">
+    <h4>👥 Client SOP Sequences</h4>`;
+  for(const [i,seq] of settingsDraft.sop_client.entries()){
+    h+=renderSopSequence('sop_client',i,seq);
+  }
+  h+=`<div class="settings-add-row" style="margin-top:8px">
+    <input id="new-cli-sop-name" placeholder="Sequence name...">
+    <button class="btn btn-primary" onclick="addSopSequence('sop_client','new-cli-sop-name')">+ Add Sequence</button>
+  </div></div>`;
+  return h;
+}
+
+function renderSopSequence(key,idx,seq){
+  const actTypes = settingsDraft.activity_types.map(t=>t.name);
+  let h=`<div class="sop-sequence">
+    <div class="sop-sequence-header">
+      <input value="${esc(seq.name)}" oninput="settingsDraft.${key}[${idx}].name=this.value" style="border:none;background:transparent;font-size:12px;font-weight:700;color:var(--purple);font-family:var(--font);width:120px">
+      <div style="display:flex;gap:4px">
+        <button class="btn" style="font-size:10px;padding:2px 8px;background:#f0fdf4;color:#059669;border:1px solid #bbf7d0" onclick="addSopActivity('${key}',${idx})">+ Activity</button>
+        <button class="item-delete" onclick="settingsDraft.${key}.splice(${idx},1);renderSettingsPanel()" style="font-size:16px">×</button>
+      </div>
+    </div>`;
+  for(const [j,act] of seq.activities.entries()){
+    h+=`<div class="sop-act-item">
+      <select onchange="settingsDraft.${key}[${idx}].activities[${j}].type=this.value">
+        ${actTypes.map(t=>`<option value="${t}" ${t===act.type?'selected':''}>${t}</option>`).join('')}
+      </select>
+      <input value="${esc(act.subject)}" oninput="settingsDraft.${key}[${idx}].activities[${j}].subject=this.value">
+      <button class="item-delete" onclick="settingsDraft.${key}[${idx}].activities.splice(${j},1);renderSettingsPanel()">×</button>
+    </div>`;
+  }
+  h+=`</div>`;
+  return h;
+}
+
+function addSettingsStage(key,inputId){
+  const el=document.getElementById(inputId);
+  const name=(el?el.value:'').trim();
+  if(!name) return;
+  const colors=['#7c3aed','#6366f1','#2563eb','#0891b2','#059669','#d97706','#ef4444','#8b5cf6','#f97316','#10b981'];
+  settingsDraft[key].push({id:name,label:name,color:colors[settingsDraft[key].length%colors.length],order:settingsDraft[key].length});
+  renderSettingsPanel();
+}
+
+function addSettingsActivityType(){
+  const iconEl=document.getElementById('new-act-icon');
+  const nameEl=document.getElementById('new-act-name');
+  const icon=(iconEl?iconEl.value:'').trim()||'✓';
+  const name=(nameEl?nameEl.value:'').trim();
+  if(!name) return;
+  settingsDraft.activity_types.push({name,icon,order:settingsDraft.activity_types.length});
+  renderSettingsPanel();
+}
+
+function addSopSequence(key,inputId){
+  const el=document.getElementById(inputId);
+  const name=(el?el.value:'').trim();
+  if(!name) return;
+  settingsDraft[key].push({name,activities:[{type:'Email',subject:'Email'},{type:'Call',subject:'Call'}]});
+  renderSettingsPanel();
+}
+
+function addSopActivity(key,idx){
+  settingsDraft[key][idx].activities.push({type:'Call',subject:'Activity'});
+  renderSettingsPanel();
+}
+
+function setupSettingsDrag(){
+  document.querySelectorAll('.settings-list').forEach(list=>{
+    const key=list.dataset.key;
+    let dragIdx=null;
+    list.querySelectorAll('.settings-list-item').forEach(item=>{
+      item.addEventListener('dragstart',e=>{
+        dragIdx=parseInt(item.dataset.idx);
+        item.classList.add('dragging');
+        e.dataTransfer.effectAllowed='move';
+      });
+      item.addEventListener('dragend',()=>{
+        item.classList.remove('dragging');
+        dragIdx=null;
+      });
+      item.addEventListener('dragover',e=>{
+        e.preventDefault();
+        e.dataTransfer.dropEffect='move';
+      });
+      item.addEventListener('drop',e=>{
+        e.preventDefault();
+        const dropIdx=parseInt(item.dataset.idx);
+        if(dragIdx!==null && dragIdx!==dropIdx && settingsDraft[key]){
+          const arr=settingsDraft[key];
+          const [moved]=arr.splice(dragIdx,1);
+          arr.splice(dropIdx,0,moved);
+          renderSettingsPanel();
+        }
+      });
+    });
+  });
+}
+
+function applySettings(s){
+  state.savedSettings = s;
+  // Apply stages
+  if(s.acquisition_stages){
+    ACQUISITION_STAGES.length=0;
+    s.acquisition_stages.forEach(st=>ACQUISITION_STAGES.push({id:st.id||st.label,label:st.label,color:st.color}));
+  }
+  if(s.nurture_stages){
+    NURTURE_STAGES.length=0;
+    s.nurture_stages.forEach(st=>NURTURE_STAGES.push({id:st.id||st.label,label:st.label,color:st.color}));
+  }
+  // Apply activity types
+  if(s.activity_types){
+    ACTIVITY_TYPES.length=0;
+    s.activity_types.forEach(t=>{
+      ACTIVITY_TYPES.push(t.name);
+      ACTIVITY_ICONS[t.name]=t.icon||'✓';
+    });
+  }
+  // Apply SOP sequences
+  if(s.sop_acquisition){
+    // Clear and rebuild SOP_DAYS
+    Object.keys(SOP_DAYS).forEach(k=>delete SOP_DAYS[k]);
+    s.sop_acquisition.forEach(seq=>{
+      SOP_DAYS[seq.name]=seq.activities.map(a=>({type:a.type,subject:a.subject}));
+    });
+  }
+  if(s.sop_client){
+    Object.keys(CLIENT_SOP_DAYS).forEach(k=>delete CLIENT_SOP_DAYS[k]);
+    s.sop_client.forEach(seq=>{
+      CLIENT_SOP_DAYS[seq.name]=seq.activities.map(a=>({type:a.type,subject:a.subject}));
+    });
+  }
+}
+
+async function saveSettingsToSheet(){
+  // Apply locally
+  applySettings(settingsDraft);
+  render();
+  // Save to sheet
+  const btn=document.querySelector('.settings-footer .btn-primary');
+  if(btn){ btn.textContent='Saving...'; btn.disabled=true; }
+  try {
+    await apiPost('save_settings',{settings:settingsDraft});
+    if(btn){ btn.textContent='✓ Saved!'; }
+    setTimeout(closeSettings, 800);
+  } catch(e){
+    if(btn){ btn.textContent='Error — Retry'; btn.disabled=false; }
+  }
+}
 
 // ─── Init ───
 render();
