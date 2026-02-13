@@ -400,7 +400,11 @@ async function syncFromSheet(){
       for(const c of state.clients){
         if(!c.calendlyUrl){
           // Try exact match first, then partial match
-          const match = DEFAULT_CALENDLY_URLS[c.name] || Object.entries(DEFAULT_CALENDLY_URLS).find(([k])=>c.name.toLowerCase().includes(k.toLowerCase()))?.[1];
+          const match = DEFAULT_CALENDLY_URLS[c.name] || Object.entries(DEFAULT_CALENDLY_URLS).find(([k])=>{
+            const cn=c.name.toLowerCase().replace(/[^a-z]/g,'');
+            const kn=k.toLowerCase().replace(/[^a-z]/g,'');
+            return cn.includes(kn) || kn.includes(cn);
+          })?.[1];
           if(match) c.calendlyUrl = match;
         }
       }
