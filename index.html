@@ -61,9 +61,13 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .deal-card.badge-open { z-index: 100; }
 .deal-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.1); transform: translateY(-1px); }
 .deal-card.dragging { opacity: .5; }
-.delete-zone { display:none; position:fixed; bottom:0; left:0; right:0; height:64px; background:linear-gradient(to bottom, #fecaca, #ef4444); color:#fff; font-weight:700; font-size:14px; z-index:999; justify-content:center; align-items:center; gap:8px; transition:all .15s; border-top:2px solid #dc2626; }
+.delete-zone { display:none; position:fixed; bottom:0; left:0; right:0; height:64px; z-index:999; transition:all .15s; }
 .delete-zone.visible { display:flex; }
-.delete-zone.drag-hover { background:linear-gradient(to bottom, #f87171, #b91c1c); height:80px; font-size:16px; }
+.delete-zone-half { flex:1; display:flex; justify-content:center; align-items:center; gap:8px; font-weight:700; font-size:14px; transition:all .15s; cursor:default; }
+.delete-zone-lost { background:linear-gradient(to bottom, #fecaca, #ef4444); color:#fff; border-top:2px solid #dc2626; }
+.delete-zone-lost.drag-hover { background:linear-gradient(to bottom, #f87171, #b91c1c); height:80px; font-size:16px; }
+.delete-zone-won { background:linear-gradient(to bottom, #bbf7d0, #22c55e); color:#fff; border-top:2px solid #16a34a; }
+.delete-zone-won.drag-hover { background:linear-gradient(to bottom, #4ade80, #15803d); height:80px; font-size:16px; }
 .deal-card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
 .deal-company { font-weight: 700; font-size: 12.5px; color: var(--text); line-height: 1.3; flex: 1; margin-right: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .deal-contact { font-size: 11px; color: var(--text-secondary); margin-bottom: 2px; }
@@ -204,7 +208,7 @@ const deletedActivityIds = new Set();
 let pendingWrites = 0; // Prevent sync from overwriting during active writes
 let savedScrollLeft = 0; // Preserve horizontal scroll across renders
 let settingsOpen = false;
-let settingsTab = 'stages'; // stages | activities | sop
+let settingsTab = 'stages'; // stages | activities | sop | clients
 let settingsDraft = null; // Working copy of settings being edited
 
 // ─── Configs ───
@@ -236,6 +240,16 @@ const FLAG_COLORS = { green: "#22c55e", yellow: "#eab308", red: "#ef4444", none:
 const FLAG_CYCLE = ["none", "green", "yellow", "red"];
 const CLIENT_PALETTE = ["#2563eb","#7c3aed","#0891b2","#059669","#d97706","#dc2626","#6366f1","#0d9488","#b45309","#4f46e5","#be185d","#15803d"];
 
+// Default Calendly links for known clients (applied on sync if not already set)
+const DEFAULT_CALENDLY_URLS = {
+  "High Southern Landscapes": "https://calendly.com/will-highsouthernscapes/30min",
+  "High Southern": "https://calendly.com/will-highsouthernscapes/30min",
+  "Time Savers Landscaping": "https://calendly.com/timesaverslandscaping/meeting-with-time-savers",
+  "Time Savers": "https://calendly.com/timesaverslandscaping/meeting-with-time-savers",
+  "Coastal Lawn Care": "https://calendly.com/ryan-coastallawncare/meeting-with-coastal-lawn-care",
+  "Lightning Lawn Care": "https://calendly.com/jonrebel3/quote-meeting-with-lightning-lawn-care",
+};
+
 const SOP_DAYS = {
   "Day 1": [{type:"Text",subject:"Initial text - immediate"},{type:"Call",subject:"Call #1 - immediate"},{type:"Text",subject:"Post-call text"},{type:"Email",subject:"Initial email"},{type:"Call",subject:"Call #2 - EOD"}],
   "Day 2": [{type:"Call",subject:"Morning call"},{type:"Text",subject:"Follow-up text"},{type:"Email",subject:"Follow-up email"},{type:"Call",subject:"Evening call"}],
@@ -258,24 +272,24 @@ function getSopDays(deal){
 
 // ─── Test Data ───
 function getToday(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
-const TODAY = getToday();
+function TODAY(){ return getToday(); }
 const YESTERDAY = new Date(Date.now()-86400000).toISOString().split("T")[0];
 const TOMORROW = new Date(Date.now()+86400000).toISOString().split("T")[0];
 
 const TEST_DEALS = [
-  {id:"t1",company:"Southern Cutz Lawn & Landscape",contact:"Marcus Johnson",email:"marcus@southerncutz.com",phone:"(321) 555-0142",value:1057,stage:"Cold Email Response",pipeline:"Client",flag:"green",notes:"",website:"southerncutz.com",location:"Brevard, FL",campaignName:"FL Landscaping",leadCategory:"Interested",slLeadId:"",slCampaignId:"",smartleadUrl:"",createdDate:TODAY,lastUpdated:TODAY},
-  {id:"t2",company:"Hill's Lawn & Grounds Care",contact:"David Hill",email:"info@hillslawn.com",phone:"(303) 555-0198",value:1057,stage:"Follow-up",pipeline:"Client",flag:"green",notes:"",website:"hillslawn.com",location:"Denver, CO",campaignName:"CO Landscaping",leadCategory:"Information Request",slLeadId:"",slCampaignId:"",smartleadUrl:"",createdDate:YESTERDAY,lastUpdated:TODAY},
-  {id:"t3",company:"Denver Landscaping & Design",contact:"Sarah Chen",email:"sarah@denverld.com",phone:"",value:1057,stage:"Follow-up",pipeline:"Client",flag:"",notes:"Waiting on callback",website:"denverld.com",location:"Denver, CO",campaignName:"CO Landscaping",leadCategory:"Interested",slLeadId:"",slCampaignId:"",smartleadUrl:"",createdDate:YESTERDAY,lastUpdated:TODAY},
-  {id:"t4",company:"All Proscape LLC",contact:"Tony Rivera",email:"tony@allproscape.com",phone:"(512) 555-0167",value:1057,stage:"Discovery Scheduled",pipeline:"Acquisition",flag:"red",notes:"Missed last call",website:"allproscape.com",location:"Austin, TX",campaignName:"TX Acquisition",leadCategory:"Meeting Request",slLeadId:"",slCampaignId:"",smartleadUrl:"",createdDate:YESTERDAY,lastUpdated:TODAY},
-  {id:"t5",company:"Prestonwood Landscape Services",contact:"Mike Preston",email:"mike@prestonwood.com",phone:"(214) 555-0233",value:0,stage:"Demo Scheduled",pipeline:"Client",flag:"red",notes:"",website:"prestonwood.com",location:"Dallas, TX",campaignName:"TX Landscaping",leadCategory:"Meeting Booked",slLeadId:"",slCampaignId:"",smartleadUrl:"",createdDate:YESTERDAY,lastUpdated:TODAY},
-  {id:"t6",company:"Sapphire Property Maintenance",contact:"Jade Williams",email:"jade@sapphirepm.com",phone:"",value:1057,stage:"Waiting for Payment/Contract",pipeline:"Client",flag:"green",notes:"Contract sent 2/7",website:"sapphirepm.com",location:"Houston, TX",campaignName:"TX Landscaping",leadCategory:"Interested",slLeadId:"",slCampaignId:"",smartleadUrl:"",createdDate:"2025-02-05",lastUpdated:TODAY},
-  {id:"t7",company:"GreenEdge Landscaping",contact:"Pat O'Brien",email:"pat@greenedge.com",phone:"(720) 555-0189",value:1057,stage:"Closed Won",pipeline:"Client",flag:"green",notes:"Signed!",website:"greenedge.com",location:"Boulder, CO",campaignName:"CO Landscaping",leadCategory:"Interested",slLeadId:"",slCampaignId:"",smartleadUrl:"",createdDate:"2025-01-28",lastUpdated:TODAY},
+  {id:"t1",company:"Southern Cutz Lawn & Landscape",contact:"Marcus Johnson",email:"marcus@southerncutz.com",phone:"(321) 555-0142",value:1057,stage:"Cold Email Response",pipeline:"Client",flag:"green",notes:"",website:"southerncutz.com",location:"Brevard, FL",campaignName:"FL Landscaping",leadCategory:"Interested",slLeadId:"",slCampaignId:"",smartleadUrl:"",createdDate:TODAY(),lastUpdated:TODAY()},
+  {id:"t2",company:"Hill's Lawn & Grounds Care",contact:"David Hill",email:"info@hillslawn.com",phone:"(303) 555-0198",value:1057,stage:"Follow-up",pipeline:"Client",flag:"green",notes:"",website:"hillslawn.com",location:"Denver, CO",campaignName:"CO Landscaping",leadCategory:"Information Request",slLeadId:"",slCampaignId:"",smartleadUrl:"",createdDate:YESTERDAY,lastUpdated:TODAY()},
+  {id:"t3",company:"Denver Landscaping & Design",contact:"Sarah Chen",email:"sarah@denverld.com",phone:"",value:1057,stage:"Follow-up",pipeline:"Client",flag:"",notes:"Waiting on callback",website:"denverld.com",location:"Denver, CO",campaignName:"CO Landscaping",leadCategory:"Interested",slLeadId:"",slCampaignId:"",smartleadUrl:"",createdDate:YESTERDAY,lastUpdated:TODAY()},
+  {id:"t4",company:"All Proscape LLC",contact:"Tony Rivera",email:"tony@allproscape.com",phone:"(512) 555-0167",value:1057,stage:"Discovery Scheduled",pipeline:"Acquisition",flag:"red",notes:"Missed last call",website:"allproscape.com",location:"Austin, TX",campaignName:"TX Acquisition",leadCategory:"Meeting Request",slLeadId:"",slCampaignId:"",smartleadUrl:"",createdDate:YESTERDAY,lastUpdated:TODAY()},
+  {id:"t5",company:"Prestonwood Landscape Services",contact:"Mike Preston",email:"mike@prestonwood.com",phone:"(214) 555-0233",value:0,stage:"Demo Scheduled",pipeline:"Client",flag:"red",notes:"",website:"prestonwood.com",location:"Dallas, TX",campaignName:"TX Landscaping",leadCategory:"Meeting Booked",slLeadId:"",slCampaignId:"",smartleadUrl:"",createdDate:YESTERDAY,lastUpdated:TODAY()},
+  {id:"t6",company:"Sapphire Property Maintenance",contact:"Jade Williams",email:"jade@sapphirepm.com",phone:"",value:1057,stage:"Waiting for Payment/Contract",pipeline:"Client",flag:"green",notes:"Contract sent 2/7",website:"sapphirepm.com",location:"Houston, TX",campaignName:"TX Landscaping",leadCategory:"Interested",slLeadId:"",slCampaignId:"",smartleadUrl:"",createdDate:"2025-02-05",lastUpdated:TODAY()},
+  {id:"t7",company:"GreenEdge Landscaping",contact:"Pat O'Brien",email:"pat@greenedge.com",phone:"(720) 555-0189",value:1057,stage:"Closed Won",pipeline:"Client",flag:"green",notes:"Signed!",website:"greenedge.com",location:"Boulder, CO",campaignName:"CO Landscaping",leadCategory:"Interested",slLeadId:"",slCampaignId:"",smartleadUrl:"",createdDate:"2025-01-28",lastUpdated:TODAY()},
 ];
 
 const TEST_ACTIVITIES = [
-  {id:"a1",dealId:"t1",type:"Call",subject:"Call #1 - immediate",dueDate:TODAY,done:false,dayLabel:"Day 1"},
-  {id:"a2",dealId:"t1",type:"Text",subject:"Initial text",dueDate:TODAY,done:true,dayLabel:"Day 1"},
-  {id:"a3",dealId:"t1",type:"Email",subject:"Initial email",dueDate:TODAY,done:false,dayLabel:"Day 1"},
+  {id:"a1",dealId:"t1",type:"Call",subject:"Call #1 - immediate",dueDate:TODAY(),done:false,dayLabel:"Day 1"},
+  {id:"a2",dealId:"t1",type:"Text",subject:"Initial text",dueDate:TODAY(),done:true,dayLabel:"Day 1"},
+  {id:"a3",dealId:"t1",type:"Email",subject:"Initial email",dueDate:TODAY(),done:false,dayLabel:"Day 1"},
   {id:"a4",dealId:"t2",type:"Call",subject:"Morning call",dueDate:YESTERDAY,done:false,dayLabel:"Day 2"},
   {id:"a5",dealId:"t2",type:"Email",subject:"Follow-up email",dueDate:TOMORROW,done:false,dayLabel:"Day 2"},
   {id:"a6",dealId:"t4",type:"Discovery Call",subject:"Discovery call",dueDate:TOMORROW,done:false,dayLabel:""},
@@ -334,12 +348,20 @@ async function apiGet(action){
   }
   catch(e){ console.warn("API GET error:",e); return null; }
 }
-async function apiPost(action,data){
-  try {
-    const r=await fetch(API_URL,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain"},body:JSON.stringify({action,data})});
-    const text=await r.text();
-    try { return JSON.parse(text); } catch(e) { return null; }
-  } catch(e){ console.warn("API POST error:",e); return null; }
+async function apiPost(action,data,retries=2){
+  for(let attempt=0; attempt<=retries; attempt++){
+    try {
+      const r=await fetch(API_URL,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain"},body:JSON.stringify({action,data})});
+      const text=await r.text();
+      try { const parsed=JSON.parse(text); if(parsed && !parsed.error) return parsed; } catch(e) {}
+      if(attempt<retries){ await new Promise(ok=>setTimeout(ok,800*(attempt+1))); continue; }
+      return null;
+    } catch(e){
+      console.warn("API POST error (attempt "+(attempt+1)+"):",e);
+      if(attempt<retries){ await new Promise(ok=>setTimeout(ok,800*(attempt+1))); continue; }
+      return null;
+    }
+  }
 }
 
 async function syncFromSheet(){
@@ -372,7 +394,17 @@ async function syncFromSheet(){
         });
       });
     }
-    if(data.clients && Array.isArray(data.clients) && data.clients.length>0) state.clients=data.clients;
+    if(data.clients && Array.isArray(data.clients) && data.clients.length>0){
+      state.clients=data.clients;
+      // Apply default Calendly URLs for known clients if not already set
+      for(const c of state.clients){
+        if(!c.calendlyUrl){
+          // Try exact match first, then partial match
+          const match = DEFAULT_CALENDLY_URLS[c.name] || Object.entries(DEFAULT_CALENDLY_URLS).find(([k])=>c.name.toLowerCase().includes(k.toLowerCase()))?.[1];
+          if(match) c.calendlyUrl = match;
+        }
+      }
+    }
     if(data.settings && typeof data.settings==='object' && Object.keys(data.settings).length>0) applySettings(data.settings);
     state.synced=true;
     state.loadFailed=false;
@@ -448,13 +480,13 @@ function getPipelineDeals(){
 // ─── CRUD ───
 async function createDeal(form){
   const pip=state.pipeline==="acquisition"?"Acquisition":state.pipeline==="nurture"?"Nurture":"Client";
-  const deal={...form,id:uid(),pipeline:pip,flag:"",createdDate:TODAY,lastUpdated:TODAY};
+  const deal={...form,id:uid(),pipeline:pip,flag:"",createdDate:TODAY(),lastUpdated:TODAY()};
   state.deals.push(deal);render();
   await apiPost("create_deal",deal);
 }
 
 async function saveDeal(updated){
-  state.deals=state.deals.map(d=>d.id===updated.id?{...d,...updated,lastUpdated:TODAY}:d);
+  state.deals=state.deals.map(d=>d.id===updated.id?{...d,...updated,lastUpdated:TODAY()}:d);
   state.selectedDeal=null;render();
   pendingWrites++;
   try { await apiPost("update_deal",updated); }
@@ -473,7 +505,7 @@ async function deleteDeal(id){
 
 async function moveDeal(dealId,newStage){
   const d=state.deals.find(x=>x.id===dealId);
-  if(d){d.stage=newStage;d.lastUpdated=TODAY;}
+  if(d){d.stage=newStage;d.lastUpdated=TODAY();}
   render();
   pendingWrites++;
   try { await apiPost("move_deal_stage",{id:dealId,stage:newStage}); }
@@ -481,7 +513,7 @@ async function moveDeal(dealId,newStage){
 }
 
 function addActivity(dealId,act){
-  const a={id:uid(),dealId,type:act.type,subject:act.subject||act.type,dueDate:act.dueDate||TODAY,done:false,dayLabel:act.dayLabel||""};
+  const a={id:uid(),dealId,type:act.type,subject:act.subject||act.type,dueDate:act.dueDate||TODAY(),done:false,dayLabel:act.dayLabel||""};
   state.activities.push(a);
   refreshModal();
   pendingWrites++;
@@ -561,18 +593,70 @@ function deleteActivity(actId){
 function assignSequence(dealId,dayLabel,acts,targetDate){
   const newActs=[];
   for(const a of acts){
-    const na={id:uid(),dealId,type:a.type,subject:a.subject,dueDate:targetDate||TODAY,done:false,dayLabel};
+    const na={id:uid(),dealId,type:a.type,subject:a.subject,dueDate:targetDate||TODAY(),done:false,dayLabel};
     state.activities.push(na);
     newActs.push(na);
   }
   refreshModal();
-  // Fire all API calls in parallel, fire-and-forget
+  // Create activities sequentially to avoid overwhelming Apps Script
   pendingWrites++;
-  Promise.all(newActs.map(na=>apiPost("create_activity",na))).finally(()=>{ pendingWrites--; });
+  (async ()=>{
+    for(const na of newActs){
+      await apiPost("create_activity",na);
+    }
+    pendingWrites--;
+  })();
+}
+
+function copyLeadInfo(dealId){
+  const deal=state.deals.find(d=>d.id===dealId);
+  if(!deal) return;
+  const client=state.clients.find(c=>c.name===deal.stage);
+  const clientLabel=client?client.name:deal.stage;
+  const lines=[];
+  lines.push('New Lead for '+clientLabel+':');
+  lines.push('');
+  if(deal.company) lines.push('Business: '+deal.company);
+  if(deal.location) lines.push('Address: '+deal.location);
+  if(deal.phone) lines.push('Phone: '+deal.phone);
+  if(deal.email) lines.push('Email: '+deal.email);
+  if(deal.contact && deal.contact!==deal.company) lines.push('Contact: '+deal.contact);
+  lines.push('');
+  lines.push('Date/Time: ');
+  lines.push('Instructions: ');
+  const text=lines.join('\n');
+  navigator.clipboard.writeText(text).then(()=>{
+    // Flash the button to confirm
+    const btn=event.target.closest('button');
+    if(btn){ const orig=btn.innerHTML; btn.innerHTML='✅ Copied!'; setTimeout(()=>btn.innerHTML=orig, 1500); }
+  }).catch(()=>{
+    // Fallback for older browsers
+    prompt('Copy this text:',text);
+  });
+}
+
+function buildCalendlyUrl(baseUrl, deal){
+  const url = new URL(baseUrl.includes('://') ? baseUrl : 'https://'+baseUrl);
+  const name = deal.contact || deal.company || '';
+  const email = deal.email || '';
+  if(name) url.searchParams.set('name', name);
+  if(email) url.searchParams.set('email', email);
+  // Pack all deal info into the notes/comments field (a1)
+  const lines = [];
+  if(deal.company) lines.push('Business: ' + deal.company);
+  if(deal.location) lines.push('Address: ' + deal.location);
+  if(deal.phone) lines.push('Phone: ' + deal.phone);
+  if(deal.email) lines.push('Email: ' + deal.email);
+  if(deal.contact && deal.contact !== deal.company) lines.push('Contact: ' + deal.contact);
+  lines.push('');
+  lines.push('Date/Time: ');
+  lines.push('Instructions: ');
+  if(lines.length) url.searchParams.set('a1', lines.join('\n'));
+  return url.toString();
 }
 
 async function addClient(name){
-  const c={id:uid(),name,color:CLIENT_PALETTE[state.clients.length%CLIENT_PALETTE.length]};
+  const c={id:uid(),name,color:CLIENT_PALETTE[state.clients.length%CLIENT_PALETTE.length],calendlyUrl:''};
   state.clients.push(c);render();
   await apiPost("create_client",c);
 }
@@ -674,7 +758,10 @@ function render(){
           <div class="col-title">${esc(stage.label)}</div>
           <div class="col-meta">${fmt$(sv)} · ${sd.length} deal${sd.length!==1?'s':''}</div>
         </div>
-        ${state.pipeline==='client_leads'?`<button style="background:none;border:none;color:#d1d5db;font-size:14px;cursor:pointer" onclick="if(confirm('Remove this client?'))removeClient(atob('${btoa(unescape(encodeURIComponent(stage.label)))}'))">×</button>`:''}
+        ${state.pipeline==='client_leads'?`<div style="display:flex;gap:6px;align-items:center">
+          ${(()=>{const cl=state.clients.find(c=>c.name===stage.label);return cl&&cl.calendlyUrl?'<a href="'+esc(cl.calendlyUrl)+'" target="_blank" rel="noopener" title="Open Calendly for '+esc(stage.label)+'" style="background:none;border:none;color:#818cf8;font-size:14px;cursor:pointer;text-decoration:none" onclick="event.stopPropagation()">📅</a>':'';})()}
+          <button style="background:none;border:none;color:#d1d5db;font-size:14px;cursor:pointer" onclick="if(confirm('Remove this client?'))removeClient(atob('${btoa(unescape(encodeURIComponent(stage.label)))}'))">×</button>
+        </div>`:''}
       </div>
       <div class="col-body" ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';doDragOver(this.closest('.column'))" ondrop="doDrop('${stageKey}')">`;
 
@@ -721,11 +808,17 @@ function render(){
 
   html+=`</div>`;
 
-  // Drag-to-delete zone
-  html+=`<div class="delete-zone" id="delete-zone"
-    ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';this.classList.add('drag-hover')"
-    ondragleave="this.classList.remove('drag-hover')"
-    ondrop="doDeleteDrop()">🗑️ Drop here to delete</div>`;
+  // Drag-to-delete/won zone
+  html+=`<div class="delete-zone" id="delete-zone">
+    <div class="delete-zone-half delete-zone-lost"
+      ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';this.classList.add('drag-hover')"
+      ondragleave="this.classList.remove('drag-hover')"
+      ondrop="doLostDrop()">🗑️ Lost / Delete</div>
+    <div class="delete-zone-half delete-zone-won"
+      ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';this.classList.add('drag-hover')"
+      ondragleave="this.classList.remove('drag-hover')"
+      ondrop="doWonDrop()">✅ Won → Push to Tracker</div>
+  </div>`;
 
   // Modals
   if(state.selectedDeal) html+=renderDealModal(state.selectedDeal);
@@ -828,6 +921,25 @@ function renderDealModal(deal){
         ${pushed?'✅ Pushed to Lead Tracker':'📤 Push to Lead Tracker'}
       </button>
     </div>`;
+    // Calendly Book Meeting button (if URL exists)
+    const client=state.clients.find(c=>c.name===deal.stage);
+    if(client && client.calendlyUrl){
+      const calUrl=buildCalendlyUrl(client.calendlyUrl, deal);
+      h+=`<div style="margin:0 0 6px 0">
+        <a href="${esc(calUrl)}" target="_blank" rel="noopener" class="btn btn-primary" 
+          style="width:100%;justify-content:center;gap:6px;font-size:13px;text-decoration:none;display:flex;background:#818cf8;border-color:#818cf8"
+          onclick="event.stopPropagation()">
+          📅 Book Meeting on ${esc(client.name)}'s Calendar
+        </a>
+      </div>`;
+    }
+    // Copy Lead Info button (always available for all clients)
+    h+=`<div style="margin:0 0 12px 0">
+      <button class="btn btn-ghost" style="width:100%;justify-content:center;gap:6px;font-size:13px"
+        onclick="copyLeadInfo('${esc(deal.id)}')">
+        📋 Copy Lead Info for ${esc(client?client.name:deal.stage)}
+      </button>
+    </div>`;
   }
 
   // Activities section
@@ -842,7 +954,7 @@ function renderDealModal(deal){
     h+=`<div class="sop-grid">
       <div style="width:100%;margin-bottom:8px;display:flex;align-items:center;gap:8px">
         <label style="font-size:11px;font-weight:600;color:#6b7280">Date:</label>
-        <input type="date" id="sop-target-date" value="${TODAY}" style="padding:4px 8px;border:1px solid #d8b4fe;border-radius:6px;font-size:12px;font-family:inherit">
+        <input type="date" id="sop-target-date" value="${TODAY()}" style="padding:4px 8px;border:1px solid #d8b4fe;border-radius:6px;font-size:12px;font-family:inherit">
         <span style="font-size:10px;color:#a78bfa">${deal.pipeline==='Client'?'Client SOP':'Acquisition SOP'}</span>
       </div>
       ${Object.entries(sopDays).map(([day,acts])=>`
@@ -852,7 +964,7 @@ function renderDealModal(deal){
   h+=`<div class="add-act-row">
     <select id="new-act-type">${ACTIVITY_TYPES.map(t=>`<option value="${t}">${ACTIVITY_ICONS[t]||""} ${t}</option>`).join("")}</select>
     <input id="new-act-subject" placeholder="Subject" style="flex:1">
-    <input id="new-act-date" type="date" value="${TODAY}">
+    <input id="new-act-date" type="date" value="${TODAY()}">
     <button class="btn btn-primary" onclick="doAddActivity('${deal.id}')">+ Add</button>
   </div>`;
 
@@ -1023,7 +1135,7 @@ function doAddClient(){
 function doAddActivity(dealId){
   const type=document.getElementById("new-act-type")?.value||"Call";
   const subject=document.getElementById("new-act-subject")?.value||"";
-  const dueDate=document.getElementById("new-act-date")?.value||TODAY;
+  const dueDate=document.getElementById("new-act-date")?.value||TODAY();
   addActivity(dealId,{type,subject:subject||type,dueDate});
   // Clear subject input
   const subEl=document.getElementById("new-act-subject");
@@ -1035,7 +1147,7 @@ function doAssignSequence(dealId,day){
   const sopDays=getSopDays(deal);
   const acts=sopDays[day];
   if(!acts) return;
-  const dateInput = prompt('Schedule "' + day + '" activities for which date?\n\nFormat: YYYY-MM-DD (e.g. ' + TODAY + ')', TODAY);
+  const dateInput = prompt('Schedule "' + day + '" activities for which date?\n\nFormat: YYYY-MM-DD (e.g. ' + TODAY() + ')', TODAY());
   if(!dateInput) return;
   const dateMatch = dateInput.match(/^\d{4}-\d{2}-\d{2}$/);
   if(!dateMatch){ alert('Invalid date format. Use YYYY-MM-DD.'); return; }
@@ -1049,7 +1161,7 @@ function doAssignSequenceWithDate(dealId,day){
   const acts=sopDays[day];
   if(!acts) return;
   const dateEl=document.getElementById('sop-target-date');
-  const targetDate=dateEl?dateEl.value:TODAY;
+  const targetDate=dateEl?dateEl.value:TODAY();
   if(!targetDate.match(/^\d{4}-\d{2}-\d{2}$/)){ alert('Please select a valid date.'); return; }
   assignSequence(dealId,day,acts,targetDate);
   state.showSop=false;
@@ -1083,14 +1195,47 @@ function hideDeleteZone(){
   const z=document.getElementById('delete-zone');
   if(z){ z.classList.remove('visible'); z.classList.remove('drag-hover'); }
 }
-function doDeleteDrop(){
+function doLostDrop(){
   hideDeleteZone();
   clearAllDragOver();
   if(state.dragId){
     const deal=state.deals.find(d=>d.id===state.dragId);
     const name=deal?(deal.company||deal.contact||'this deal'):'this deal';
-    if(confirm('Delete "'+name+'"? This cannot be undone.')){
+    if(confirm('Mark "'+name+'" as Lost and delete? This cannot be undone.')){
       deleteDeal(state.dragId);
+    }
+  }
+  state.dragId=null;
+}
+
+async function doWonDrop(){
+  hideDeleteZone();
+  clearAllDragOver();
+  if(state.dragId){
+    const deal=state.deals.find(d=>d.id===state.dragId);
+    if(!deal){ state.dragId=null; return; }
+    const name=deal.company||deal.contact||'this deal';
+    if(confirm('Mark "'+name+'" as Won, push to Lead Tracker, and remove from CRM?')){
+      const costInput=prompt('Enter lead cost for this client (e.g. 200, 250):','250');
+      if(costInput===null){ state.dragId=null; return; }
+      const costNum=parseFloat(costInput.replace(/[^0-9.]/g,''));
+      if(isNaN(costNum)){alert('Invalid cost. Please enter a number.'); state.dragId=null; return;}
+      const leadCost='$'+costNum;
+      const now=new Date();
+      const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
+      const monthGenerated=monthNames[now.getMonth()]+'/'+String(now.getFullYear()).slice(2);
+      const dateGenerated=(now.getMonth()+1)+'/'+now.getDate()+'/'+String(now.getFullYear()).slice(2);
+      const clientName=deal.stage;
+      const leadName=deal.company||deal.contact||'Unknown';
+      const leadEmail=deal.email||'';
+      const row=[clientName,monthGenerated,leadName,leadEmail,dateGenerated,leadCost,'','','',''];
+      try{
+        await apiPost('push_lead_tracker',{sheetId:LEAD_TRACKER_SHEET_ID,sheetName:'Lead Tracker',row});
+        alert('\u2705 Pushed "'+leadName+'" to Lead Tracker at '+leadCost);
+        deleteDeal(state.dragId);
+      }catch(e){
+        alert('\u274c Failed to push to Lead Tracker: '+e.message);
+      }
     }
   }
   state.dragId=null;
@@ -1184,12 +1329,14 @@ function renderSettingsPanel(){
     <button class="settings-tab ${settingsTab==='stages'?'active':''}" onclick="settingsTab='stages';renderSettingsPanel()">Pipeline Stages</button>
     <button class="settings-tab ${settingsTab==='activities'?'active':''}" onclick="settingsTab='activities';renderSettingsPanel()">Activity Types</button>
     <button class="settings-tab ${settingsTab==='sop'?'active':''}" onclick="settingsTab='sop';renderSettingsPanel()">SOP Sequences</button>
+    <button class="settings-tab ${settingsTab==='clients'?'active':''}" onclick="settingsTab='clients';renderSettingsPanel()">Clients</button>
   </div>
   <div class="settings-body">`;
 
   if(settingsTab==='stages') h+=renderStagesSettings();
   else if(settingsTab==='activities') h+=renderActivityTypesSettings();
   else if(settingsTab==='sop') h+=renderSopSettings();
+  else if(settingsTab==='clients') h+=renderClientsSettings();
 
   h+=`</div>
   <div class="settings-footer">
@@ -1422,6 +1569,48 @@ function applySettings(s){
       CLIENT_SOP_DAYS[seq.name]=seq.activities.map(a=>({type:a.type,subject:a.subject}));
     });
   }
+  // Apply client Calendly URLs
+  if(s.clientCalendlyUrls){
+    try{
+      const urls=typeof s.clientCalendlyUrls==='string'?JSON.parse(s.clientCalendlyUrls):s.clientCalendlyUrls;
+      if(Array.isArray(urls)){
+        for(const u of urls){
+          const c=state.clients.find(x=>x.name===u.name);
+          if(c){ c.calendlyUrl=u.calendlyUrl||''; if(u.color) c.color=u.color; }
+        }
+      }
+    }catch(e){}
+  }
+}
+
+function renderClientsSettings(){
+  let h=`<div style="padding:16px 0">
+    <h4 style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">Client Calendly Links</h4>
+    <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Add Calendly scheduling URLs for each client. These appear in column headers and deal modals for one-click booking.</p>`;
+  if(state.clients.length===0){
+    h+=`<p style="font-size:12px;color:var(--text-muted);text-align:center;padding:20px">No clients added yet. Add clients from the Client Leads pipeline.</p>`;
+  } else {
+    for(const c of state.clients){
+      h+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px">
+        <span style="width:10px;height:10px;border-radius:50%;background:${c.color||'#818cf8'};flex-shrink:0"></span>
+        <span style="font-size:13px;font-weight:600;color:var(--text);min-width:100px">${esc(c.name)}</span>
+        <input type="text" placeholder="https://calendly.com/..." value="${esc(c.calendlyUrl||'')}" 
+          oninput="updateClientCalendly('${esc(c.name)}',this.value)"
+          style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text)">
+        ${c.calendlyUrl?'<a href="'+esc(c.calendlyUrl)+'" target="_blank" rel="noopener" style="color:#818cf8;font-size:12px;text-decoration:none;flex-shrink:0" onclick="event.stopPropagation()">Test ↗</a>':''}
+      </div>`;
+    }
+  }
+  h+=`<div style="margin-top:12px;padding:10px 12px;background:rgba(129,140,248,.06);border:1px solid rgba(129,140,248,.15);border-radius:8px">
+    <p style="font-size:11px;color:var(--text-muted);margin:0"><strong style="color:var(--text)">💡 Calendly Pre-fill:</strong> When you click "Book Meeting" from a deal, the prospect's name and email auto-fill, and their business name, address, phone, email, and contact are packed into the notes/comments field (first custom question) so it's all right there when you open the booking.</p>
+  </div>`;
+  h+=`</div>`;
+  return h;
+}
+
+function updateClientCalendly(name, url){
+  const c=state.clients.find(x=>x.name===name);
+  if(c) c.calendlyUrl=url;
 }
 
 async function saveSettingsToSheet(){
@@ -1432,7 +1621,11 @@ async function saveSettingsToSheet(){
   const btn=document.querySelector('.settings-footer .btn-primary');
   if(btn){ btn.textContent='Saving...'; btn.disabled=true; }
   try {
+    // Save settings
     await apiPost('save_settings',{settings:settingsDraft});
+    // Also save client Calendly URLs
+    const clientData=state.clients.map(c=>({name:c.name, calendlyUrl:c.calendlyUrl||'', color:c.color||''}));
+    await apiPost('save_settings',{settings:{clientCalendlyUrls:JSON.stringify(clientData)}});
     if(btn){ btn.textContent='✓ Saved!'; }
     setTimeout(closeSettings, 800);
   } catch(e){
