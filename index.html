@@ -1587,7 +1587,7 @@ function applySettings(s){
       if(Array.isArray(urls)){
         for(const u of urls){
           const c=state.clients.find(x=>x.name===u.name);
-          if(c){ c.calendlyUrl=u.calendlyUrl||''; if(u.color) c.color=u.color; }
+          if(c){ if(u.calendlyUrl) c.calendlyUrl=u.calendlyUrl; if(u.color) c.color=u.color; }
         }
       }
     }catch(e){}
