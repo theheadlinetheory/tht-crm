@@ -324,7 +324,7 @@ let state = {
   deals: [],
   activities: [],
   clients: [...TEST_CLIENTS],
-  pipeline: "acquisition",
+  pipeline: (() => { try { const h=location.hash.replace('#',''); return ['acquisition','client_leads','nurture'].includes(h)?h:'acquisition'; } catch(e){ return 'acquisition'; } })(),
   selectedDeal: null,
   showNew: false,
   showAddClient: false,
@@ -617,7 +617,8 @@ function copyLeadInfo(dealId){
   lines.push('New Lead for '+clientLabel+':');
   lines.push('');
   if(deal.company) lines.push('Business: '+deal.company);
-  if(deal.location) lines.push('Address: '+deal.location);
+  if(deal.address) lines.push('Address: '+deal.address);
+  else if(deal.location) lines.push('Address: '+deal.location);
   if(deal.phone) lines.push('Phone: '+deal.phone);
   if(deal.email) lines.push('Email: '+deal.email);
   if(deal.contact && deal.contact!==deal.company) lines.push('Contact: '+deal.contact);
@@ -644,7 +645,8 @@ function buildCalendlyUrl(baseUrl, deal){
   // Pack all deal info into the notes/comments field (a1)
   const lines = [];
   if(deal.company) lines.push('Business: ' + deal.company);
-  if(deal.location) lines.push('Address: ' + deal.location);
+  if(deal.address) lines.push('Address: ' + deal.address);
+  else if(deal.location) lines.push('Address: ' + deal.location);
   if(deal.phone) lines.push('Phone: ' + deal.phone);
   if(deal.email) lines.push('Email: ' + deal.email);
   if(deal.contact && deal.contact !== deal.company) lines.push('Contact: ' + deal.contact);
@@ -709,7 +711,7 @@ function render(){
     <div style="display:flex;align-items:center;">
       <span class="topbar-brand">THT CRM</span>
       <div class="topbar-tabs">
-        ${PIPELINES.map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="state.pipeline='${p.id}';render()">${p.label}</button>`).join("")}
+        ${PIPELINES.map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="state.pipeline='${p.id}';location.hash='${p.id}';render()">${p.label}</button>`).join("")}
       </div>
     </div>
     <div class="topbar-right">
@@ -873,7 +875,7 @@ function renderDealModal(deal){
       <div class="modal-header"><h3>Edit Deal</h3><button class="modal-close" onclick="closeDealModal()">×</button></div>
       <div class="modal-body">
         <div class="form-grid">
-          ${["company:Company","contact:Contact Name","email:Email","phone:Phone","website:Website","location:Location","value:Deal Value ($)"].map(f=>{
+          ${["company:Company","contact:Contact Name","email:Email","phone:Phone","website:Website","location:Location","address:Address","value:Deal Value ($)"].map(f=>{
             const[k,label]=f.split(":");
             let extra='';
             if(k==='phone'&&deal.phone){
@@ -946,7 +948,7 @@ function renderDealModal(deal){
   h+=`<div class="activities-section">
     <div class="activities-header">
       <h4>Activities</h4>
-      <button class="sop-btn ${state.showSop?'active':''}" onclick="state.showSop=!state.showSop;render()">📋 Assign SOP Day</button>
+      <button class="sop-btn ${state.showSop?'active':''}" onclick="state.showSop=!state.showSop;refreshModal()">📋 Assign SOP Day</button>
     </div>`;
 
   if(state.showSop){
@@ -1096,7 +1098,7 @@ function doSaveDeal(id){
   const deal=state.selectedDeal;
   if(!deal)return;
   // Grab latest values from form inputs
-  ["company","contact","email","phone","website","location","notes"].forEach(k=>{
+  ["company","contact","email","phone","website","location","address","notes"].forEach(k=>{
     const el=document.getElementById("deal-"+k);
     if(el) deal[k]=el.value;
   });
@@ -1214,6 +1216,11 @@ async function doWonDrop(){
   if(state.dragId){
     const deal=state.deals.find(d=>d.id===state.dragId);
     if(!deal){ state.dragId=null; return; }
+    // Only allow Won/Push for client pipeline deals
+    if(deal.pipeline!=='Client'){
+      alert('Won → Push to Tracker is only available for Client pipeline deals. Use Lost/Delete for acquisition deals.');
+      state.dragId=null; return;
+    }
     const name=deal.company||deal.contact||'this deal';
     if(confirm('Mark "'+name+'" as Won, push to Lead Tracker, and remove from CRM?')){
       const costInput=prompt('Enter lead cost for this client (e.g. 200, 250):','250');
