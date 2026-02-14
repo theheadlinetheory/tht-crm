@@ -127,6 +127,17 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .sl-info-title { font-weight: 700; color: var(--purple); margin-bottom: 4px; }
 .sl-info div { color: var(--text-secondary); }
 .sl-info a { color: var(--purple); font-size: 10.5px; }
+.reply-preview { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:var(--radius); padding:10px 12px; margin-bottom:16px; font-size:12px; }
+.reply-preview-title { font-weight:700; color:#15803d; margin-bottom:6px; font-size:11px; display:flex; align-items:center; gap:5px; }
+.reply-preview-body { color:#374151; white-space:pre-wrap; word-break:break-word; max-height:120px; overflow-y:auto; line-height:1.5; }
+.reply-preview-category { display:inline-block; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:600; margin-left:6px; }
+.cat-interested { background:#dcfce7; color:#166534; }
+.cat-meeting { background:#dbeafe; color:#1e40af; }
+.cat-info { background:#fef3c7; color:#92400e; }
+.forward-btn { width:100%; justify-content:center; gap:6px; font-size:13px; padding:10px; font-weight:700; }
+.forward-btn.sent { background:#f0fdf4; border-color:#bbf7d0; color:#15803d; cursor:default; }
+.forward-btn.ready { background:#2563eb; border-color:#2563eb; color:#fff; }
+.forward-btn.ready:hover { background:#1d4ed8; }
 
 /* Activities */
 .activities-section { border-top: 1px solid var(--border); padding-top: 14px; margin-top: 8px; }
@@ -209,6 +220,7 @@ let pendingWrites = 0; // Prevent sync from overwriting during active writes
 let savedScrollLeft = 0; // Preserve horizontal scroll across renders
 let settingsOpen = false;
 let settingsTab = 'stages'; // stages | activities | sop | clients
+let clientsSubTab = 'notifications'; // notifications | calendly
 let settingsDraft = null; // Working copy of settings being edited
 
 // ─── Configs ───
@@ -305,6 +317,48 @@ const TEST_CLIENTS = [
 function fmt$(v){return new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",minimumFractionDigits:0}).format(v||0)}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function str(v){return v===null||v===undefined?'':String(v)}
+
+// Find matching client for a deal based on campaign keywords
+function findClientForDeal(deal){
+  const cn=str(deal.campaignName).toLowerCase();
+  if(!cn) return null;
+  for(const c of state.clients){
+    const keywords=str(c.campaignKeywords).toLowerCase().split(',').map(k=>k.trim()).filter(k=>k);
+    for(const kw of keywords){
+      if(cn.includes(kw)) return c;
+    }
+  }
+  return null;
+}
+
+// Forward deal to matched client via Apps Script (email + optional SMS)
+async function forwardDealToClient(dealId){
+  const deal=state.deals.find(d=>d.id===dealId);
+  if(!deal) return;
+  const client=findClientForDeal(deal);
+  if(!client){alert('No client matched for this campaign. Add campaign keywords in Settings → Client Notifications.');return;}
+  if(deal.forwardedAt && str(deal.forwardedAt).trim()!==''){alert('Already forwarded.');return;}
+  
+  const btn=event.target.closest('.forward-btn');
+  if(btn){btn.textContent='Sending...';btn.disabled=true;}
+  
+  try{
+    const resp=await apiPost('forward_to_client',{dealId:dealId,clientId:client.id});
+    if(resp.error){
+      alert('Forward failed: '+resp.error);
+      if(btn){btn.textContent='📧 Retry Forward';btn.disabled=false;}
+      return;
+    }
+    deal.forwardedAt=new Date().toISOString();
+    refreshModal();
+    // Brief success feedback
+    if(btn){btn.textContent='✅ Sent!';btn.className='btn forward-btn sent';}
+  }catch(e){
+    alert('Forward failed: '+e.message);
+    if(btn){btn.textContent='📧 Retry Forward';btn.disabled=false;}
+  }
+}
 function fmtDate(d){
   if(!d) return '';
   const s=(d||'').slice(0,10); // "2026-02-12"
@@ -915,6 +969,39 @@ function renderDealModal(deal){
       ${deal.leadCategory?`<div>Category: ${esc(deal.leadCategory)}</div>`:''}
       ${deal.smartleadUrl?`<a href="${esc(deal.smartleadUrl)}" target="_blank" rel="noopener">Open in Smartlead →</a>`:''}
     </div>`;
+  }
+
+  // Reply preview + Forward to Client — CLIENT PIPELINE ONLY
+  if(deal.pipeline==='Client'){
+    // Reply preview — show the email body if we have it
+    const replyText=str(deal.emailBody||'').trim();
+    if(replyText){
+      const catClass=str(deal.leadCategory||'').toLowerCase().includes('interested')?'cat-interested':
+        str(deal.leadCategory||'').toLowerCase().includes('meeting')?'cat-meeting':'cat-info';
+      h+=`<div class="reply-preview">
+        <div class="reply-preview-title">📨 Their Reply <span class="reply-preview-category ${catClass}">${esc(deal.leadCategory||'')}</span></div>
+        <div class="reply-preview-body">${esc(replyText)}</div>
+      </div>`;
+    }
+
+    // Forward to Client button
+    const forwarded=deal.forwardedAt && str(deal.forwardedAt).trim()!=='';
+    const matchedClientForForward=findClientForDeal(deal);
+    if(matchedClientForForward){
+      const fwdLabel=forwarded
+        ? '✅ Forwarded to '+esc(matchedClientForForward.name)+' — '+new Date(deal.forwardedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})
+        : '📧 Forward Lead to '+esc(matchedClientForForward.name);
+      h+=`<div style="margin:0 0 12px 0">
+        <button class="btn forward-btn ${forwarded?'sent':'ready'}" 
+          onclick="${forwarded?'':'forwardDealToClient(\''+deal.id+'\')'}" ${forwarded?'disabled':''}>
+          ${fwdLabel}
+        </button>
+      </div>`;
+    } else if(deal.campaignName){
+      h+=`<div style="margin:0 0 12px 0;padding:8px 12px;background:#fef3c7;border:1px solid #fde68a;border-radius:var(--radius);font-size:11px;color:#92400e">
+        ⚠️ No client matched for this campaign. Add campaign keywords in Settings → Client Notifications.
+      </div>`;
+    }
   }
 
   // Push to Lead Tracker button - only for deals assigned to a client (client_leads pipeline)
@@ -1596,11 +1683,50 @@ function applySettings(s){
 
 function renderClientsSettings(){
   let h=`<div style="padding:16px 0">
-    <h4 style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">Client Calendly Links</h4>
-    <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Add Calendly scheduling URLs for each client. These appear in column headers and deal modals for one-click booking.</p>`;
+    <div class="settings-tab-bar" style="margin-bottom:16px">
+      <button class="settings-tab ${clientsSubTab!=='notifications'?'active':''}" onclick="clientsSubTab='calendly';renderSettingsPanel()">Calendly Links</button>
+      <button class="settings-tab ${clientsSubTab==='notifications'?'active':''}" onclick="clientsSubTab='notifications';renderSettingsPanel()">Notifications</button>
+    </div>`;
+
   if(state.clients.length===0){
     h+=`<p style="font-size:12px;color:var(--text-muted);text-align:center;padding:20px">No clients added yet. Add clients from the Client Leads pipeline.</p>`;
+    h+=`</div>`;
+    return h;
+  }
+
+  if(clientsSubTab==='notifications'){
+    h+=`<h4 style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">📧 Client Notification Settings</h4>
+    <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Configure which emails receive lead notifications and which campaign names map to each client.</p>`;
+
+    for(const c of state.clients){
+      h+=`<div style="margin-bottom:14px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+          <span style="width:10px;height:10px;border-radius:50%;background:${c.color||'#818cf8'};flex-shrink:0"></span>
+          <span style="font-size:13px;font-weight:700;color:var(--text)">${esc(c.name)}</span>
+        </div>
+        <div style="margin-bottom:6px">
+          <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Notification Emails</label>
+          <input type="text" placeholder="email1@example.com, email2@example.com" value="${esc(str(c.notifyEmails))}" 
+            oninput="updateClientNotification('${esc(c.id)}','notifyEmails',this.value)"
+            style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Campaign Keywords</label>
+          <input type="text" placeholder="keyword1, keyword2 (matches campaign name)" value="${esc(str(c.campaignKeywords))}" 
+            oninput="updateClientNotification('${esc(c.id)}','campaignKeywords',this.value)"
+            style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+        </div>
+      </div>`;
+    }
+
+    h+=`<div style="margin-top:12px;padding:10px 12px;background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.15);border-radius:8px">
+      <p style="font-size:11px;color:var(--text-muted);margin:0"><strong style="color:var(--text)">💡 How it works:</strong> When you click "Forward Lead" on a deal, the system matches the deal's campaign name against these keywords to find the right client. It then sends a formatted email with the lead details to all notification emails listed. Separate multiple emails/keywords with commas.</p>
+    </div>`;
+
   } else {
+    // Calendly tab (existing)
+    h+=`<h4 style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">Client Calendly Links</h4>
+    <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Add Calendly scheduling URLs for each client. These appear in column headers and deal modals for one-click booking.</p>`;
     for(const c of state.clients){
       h+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px">
         <span style="width:10px;height:10px;border-radius:50%;background:${c.color||'#818cf8'};flex-shrink:0"></span>
@@ -1611,10 +1737,11 @@ function renderClientsSettings(){
         ${c.calendlyUrl?'<a href="'+esc(c.calendlyUrl)+'" target="_blank" rel="noopener" style="color:#818cf8;font-size:12px;text-decoration:none;flex-shrink:0" onclick="event.stopPropagation()">Test ↗</a>':''}
       </div>`;
     }
+    h+=`<div style="margin-top:12px;padding:10px 12px;background:rgba(129,140,248,.06);border:1px solid rgba(129,140,248,.15);border-radius:8px">
+      <p style="font-size:11px;color:var(--text-muted);margin:0"><strong style="color:var(--text)">💡 Calendly Pre-fill:</strong> When you click "Book Meeting" from a deal, the prospect's name and email auto-fill, and their business name, address, phone, email, and contact are packed into the notes/comments field (first custom question) so it's all right there when you open the booking.</p>
+    </div>`;
   }
-  h+=`<div style="margin-top:12px;padding:10px 12px;background:rgba(129,140,248,.06);border:1px solid rgba(129,140,248,.15);border-radius:8px">
-    <p style="font-size:11px;color:var(--text-muted);margin:0"><strong style="color:var(--text)">💡 Calendly Pre-fill:</strong> When you click "Book Meeting" from a deal, the prospect's name and email auto-fill, and their business name, address, phone, email, and contact are packed into the notes/comments field (first custom question) so it's all right there when you open the booking.</p>
-  </div>`;
+
   h+=`</div>`;
   return h;
 }
@@ -1622,6 +1749,11 @@ function renderClientsSettings(){
 function updateClientCalendly(name, url){
   const c=state.clients.find(x=>x.name===name);
   if(c) c.calendlyUrl=url;
+}
+
+function updateClientNotification(clientId, field, value){
+  const c=state.clients.find(x=>str(x.id)===str(clientId));
+  if(c) c[field]=value;
 }
 
 async function saveSettingsToSheet(){
@@ -1637,6 +1769,12 @@ async function saveSettingsToSheet(){
     // Also save client Calendly URLs
     const clientData=state.clients.map(c=>({name:c.name, calendlyUrl:c.calendlyUrl||'', color:c.color||''}));
     await apiPost('save_settings',{settings:{clientCalendlyUrls:JSON.stringify(clientData)}});
+    // Save client notification settings (notifyEmails, campaignKeywords) per client
+    for(const c of state.clients){
+      if(c.id){
+        await apiPost('update_client',{id:c.id, notifyEmails:str(c.notifyEmails), campaignKeywords:str(c.campaignKeywords)});
+      }
+    }
     if(btn){ btn.textContent='✓ Saved!'; }
     setTimeout(closeSettings, 800);
   } catch(e){
