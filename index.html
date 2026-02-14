@@ -425,8 +425,9 @@ async function confirmForward(dealId){
   
   try{
     const resp=await apiPost('forward_to_client',{dealId:dealId});
-    if(resp.error){
-      alert('Forward failed: '+resp.error);
+    if(!resp || resp.error){
+      const errMsg=resp?resp.error:'No response from server — check Apps Script deployment';
+      alert('Forward failed: '+errMsg);
       if(btn){btn.textContent='📧 Retry';btn.disabled=false;}
       return;
     }
@@ -509,7 +510,13 @@ async function apiPost(action,data,retries=2){
     try {
       const r=await fetch(API_URL,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain"},body:JSON.stringify({action,data})});
       const text=await r.text();
-      try { const parsed=JSON.parse(text); if(parsed && !parsed.error) return parsed; } catch(e) {}
+      try { 
+        const parsed=JSON.parse(text); 
+        // If server returned valid JSON with an error, return it to the caller (don't retry)
+        if(parsed && parsed.error) return parsed;
+        if(parsed) return parsed;
+      } catch(e) {}
+      // Couldn't parse as JSON — retry
       if(attempt<retries){ await new Promise(ok=>setTimeout(ok,800*(attempt+1))); continue; }
       return null;
     } catch(e){
