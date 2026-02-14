@@ -1775,7 +1775,9 @@ function toggleClientField(clientId, field, checked){
   const c=state.clients.find(x=>str(x.id)===str(clientId));
   if(c){
     c[field]=checked?'TRUE':'FALSE';
-    renderSettingsPanel();
+    // Re-render just the clients settings content without closing/reopening the panel
+    const body=document.querySelector('.settings-body');
+    if(body) body.innerHTML=renderClientsSettings();
   }
 }
 
