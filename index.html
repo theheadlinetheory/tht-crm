@@ -354,6 +354,7 @@ function showForwardPreview(deal, client){
   const contactName=deal.contact||'';
   const leadEmail=deal.email||'';
   const leadPhone=deal.phone||'';
+  const leadMobilePhone=deal.mobilePhone||'';
   const leadWebsite=deal.website||'';
   const leadLocation=deal.location||'';
   const smartleadUrl=deal.smartleadUrl||'';
@@ -369,7 +370,8 @@ function showForwardPreview(deal, client){
         ${contactName?`<tr><td style="padding:8px 0;color:#888">Contact</td><td style="padding:8px 0">${esc(contactName)}</td></tr>`:''}
         ${leadWebsite?`<tr><td style="padding:8px 0;color:#888">Website</td><td style="padding:8px 0;color:#2563eb">${esc(leadWebsite)}</td></tr>`:''}
         ${leadEmail?`<tr><td style="padding:8px 0;color:#888">Email</td><td style="padding:8px 0;color:#2563eb">${esc(leadEmail)}</td></tr>`:''}
-        ${leadPhone?`<tr><td style="padding:8px 0;color:#888">Phone</td><td style="padding:8px 0">${esc(leadPhone)}</td></tr>`:''}
+        ${leadPhone?`<tr><td style="padding:8px 0;color:#888">Business Phone</td><td style="padding:8px 0">${esc(leadPhone)}</td></tr>`:''}
+        ${leadMobilePhone?`<tr><td style="padding:8px 0;color:#888">Mobile Phone</td><td style="padding:8px 0">${esc(leadMobilePhone)}</td></tr>`:''}
         ${leadLocation?`<tr><td style="padding:8px 0;color:#888">Address</td><td style="padding:8px 0">${esc(leadLocation)}</td></tr>`:''}
       </table>
       ${smartleadUrl?`<div style="margin-top:20px"><span style="display:inline-block;background:#2563eb;color:#fff;padding:10px 24px;border-radius:6px;font-weight:bold;font-size:14px">Click to Reply →</span></div>`:''}
@@ -380,7 +382,7 @@ function showForwardPreview(deal, client){
   const missing=[];
   if(!contactName) missing.push('Contact Name');
   if(!leadEmail) missing.push('Email');
-  if(!leadPhone) missing.push('Phone');
+  if(!leadPhone && !leadMobilePhone) missing.push('Phone (Business or Mobile)');
   if(!leadWebsite) missing.push('Website');
   if(!leadLocation) missing.push('Address');
   if(!smartleadUrl) missing.push('Smartlead Reply Link');
@@ -430,6 +432,28 @@ async function confirmForward(dealId){
     }
     const deal=state.deals.find(d=>d.id===dealId);
     if(deal) deal.forwardedAt=new Date().toISOString();
+
+    // Auto-push to Lead Tracker
+    if(deal){
+      const client=findClientForDeal(deal) || state.clients.find(c=>c.name===deal.stage);
+      if(client){
+        try{
+          const now=new Date();
+          const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
+          const monthGenerated=monthNames[now.getMonth()]+'/'+String(now.getFullYear()).slice(2);
+          const dateGenerated=(now.getMonth()+1)+'/'+now.getDate()+'/'+String(now.getFullYear()).slice(2);
+          const leadName=deal.company||deal.contact||'Unknown';
+          const leadEmail=deal.email||'';
+          const cost=str(client.leadCost).replace(/[^0-9.]/g,'')?'$'+str(client.leadCost).replace(/[^0-9.]/g,''):'';
+          const row=[client.name,monthGenerated,leadName,leadEmail,dateGenerated,cost,'','','',''];
+          await apiPost('push_lead_tracker',{sheetId:'1zEfZQOuzbrE9s01gfTOoVvEJ-DgtOxkPIWNiZHaxaZ4',sheetName:'Lead Tracker',row});
+          deal.pushedToTracker=true;
+        }catch(e){
+          console.error('Lead Tracker push failed:',e);
+        }
+      }
+    }
+
     document.getElementById('fwd-preview-overlay')?.remove();
     refreshModal();
   }catch(e){
@@ -755,7 +779,8 @@ function copyLeadInfo(dealId){
   if(deal.company) lines.push('Business: '+deal.company);
   if(deal.address) lines.push('Address: '+deal.address);
   else if(deal.location) lines.push('Address: '+deal.location);
-  if(deal.phone) lines.push('Phone: '+deal.phone);
+  if(deal.phone) lines.push('Business Phone: '+deal.phone);
+  if(deal.mobilePhone) lines.push('Mobile Phone: '+deal.mobilePhone);
   if(deal.email) lines.push('Email: '+deal.email);
   if(deal.contact && deal.contact!==deal.company) lines.push('Contact: '+deal.contact);
   lines.push('');
@@ -783,7 +808,8 @@ function buildCalendlyUrl(baseUrl, deal){
   if(deal.company) lines.push('Business: ' + deal.company);
   if(deal.address) lines.push('Address: ' + deal.address);
   else if(deal.location) lines.push('Address: ' + deal.location);
-  if(deal.phone) lines.push('Phone: ' + deal.phone);
+  if(deal.phone) lines.push('Business Phone: ' + deal.phone);
+  if(deal.mobilePhone) lines.push('Mobile Phone: ' + deal.mobilePhone);
   if(deal.email) lines.push('Email: ' + deal.email);
   if(deal.contact && deal.contact !== deal.company) lines.push('Contact: ' + deal.contact);
   lines.push('');
@@ -807,16 +833,22 @@ const LEAD_TRACKER_SHEET_ID='1zEfZQOuzbrE9s01gfTOoVvEJ-DgtOxkPIWNiZHaxaZ4';
 async function pushToLeadTracker(dealId){
   const deal=state.deals.find(d=>d.id===dealId);
   if(!deal) return;
-  const costInput=prompt('Enter lead cost for this client (e.g. 200, 250):','250');
-  if(costInput===null) return; // cancelled
-  const costNum=parseFloat(costInput.replace(/[^0-9.]/g,''));
-  if(isNaN(costNum)){alert('Invalid cost. Please enter a number.');return;}
-  const leadCost='$'+costNum;
+  const client=findClientForDeal(deal) || state.clients.find(c=>c.name===deal.stage);
+  let leadCost='';
+  if(client && str(client.leadCost).replace(/[^0-9.]/g,'')){
+    leadCost='$'+str(client.leadCost).replace(/[^0-9.]/g,'');
+  } else {
+    const costInput=prompt('Enter lead cost for this client (e.g. 200, 250):','250');
+    if(costInput===null) return;
+    const costNum=parseFloat(costInput.replace(/[^0-9.]/g,''));
+    if(isNaN(costNum)){alert('Invalid cost. Please enter a number.');return;}
+    leadCost='$'+costNum;
+  }
   const now=new Date();
   const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const monthGenerated=monthNames[now.getMonth()]+'/'+String(now.getFullYear()).slice(2);
   const dateGenerated=(now.getMonth()+1)+'/'+now.getDate()+'/'+String(now.getFullYear()).slice(2);
-  const clientName=deal.stage;
+  const clientName=client?client.name:deal.stage;
   const leadName=deal.company||deal.contact||'Unknown';
   const leadEmail=deal.email||'';
   const row=[clientName,monthGenerated,leadName,leadEmail,dateGenerated,leadCost,'','','',''];
@@ -1011,11 +1043,11 @@ function renderDealModal(deal){
       <div class="modal-header"><h3>Edit Deal</h3><button class="modal-close" onclick="closeDealModal()">×</button></div>
       <div class="modal-body">
         <div class="form-grid">
-          ${["company:Company","contact:Contact Name","email:Email","phone:Phone","website:Website","location:Location","address:Address","value:Deal Value ($)"].map(f=>{
+          ${["company:Company","contact:Contact Name","email:Email","phone:Business Phone","mobilePhone:Mobile Phone","website:Website","location:Address","value:Deal Value ($)"].map(f=>{
             const[k,label]=f.split(":");
             let extra='';
-            if(k==='phone'&&deal.phone){
-              const cleanNum=String(deal.phone||'').replace(/[^0-9+]/g,'');
+            if((k==='phone'||k==='mobilePhone')&&deal[k]){
+              const cleanNum=String(deal[k]||'').replace(/[^0-9+]/g,'');
               extra='<div style="margin-top:4px;display:flex;gap:6px"><a href="sms:'+cleanNum+'" class="imessage-btn" title="Open in iMessage">💬 Text</a><a href="tel:'+cleanNum+'" class="imessage-btn" title="Call from computer">📞 Call</a></div>';
             }
             return'<div class="form-group"><label>'+label+'</label><input id="deal-'+k+'" value="'+esc(String(deal[k]||''))+'" oninput="updateDealField(\''+k+'\',this.value)">'+extra+'</div>';
@@ -1821,6 +1853,13 @@ function renderClientsSettings(){
           style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
       </div>`:''}
 
+      <div style="margin-bottom:8px">
+        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Lead Cost ($)</label>
+        <input type="text" placeholder="e.g. 200" value="${esc(str(c.leadCost))}" 
+          oninput="updateClientField('${esc(c.id)}','leadCost',this.value)"
+          style="width:120px;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+      </div>
+
       ${isOn('enableCalendly')?`<div style="margin-bottom:8px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Calendly URL</label>
         <input type="text" placeholder="https://calendly.com/..." value="${esc(str(c.calendlyUrl))}" 
@@ -1849,17 +1888,42 @@ function updateClientField(clientId, field, value){
   if(c) c[field]=value;
 }
 
-function toggleClientField(clientId, field, checked){
-  const c=state.clients.find(x=>str(x.id)===str(clientId));
-  if(c){
-    c[field]=checked?'TRUE':'FALSE';
-    // Re-render just the clients settings content without closing/reopening the panel
-    const body=document.querySelector('.settings-body');
-    if(body) body.innerHTML=renderClientsSettings();
+function captureClientInputs(){
+  const panel=document.querySelector('.settings-body');
+  if(!panel) return;
+  for(const c of state.clients){
+    const id=c.id;
+    panel.querySelectorAll('input[type="text"]').forEach(inp=>{
+      const handler=inp.getAttribute('oninput')||'';
+      const match=handler.match(/updateClientField\('([^']+)','([^']+)'/);
+      if(match && match[1]===id){
+        c[match[2]]=inp.value;
+      }
+    });
+    panel.querySelectorAll('input[type="checkbox"]').forEach(inp=>{
+      const handler=inp.getAttribute('onchange')||'';
+      const match=handler.match(/toggleClientField\('([^']+)','([^']+)'/);
+      if(match && match[1]===id){
+        c[match[2]]=inp.checked?'TRUE':'FALSE';
+      }
+    });
   }
 }
 
+function toggleClientField(clientId, field, checked){
+  // Capture ALL current input values before re-rendering so nothing gets lost
+  captureClientInputs();
+  const c=state.clients.find(x=>str(x.id)===str(clientId));
+  if(c){
+    c[field]=checked?'TRUE':'FALSE';
+  }
+  const body=document.querySelector('.settings-body');
+  if(body) body.innerHTML=renderClientsSettings();
+}
+
 async function saveSettingsToSheet(){
+  // Capture any unsaved input values before saving
+  captureClientInputs();
   applySettings(settingsDraft);
   render();
   const btn=document.querySelector('.settings-footer .btn-primary');
@@ -1877,7 +1941,8 @@ async function saveSettingsToSheet(){
           enableForward:str(c.enableForward),
           enableCalendly:str(c.enableCalendly),
           enableCopyInfo:str(c.enableCopyInfo),
-          enableTracker:str(c.enableTracker)
+          enableTracker:str(c.enableTracker),
+          leadCost:str(c.leadCost)
         });
       }
     }
