@@ -971,7 +971,7 @@ function renderDealModal(deal){
     </div>`;
   }
 
-  // Reply preview + Forward to Client — CLIENT PIPELINE ONLY
+  // Reply preview + Client Action Buttons — CLIENT PIPELINE ONLY
   if(deal.pipeline==='Client'){
     // Reply preview — show the email body if we have it
     const replyText=str(deal.emailBody||'').trim();
@@ -984,55 +984,70 @@ function renderDealModal(deal){
       </div>`;
     }
 
-    // Forward to Client button
-    const forwarded=deal.forwardedAt && str(deal.forwardedAt).trim()!=='';
-    const matchedClientForForward=findClientForDeal(deal);
-    if(matchedClientForForward){
-      const fwdLabel=forwarded
-        ? '✅ Forwarded to '+esc(matchedClientForForward.name)+' — '+new Date(deal.forwardedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})
-        : '📧 Forward Lead to '+esc(matchedClientForForward.name);
-      h+=`<div style="margin:0 0 12px 0">
-        <button class="btn forward-btn ${forwarded?'sent':'ready'}" 
-          onclick="${forwarded?'':'forwardDealToClient(\''+deal.id+'\')'}" ${forwarded?'disabled':''}>
-          ${fwdLabel}
-        </button>
-      </div>`;
+    // Find matched client for this deal (by campaign keyword OR by stage name)
+    const matchedClient=findClientForDeal(deal) || state.clients.find(c=>c.name===deal.stage);
+
+    if(matchedClient){
+      const isOn=(field)=>str(matchedClient[field]).toUpperCase()==='TRUE';
+
+      // Forward Lead Email button
+      if(isOn('enableForward')){
+        const forwarded=deal.forwardedAt && str(deal.forwardedAt).trim()!=='';
+        const fwdLabel=forwarded
+          ? '✅ Forwarded to '+esc(matchedClient.name)+' — '+new Date(deal.forwardedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})
+          : '📧 Forward Lead to '+esc(matchedClient.name);
+        h+=`<div style="margin:0 0 8px 0">
+          <button class="btn forward-btn ${forwarded?'sent':'ready'}" 
+            onclick="${forwarded?'':'forwardDealToClient(\''+deal.id+'\')'}" ${forwarded?'disabled':''}>
+            ${fwdLabel}
+          </button>
+        </div>`;
+      }
+
+      // Book Meeting via Calendly button
+      if(isOn('enableCalendly') && matchedClient.calendlyUrl){
+        const calUrl=buildCalendlyUrl(matchedClient.calendlyUrl, deal);
+        h+=`<div style="margin:0 0 8px 0">
+          <a href="${esc(calUrl)}" target="_blank" rel="noopener" class="btn btn-primary" 
+            style="width:100%;justify-content:center;gap:6px;font-size:13px;text-decoration:none;display:flex;background:#818cf8;border-color:#818cf8"
+            onclick="event.stopPropagation()">
+            📅 Book Meeting on ${esc(matchedClient.name)}'s Calendar
+          </a>
+        </div>`;
+      }
+
+      // Copy Lead Info button
+      if(isOn('enableCopyInfo')){
+        h+=`<div style="margin:0 0 8px 0">
+          <button class="btn btn-ghost" style="width:100%;justify-content:center;gap:6px;font-size:13px"
+            onclick="copyLeadInfo('${esc(deal.id)}')">
+            📋 Copy Lead Info for ${esc(matchedClient.name)}
+          </button>
+        </div>`;
+      }
+
+      // Push to Lead Tracker button
+      if(isOn('enableTracker')){
+        const pushed=deal.pushedToTracker;
+        h+=`<div style="margin:0 0 8px 0">
+          <button class="btn ${pushed?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px" 
+            onclick="${pushed?'':'pushToLeadTracker(\''+deal.id+'\')'}" ${pushed?'disabled':''}>
+            ${pushed?'✅ Pushed to Lead Tracker':'📤 Push to Lead Tracker'}
+          </button>
+        </div>`;
+      }
+
+      // Show warning if no actions are enabled
+      if(!isOn('enableForward') && !isOn('enableCalendly') && !isOn('enableCopyInfo') && !isOn('enableTracker')){
+        h+=`<div style="margin:0 0 12px 0;padding:8px 12px;background:#fef3c7;border:1px solid #fde68a;border-radius:var(--radius);font-size:11px;color:#92400e">
+          ⚠️ No actions enabled for ${esc(matchedClient.name)}. Configure in Settings → Clients.
+        </div>`;
+      }
     } else if(deal.campaignName){
       h+=`<div style="margin:0 0 12px 0;padding:8px 12px;background:#fef3c7;border:1px solid #fde68a;border-radius:var(--radius);font-size:11px;color:#92400e">
-        ⚠️ No client matched for this campaign. Add campaign keywords in Settings → Client Notifications.
+        ⚠️ No client matched for this campaign. Add campaign keywords in Settings → Clients.
       </div>`;
     }
-  }
-
-  // Push to Lead Tracker button - only for deals assigned to a client (client_leads pipeline)
-  const clientNames=state.clients.map(c=>c.name);
-  if(clientNames.includes(deal.stage)){
-    const pushed=deal.pushedToTracker;
-    h+=`<div style="margin:12px 0">
-      <button class="btn ${pushed?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px" 
-        onclick="${pushed?'':'pushToLeadTracker(\''+deal.id+'\')'}" ${pushed?'disabled':''}>
-        ${pushed?'✅ Pushed to Lead Tracker':'📤 Push to Lead Tracker'}
-      </button>
-    </div>`;
-    // Calendly Book Meeting button (if URL exists)
-    const client=state.clients.find(c=>c.name===deal.stage);
-    if(client && client.calendlyUrl){
-      const calUrl=buildCalendlyUrl(client.calendlyUrl, deal);
-      h+=`<div style="margin:0 0 6px 0">
-        <a href="${esc(calUrl)}" target="_blank" rel="noopener" class="btn btn-primary" 
-          style="width:100%;justify-content:center;gap:6px;font-size:13px;text-decoration:none;display:flex;background:#818cf8;border-color:#818cf8"
-          onclick="event.stopPropagation()">
-          📅 Book Meeting on ${esc(client.name)}'s Calendar
-        </a>
-      </div>`;
-    }
-    // Copy Lead Info button (always available for all clients)
-    h+=`<div style="margin:0 0 12px 0">
-      <button class="btn btn-ghost" style="width:100%;justify-content:center;gap:6px;font-size:13px"
-        onclick="copyLeadInfo('${esc(deal.id)}')">
-        📋 Copy Lead Info for ${esc(client?client.name:deal.stage)}
-      </button>
-    </div>`;
   }
 
   // Activities section
@@ -1683,64 +1698,64 @@ function applySettings(s){
 
 function renderClientsSettings(){
   let h=`<div style="padding:16px 0">
-    <div class="settings-tab-bar" style="margin-bottom:16px">
-      <button class="settings-tab ${clientsSubTab!=='notifications'?'active':''}" onclick="clientsSubTab='calendly';renderSettingsPanel()">Calendly Links</button>
-      <button class="settings-tab ${clientsSubTab==='notifications'?'active':''}" onclick="clientsSubTab='notifications';renderSettingsPanel()">Notifications</button>
-    </div>`;
+    <h4 style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">Client Configuration</h4>
+    <p style="font-size:11px;color:var(--text-muted);margin-bottom:16px">Set up how each client's leads are handled. Toggle actions on/off and fill in the details.</p>`;
 
   if(state.clients.length===0){
-    h+=`<p style="font-size:12px;color:var(--text-muted);text-align:center;padding:20px">No clients added yet. Add clients from the Client Leads pipeline.</p>`;
-    h+=`</div>`;
+    h+=`<p style="font-size:12px;color:var(--text-muted);text-align:center;padding:20px">No clients added yet.</p></div>`;
     return h;
   }
 
-  if(clientsSubTab==='notifications'){
-    h+=`<h4 style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">📧 Client Notification Settings</h4>
-    <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Configure which emails receive lead notifications and which campaign names map to each client.</p>`;
+  for(const c of state.clients){
+    const isOn=(field)=>str(c[field]).toUpperCase()==='TRUE';
+    h+=`<div style="margin-bottom:16px;padding:14px;background:var(--bg);border:1px solid var(--border);border-radius:10px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <span style="width:12px;height:12px;border-radius:50%;background:${c.color||'#818cf8'};flex-shrink:0"></span>
+        <span style="font-size:14px;font-weight:700;color:var(--text)">${esc(c.name)}</span>
+      </div>
 
-    for(const c of state.clients){
-      h+=`<div style="margin-bottom:14px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
-          <span style="width:10px;height:10px;border-radius:50%;background:${c.color||'#818cf8'};flex-shrink:0"></span>
-          <span style="font-size:13px;font-weight:700;color:var(--text)">${esc(c.name)}</span>
-        </div>
-        <div style="margin-bottom:6px">
-          <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Notification Emails</label>
-          <input type="text" placeholder="email1@example.com, email2@example.com" value="${esc(str(c.notifyEmails))}" 
-            oninput="updateClientNotification('${esc(c.id)}','notifyEmails',this.value)"
-            style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
-        </div>
-        <div>
-          <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Campaign Keywords</label>
-          <input type="text" placeholder="keyword1, keyword2 (matches campaign name)" value="${esc(str(c.campaignKeywords))}" 
-            oninput="updateClientNotification('${esc(c.id)}','campaignKeywords',this.value)"
-            style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
-        </div>
-      </div>`;
-    }
+      <div style="margin-bottom:10px">
+        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Campaign Keywords</label>
+        <input type="text" placeholder="keyword1, keyword2 (matches campaign name)" value="${esc(str(c.campaignKeywords))}" 
+          oninput="updateClientField('${esc(c.id)}','campaignKeywords',this.value)"
+          style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+      </div>
 
-    h+=`<div style="margin-top:12px;padding:10px 12px;background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.15);border-radius:8px">
-      <p style="font-size:11px;color:var(--text-muted);margin:0"><strong style="color:var(--text)">💡 How it works:</strong> When you click "Forward Lead" on a deal, the system matches the deal's campaign name against these keywords to find the right client. It then sends a formatted email with the lead details to all notification emails listed. Separate multiple emails/keywords with commas.</p>
-    </div>`;
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">
+        <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableForward')?'#eff6ff':'var(--card)'}">
+          <input type="checkbox" ${isOn('enableForward')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableForward',this.checked)"> 📧 Forward Email
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableCalendly')?'#f5f3ff':'var(--card)'}">
+          <input type="checkbox" ${isOn('enableCalendly')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableCalendly',this.checked)"> 📅 Calendly
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableCopyInfo')?'#f0fdf4':'var(--card)'}">
+          <input type="checkbox" ${isOn('enableCopyInfo')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableCopyInfo',this.checked)"> 📋 Copy Info
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableTracker')?'#fefce8':'var(--card)'}">
+          <input type="checkbox" ${isOn('enableTracker')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableTracker',this.checked)"> 📤 Lead Tracker
+        </label>
+      </div>
 
-  } else {
-    // Calendly tab (existing)
-    h+=`<h4 style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">Client Calendly Links</h4>
-    <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Add Calendly scheduling URLs for each client. These appear in column headers and deal modals for one-click booking.</p>`;
-    for(const c of state.clients){
-      h+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px">
-        <span style="width:10px;height:10px;border-radius:50%;background:${c.color||'#818cf8'};flex-shrink:0"></span>
-        <span style="font-size:13px;font-weight:600;color:var(--text);min-width:100px">${esc(c.name)}</span>
-        <input type="text" placeholder="https://calendly.com/..." value="${esc(c.calendlyUrl||'')}" 
-          oninput="updateClientCalendly('${esc(c.name)}',this.value)"
-          style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text)">
-        ${c.calendlyUrl?'<a href="'+esc(c.calendlyUrl)+'" target="_blank" rel="noopener" style="color:#818cf8;font-size:12px;text-decoration:none;flex-shrink:0" onclick="event.stopPropagation()">Test ↗</a>':''}
-      </div>`;
-    }
-    h+=`<div style="margin-top:12px;padding:10px 12px;background:rgba(129,140,248,.06);border:1px solid rgba(129,140,248,.15);border-radius:8px">
-      <p style="font-size:11px;color:var(--text-muted);margin:0"><strong style="color:var(--text)">💡 Calendly Pre-fill:</strong> When you click "Book Meeting" from a deal, the prospect's name and email auto-fill, and their business name, address, phone, email, and contact are packed into the notes/comments field (first custom question) so it's all right there when you open the booking.</p>
+      ${isOn('enableForward')?`<div style="margin-bottom:8px">
+        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Notification Emails</label>
+        <input type="text" placeholder="email1@example.com, email2@example.com" value="${esc(str(c.notifyEmails))}" 
+          oninput="updateClientField('${esc(c.id)}','notifyEmails',this.value)"
+          style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+      </div>`:''}
+
+      ${isOn('enableCalendly')?`<div style="margin-bottom:8px">
+        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Calendly URL</label>
+        <input type="text" placeholder="https://calendly.com/..." value="${esc(str(c.calendlyUrl))}" 
+          oninput="updateClientField('${esc(c.id)}','calendlyUrl',this.value)"
+          style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+      </div>`:''}
+
     </div>`;
   }
+
+  h+=`<div style="padding:10px 12px;background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.15);border-radius:8px">
+    <p style="font-size:11px;color:var(--text-muted);margin:0"><strong style="color:var(--text)">💡 How it works:</strong> Toggle the actions each client needs. Only enabled actions show up on deal cards. Campaign keywords match against Smartlead campaign names to auto-assign leads to clients.</p>
+  </div>`;
 
   h+=`</div>`;
   return h;
@@ -1751,28 +1766,39 @@ function updateClientCalendly(name, url){
   if(c) c.calendlyUrl=url;
 }
 
-function updateClientNotification(clientId, field, value){
+function updateClientField(clientId, field, value){
   const c=state.clients.find(x=>str(x.id)===str(clientId));
   if(c) c[field]=value;
 }
 
+function toggleClientField(clientId, field, checked){
+  const c=state.clients.find(x=>str(x.id)===str(clientId));
+  if(c){
+    c[field]=checked?'TRUE':'FALSE';
+    renderSettingsPanel();
+  }
+}
+
 async function saveSettingsToSheet(){
-  // Apply locally
   applySettings(settingsDraft);
   render();
-  // Save to sheet
   const btn=document.querySelector('.settings-footer .btn-primary');
   if(btn){ btn.textContent='Saving...'; btn.disabled=true; }
   try {
-    // Save settings
     await apiPost('save_settings',{settings:settingsDraft});
-    // Also save client Calendly URLs
-    const clientData=state.clients.map(c=>({name:c.name, calendlyUrl:c.calendlyUrl||'', color:c.color||''}));
-    await apiPost('save_settings',{settings:{clientCalendlyUrls:JSON.stringify(clientData)}});
-    // Save client notification settings (notifyEmails, campaignKeywords) per client
+    // Save all client fields
     for(const c of state.clients){
       if(c.id){
-        await apiPost('update_client',{id:c.id, notifyEmails:str(c.notifyEmails), campaignKeywords:str(c.campaignKeywords)});
+        await apiPost('update_client',{
+          id:c.id,
+          notifyEmails:str(c.notifyEmails),
+          campaignKeywords:str(c.campaignKeywords),
+          calendlyUrl:str(c.calendlyUrl),
+          enableForward:str(c.enableForward),
+          enableCalendly:str(c.enableCalendly),
+          enableCopyInfo:str(c.enableCopyInfo),
+          enableTracker:str(c.enableTracker)
+        });
       }
     }
     if(btn){ btn.textContent='✓ Saved!'; }
