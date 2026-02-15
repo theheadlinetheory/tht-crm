@@ -224,152 +224,15 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 </head>
 <body>
 
-<!-- Login Screen -->
-<div id="login-screen" class="login-wrapper">
-  <div class="login-box">
-    <div class="login-logo">
-      <div class="login-logo-icon"><span>T</span></div>
-      <h1>The Headline Theory</h1>
-      <p id="login-subtitle">Sign in to your CRM</p>
-    </div>
-    <div class="login-form">
-      <div class="login-field" id="name-field" style="display:none">
-        <label>Full Name</label>
-        <input type="text" id="login-name" placeholder="Your name" autocomplete="name">
-      </div>
-      <div class="login-field">
-        <label>Email</label>
-        <input type="email" id="login-email" placeholder="your@email.com" autocomplete="email">
-      </div>
-      <div class="login-field">
-        <label>Password</label>
-        <input type="password" id="login-password" placeholder="Enter your password" autocomplete="current-password">
-      </div>
-      <button class="login-btn" id="login-btn" onclick="handleAuth()">Sign In</button>
-      <div class="login-error" id="login-error"></div>
-      <div style="text-align:center;margin-top:14px">
-        <span id="auth-toggle" style="font-size:12px;color:var(--text-muted);cursor:pointer" onclick="toggleAuthMode()">
-          Don't have an account? <strong style="color:var(--purple)">Sign up</strong>
-        </span>
-      </div>
-      <div id="reset-link" style="text-align:center;margin-top:8px">
-        <span style="font-size:11px;color:var(--text-muted);cursor:pointer" onclick="handlePasswordReset()">
-          Forgot password?
-        </span>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div id="app" style="display:none"></div>
-
-<!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+<div id="app"></div>
 
 <script>
 // ═══════════════════════════════════════════════════════════
-// FIREBASE AUTH
+// AUTH — Firebase login (DISABLED — will enable once Firebase project is configured)
 // ═══════════════════════════════════════════════════════════
-// TODO: Replace this config with your Firebase project config
-const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
-};
+let currentUser = { name: 'Aidan', email: 'aidanhutch7@gmail.com' };
 
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-
-let currentUser = null;
-let authMode = 'login'; // 'login' or 'signup'
-
-function toggleAuthMode(){
-  authMode = authMode==='login' ? 'signup' : 'login';
-  document.getElementById('login-subtitle').textContent = authMode==='signup' ? 'Create your account' : 'Sign in to your CRM';
-  document.getElementById('login-btn').textContent = authMode==='signup' ? 'Create Account' : 'Sign In';
-  document.getElementById('name-field').style.display = authMode==='signup' ? 'block' : 'none';
-  document.getElementById('reset-link').style.display = authMode==='signup' ? 'none' : 'block';
-  document.getElementById('auth-toggle').innerHTML = authMode==='signup'
-    ? 'Already have an account? <strong style="color:var(--purple)">Sign in</strong>'
-    : 'Don\'t have an account? <strong style="color:var(--purple)">Sign up</strong>';
-  document.getElementById('login-error').style.display='none';
-}
-
-async function handleAuth(){
-  const email = document.getElementById('login-email').value.trim();
-  const pass = document.getElementById('login-password').value;
-  const errEl = document.getElementById('login-error');
-  const btn = document.getElementById('login-btn');
-  errEl.style.display='none';
-
-  if(!email || !pass){ errEl.textContent='Please fill in all fields'; errEl.style.display='block'; return; }
-  if(pass.length < 6){ errEl.textContent='Password must be at least 6 characters'; errEl.style.display='block'; return; }
-
-  btn.disabled=true;
-  btn.textContent = authMode==='signup' ? 'Creating account...' : 'Signing in...';
-
-  try {
-    let result;
-    if(authMode==='signup'){
-      const name = document.getElementById('login-name').value.trim();
-      if(!name){ errEl.textContent='Please enter your name'; errEl.style.display='block'; btn.disabled=false; btn.textContent='Create Account'; return; }
-      result = await auth.createUserWithEmailAndPassword(email, pass);
-      await result.user.updateProfile({ displayName: name });
-    } else {
-      result = await auth.signInWithEmailAndPassword(email, pass);
-    }
-  } catch(e){
-    let msg = 'Something went wrong';
-    if(e.code==='auth/email-already-in-use') msg='An account with this email already exists';
-    else if(e.code==='auth/invalid-email') msg='Invalid email address';
-    else if(e.code==='auth/weak-password') msg='Password must be at least 6 characters';
-    else if(e.code==='auth/user-not-found') msg='No account found with this email';
-    else if(e.code==='auth/wrong-password' || e.code==='auth/invalid-credential') msg='Incorrect email or password';
-    else if(e.code==='auth/too-many-requests') msg='Too many attempts. Try again later';
-    errEl.textContent=msg;
-    errEl.style.display='block';
-    btn.disabled=false;
-    btn.textContent = authMode==='signup' ? 'Create Account' : 'Sign In';
-  }
-}
-
-async function handlePasswordReset(){
-  const email = document.getElementById('login-email').value.trim();
-  if(!email){ alert('Enter your email address first, then click "Forgot password?"'); return; }
-  try {
-    await auth.sendPasswordResetEmail(email);
-    alert('Password reset email sent to ' + email + '. Check your inbox.');
-  } catch(e){
-    alert('Could not send reset email. Make sure the email address is correct.');
-  }
-}
-
-function logout(){
-  auth.signOut();
-}
-
-// Listen for auth state changes
-auth.onAuthStateChanged(user => {
-  if(user){
-    currentUser = { email: user.email, name: user.displayName || user.email.split('@')[0], uid: user.uid };
-    document.getElementById('login-screen').style.display='none';
-    document.getElementById('app').style.display='block';
-    initApp();
-  } else {
-    currentUser = null;
-    document.getElementById('login-screen').style.display='flex';
-    document.getElementById('app').style.display='none';
-  }
-});
-
-// Enter key handlers
-document.getElementById('login-password').addEventListener('keydown',e=>{if(e.key==='Enter')handleAuth();});
-document.getElementById('login-email').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('login-password').focus();});
-document.getElementById('login-name').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('login-email').focus();});
+function logout(){ location.reload(); }
 // ═══════════════════════════════════════════════════════════
 // THT CRM — The Headline Theory Deal Pipeline
 // ═══════════════════════════════════════════════════════════
@@ -2130,7 +1993,7 @@ function initApp(){
   syncFromSheet();
   setInterval(syncFromSheet, SYNC_INTERVAL);
 }
-// Firebase onAuthStateChanged (above) calls initApp() when user is authenticated
+initApp();
 </script>
 </body>
 </html>
