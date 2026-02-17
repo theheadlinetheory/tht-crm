@@ -1024,7 +1024,7 @@ function render(){
           ${deal.contact&&deal.contact!==deal.company?`<div class="deal-contact">${esc(deal.contact)}</div>`:''}
           ${deal.email?`<div class="deal-detail">${esc(deal.email)}</div>`:''}
           ${deal.phone?`<div class="deal-detail">${esc(deal.phone)}</div>`:''}
-          ${deal.stage==='Discovery Call'?`<a href="https://calendly.com/aidan-theheadlinetheory/discovery-call-with-the-headline-theory-clone" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="book-discovery-btn">📅 Book Discovery Call</a>`:''}
+          ${deal.pipeline==='Acquisition'?`<a href="https://calendly.com/aidan-theheadlinetheory/discovery-call-with-the-headline-theory-clone" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="book-discovery-btn">📅 Book Discovery Call</a>`:''}
           <div class="deal-bottom">
             <span class="deal-value" style="color:${deal.value?'#059669':'#d1d5db'}">${fmt$(deal.value)}</span>
             ${deal.leadCategory?`<span class="deal-tag">${esc(deal.leadCategory)}</span>`:''}
