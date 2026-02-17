@@ -461,22 +461,10 @@ async function confirmForward(dealId){
 
     // Auto-push to Lead Tracker
     if(deal){
-      const client=findClientForDeal(deal) || state.clients.find(c=>c.name===deal.stage);
-      if(client){
-        try{
-          const now=new Date();
-          const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
-          const monthGenerated=monthNames[now.getMonth()]+'/'+String(now.getFullYear()).slice(2);
-          const dateGenerated=(now.getMonth()+1)+'/'+now.getDate()+'/'+String(now.getFullYear()).slice(2);
-          const leadName=deal.company||deal.contact||'Unknown';
-          const leadEmail=deal.email||'';
-          const cost=str(client.leadCost).replace(/[^0-9.]/g,'')?'$'+str(client.leadCost).replace(/[^0-9.]/g,''):'';
-          const row=[client.name,monthGenerated,leadName,leadEmail,dateGenerated,cost,'','','',''];
-          await apiPost('push_lead_tracker',{sheetId:'1zEfZQOuzbrE9s01gfTOoVvEJ-DgtOxkPIWNiZHaxaZ4',sheetName:'Lead Tracker',row});
-          deal.pushedToTracker=true;
-        }catch(e){
-          console.error('Lead Tracker push failed:',e);
-        }
+      try{
+        await autoPushToTracker(deal);
+      }catch(e){
+        console.error('Lead Tracker auto-push failed:',e);
       }
     }
 
@@ -485,6 +473,38 @@ async function confirmForward(dealId){
   }catch(e){
     alert('Forward failed: '+e.message);
     if(btn){btn.textContent='📧 Retry';btn.disabled=false;}
+  }
+}
+
+// Centralized Lead Tracker push used by both Forward and Won zone
+async function autoPushToTracker(deal){
+  const client=findClientForDeal(deal) || state.clients.find(c=>c.name===deal.stage);
+  const clientName=client?client.name:deal.stage;
+  if(!clientName){console.warn('No client name for tracker push');return;}
+  const now=new Date();
+  const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const monthGenerated=monthNames[now.getMonth()]+'/'+String(now.getFullYear()).slice(2);
+  const dateGenerated=(now.getMonth()+1)+'/'+now.getDate()+'/'+String(now.getFullYear()).slice(2);
+  const leadName=deal.company||deal.contact||'Unknown';
+  const leadEmail=deal.email||'';
+  // Get cost from client config, or from deal value, or prompt
+  let cost='';
+  if(client && str(client.leadCost).replace(/[^0-9.]/g,'')){
+    cost='$'+str(client.leadCost).replace(/[^0-9.]/g,'');
+  } else if(deal.value && String(deal.value)!=='0'){
+    cost='$'+String(deal.value);
+  }
+  const row=[clientName,monthGenerated,leadName,leadEmail,dateGenerated,cost,'','','',''];
+  const resp=await apiPost('push_lead_tracker',{sheetId:LEAD_TRACKER_SHEET_ID,sheetName:'Lead Tracker',row});
+  if(resp && !resp.error){
+    deal.pushedToTracker=new Date().toISOString();
+    // Persist the pushedToTracker timestamp to the sheet
+    pendingWrites++;
+    apiPost('update_deal',{id:deal.id,pushedToTracker:deal.pushedToTracker}).finally(()=>{pendingWrites--;});
+    console.log('Lead Tracker push success:',leadName,'→',clientName);
+  } else {
+    console.error('Lead Tracker push response:',resp);
+    throw new Error(resp?resp.error:'Push failed');
   }
 }
 function fmtDate(d){
@@ -705,7 +725,7 @@ async function moveDeal(dealId,newStage){
 }
 
 function addActivity(dealId,act){
-  const a={id:uid(),dealId,type:act.type,subject:act.subject||act.type,dueDate:act.dueDate||TODAY(),done:false,dayLabel:act.dayLabel||""};
+  const a={id:uid(),dealId,type:act.type,subject:act.subject||act.type,dueDate:act.dueDate||TODAY(),done:false,dayLabel:act.dayLabel||"",createdDate:new Date().toISOString(),completedAt:"",scheduledTime:act.scheduledTime||""};
   state.activities.push(a);
   refreshModal();
   pendingWrites++;
@@ -768,9 +788,10 @@ function toggleActivity(actId){
   const a=state.activities.find(x=>String(x.id)===sid);
   if(!a) return;
   a.done=!a.done;
+  a.completedAt=a.done?new Date().toISOString():"";
   refreshModal();
   pendingWrites++;
-  apiPost("update_activity",{id:sid,done:a.done}).finally(()=>{ pendingWrites--; });
+  apiPost("update_activity",{id:sid,done:a.done,completedAt:a.completedAt}).finally(()=>{ pendingWrites--; });
 }
 
 function deleteActivity(actId){
@@ -886,7 +907,10 @@ async function pushToLeadTracker(dealId){
   const row=[clientName,monthGenerated,leadName,leadEmail,dateGenerated,leadCost,'','','',''];
   try{
     await apiPost('push_lead_tracker',{sheetId:LEAD_TRACKER_SHEET_ID,sheetName:'Lead Tracker',row});
-    deal.pushedToTracker=true;
+    deal.pushedToTracker=new Date().toISOString();
+    // Persist to sheet
+    pendingWrites++;
+    apiPost('update_deal',{id:deal.id,pushedToTracker:deal.pushedToTracker}).finally(()=>{pendingWrites--;});
     render();
     alert('✅ Pushed "'+leadName+'" to Lead Tracker under '+clientName+' at '+leadCost);
   }catch(e){
@@ -1212,9 +1236,10 @@ function renderDealModal(deal){
   }
 
   h+=`<div class="add-act-row">
-    <select id="new-act-type">${ACTIVITY_TYPES.map(t=>`<option value="${t}">${ACTIVITY_ICONS[t]||""} ${t}</option>`).join("")}</select>
+    <select id="new-act-type" onchange="toggleTimeField()">${ACTIVITY_TYPES.map(t=>`<option value="${t}">${ACTIVITY_ICONS[t]||""} ${t}</option>`).join("")}</select>
     <input id="new-act-subject" placeholder="Subject" style="flex:1">
     <input id="new-act-date" type="date" value="${TODAY()}">
+    <input id="new-act-time" type="time" style="width:90px;display:none" title="Time (your local timezone)">
     <button class="btn btn-primary" onclick="doAddActivity('${deal.id}')">+ Add</button>
   </div>`;
 
@@ -1225,24 +1250,28 @@ function renderDealModal(deal){
     const overdue=dd&&dd<today;
     const dueToday=dd===today;
     const cls=overdue?'overdue':dueToday?'today':'future';
+    const timeStr=a.scheduledTime?(' @ '+fmtTime12(a.scheduledTime)):'';
+    const createdStr=a.createdDate?'<span style="font-size:9px;color:#b0b0b0;margin-left:4px" title="Created '+fmtTimestamp(a.createdDate)+'">'+fmtTimestamp(a.createdDate)+'</span>':'';
     h+=`<div class="act-item ${cls}">
       <input type="checkbox" onchange="toggleActivity('${a.id}')">
       <span style="font-size:13px">${ACTIVITY_ICONS[a.type]||"✓"}</span>
-      <span class="act-subject">${esc(a.subject||a.type)}</span>
+      <span class="act-subject">${esc(a.subject||a.type)}${timeStr?'<span style="color:#7c3aed;font-size:11px;font-weight:600">'+timeStr+'</span>':''}</span>
       ${a.dayLabel?`<span class="act-day-label">${esc(a.dayLabel)}</span>`:''}
       ${a.dueDate?`<input type="date" value="${dd}" style="font-size:10px;color:${overdue?'#ef4444':dueToday?'#059669':'#9ca3af'};background:none;border:none;cursor:pointer;padding:0;width:90px" onchange="updateActivityDate('${a.id}',this.value)">`:''}
       <button class="act-delete" onclick="deleteActivity('${a.id}')">×</button>
-    </div>`;
+    </div>
+    ${createdStr?'<div style="padding-left:28px;margin-top:-4px;margin-bottom:4px">'+createdStr+'</div>':''}`;
   }
 
   // Completed
   if(completed.length){
     h+=`<details style="margin-top:8px"><summary class="completed-toggle">Completed (${completed.length})</summary>`;
     for(const a of completed){
+      const completedStr=a.completedAt?'<span style="font-size:9px;color:#22c55e;margin-left:6px">✓ '+fmtTimestamp(a.completedAt)+'</span>':'';
       h+=`<div class="completed-item">
         <input type="checkbox" checked onchange="toggleActivity('${a.id}')">
         <span style="font-size:13px">${ACTIVITY_ICONS[a.type]||"✓"}</span>
-        <span class="act-subject">${esc(a.subject||a.type)}</span>
+        <span class="act-subject">${esc(a.subject||a.type)}${completedStr}</span>
       </div>`;
     }
     h+=`</details>`;
@@ -1386,10 +1415,76 @@ function doAddActivity(dealId){
   const type=document.getElementById("new-act-type")?.value||"Call";
   const subject=document.getElementById("new-act-subject")?.value||"";
   const dueDate=document.getElementById("new-act-date")?.value||TODAY();
-  addActivity(dealId,{type,subject:subject||type,dueDate});
-  // Clear subject input
+  const timeEl=document.getElementById("new-act-time");
+  const scheduledTime=timeEl&&timeEl.style.display!=='none'?timeEl.value:'';
+  addActivity(dealId,{type,subject:subject||type,dueDate,scheduledTime});
+  // If it's a Discovery Call with a time, push to Google Calendar
+  if(type==='Discovery Call' && scheduledTime){
+    const deal=state.deals.find(d=>d.id===dealId);
+    const companyName=deal?(deal.company||deal.contact||'Unknown'):'Unknown';
+    pushToGoogleCalendar({
+      title:'Discovery Call - '+companyName,
+      date:dueDate,
+      time:scheduledTime,
+      description:'Discovery call with '+companyName+(deal&&deal.email?' ('+deal.email+')':'')+'\n'+(deal&&deal.phone?'Phone: '+deal.phone:''),
+      dealId:dealId
+    });
+  }
+  // Clear subject and time inputs
   const subEl=document.getElementById("new-act-subject");
   if(subEl) subEl.value="";
+  if(timeEl) timeEl.value="";
+}
+
+// Show/hide time field based on activity type
+function toggleTimeField(){
+  const type=document.getElementById("new-act-type")?.value;
+  const timeEl=document.getElementById("new-act-time");
+  if(timeEl){
+    // Show time for Discovery Call, Demo, Meeting
+    const showTime=['Discovery Call','Demo','Meeting'].includes(type);
+    timeEl.style.display=showTime?'inline-block':'none';
+  }
+}
+
+// Format 24h time to 12h AM/PM
+function fmtTime12(t){
+  if(!t) return '';
+  const [h,m]=t.split(':').map(Number);
+  const ampm=h>=12?'PM':'AM';
+  const h12=h%12||12;
+  return h12+':'+String(m).padStart(2,'0')+' '+ampm;
+}
+
+// Format ISO timestamp to readable local time
+function fmtTimestamp(iso){
+  if(!iso) return '';
+  try{
+    const d=new Date(iso);
+    if(isNaN(d.getTime())) return '';
+    const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return months[d.getMonth()]+' '+d.getDate()+' '+fmtTime12(d.getHours()+':'+String(d.getMinutes()).padStart(2,'0'));
+  }catch(e){return '';}
+}
+
+// Push Discovery Call to Google Calendar via Apps Script
+async function pushToGoogleCalendar(event){
+  try{
+    const resp=await apiPost('create_calendar_event',{
+      title:event.title,
+      date:event.date,
+      time:event.time,
+      durationMinutes:30,
+      description:event.description||''
+    });
+    if(resp && resp.ok){
+      console.log('Calendar event created:',resp.eventId);
+    } else {
+      console.warn('Calendar event creation failed:',resp);
+    }
+  }catch(e){
+    console.warn('Calendar push error:',e);
+  }
 }
 
 function doAssignSequence(dealId,day){
@@ -1471,16 +1566,23 @@ async function doWonDrop(){
     }
     const name=deal.company||deal.contact||'this deal';
     if(confirm('Mark "'+name+'" as Won, push to Lead Tracker, and remove from CRM?')){
-      const costInput=prompt('Enter lead cost for this client (e.g. 200, 250):','250');
-      if(costInput===null){ state.dragId=null; return; }
-      const costNum=parseFloat(costInput.replace(/[^0-9.]/g,''));
-      if(isNaN(costNum)){alert('Invalid cost. Please enter a number.'); state.dragId=null; return;}
-      const leadCost='$'+costNum;
+      // Get cost
+      const client=findClientForDeal(deal) || state.clients.find(c=>c.name===deal.stage);
+      let leadCost='';
+      if(client && str(client.leadCost).replace(/[^0-9.]/g,'')){
+        leadCost='$'+str(client.leadCost).replace(/[^0-9.]/g,'');
+      } else {
+        const costInput=prompt('Enter lead cost for this client (e.g. 200, 250):','250');
+        if(costInput===null){ state.dragId=null; return; }
+        const costNum=parseFloat(costInput.replace(/[^0-9.]/g,''));
+        if(isNaN(costNum)){alert('Invalid cost. Please enter a number.'); state.dragId=null; return;}
+        leadCost='$'+costNum;
+      }
       const now=new Date();
       const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
       const monthGenerated=monthNames[now.getMonth()]+'/'+String(now.getFullYear()).slice(2);
       const dateGenerated=(now.getMonth()+1)+'/'+now.getDate()+'/'+String(now.getFullYear()).slice(2);
-      const clientName=deal.stage;
+      const clientName=client?client.name:deal.stage;
       const leadName=deal.company||deal.contact||'Unknown';
       const leadEmail=deal.email||'';
       const row=[clientName,monthGenerated,leadName,leadEmail,dateGenerated,leadCost,'','','',''];
