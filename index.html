@@ -1024,7 +1024,6 @@ function render(){
           ${deal.contact&&deal.contact!==deal.company?`<div class="deal-contact">${esc(deal.contact)}</div>`:''}
           ${deal.email?`<div class="deal-detail">${esc(deal.email)}</div>`:''}
           ${deal.phone?`<div class="deal-detail">${esc(deal.phone)}</div>`:''}
-          ${deal.pipeline==='Acquisition'?`<a href="https://calendly.com/aidan-theheadlinetheory/discovery-call-with-the-headline-theory-clone" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="book-discovery-btn">📅 Book Discovery Call</a>`:''}
           <div class="deal-bottom">
             <span class="deal-value" style="color:${deal.value?'#059669':'#d1d5db'}">${fmt$(deal.value)}</span>
             ${deal.leadCategory?`<span class="deal-tag">${esc(deal.leadCategory)}</span>`:''}
@@ -1217,6 +1216,18 @@ function renderDealModal(deal){
         ⚠️ No client matched for this campaign. Add campaign keywords in Settings → Clients.
       </div>`;
     }
+  }
+
+  // ACQUISITION PIPELINE — Book Discovery Call button
+  if(deal.pipeline==='Acquisition'){
+    const discCalUrl=buildCalendlyUrl('https://calendly.com/aidan-theheadlinetheory/discovery-call-with-the-headline-theory-clone', deal);
+    h+=`<div style="margin:0 0 8px 0">
+      <a href="${esc(discCalUrl)}" target="_blank" rel="noopener" class="btn btn-primary" 
+        style="width:100%;justify-content:center;gap:6px;font-size:13px;text-decoration:none;display:flex;background:#2563eb;border-color:#2563eb"
+        onclick="event.stopPropagation()">
+        📅 Book Discovery Call
+      </a>
+    </div>`;
   }
 
   // Activities section
