@@ -77,6 +77,8 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .deal-bottom { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
 .deal-value { font-size: 12px; font-weight: 700; }
 .deal-tag { font-size: 9.5px; padding: 1px 6px; border-radius: 8px; background: #f3f4f6; color: var(--text-secondary); }
+.book-discovery-btn { display:block;text-align:center;background:#2563eb;color:#fff;font-size:11px;font-weight:600;padding:5px 8px;border-radius:6px;text-decoration:none;margin:6px 0 2px; }
+.book-discovery-btn:hover { background:#1d4ed8; }
 
 /* Flag dot */
 .status-indicator { display: flex; align-items: center; gap: 4px; cursor: pointer; position: relative; }
@@ -725,7 +727,7 @@ async function moveDeal(dealId,newStage){
 }
 
 function addActivity(dealId,act){
-  const a={id:uid(),dealId,type:act.type,subject:act.subject||act.type,dueDate:act.dueDate||TODAY(),done:false,dayLabel:act.dayLabel||"",createdDate:new Date().toISOString(),completedAt:"",scheduledTime:act.scheduledTime||""};
+  const a={id:uid(),dealId,type:act.type,subject:act.subject||act.type,dueDate:act.dueDate||TODAY(),done:false,dayLabel:act.dayLabel||"",createdDate:new Date().toISOString(),completedAt:""};
   state.activities.push(a);
   refreshModal();
   pendingWrites++;
@@ -1022,6 +1024,7 @@ function render(){
           ${deal.contact&&deal.contact!==deal.company?`<div class="deal-contact">${esc(deal.contact)}</div>`:''}
           ${deal.email?`<div class="deal-detail">${esc(deal.email)}</div>`:''}
           ${deal.phone?`<div class="deal-detail">${esc(deal.phone)}</div>`:''}
+          ${deal.stage==='Discovery Call'?`<a href="https://calendly.com/aidan-theheadlinetheory/discovery-call-with-the-headline-theory-clone" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="book-discovery-btn">📅 Book Discovery Call</a>`:''}
           <div class="deal-bottom">
             <span class="deal-value" style="color:${deal.value?'#059669':'#d1d5db'}">${fmt$(deal.value)}</span>
             ${deal.leadCategory?`<span class="deal-tag">${esc(deal.leadCategory)}</span>`:''}
@@ -1236,10 +1239,9 @@ function renderDealModal(deal){
   }
 
   h+=`<div class="add-act-row">
-    <select id="new-act-type" onchange="toggleTimeField()">${ACTIVITY_TYPES.map(t=>`<option value="${t}">${ACTIVITY_ICONS[t]||""} ${t}</option>`).join("")}</select>
+    <select id="new-act-type">${ACTIVITY_TYPES.map(t=>`<option value="${t}">${ACTIVITY_ICONS[t]||""} ${t}</option>`).join("")}</select>
     <input id="new-act-subject" placeholder="Subject" style="flex:1">
     <input id="new-act-date" type="date" value="${TODAY()}">
-    <input id="new-act-time" type="time" style="width:90px;display:none" title="Time (your local timezone)">
     <button class="btn btn-primary" onclick="doAddActivity('${deal.id}')">+ Add</button>
   </div>`;
 
@@ -1250,12 +1252,11 @@ function renderDealModal(deal){
     const overdue=dd&&dd<today;
     const dueToday=dd===today;
     const cls=overdue?'overdue':dueToday?'today':'future';
-    const timeStr=a.scheduledTime?(' @ '+fmtTime12(a.scheduledTime)):'';
     const createdStr=a.createdDate?'<span style="font-size:9px;color:#b0b0b0;margin-left:4px" title="Created '+fmtTimestamp(a.createdDate)+'">'+fmtTimestamp(a.createdDate)+'</span>':'';
     h+=`<div class="act-item ${cls}">
       <input type="checkbox" onchange="toggleActivity('${a.id}')">
       <span style="font-size:13px">${ACTIVITY_ICONS[a.type]||"✓"}</span>
-      <span class="act-subject">${esc(a.subject||a.type)}${timeStr?'<span style="color:#7c3aed;font-size:11px;font-weight:600">'+timeStr+'</span>':''}</span>
+      <span class="act-subject">${esc(a.subject||a.type)}</span>
       ${a.dayLabel?`<span class="act-day-label">${esc(a.dayLabel)}</span>`:''}
       ${a.dueDate?`<input type="date" value="${dd}" style="font-size:10px;color:${overdue?'#ef4444':dueToday?'#059669':'#9ca3af'};background:none;border:none;cursor:pointer;padding:0;width:90px" onchange="updateActivityDate('${a.id}',this.value)">`:''}
       <button class="act-delete" onclick="deleteActivity('${a.id}')">×</button>
@@ -1415,36 +1416,9 @@ function doAddActivity(dealId){
   const type=document.getElementById("new-act-type")?.value||"Call";
   const subject=document.getElementById("new-act-subject")?.value||"";
   const dueDate=document.getElementById("new-act-date")?.value||TODAY();
-  const timeEl=document.getElementById("new-act-time");
-  const scheduledTime=timeEl&&timeEl.style.display!=='none'?timeEl.value:'';
-  addActivity(dealId,{type,subject:subject||type,dueDate,scheduledTime});
-  // If it's a Discovery Call with a time, push to Google Calendar
-  if(type==='Discovery Call' && scheduledTime){
-    const deal=state.deals.find(d=>d.id===dealId);
-    const companyName=deal?(deal.company||deal.contact||'Unknown'):'Unknown';
-    pushToGoogleCalendar({
-      title:'Discovery Call - '+companyName,
-      date:dueDate,
-      time:scheduledTime,
-      description:'Discovery call with '+companyName+(deal&&deal.email?' ('+deal.email+')':'')+'\n'+(deal&&deal.phone?'Phone: '+deal.phone:''),
-      dealId:dealId
-    });
-  }
-  // Clear subject and time inputs
+  addActivity(dealId,{type,subject:subject||type,dueDate});
   const subEl=document.getElementById("new-act-subject");
   if(subEl) subEl.value="";
-  if(timeEl) timeEl.value="";
-}
-
-// Show/hide time field based on activity type
-function toggleTimeField(){
-  const type=document.getElementById("new-act-type")?.value;
-  const timeEl=document.getElementById("new-act-time");
-  if(timeEl){
-    // Show time for Discovery Call, Demo, Meeting
-    const showTime=['Discovery Call','Demo','Meeting'].includes(type);
-    timeEl.style.display=showTime?'inline-block':'none';
-  }
 }
 
 // Format 24h time to 12h AM/PM
@@ -1465,26 +1439,6 @@ function fmtTimestamp(iso){
     const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     return months[d.getMonth()]+' '+d.getDate()+' '+fmtTime12(d.getHours()+':'+String(d.getMinutes()).padStart(2,'0'));
   }catch(e){return '';}
-}
-
-// Push Discovery Call to Google Calendar via Apps Script
-async function pushToGoogleCalendar(event){
-  try{
-    const resp=await apiPost('create_calendar_event',{
-      title:event.title,
-      date:event.date,
-      time:event.time,
-      durationMinutes:30,
-      description:event.description||''
-    });
-    if(resp && resp.ok){
-      console.log('Calendar event created:',resp.eventId);
-    } else {
-      console.warn('Calendar event creation failed:',resp);
-    }
-  }catch(e){
-    console.warn('Calendar push error:',e);
-  }
 }
 
 function doAssignSequence(dealId,day){
