@@ -1628,9 +1628,19 @@ function closeSettings(){
 }
 
 function renderSettingsPanel(){
+  const existingPanel = document.getElementById('settings-panel');
+  const existingOverlay = document.getElementById('settings-overlay');
+  
+  // Save scroll position before re-render
+  let savedScroll = 0;
+  if(existingPanel){
+    const body = existingPanel.querySelector('.settings-body');
+    if(body) savedScroll = body.scrollTop;
+  }
+
   // Remove existing
-  document.getElementById('settings-overlay')?.remove();
-  document.getElementById('settings-panel')?.remove();
+  if(existingOverlay) existingOverlay.remove();
+  if(existingPanel) existingPanel.remove();
   
   const overlay = document.createElement('div');
   overlay.id='settings-overlay';
@@ -1664,10 +1674,17 @@ function renderSettingsPanel(){
   <div class="settings-footer">
     <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="closeSettings()">Cancel</button>
     <button class="btn btn-primary" onclick="saveSettingsToSheet()">💾 Save Settings</button>
+    <span id="settings-autosave-status" style="font-size:10px;color:#9ca3af;align-self:center;margin-left:8px"></span>
   </div>`;
 
   panel.innerHTML=h;
   document.body.appendChild(panel);
+
+  // Restore scroll position
+  if(savedScroll > 0){
+    const body = panel.querySelector('.settings-body');
+    if(body) body.scrollTop = savedScroll;
+  }
 
   // Animate open
   requestAnimationFrame(()=>{
@@ -1688,9 +1705,9 @@ function renderStagesSettings(){
   for(const [i,s] of settingsDraft.acquisition_stages.entries()){
     h+=`<div class="settings-list-item" draggable="true" data-idx="${i}">
       <span class="drag-handle">⠿</span>
-      <input type="color" class="item-color" value="${s.color}" onchange="settingsDraft.acquisition_stages[${i}].color=this.value" style="width:24px;height:24px;border:none;padding:0;cursor:pointer;background:none">
-      <input class="item-label" value="${esc(s.label)}" oninput="settingsDraft.acquisition_stages[${i}].label=this.value;settingsDraft.acquisition_stages[${i}].id=this.value" style="border:none;background:transparent;font-size:12px;font-weight:500;font-family:var(--font);flex:1">
-      <button class="item-delete" onclick="settingsDraft.acquisition_stages.splice(${i},1);renderSettingsPanel()">×</button>
+      <input type="color" class="item-color" value="${s.color}" onchange="settingsDraft.acquisition_stages[${i}].color=this.value;debouncedAutoSave()" style="width:24px;height:24px;border:none;padding:0;cursor:pointer;background:none">
+      <input class="item-label" value="${esc(s.label)}" oninput="settingsDraft.acquisition_stages[${i}].label=this.value;settingsDraft.acquisition_stages[${i}].id=this.value;debouncedAutoSave()" style="border:none;background:transparent;font-size:12px;font-weight:500;font-family:var(--font);flex:1">
+      <button class="item-delete" onclick="settingsDraft.acquisition_stages.splice(${i},1);renderSettingsPanel();debouncedAutoSave()">×</button>
     </div>`;
   }
   h+=`</div>
@@ -1707,9 +1724,9 @@ function renderStagesSettings(){
   for(const [i,s] of settingsDraft.nurture_stages.entries()){
     h+=`<div class="settings-list-item" draggable="true" data-idx="${i}">
       <span class="drag-handle">⠿</span>
-      <input type="color" class="item-color" value="${s.color}" onchange="settingsDraft.nurture_stages[${i}].color=this.value" style="width:24px;height:24px;border:none;padding:0;cursor:pointer;background:none">
-      <input class="item-label" value="${esc(s.label)}" oninput="settingsDraft.nurture_stages[${i}].label=this.value;settingsDraft.nurture_stages[${i}].id=this.value" style="border:none;background:transparent;font-size:12px;font-weight:500;font-family:var(--font);flex:1">
-      <button class="item-delete" onclick="settingsDraft.nurture_stages.splice(${i},1);renderSettingsPanel()">×</button>
+      <input type="color" class="item-color" value="${s.color}" onchange="settingsDraft.nurture_stages[${i}].color=this.value;debouncedAutoSave()" style="width:24px;height:24px;border:none;padding:0;cursor:pointer;background:none">
+      <input class="item-label" value="${esc(s.label)}" oninput="settingsDraft.nurture_stages[${i}].label=this.value;settingsDraft.nurture_stages[${i}].id=this.value;debouncedAutoSave()" style="border:none;background:transparent;font-size:12px;font-weight:500;font-family:var(--font);flex:1">
+      <button class="item-delete" onclick="settingsDraft.nurture_stages.splice(${i},1);renderSettingsPanel();debouncedAutoSave()">×</button>
     </div>`;
   }
   h+=`</div>
@@ -1730,9 +1747,9 @@ function renderActivityTypesSettings(){
   for(const [i,t] of settingsDraft.activity_types.entries()){
     h+=`<div class="settings-list-item" draggable="true" data-idx="${i}">
       <span class="drag-handle">⠿</span>
-      <input value="${esc(t.icon)}" oninput="settingsDraft.activity_types[${i}].icon=this.value" style="width:32px;text-align:center;border:1px solid var(--border);border-radius:4px;font-size:14px;padding:2px">
-      <input class="item-label" value="${esc(t.name)}" oninput="settingsDraft.activity_types[${i}].name=this.value" style="border:none;background:transparent;font-size:12px;font-weight:500;font-family:var(--font);flex:1">
-      <button class="item-delete" onclick="settingsDraft.activity_types.splice(${i},1);renderSettingsPanel()">×</button>
+      <input value="${esc(t.icon)}" oninput="settingsDraft.activity_types[${i}].icon=this.value;debouncedAutoSave()" style="width:32px;text-align:center;border:1px solid var(--border);border-radius:4px;font-size:14px;padding:2px">
+      <input class="item-label" value="${esc(t.name)}" oninput="settingsDraft.activity_types[${i}].name=this.value;debouncedAutoSave()" style="border:none;background:transparent;font-size:12px;font-weight:500;font-family:var(--font);flex:1">
+      <button class="item-delete" onclick="settingsDraft.activity_types.splice(${i},1);renderSettingsPanel();debouncedAutoSave()">×</button>
     </div>`;
   }
   h+=`</div>
@@ -1775,19 +1792,19 @@ function renderSopSequence(key,idx,seq){
   const actTypes = settingsDraft.activity_types.map(t=>t.name);
   let h=`<div class="sop-sequence">
     <div class="sop-sequence-header">
-      <input value="${esc(seq.name)}" oninput="settingsDraft.${key}[${idx}].name=this.value" style="border:none;background:transparent;font-size:12px;font-weight:700;color:var(--purple);font-family:var(--font);width:120px">
+      <input value="${esc(seq.name)}" oninput="settingsDraft.${key}[${idx}].name=this.value;debouncedAutoSave()" style="border:none;background:transparent;font-size:12px;font-weight:700;color:var(--purple);font-family:var(--font);width:120px">
       <div style="display:flex;gap:4px">
         <button class="btn" style="font-size:10px;padding:2px 8px;background:#f0fdf4;color:#059669;border:1px solid #bbf7d0" onclick="addSopActivity('${key}',${idx})">+ Activity</button>
-        <button class="item-delete" onclick="settingsDraft.${key}.splice(${idx},1);renderSettingsPanel()" style="font-size:16px">×</button>
+        <button class="item-delete" onclick="settingsDraft.${key}.splice(${idx},1);renderSettingsPanel();debouncedAutoSave()" style="font-size:16px">×</button>
       </div>
     </div>`;
   for(const [j,act] of seq.activities.entries()){
     h+=`<div class="sop-act-item">
-      <select onchange="settingsDraft.${key}[${idx}].activities[${j}].type=this.value">
+      <select onchange="settingsDraft.${key}[${idx}].activities[${j}].type=this.value;debouncedAutoSave()">
         ${actTypes.map(t=>`<option value="${t}" ${t===act.type?'selected':''}>${t}</option>`).join('')}
       </select>
-      <input value="${esc(act.subject)}" oninput="settingsDraft.${key}[${idx}].activities[${j}].subject=this.value">
-      <button class="item-delete" onclick="settingsDraft.${key}[${idx}].activities.splice(${j},1);renderSettingsPanel()">×</button>
+      <input value="${esc(act.subject)}" oninput="settingsDraft.${key}[${idx}].activities[${j}].subject=this.value;debouncedAutoSave()">
+      <button class="item-delete" onclick="settingsDraft.${key}[${idx}].activities.splice(${j},1);renderSettingsPanel();debouncedAutoSave()">×</button>
     </div>`;
   }
   h+=`</div>`;
@@ -1801,6 +1818,7 @@ function addSettingsStage(key,inputId){
   const colors=['#7c3aed','#6366f1','#2563eb','#0891b2','#059669','#d97706','#ef4444','#8b5cf6','#f97316','#10b981'];
   settingsDraft[key].push({id:name,label:name,color:colors[settingsDraft[key].length%colors.length],order:settingsDraft[key].length});
   renderSettingsPanel();
+  debouncedAutoSave();
 }
 
 function addSettingsActivityType(){
@@ -1811,6 +1829,7 @@ function addSettingsActivityType(){
   if(!name) return;
   settingsDraft.activity_types.push({name,icon,order:settingsDraft.activity_types.length});
   renderSettingsPanel();
+  debouncedAutoSave();
 }
 
 function addSopSequence(key,inputId){
@@ -1819,11 +1838,47 @@ function addSopSequence(key,inputId){
   if(!name) return;
   settingsDraft[key].push({name,activities:[{type:'Email',subject:'Email'},{type:'Call',subject:'Call'}]});
   renderSettingsPanel();
+  debouncedAutoSave();
 }
 
 function addSopActivity(key,idx){
   settingsDraft[key][idx].activities.push({type:'Call',subject:'Activity'});
   renderSettingsPanel();
+  debouncedAutoSave();
+}
+
+// Auto-save: debounce to avoid hammering the API on every keystroke
+let _autoSaveTimer = null;
+function debouncedAutoSave(){
+  clearTimeout(_autoSaveTimer);
+  const statusEl = document.getElementById('settings-autosave-status');
+  if(statusEl) statusEl.textContent = 'Unsaved changes...';
+  _autoSaveTimer = setTimeout(async ()=>{
+    try{
+      applySettings(settingsDraft);
+      const clientUpdates = state.clients.filter(c=>c.id).map(c=>({
+        id:c.id,
+        notifyEmails:str(c.notifyEmails),
+        campaignKeywords:str(c.campaignKeywords),
+        calendlyUrl:str(c.calendlyUrl),
+        enableForward:str(c.enableForward),
+        enableCalendly:str(c.enableCalendly),
+        enableCopyInfo:str(c.enableCopyInfo),
+        enableTracker:str(c.enableTracker),
+        leadCost:str(c.leadCost)
+      }));
+      await Promise.all([
+        apiPost('save_settings',{settings:settingsDraft}),
+        apiPost('batch_update_clients',{clients:clientUpdates})
+      ]);
+      const s = document.getElementById('settings-autosave-status');
+      if(s) s.textContent = '✓ Auto-saved';
+      setTimeout(()=>{ const s2=document.getElementById('settings-autosave-status'); if(s2 && s2.textContent==='✓ Auto-saved') s2.textContent=''; }, 2000);
+    }catch(e){
+      const s = document.getElementById('settings-autosave-status');
+      if(s) s.textContent = '⚠ Save failed';
+    }
+  }, 1500);
 }
 
 function setupSettingsDrag(){
