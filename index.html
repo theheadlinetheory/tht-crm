@@ -828,16 +828,27 @@ function copyLeadInfo(dealId){
   const deal=state.deals.find(d=>d.id===dealId);
   if(!deal) return;
   const client=state.clients.find(c=>c.name===deal.stage);
-  // Get client first name
-  let clientFirst='';
-  if(client){
-    const n=String(client.name||'').trim();
-    // Try first word, but skip common prefixes
-    clientFirst=n.split(/\s+/)[0]||n;
-  }
+  const clientFirst=client&&str(client.contactFirstName).trim()?str(client.contactFirstName).trim():'there';
   const biz=deal.company||deal.contact||'';
+  const booked=str(deal.bookedFor||'').trim();
+  // Build the time portion — if bookedFor is filled, parse day/time; otherwise use placeholders
+  let dayPart='{day}';
+  let timePart='{time}';
+  if(booked){
+    // Try to split on " at " — e.g. "Tuesday at 2pm" → day="Tuesday", time="2pm"
+    const atIdx=booked.toLowerCase().indexOf(' at ');
+    if(atIdx>-1){
+      dayPart=booked.substring(0,atIdx).trim();
+      timePart=booked.substring(atIdx+4).trim();
+    } else {
+      // No "at" — use whole thing as the day/time combo
+      dayPart=booked;
+      timePart='';
+    }
+  }
+  const timeStr=timePart?dayPart+' at '+timePart:dayPart;
   const lines=[];
-  lines.push('Hey '+(clientFirst||'there')+', Just scheduled a quote request for {day} at {time} with '+biz+'. The address, phone, contact info and instructions are all included in that calendar event. I\'ve also added you to the email thread. Please check your spam folder if you are not seeing it.');
+  lines.push('Hey '+clientFirst+', Just scheduled a quote request for '+timeStr+' with '+biz+'. The address, phone, contact info and instructions are all included in that calendar event. I\'ve also added you to the email thread. Please check your spam folder if you are not seeing it.');
   lines.push('');
   if(biz) lines.push('Business: '+biz);
   if(deal.address) lines.push('Address: '+deal.address);
@@ -1125,7 +1136,13 @@ function renderDealModal(deal){
         <div class="form-group form-span2" style="margin-bottom:16px">
           <label>Notes</label>
           <textarea id="deal-notes" rows="2" oninput="updateDealField('notes',this.value)">${esc(deal.notes||'')}</textarea>
-        </div>`;
+        </div>${deal.pipeline==='Client'?`
+        <div class="form-group form-span2" style="margin-bottom:16px">
+          <label>📅 Booked For</label>
+          <input type="text" placeholder="e.g. Tuesday at 2pm" value="${esc(deal.bookedFor||'')}" 
+            oninput="updateDealField('bookedFor',this.value)"
+            style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font);background:var(--card);color:var(--text)">
+        </div>`:''}`;
 
   if(deal.campaignName){
     h+=`<div class="sl-info">
@@ -1384,7 +1401,7 @@ function doSaveDeal(id){
   const deal=state.selectedDeal;
   if(!deal)return;
   // Grab latest values from form inputs
-  ["company","contact","email","phone","website","location","address","notes"].forEach(k=>{
+  ["company","contact","email","phone","website","location","address","notes","bookedFor"].forEach(k=>{
     const el=document.getElementById("deal-"+k);
     if(el) deal[k]=el.value;
   });
@@ -1857,6 +1874,7 @@ function debouncedAutoSave(){
         id:c.id,
         notifyEmails:str(c.notifyEmails),
         campaignKeywords:str(c.campaignKeywords),
+        contactFirstName:str(c.contactFirstName),
         calendlyUrl:str(c.calendlyUrl),
         enableForward:str(c.enableForward),
         enableCalendly:str(c.enableCalendly),
@@ -1982,6 +2000,13 @@ function renderClientsSettings(){
           style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
       </div>
 
+      <div style="margin-bottom:10px">
+        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Contact First Name</label>
+        <input type="text" placeholder="e.g. Joel, Jake" value="${esc(str(c.contactFirstName))}" 
+          oninput="updateClientField('${esc(c.id)}','contactFirstName',this.value)"
+          style="width:160px;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+      </div>
+
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">
         <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableForward')?'#eff6ff':'var(--card)'}">
           <input type="checkbox" ${isOn('enableForward')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableForward',this.checked)"> 📧 Forward Email
@@ -2084,6 +2109,7 @@ async function saveSettingsToSheet(){
       id:c.id,
       notifyEmails:str(c.notifyEmails),
       campaignKeywords:str(c.campaignKeywords),
+      contactFirstName:str(c.contactFirstName),
       calendlyUrl:str(c.calendlyUrl),
       enableForward:str(c.enableForward),
       enableCalendly:str(c.enableCalendly),
