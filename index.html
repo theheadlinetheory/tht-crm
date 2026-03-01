@@ -227,15 +227,241 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 </head>
 <body>
 
-<div id="app"></div>
+<!-- Login Screen -->
+<div id="login-screen" class="login-wrapper">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="login-logo-icon"><span>T</span></div>
+      <h1>The Headline Theory</h1>
+      <p id="login-subtitle">Sign in to your CRM</p>
+    </div>
+    <div class="login-form">
+      <div class="login-field" id="name-field" style="display:none">
+        <label>Full Name</label>
+        <input type="text" id="login-name" placeholder="Your full name" autocomplete="name">
+      </div>
+      <div class="login-field">
+        <label>Email</label>
+        <input type="email" id="login-email" placeholder="you@company.com" autocomplete="email">
+      </div>
+      <div class="login-field">
+        <label>Password</label>
+        <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password"
+          onkeydown="if(event.key==='Enter')handleAuth()">
+      </div>
+      <button class="login-btn" id="login-btn" onclick="handleAuth()">Sign In</button>
+      <div class="login-error" id="login-error"></div>
+      <div style="text-align:center;margin-top:14px">
+        <span id="auth-toggle" style="font-size:12px;color:var(--text-muted);cursor:pointer" onclick="toggleAuthMode()">
+          Don't have an account? <strong style="color:var(--purple)">Sign up</strong>
+        </span>
+      </div>
+      <div id="reset-link" style="text-align:center;margin-top:8px">
+        <span style="font-size:11px;color:var(--text-muted);cursor:pointer" onclick="handlePasswordReset()">
+          Forgot password?
+        </span>
+      </div>
+    </div>
+    <div style="text-align:center;margin-top:20px;font-size:10px;color:var(--text-muted)">
+      Powered by The Headline Theory
+    </div>
+  </div>
+</div>
+
+<div id="app" style="display:none"></div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
 <script>
 // ═══════════════════════════════════════════════════════════
-// AUTH — Firebase login (DISABLED — will enable once Firebase project is configured)
+// FIREBASE CONFIG & AUTH
 // ═══════════════════════════════════════════════════════════
-let currentUser = { name: 'Aidan', email: 'aidanhutch7@gmail.com' };
+const firebaseConfig = {
+  apiKey: "AIzaSyDrjU77BiVX27egzoc86jHsZCTwLbQfgVc",
+  authDomain: "tht-crm.firebaseapp.com",
+  projectId: "tht-crm",
+  storageBucket: "tht-crm.firebasestorage.app",
+  messagingSenderId: "793331537217",
+  appId: "1:793331537217:web:dd85fcf13532c633f67dc0",
+  measurementId: "G-7R4EQB3N3K"
+};
 
-function logout(){ location.reload(); }
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+let currentUser = null; // { uid, name, email, role, clientName }
+let authMode = 'login';
+
+// ─── Role Definitions ───
+// admin: Full access — all pipelines, settings, user management
+// client: Sees only their assigned client column in Client Leads pipeline
+const ROLES = {
+  admin: { label: 'Admin', pipelines: 'all', settings: true, manageUsers: true },
+  client: { label: 'Client', pipelines: ['client_leads'], settings: false, manageUsers: false }
+};
+
+function isAdmin(){ return currentUser && currentUser.role === 'admin'; }
+function isClient(){ return currentUser && currentUser.role === 'client'; }
+
+// ─── Auth UI Toggle ───
+function toggleAuthMode(){
+  authMode = authMode==='login' ? 'signup' : 'login';
+  document.getElementById('login-subtitle').textContent = authMode==='signup' ? 'Create your account' : 'Sign in to your CRM';
+  document.getElementById('login-btn').textContent = authMode==='signup' ? 'Create Account' : 'Sign In';
+  document.getElementById('name-field').style.display = authMode==='signup' ? 'block' : 'none';
+  document.getElementById('reset-link').style.display = authMode==='signup' ? 'none' : 'block';
+  document.getElementById('auth-toggle').innerHTML = authMode==='signup'
+    ? 'Already have an account? <strong style="color:var(--purple)">Sign in</strong>'
+    : 'Don\'t have an account? <strong style="color:var(--purple)">Sign up</strong>';
+  document.getElementById('login-error').style.display='none';
+}
+
+async function handleAuth(){
+  const email = document.getElementById('login-email').value.trim();
+  const pass = document.getElementById('login-password').value;
+  const nameVal = document.getElementById('login-name').value.trim();
+  const errEl = document.getElementById('login-error');
+  const btn = document.getElementById('login-btn');
+  errEl.style.display='none';
+
+  if(!email || !pass){ errEl.textContent='Please fill in all fields'; errEl.style.display='block'; return; }
+  if(authMode==='signup' && !nameVal){ errEl.textContent='Please enter your name'; errEl.style.display='block'; return; }
+  if(pass.length < 6){ errEl.textContent='Password must be at least 6 characters'; errEl.style.display='block'; return; }
+
+  btn.disabled=true;
+  btn.textContent = authMode==='signup' ? 'Creating account...' : 'Signing in...';
+
+  try {
+    let cred;
+    if(authMode==='signup'){
+      cred = await auth.createUserWithEmailAndPassword(email, pass);
+      await cred.user.updateProfile({ displayName: nameVal });
+      // Create user doc in Firestore — first user is auto-admin, rest default to client
+      const usersSnap = await db.collection('users').get();
+      const isFirstUser = usersSnap.empty;
+      await db.collection('users').doc(cred.user.uid).set({
+        name: nameVal,
+        email: email,
+        role: isFirstUser ? 'admin' : 'client',
+        clientName: '',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    } else {
+      cred = await auth.signInWithEmailAndPassword(email, pass);
+    }
+    // onAuthStateChanged will handle the rest
+  } catch(e){
+    let msg = 'Something went wrong';
+    if(e.code==='auth/email-already-in-use') msg='An account with this email already exists';
+    else if(e.code==='auth/invalid-email') msg='Invalid email address';
+    else if(e.code==='auth/weak-password') msg='Password must be at least 6 characters';
+    else if(e.code==='auth/user-not-found') msg='No account found with this email';
+    else if(e.code==='auth/wrong-password'||e.code==='auth/invalid-credential') msg='Incorrect email or password';
+    else if(e.code==='auth/too-many-requests') msg='Too many attempts — try again later';
+    errEl.textContent=msg;
+    errEl.style.display='block';
+    btn.disabled=false;
+    btn.textContent = authMode==='signup' ? 'Create Account' : 'Sign In';
+  }
+}
+
+async function handlePasswordReset(){
+  const email = document.getElementById('login-email').value.trim();
+  const errEl = document.getElementById('login-error');
+  if(!email){ errEl.textContent='Enter your email above first'; errEl.style.display='block'; return; }
+  try {
+    await auth.sendPasswordResetEmail(email);
+    errEl.textContent='Password reset email sent! Check your inbox.';
+    errEl.style.color='var(--green)';
+    errEl.style.display='block';
+    setTimeout(()=>{ errEl.style.color=''; }, 4000);
+  } catch(e){
+    errEl.textContent='Could not send reset email — check the address';
+    errEl.style.display='block';
+  }
+}
+
+function logout(){
+  auth.signOut().then(()=>{
+    currentUser = null;
+    document.getElementById('app').style.display='none';
+    document.getElementById('login-screen').style.display='flex';
+  });
+}
+
+// ─── Auth State Listener ───
+auth.onAuthStateChanged(async (user) => {
+  if(user){
+    // Fetch role from Firestore
+    let userDoc;
+    try {
+      const snap = await db.collection('users').doc(user.uid).get();
+      if(snap.exists){
+        userDoc = snap.data();
+      } else {
+        // User exists in Auth but not Firestore — create doc (legacy/manual users)
+        userDoc = { name: user.displayName || user.email.split('@')[0], email: user.email, role: 'client', clientName: '' };
+        await db.collection('users').doc(user.uid).set({ ...userDoc, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+      }
+    } catch(e){
+      console.warn('Firestore read failed, defaulting to client role:', e);
+      userDoc = { name: user.displayName || user.email.split('@')[0], email: user.email, role: 'client', clientName: '' };
+    }
+
+    currentUser = {
+      uid: user.uid,
+      name: userDoc.name || user.displayName || user.email.split('@')[0],
+      email: user.email,
+      role: userDoc.role || 'client',
+      clientName: userDoc.clientName || ''
+    };
+
+    // Show app, hide login
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('app').style.display='block';
+
+    // If client, force to client_leads pipeline
+    if(isClient()){
+      state.pipeline = 'client_leads';
+      location.hash = 'client_leads';
+    }
+
+    initApp();
+  } else {
+    // Not logged in — show login screen
+    currentUser = null;
+    document.getElementById('app').style.display='none';
+    document.getElementById('login-screen').style.display='flex';
+  }
+});
+
+// ─── User Management (Admin only) ───
+async function loadAllUsers(){
+  try {
+    const snap = await db.collection('users').orderBy('createdAt','asc').get();
+    return snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+  } catch(e){ console.error('loadAllUsers error:',e); return []; }
+}
+
+async function updateUserRole(uid, newRole){
+  try { await db.collection('users').doc(uid).update({ role: newRole }); }
+  catch(e){ alert('Failed to update role: '+e.message); }
+}
+
+async function updateUserClient(uid, clientName){
+  try { await db.collection('users').doc(uid).update({ clientName }); }
+  catch(e){ alert('Failed to update client: '+e.message); }
+}
+
+async function deleteFirebaseUser(uid){
+  // Can only delete Firestore doc (actual Auth user deletion requires Admin SDK / cloud function)
+  try { await db.collection('users').doc(uid).delete(); }
+  catch(e){ alert('Failed to remove user: '+e.message); }
+}
 // ═══════════════════════════════════════════════════════════
 // THT CRM — The Headline Theory Deal Pipeline
 // ═══════════════════════════════════════════════════════════
@@ -247,7 +473,7 @@ const deletedActivityIds = new Set();
 let pendingWrites = 0; // Prevent sync from overwriting during active writes
 let savedScrollLeft = 0; // Preserve horizontal scroll across renders
 let settingsOpen = false;
-let settingsTab = 'stages'; // stages | activities | sop | clients
+let settingsTab = 'stages'; // stages | activities | sop | clients | users
 let clientsSubTab = 'notifications'; // notifications | calendly
 let settingsDraft = null; // Working copy of settings being edited
 
@@ -268,11 +494,18 @@ const NURTURE_STAGES = [
   { id: "Service Area Taken", label: "Service Area Taken", color: "#f97316" },
 ];
 
-const PIPELINES = [
+const ALL_PIPELINES = [
   { id: "acquisition", label: "Acquisition" },
   { id: "client_leads", label: "Client Leads" },
   { id: "nurture", label: "Long Term Nurture" },
 ];
+
+// Filter pipelines based on user role
+function getVisiblePipelines(){
+  if(isClient()) return ALL_PIPELINES.filter(p => p.id === 'client_leads');
+  return ALL_PIPELINES;
+}
+const PIPELINES = ALL_PIPELINES; // Keep reference for backward compat
 
 const ACTIVITY_TYPES = ["Call", "Text", "Email", "Discovery Call", "Demo", "Follow-up", "Meeting", "Task"];
 const ACTIVITY_ICONS = { Call: "📞", Text: "💬", Email: "✉️", "Discovery Call": "🔍", Demo: "🖥️", "Follow-up": "↩️", Meeting: "📅", Task: "✓" };
@@ -678,7 +911,12 @@ function getStages(){
   if(state.pipeline==="nurture") return NURTURE_STAGES;
   // Client Leads: fixed "Not Distributed" column + dynamic client columns
   const clientCols=state.clients.map((c,i)=>({id:c.name,label:c.name,color:c.color||CLIENT_PALETTE[i%CLIENT_PALETTE.length]}));
-  return [{id:"Client Not Distributed",label:"Not Distributed",color:"#6b7280"},...clientCols];
+  const allStages=[{id:"Client Not Distributed",label:"Not Distributed",color:"#6b7280"},...clientCols];
+  // If logged in as client, only show their assigned column
+  if(isClient() && currentUser.clientName){
+    return allStages.filter(s => s.id === currentUser.clientName);
+  }
+  return allStages;
 }
 
 // ─── Filter deals for pipeline ───
@@ -689,7 +927,12 @@ function getPipelineDeals(){
   if(state.pipeline==="nurture") return state.deals.filter(d=>NURTURE_STAGES.some(s=>s.id===d.stage));
   // Client leads - "Client Not Distributed" + client name columns
   const clientNames=state.clients.map(c=>c.name);
-  return state.deals.filter(d=>d.stage==="Client Not Distributed"||clientNames.includes(d.stage));
+  let clientDeals=state.deals.filter(d=>d.stage==="Client Not Distributed"||clientNames.includes(d.stage));
+  // If client user, only show their client's deals
+  if(isClient() && currentUser.clientName){
+    clientDeals = clientDeals.filter(d => d.stage === currentUser.clientName);
+  }
+  return clientDeals;
 }
 
 // ─── CRUD ───
@@ -943,11 +1186,11 @@ function render(){
   <div class="topbar">
     <div style="display:flex;align-items:center;">
       <div class="topbar-tabs">
-        ${PIPELINES.map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="state.pipeline='${p.id}';location.hash='${p.id}';render()">${p.label}</button>`).join("")}
+        ${getVisiblePipelines().map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="state.pipeline='${p.id}';location.hash='${p.id}';render()">${p.label}</button>`).join("")}
       </div>
     </div>
     <div class="topbar-right">
-      <div class="search-wrapper">
+      ${isAdmin()?`<div class="search-wrapper">
         <input type="text" class="search-input" id="search-input" placeholder="Search all deals..." value="${esc(state.searchQuery)}"
           oninput="globalSearch(this.value)" onfocus="if(this.value.length>=1)globalSearch(this.value)">
         ${state.searchQuery?'<span class="search-clear" onclick="clearSearch()">×</span>':''}
@@ -966,12 +1209,12 @@ function render(){
               </div>
             </div>`).join('')}
         </div>`:''}
-      </div>
-      <span class="topbar-stat">${state.loadFailed?'⚠️ Offline (test data)':state.synced?'✓ Connected':'Connecting...'}${state.synced?' · ':' '}${totalDeals} deals · ${fmt$(totalValue)}${state.syncing?' ↻':''}</span>
-      <button class="btn btn-ghost" onclick="syncFromSheet()">↻ Sync</button>
-      ${state.pipeline==='client_leads'?'<button class="btn btn-ghost" onclick="openAddClient()">+ Client</button>':''}
-      <button class="btn btn-primary" onclick="openNewDeal()">+ Deal</button>
-      <button class="btn btn-ghost" onclick="openSettings()" title="Settings" style="font-size:16px;padding:6px 10px">⚙️</button>
+      </div>`:''/* end admin search wrapper */}
+      <span class="topbar-stat">${state.loadFailed?'⚠️ Offline (test data)':state.synced?'✓ Connected':'Connecting...'}${state.synced?' · ':' '}${totalDeals} deal${totalDeals!==1?'s':''}${isAdmin()?' · '+fmt$(totalValue):''}${state.syncing?' ↻':''}</span>
+      ${isAdmin()?`<button class="btn btn-ghost" onclick="syncFromSheet()">↻ Sync</button>`:''}
+      ${isAdmin()&&state.pipeline==='client_leads'?'<button class="btn btn-ghost" onclick="openAddClient()">+ Client</button>':''}
+      ${isAdmin()?`<button class="btn btn-primary" onclick="openNewDeal()">+ Deal</button>`:''}
+      ${isAdmin()?`<button class="btn btn-ghost" onclick="openSettings()" title="Settings" style="font-size:16px;padding:6px 10px">⚙️</button>`:''}
       ${currentUser?`<button class="btn btn-ghost" onclick="logout()" title="Sign out (${esc(currentUser.name)})" style="font-size:11px;padding:5px 10px;color:#9ca3af">${esc(currentUser.name)} ↗</button>`:''}
     </div>
   </div>
@@ -1005,13 +1248,15 @@ function render(){
     } else {
       for(const deal of sd){
         const badge=getActivityBadge(deal.id);
-        html+=`<div class="deal-card" draggable="true"
-          ondragstart="event.dataTransfer.effectAllowed='move';state.dragId='${deal.id}';showDeleteZone()"
+        html+=`<div class="deal-card" ${isAdmin()?"draggable=\"true\"":""}
+          ${isAdmin()?`ondragstart="event.dataTransfer.effectAllowed='move';state.dragId='${deal.id}';showDeleteZone()"
           ondragend="clearAllDragOver();hideDeleteZone()"
           ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';doDragOver(this.closest('.column'))"
-          ondrop="doDrop('${stageKey}')"
+          ondrop="doDrop('${stageKey}')"`:""
+          }
           data-deal-id="${deal.id}"
           onclick="openDeal('${deal.id}')">
+
           <div class="deal-card-top">
             <div class="deal-company">${esc(deal.company||deal.contact||deal.email||"New Deal")}</div>
             <div class="status-indicator" onclick="event.stopPropagation();toggleBadgeDropdown('${deal.id}')">
@@ -1044,7 +1289,8 @@ function render(){
 
   html+=`</div>`;
 
-  // Drag-to-delete/won zone
+  // Drag-to-delete/won zone (admin only)
+  if(isAdmin()){
   html+=`<div class="delete-zone" id="delete-zone">
     <div class="delete-zone-half delete-zone-lost"
       ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';this.classList.add('drag-hover')"
@@ -1055,6 +1301,7 @@ function render(){
       ondragleave="this.classList.remove('drag-hover')"
       ondrop="doWonDrop()">✅ Won → Push to Tracker</div>
   </div>`;
+  }
 
   // Modals
   if(state.selectedDeal) html+=renderDealModal(state.selectedDeal);
@@ -1307,10 +1554,10 @@ function renderDealModal(deal){
 
   h+=`</div></div>
     <div class="modal-footer">
-      <button class="btn btn-danger" onclick="if(confirm('Delete this deal?'))deleteDeal('${deal.id}')">Delete</button>
+      ${isAdmin()?`<button class="btn btn-danger" onclick="if(confirm('Delete this deal?'))deleteDeal('${deal.id}')">Delete</button>`:'<div></div>'}
       <div style="display:flex;gap:8px">
-        <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="closeDealModal()">Cancel</button>
-        <button class="btn btn-primary" onclick="doSaveDeal('${deal.id}')">Save</button>
+        <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="closeDealModal()">Close</button>
+        ${isAdmin()?`<button class="btn btn-primary" onclick="doSaveDeal('${deal.id}')">Save</button>`:''}
       </div>
     </div></div></div>`;
   return h;
@@ -1676,6 +1923,7 @@ function renderSettingsPanel(){
     <button class="settings-tab ${settingsTab==='activities'?'active':''}" onclick="settingsTab='activities';renderSettingsPanel()">Activity Types</button>
     <button class="settings-tab ${settingsTab==='sop'?'active':''}" onclick="settingsTab='sop';renderSettingsPanel()">SOP Sequences</button>
     <button class="settings-tab ${settingsTab==='clients'?'active':''}" onclick="settingsTab='clients';renderSettingsPanel()">Clients</button>
+    <button class="settings-tab ${settingsTab==='users'?'active':''}" onclick="settingsTab='users';renderSettingsPanel()">Users</button>
   </div>
   <div class="settings-body">`;
 
@@ -1683,6 +1931,7 @@ function renderSettingsPanel(){
   else if(settingsTab==='activities') h+=renderActivityTypesSettings();
   else if(settingsTab==='sop') h+=renderSopSettings();
   else if(settingsTab==='clients') h+=renderClientsSettings();
+  else if(settingsTab==='users') h+=renderUsersSettings();
 
   h+=`</div>
   <div class="settings-footer">
@@ -2129,6 +2378,146 @@ async function saveSettingsToSheet(){
   }
 }
 
+// ─── Users Settings (Admin only) ───
+let usersListCache = null;
+function renderUsersSettings(){
+  let h = `<div class="settings-section">
+    <h4>👥 User Management</h4>
+    <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Manage who can access the CRM and what they can see.</p>
+    <div id="users-list-container"><div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px">Loading users...</div></div>
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
+      <h4 style="font-size:12px;font-weight:700;margin-bottom:8px">➕ Invite New User</h4>
+      <p style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Create an account for a team member or client.</p>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <input type="text" id="new-user-name" placeholder="Full name" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+        <input type="email" id="new-user-email" placeholder="Email address" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+        <input type="password" id="new-user-pass" placeholder="Temporary password (6+ chars)" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+        <div style="display:flex;gap:6px">
+          <select id="new-user-role" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+            <option value="admin">Admin</option>
+            <option value="client" selected>Client</option>
+          </select>
+          <select id="new-user-client" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+            <option value="">No client assigned</option>
+            ${state.clients.map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('')}
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="createNewUser()" style="padding:10px;font-size:12px" id="create-user-btn">Create User Account</button>
+        <div id="create-user-msg" style="font-size:11px;text-align:center;display:none"></div>
+      </div>
+    </div>
+  </div>`;
+  // Load users asynchronously
+  setTimeout(()=>loadUsersIntoPanel(), 50);
+  return h;
+}
+
+async function loadUsersIntoPanel(){
+  const container = document.getElementById('users-list-container');
+  if(!container) return;
+  const users = await loadAllUsers();
+  usersListCache = users;
+  if(!container.parentElement) return; // Panel was closed
+  let h = '';
+  if(users.length===0){
+    h = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px">No users found</div>';
+  } else {
+    for(const u of users){
+      const isSelf = u.uid === currentUser.uid;
+      const roleColor = u.role==='admin' ? '#7c3aed' : '#2563eb';
+      h += `<div style="display:flex;align-items:center;gap:10px;padding:10px;margin-bottom:6px;background:#f9fafb;border:1px solid var(--border);border-radius:8px">
+        <div style="width:36px;height:36px;border-radius:50%;background:${roleColor};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;flex-shrink:0">${esc((u.name||u.email||'?')[0].toUpperCase())}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.name||'Unnamed')}${isSelf?' <span style="font-size:10px;color:var(--text-muted)">(you)</span>':''}</div>
+          <div style="font-size:11px;color:var(--text-muted)">${esc(u.email||'')}</div>
+          ${u.clientName?`<div style="font-size:10px;color:#2563eb;margin-top:2px">Assigned: ${esc(u.clientName)}</div>`:''}
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+          <select onchange="changeUserRole('${u.uid}',this.value)" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:var(--font)"${isSelf?' disabled':''}>
+            <option value="admin"${u.role==='admin'?' selected':''}>Admin</option>
+            <option value="client"${u.role==='client'?' selected':''}>Client</option>
+          </select>
+          <select onchange="changeUserClient('${u.uid}',this.value)" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:var(--font)">
+            <option value=""${!u.clientName?' selected':''}>None</option>
+            ${state.clients.map(c=>`<option value="${esc(c.name)}"${u.clientName===c.name?' selected':''}>${esc(c.name)}</option>`).join('')}
+          </select>
+        </div>
+      </div>`;
+    }
+  }
+  container.innerHTML = h;
+}
+
+async function changeUserRole(uid, role){
+  await updateUserRole(uid, role);
+  loadUsersIntoPanel();
+}
+async function changeUserClient(uid, clientName){
+  await updateUserClient(uid, clientName);
+  loadUsersIntoPanel();
+}
+
+async function createNewUser(){
+  const name = document.getElementById('new-user-name').value.trim();
+  const email = document.getElementById('new-user-email').value.trim();
+  const pass = document.getElementById('new-user-pass').value;
+  const role = document.getElementById('new-user-role').value;
+  const clientName = document.getElementById('new-user-client').value;
+  const btn = document.getElementById('create-user-btn');
+  const msg = document.getElementById('create-user-msg');
+  
+  if(!name||!email||!pass){ msg.textContent='Please fill in all fields'; msg.style.color='var(--red)'; msg.style.display='block'; return; }
+  if(pass.length<6){ msg.textContent='Password must be at least 6 characters'; msg.style.color='var(--red)'; msg.style.display='block'; return; }
+  
+  btn.disabled=true; btn.textContent='Creating...';
+  msg.style.display='none';
+  
+  try {
+    // Save current user session
+    const currentEmail = currentUser.email;
+    
+    // Create the new user in Firebase Auth
+    const cred = await auth.createUserWithEmailAndPassword(email, pass);
+    await cred.user.updateProfile({ displayName: name });
+    
+    // Create Firestore doc
+    await db.collection('users').doc(cred.user.uid).set({
+      name,
+      email,
+      role,
+      clientName,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    // Sign back in as admin (creating a user signs you in as them)
+    // The admin needs to re-authenticate
+    msg.textContent='✓ Account created for '+name+'! Sign back in to continue.';
+    msg.style.color='var(--green)';
+    msg.style.display='block';
+    
+    // Clear form
+    document.getElementById('new-user-name').value='';
+    document.getElementById('new-user-email').value='';
+    document.getElementById('new-user-pass').value='';
+    
+    btn.textContent='Create User Account';
+    btn.disabled=false;
+    
+    // The auth state change will trigger — admin needs to log back in
+    // This is a known Firebase client-side limitation
+    // In future we can use a Cloud Function to create users without switching auth
+  } catch(e){
+    let errMsg='Failed to create account';
+    if(e.code==='auth/email-already-in-use') errMsg='An account with this email already exists';
+    else if(e.code==='auth/invalid-email') errMsg='Invalid email address';
+    msg.textContent=errMsg;
+    msg.style.color='var(--red)';
+    msg.style.display='block';
+    btn.textContent='Create User Account';
+    btn.disabled=false;
+  }
+}
+
 // ─── Init ───
 let appInitialized=false;
 function initApp(){
@@ -2138,7 +2527,7 @@ function initApp(){
   syncFromSheet();
   setInterval(syncFromSheet, SYNC_INTERVAL);
 }
-initApp();
+// Auth onAuthStateChanged handles calling initApp()
 </script>
 </body>
 </html>
