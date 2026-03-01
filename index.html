@@ -905,18 +905,103 @@ function getActivityBadge(dealId){
   return {color:"#9ca3af",count:pending.length,label:"upcoming"};
 }
 
+// ─── Default Client Portal Stages ───
+const DEFAULT_CLIENT_STAGES = [
+  { id: "Positive Response", label: "Positive Response", color: "#7c3aed" },
+  { id: "Follow Up", label: "Follow Up", color: "#2563eb" },
+  { id: "Quote Given", label: "Quote Given / Waiting for Signature", color: "#d97706" },
+];
+
+// Client portal stages are stored in Firestore per-client; fall back to defaults
+let clientPortalStages = null; // loaded from Firestore on client login
+
+async function loadClientPortalStages(){
+  if(!isClient()||!currentUser.clientName) return;
+  try {
+    const doc = await db.collection('client_settings').doc(currentUser.clientName).get();
+    if(doc.exists && doc.data().stages && doc.data().stages.length > 0){
+      clientPortalStages = doc.data().stages;
+    } else {
+      clientPortalStages = [...DEFAULT_CLIENT_STAGES];
+      // Save defaults to Firestore
+      await db.collection('client_settings').doc(currentUser.clientName).set({ stages: clientPortalStages }, { merge: true });
+    }
+  } catch(e){
+    console.warn('Failed to load client stages:', e);
+    clientPortalStages = [...DEFAULT_CLIENT_STAGES];
+  }
+}
+
+async function saveClientPortalStages(stages){
+  if(!currentUser.clientName) return;
+  clientPortalStages = stages;
+  try {
+    await db.collection('client_settings').doc(currentUser.clientName).set({ stages }, { merge: true });
+  } catch(e){ console.error('Failed to save client stages:', e); }
+}
+
+// ─── Client Archive (soft-delete with restore) ───
+let clientArchivedDeals = [];
+
+async function loadClientArchive(){
+  if(!isClient()||!currentUser.clientName) return;
+  try {
+    const doc = await db.collection('client_settings').doc(currentUser.clientName).get();
+    if(doc.exists && doc.data().archivedDeals){
+      clientArchivedDeals = doc.data().archivedDeals;
+    }
+  } catch(e){ console.warn('Failed to load archive:', e); }
+}
+
+async function archiveDeal(dealId, reason){
+  const deal = state.deals.find(d=>d.id===dealId);
+  if(!deal) return;
+  const archived = { ...deal, archivedAt: new Date().toISOString(), archiveReason: reason };
+  clientArchivedDeals.push(archived);
+  // Save to Firestore
+  try {
+    await db.collection('client_settings').doc(currentUser.clientName).set(
+      { archivedDeals: clientArchivedDeals }, { merge: true }
+    );
+  } catch(e){ console.error('Failed to save archive:', e); }
+  // Remove from active deals — move back to the client's column in the main CRM
+  // (admin still sees it in their view)
+  state.deals = state.deals.filter(d=>d.id!==dealId);
+  state.selectedDeal = null;
+  render();
+}
+
+async function restoreDeal(dealId){
+  const idx = clientArchivedDeals.findIndex(d=>d.id===dealId);
+  if(idx===-1) return;
+  const deal = clientArchivedDeals.splice(idx, 1)[0];
+  delete deal.archivedAt;
+  delete deal.archiveReason;
+  // Put it back in the first client stage
+  if(clientPortalStages && clientPortalStages.length > 0){
+    deal.clientStage = clientPortalStages[0].id;
+  }
+  state.deals.push(deal);
+  // Update Firestore archive
+  try {
+    await db.collection('client_settings').doc(currentUser.clientName).set(
+      { archivedDeals: clientArchivedDeals }, { merge: true }
+    );
+  } catch(e){ console.error('Failed to update archive:', e); }
+  render();
+}
+
 // ─── Get stages for current pipeline ───
 function getStages(){
   if(state.pipeline==="acquisition") return ACQUISITION_STAGES;
   if(state.pipeline==="nurture") return NURTURE_STAGES;
-  // Client Leads: fixed "Not Distributed" column + dynamic client columns
-  const clientCols=state.clients.map((c,i)=>({id:c.name,label:c.name,color:c.color||CLIENT_PALETTE[i%CLIENT_PALETTE.length]}));
-  const allStages=[{id:"Client Not Distributed",label:"Not Distributed",color:"#6b7280"},...clientCols];
-  // If logged in as client, only show their assigned column
-  if(isClient() && currentUser.clientName){
-    return allStages.filter(s => s.id === currentUser.clientName);
+  // Client portal view — show their custom pipeline stages
+  if(isClient() && clientPortalStages){
+    return clientPortalStages;
   }
-  return allStages;
+  // Admin view: Client Leads pipeline
+  const clientCols=state.clients.map((c,i)=>({id:c.name,label:c.name,color:c.color||CLIENT_PALETTE[i%CLIENT_PALETTE.length]}));
+  return [{id:"Client Not Distributed",label:"Not Distributed",color:"#6b7280"},...clientCols];
 }
 
 // ─── Filter deals for pipeline ───
@@ -925,20 +1010,36 @@ function getPipelineDeals(){
     return state.deals.filter(d=>ACQUISITION_STAGES.some(s=>s.id===d.stage));
   }
   if(state.pipeline==="nurture") return state.deals.filter(d=>NURTURE_STAGES.some(s=>s.id===d.stage));
-  // Client leads - "Client Not Distributed" + client name columns
-  const clientNames=state.clients.map(c=>c.name);
-  let clientDeals=state.deals.filter(d=>d.stage==="Client Not Distributed"||clientNames.includes(d.stage));
-  // If client user, only show their client's deals
-  if(isClient() && currentUser.clientName){
-    clientDeals = clientDeals.filter(d => d.stage === currentUser.clientName);
+  
+  // Client portal: show deals assigned to their client, organized by clientStage
+  if(isClient() && currentUser.clientName && clientPortalStages){
+    const stageIds = clientPortalStages.map(s=>s.id);
+    return state.deals.filter(d => {
+      // Deal must belong to this client (stage matches client name)
+      if(d.stage !== currentUser.clientName) return false;
+      // If deal has a clientStage, it's been sorted; if not, it goes to first stage
+      if(!d.clientStage || !stageIds.includes(d.clientStage)){
+        d.clientStage = stageIds[0] || 'Positive Response';
+      }
+      return true;
+    });
   }
-  return clientDeals;
+  
+  // Admin: Client leads pipeline
+  const clientNames=state.clients.map(c=>c.name);
+  return state.deals.filter(d=>d.stage==="Client Not Distributed"||clientNames.includes(d.stage));
 }
 
 // ─── CRUD ───
 async function createDeal(form){
   const pip=state.pipeline==="acquisition"?"Acquisition":state.pipeline==="nurture"?"Nurture":"Client";
   const deal={...form,id:uid(),pipeline:pip,flag:"",createdDate:TODAY(),lastUpdated:TODAY()};
+  // If client user, force stage to their client name and set clientStage
+  if(isClient() && currentUser.clientName){
+    deal.stage = currentUser.clientName;
+    deal.pipeline = 'Client';
+    deal.clientStage = (clientPortalStages && clientPortalStages.length > 0) ? clientPortalStages[0].id : 'Positive Response';
+  }
   state.deals.push(deal);render();
   await apiPost("create_deal",deal);
 }
@@ -1213,8 +1314,10 @@ function render(){
       <span class="topbar-stat">${state.loadFailed?'⚠️ Offline (test data)':state.synced?'✓ Connected':'Connecting...'}${state.synced?' · ':' '}${totalDeals} deal${totalDeals!==1?'s':''}${isAdmin()?' · '+fmt$(totalValue):''}${state.syncing?' ↻':''}</span>
       ${isAdmin()?`<button class="btn btn-ghost" onclick="syncFromSheet()">↻ Sync</button>`:''}
       ${isAdmin()&&state.pipeline==='client_leads'?'<button class="btn btn-ghost" onclick="openAddClient()">+ Client</button>':''}
-      ${isAdmin()?`<button class="btn btn-primary" onclick="openNewDeal()">+ Deal</button>`:''}
+      <button class="btn btn-primary" onclick="openNewDeal()">+ ${isClient()?'Lead':'Deal'}</button>
+      ${isClient()?`<button class="btn btn-ghost" onclick="openClientArchive()" title="View archived leads">📦 Archive${clientArchivedDeals.length?' ('+clientArchivedDeals.length+')':''}</button>`:''}
       ${isAdmin()?`<button class="btn btn-ghost" onclick="openSettings()" title="Settings" style="font-size:16px;padding:6px 10px">⚙️</button>`:''}
+      ${isClient()?`<button class="btn btn-ghost" onclick="openClientStageSettings()" title="Edit stages" style="font-size:16px;padding:6px 10px">⚙️</button>`:''}
       ${currentUser?`<button class="btn btn-ghost" onclick="logout()" title="Sign out (${esc(currentUser.name)})" style="font-size:11px;padding:5px 10px;color:#9ca3af">${esc(currentUser.name)} ↗</button>`:''}
     </div>
   </div>
@@ -1223,7 +1326,8 @@ function render(){
   // Search results handled inline in search dropdown
 
   for(const stage of stages){
-    const sd=deals.filter(d=>d.stage===stage.id);
+    // For client portal, filter by clientStage instead of stage
+    const sd = isClient() ? deals.filter(d=>d.clientStage===stage.id) : deals.filter(d=>d.stage===stage.id);
     const sv=sd.reduce((s,d)=>s+(Number(d.value)||0),0);
     const stageKey=btoa(unescape(encodeURIComponent(stage.id)));
 
@@ -1234,9 +1338,9 @@ function render(){
       <div class="col-header" style="border-top-color:${stage.color}">
         <div>
           <div class="col-title">${esc(stage.label)}</div>
-          <div class="col-meta">${fmt$(sv)} · ${sd.length} deal${sd.length!==1?'s':''}</div>
+          <div class="col-meta">${sd.length} lead${sd.length!==1?'s':''}</div>
         </div>
-        ${state.pipeline==='client_leads'?`<div style="display:flex;gap:6px;align-items:center">
+        ${isAdmin()&&state.pipeline==='client_leads'?`<div style="display:flex;gap:6px;align-items:center">
           ${(()=>{const cl=state.clients.find(c=>c.name===stage.label);return cl&&cl.calendlyUrl?'<a href="'+esc(cl.calendlyUrl)+'" target="_blank" rel="noopener" title="Open Calendly for '+esc(stage.label)+'" style="background:none;border:none;color:#818cf8;font-size:14px;cursor:pointer;text-decoration:none" onclick="event.stopPropagation()">📅</a>':'';})()}
           <button style="background:none;border:none;color:#d1d5db;font-size:14px;cursor:pointer" onclick="if(confirm('Remove this client?'))removeClient(atob('${btoa(unescape(encodeURIComponent(stage.label)))}'))">×</button>
         </div>`:''}
@@ -1244,16 +1348,15 @@ function render(){
       <div class="col-body" ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';doDragOver(this.closest('.column'))" ondrop="doDrop('${stageKey}')">`;
 
     if(sd.length===0){
-      html+=`<div class="col-empty" ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';doDragOver(this.closest('.column'))" ondrop="doDrop('${stageKey}')">Drop deals here</div>`;
+      html+=`<div class="col-empty" ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';doDragOver(this.closest('.column'))" ondrop="doDrop('${stageKey}')">No leads yet</div>`;
     } else {
       for(const deal of sd){
         const badge=getActivityBadge(deal.id);
-        html+=`<div class="deal-card" ${isAdmin()?"draggable=\"true\"":""}
-          ${isAdmin()?`ondragstart="event.dataTransfer.effectAllowed='move';state.dragId='${deal.id}';showDeleteZone()"
+        html+=`<div class="deal-card" draggable="true"
+          ondragstart="event.dataTransfer.effectAllowed='move';state.dragId='${deal.id}';showDeleteZone()"
           ondragend="clearAllDragOver();hideDeleteZone()"
           ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';doDragOver(this.closest('.column'))"
-          ondrop="doDrop('${stageKey}')"`:""
-          }
+          ondrop="doDrop('${stageKey}')"
           data-deal-id="${deal.id}"
           onclick="openDeal('${deal.id}')">
 
@@ -1289,19 +1392,17 @@ function render(){
 
   html+=`</div>`;
 
-  // Drag-to-delete/won zone (admin only)
-  if(isAdmin()){
+  // Drag-to-archive/won zone
   html+=`<div class="delete-zone" id="delete-zone">
     <div class="delete-zone-half delete-zone-lost"
       ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';this.classList.add('drag-hover')"
       ondragleave="this.classList.remove('drag-hover')"
-      ondrop="doLostDrop()">🗑️ Lost / Delete</div>
+      ondrop="doLostDrop()">${isClient()?'📦 Archive Lead':'🗑️ Lost / Delete'}</div>
     <div class="delete-zone-half delete-zone-won"
       ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';this.classList.add('drag-hover')"
       ondragleave="this.classList.remove('drag-hover')"
-      ondrop="doWonDrop()">✅ Won → Push to Tracker</div>
+      ondrop="doWonDrop()">✅ ${isClient()?'Won / Closed':'Won → Push to Tracker'}</div>
   </div>`;
-  }
 
   // Modals
   if(state.selectedDeal) html+=renderDealModal(state.selectedDeal);
@@ -1554,10 +1655,11 @@ function renderDealModal(deal){
 
   h+=`</div></div>
     <div class="modal-footer">
-      ${isAdmin()?`<button class="btn btn-danger" onclick="if(confirm('Delete this deal?'))deleteDeal('${deal.id}')">Delete</button>`:'<div></div>'}
+      ${isAdmin()?`<button class="btn btn-danger" onclick="if(confirm('Delete this deal?'))deleteDeal('${deal.id}')">Delete</button>`:''}
+      ${isClient()?`<button class="btn btn-danger" onclick="if(confirm('Archive this lead?'))archiveDeal('${deal.id}','manual')">Archive</button>`:''}
       <div style="display:flex;gap:8px">
         <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="closeDealModal()">Close</button>
-        ${isAdmin()?`<button class="btn btn-primary" onclick="doSaveDeal('${deal.id}')">Save</button>`:''}
+        <button class="btn btn-primary" onclick="doSaveDeal('${deal.id}')">Save</button>
       </div>
     </div></div></div>`;
   return h;
@@ -1565,25 +1667,33 @@ function renderDealModal(deal){
 
 function renderNewDealModal(stages){
   const defVal=state.pipeline==="acquisition"?1057:0;
+  const isClientView = isClient();
+  const fields = isClientView 
+    ? ["company:Company/Name","contact:Contact Name","email:Email","phone:Phone","location:Address/Location"]
+    : ["company:Company","contact:Contact Name","email:Email","phone:Phone","website:Website"];
   return`<div class="modal-overlay" onclick="state.showNew=false;render()">
     <div class="modal" style="width:440px" onclick="event.stopPropagation()">
-      <div class="modal-header"><h3>New Deal</h3><button class="modal-close" onclick="state.showNew=false;render()">×</button></div>
+      <div class="modal-header"><h3>${isClientView?'New Lead':'New Deal'}</h3><button class="modal-close" onclick="state.showNew=false;render()">×</button></div>
       <div class="modal-body">
         <div class="form-grid">
-          ${["company:Company","contact:Contact Name","email:Email","phone:Phone","website:Website"].map(f=>{
+          ${fields.map(f=>{
             const[k,label]=f.split(":");
             return`<div class="form-group"><label>${label}</label><input id="new-${k}"></div>`;
           }).join("")}
-          <div class="form-group"><label>Deal Value ($)</label><input id="new-value" type="number" value="${defVal}"></div>
-          <div class="form-group form-span2">
+          ${!isClientView?`<div class="form-group"><label>Deal Value ($)</label><input id="new-value" type="number" value="${defVal}"></div>`:''}
+          ${!isClientView?`<div class="form-group form-span2">
             <label>Stage</label>
             <select id="new-stage">${stages.map(s=>`<option value="${esc(s.id)}">${esc(s.label)}</option>`).join("")}</select>
-          </div>
+          </div>`:''}
+          ${isClientView?`<div class="form-group form-span2">
+            <label>Notes</label>
+            <textarea id="new-notes" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);resize:vertical"></textarea>
+          </div>`:''}
         </div>
       </div>
       <div class="modal-footer" style="justify-content:flex-end">
         <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="state.showNew=false;render()">Cancel</button>
-        <button class="btn btn-primary" onclick="doCreateDeal()">Create Deal</button>
+        <button class="btn btn-primary" onclick="doCreateDeal()">Create ${isClientView?'Lead':'Deal'}</button>
       </div>
     </div></div>`;
 }
@@ -1663,15 +1773,25 @@ function doSaveDeal(id){
 
 function doCreateDeal(){
   const form={};
-  ["company","contact","email","phone","website"].forEach(k=>{
+  const fields = isClient() 
+    ? ["company","contact","email","phone","location"]
+    : ["company","contact","email","phone","website"];
+  fields.forEach(k=>{
     const el=document.getElementById("new-"+k);
     form[k]=el?el.value:"";
   });
-  const valEl=document.getElementById("new-value");
-  form.value=valEl?Number(valEl.value)||0:0;
-  const stageEl=document.getElementById("new-stage");
-  form.stage=stageEl?stageEl.value:getStages()[0]?.id||"";
-  form.notes="";
+  if(!isClient()){
+    const valEl=document.getElementById("new-value");
+    form.value=valEl?Number(valEl.value)||0:0;
+    const stageEl=document.getElementById("new-stage");
+    form.stage=stageEl?stageEl.value:getStages()[0]?.id||"";
+  } else {
+    form.value=0;
+    form.stage=currentUser.clientName||'';
+    const notesEl=document.getElementById("new-notes");
+    form.notes=notesEl?notesEl.value:'';
+  }
+  if(!form.notes) form.notes="";
   state.showNew=false;
   createDeal(form);
 }
@@ -1754,8 +1874,28 @@ function doDrop(stageKey){
   clearAllDragOver();
   hideDeleteZone();
   const stageId=decodeURIComponent(escape(atob(stageKey)));
-  if(state.dragId){moveDeal(state.dragId,stageId);}
+  if(state.dragId){
+    if(isClient()){
+      // Client portal: update clientStage instead of stage
+      moveClientDeal(state.dragId, stageId);
+    } else {
+      moveDeal(state.dragId,stageId);
+    }
+  }
   state.dragId=null;
+}
+
+// Move deal within client portal stages (updates clientStage field)
+async function moveClientDeal(dealId, newClientStage){
+  const d=state.deals.find(x=>x.id===dealId);
+  if(d){
+    d.clientStage=newClientStage;
+    d.lastUpdated=TODAY();
+  }
+  render();
+  pendingWrites++;
+  try { await apiPost("update_deal",{id:dealId, clientStage:newClientStage}); }
+  finally { pendingWrites--; }
 }
 
 function showDeleteZone(){
@@ -1772,8 +1912,15 @@ function doLostDrop(){
   if(state.dragId){
     const deal=state.deals.find(d=>d.id===state.dragId);
     const name=deal?(deal.company||deal.contact||'this deal'):'this deal';
-    if(confirm('Mark "'+name+'" as Lost and delete? This cannot be undone.')){
-      deleteDeal(state.dragId);
+    if(isClient()){
+      // Client: archive instead of delete
+      if(confirm('Archive "'+name+'"? You can restore it later from the archive.')){
+        archiveDeal(state.dragId, 'lost');
+      }
+    } else {
+      if(confirm('Mark "'+name+'" as Lost and delete? This cannot be undone.')){
+        deleteDeal(state.dragId);
+      }
     }
   }
   state.dragId=null;
@@ -1785,14 +1932,23 @@ async function doWonDrop(){
   if(state.dragId){
     const deal=state.deals.find(d=>d.id===state.dragId);
     if(!deal){ state.dragId=null; return; }
-    // Only allow Won/Push for client pipeline deals
+    const name=deal.company||deal.contact||'this deal';
+    
+    if(isClient()){
+      // Client: archive as won
+      if(confirm('Mark "'+name+'" as Won? It will be moved to your archive.')){
+        archiveDeal(state.dragId, 'won');
+      }
+      state.dragId=null;
+      return;
+    }
+    
+    // Admin flow: push to Lead Tracker
     if(deal.pipeline!=='Client'){
       alert('Won → Push to Tracker is only available for Client pipeline deals. Use Lost/Delete for acquisition deals.');
       state.dragId=null; return;
     }
-    const name=deal.company||deal.contact||'this deal';
     if(confirm('Mark "'+name+'" as Won, push to Lead Tracker, and remove from CRM?')){
-      // Get cost
       const client=findClientForDeal(deal) || state.clients.find(c=>c.name===deal.stage);
       let leadCost='';
       if(client && str(client.leadCost).replace(/[^0-9.]/g,'')){
@@ -2518,11 +2674,112 @@ async function createNewUser(){
   }
 }
 
+// ─── Client Archive Viewer ───
+function openClientArchive(){
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.onclick = ()=>overlay.remove();
+  
+  let h = `<div class="modal" style="width:520px;max-height:80vh" onclick="event.stopPropagation()">
+    <div class="modal-header"><h3>📦 Archived Leads</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button></div>
+    <div class="modal-body" style="max-height:60vh;overflow-y:auto">`;
+  
+  if(clientArchivedDeals.length === 0){
+    h += `<div style="text-align:center;padding:30px;color:var(--text-muted)">No archived leads yet.<br><span style="font-size:11px">Drag a lead to "Archive" or "Won" to move it here.</span></div>`;
+  } else {
+    for(const deal of clientArchivedDeals){
+      const reason = deal.archiveReason === 'won' ? '✅ Won' : '📦 Archived';
+      const date = deal.archivedAt ? new Date(deal.archivedAt).toLocaleDateString() : '';
+      h += `<div style="display:flex;align-items:center;gap:10px;padding:10px;margin-bottom:6px;background:#f9fafb;border:1px solid var(--border);border-radius:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600">${esc(deal.company||deal.contact||'Unknown')}</div>
+          <div style="font-size:11px;color:var(--text-muted)">${esc(deal.email||'')} ${deal.phone?'· '+esc(deal.phone):''}</div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:2px">${reason} · ${date}</div>
+        </div>
+        <button class="btn btn-primary" style="font-size:11px;padding:5px 12px;flex-shrink:0" onclick="restoreDeal('${deal.id}');this.closest('.modal-overlay').remove()">Restore</button>
+      </div>`;
+    }
+  }
+  h += `</div></div>`;
+  overlay.innerHTML = h;
+  document.body.appendChild(overlay);
+}
+
+// ─── Client Stage Settings ───
+function openClientStageSettings(){
+  const overlay = document.createElement('div');
+  overlay.id = 'client-stage-overlay';
+  overlay.className = 'modal-overlay';
+  overlay.onclick = ()=>overlay.remove();
+  
+  renderClientStageSettingsInner(overlay);
+  document.body.appendChild(overlay);
+}
+
+function renderClientStageSettingsInner(overlay){
+  if(!overlay) overlay = document.getElementById('client-stage-overlay');
+  if(!overlay) return;
+  
+  const stages = clientPortalStages || DEFAULT_CLIENT_STAGES;
+  const colors = ['#7c3aed','#2563eb','#d97706','#059669','#ef4444','#0891b2','#6366f1','#dc2626','#15803d','#b45309'];
+  
+  let h = `<div class="modal" style="width:420px" onclick="event.stopPropagation()">
+    <div class="modal-header"><h3>⚙️ Pipeline Stages</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button></div>
+    <div class="modal-body">
+      <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Customize your pipeline stages. Drag to reorder.</p>
+      <div id="client-stages-list">`;
+  
+  for(let i=0;i<stages.length;i++){
+    h += `<div style="display:flex;align-items:center;gap:8px;padding:8px;margin-bottom:4px;background:#f9fafb;border:1px solid var(--border);border-radius:6px">
+      <span style="color:#d1d5db;cursor:grab">⠿</span>
+      <input type="color" value="${stages[i].color}" style="width:24px;height:24px;border:none;cursor:pointer;background:none" onchange="clientPortalStages[${i}].color=this.value">
+      <input type="text" value="${esc(stages[i].label)}" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font)" onchange="clientPortalStages[${i}].label=this.value;clientPortalStages[${i}].id=this.value">
+      ${stages.length>1?`<button style="background:none;border:none;color:#d1d5db;cursor:pointer;font-size:16px" onclick="clientPortalStages.splice(${i},1);renderClientStageSettingsInner()">×</button>`:''}
+    </div>`;
+  }
+  
+  h += `</div>
+      <div style="margin-top:8px;display:flex;gap:6px">
+        <input type="text" id="new-client-stage-name" placeholder="New stage name" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+        <button class="btn btn-primary" style="font-size:11px" onclick="addClientStage()">+ Add</button>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content:flex-end">
+      <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveClientStagesAndClose()">Save Stages</button>
+    </div>
+  </div>`;
+  
+  overlay.innerHTML = h;
+}
+
+function addClientStage(){
+  const input = document.getElementById('new-client-stage-name');
+  const name = input.value.trim();
+  if(!name) return;
+  const colors = ['#7c3aed','#2563eb','#d97706','#059669','#ef4444','#0891b2'];
+  clientPortalStages.push({ id: name, label: name, color: colors[clientPortalStages.length % colors.length] });
+  input.value = '';
+  renderClientStageSettingsInner();
+}
+
+async function saveClientStagesAndClose(){
+  await saveClientPortalStages(clientPortalStages);
+  const overlay = document.getElementById('client-stage-overlay');
+  if(overlay) overlay.remove();
+  render();
+}
+
 // ─── Init ───
 let appInitialized=false;
-function initApp(){
+async function initApp(){
   if(appInitialized) return;
   appInitialized=true;
+  // If client, load their portal stages and archive from Firestore
+  if(isClient()){
+    await loadClientPortalStages();
+    await loadClientArchive();
+  }
   render();
   syncFromSheet();
   setInterval(syncFromSheet, SYNC_INTERVAL);
