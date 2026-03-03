@@ -695,14 +695,8 @@ async function confirmForward(dealId){
     const deal=state.deals.find(d=>d.id===dealId);
     if(deal) deal.forwardedAt=new Date().toISOString();
 
-    // Auto-push to Lead Tracker
-    if(deal){
-      try{
-        await autoPushToTracker(deal);
-      }catch(e){
-        console.error('Lead Tracker auto-push failed:',e);
-      }
-    }
+    // Lead Tracker push removed from auto-forward flow
+    // Tracker push is now manual-only (requires bookedFor to be filled)
 
     document.getElementById('fwd-preview-overlay')?.remove();
     refreshModal();
@@ -1236,12 +1230,26 @@ function removeClient(name){
 }
 
 const LEAD_TRACKER_SHEET_ID='1zEfZQOuzbrE9s01gfTOoVvEJ-DgtOxkPIWNiZHaxaZ4';
+// Clients that push to Lead Tracker at $0 (no cost)
+const TRACKER_ZERO_COST_CLIENTS=['abc','deeter'];
+
 async function pushToLeadTracker(dealId){
   const deal=state.deals.find(d=>d.id===dealId);
   if(!deal) return;
   const client=findClientForDeal(deal) || state.clients.find(c=>c.name===deal.stage);
+  const clientName=client?client.name:deal.stage;
+
+  const isZeroCost=TRACKER_ZERO_COST_CLIENTS.some(ex=>clientName.toLowerCase().includes(ex));
+
+  // Require bookedFor to be filled (unless zero-cost client that was auto-pushed)
+  if(!isZeroCost && !str(deal.bookedFor).trim()){
+    alert('Please fill in the "Booked For" field before pushing to Lead Tracker.');return;
+  }
+
   let leadCost='';
-  if(client && str(client.leadCost).replace(/[^0-9.]/g,'')){
+  if(isZeroCost){
+    leadCost=''; // $0 for ABC, Deeter, etc.
+  } else if(client && str(client.leadCost).replace(/[^0-9.]/g,'')){
     leadCost='$'+str(client.leadCost).replace(/[^0-9.]/g,'');
   } else {
     const costInput=prompt('Enter lead cost for this client (e.g. 200, 250):','250');
@@ -1557,10 +1565,12 @@ function renderDealModal(deal){
       // Push to Lead Tracker button
       if(isOn('enableTracker')){
         const pushed=deal.pushedToTracker;
+        const isZeroCostClient=TRACKER_ZERO_COST_CLIENTS.some(ex=>(matchedClient.name||'').toLowerCase().includes(ex));
+        const needsBooking=!isZeroCostClient && !str(deal.bookedFor).trim();
         h+=`<div style="margin:0 0 8px 0">
-          <button class="btn ${pushed?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px" 
-            onclick="${pushed?'':'pushToLeadTracker(\''+deal.id+'\')'}" ${pushed?'disabled':''}>
-            ${pushed?'✅ Pushed to Lead Tracker':'📤 Push to Lead Tracker'}
+          <button class="btn ${pushed?'btn-ghost':needsBooking?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px" 
+            onclick="${pushed?'':needsBooking?'':'pushToLeadTracker(\''+deal.id+'\')'}" ${pushed||needsBooking?'disabled':''}>
+            ${pushed?'✅ Pushed to Lead Tracker'+(isZeroCostClient?' ($0)':''):needsBooking?'📤 Push to Lead Tracker (fill Booked For first)':'📤 Push to Lead Tracker'+(isZeroCostClient?' ($0)':'')}
           </button>
         </div>`;
       }
@@ -1946,10 +1956,20 @@ async function doWonDrop(){
       alert('Won → Push to Tracker is only available for Client pipeline deals. Use Lost/Delete for acquisition deals.');
       state.dragId=null; return;
     }
-    if(confirm('Mark "'+name+'" as Won, push to Lead Tracker, and remove from CRM?')){
-      const client=findClientForDeal(deal) || state.clients.find(c=>c.name===deal.stage);
+    const wonClient=findClientForDeal(deal) || state.clients.find(c=>c.name===deal.stage);
+    const wonClientName=wonClient?wonClient.name:deal.stage;
+    const wonIsZeroCost=TRACKER_ZERO_COST_CLIENTS.some(ex=>wonClientName.toLowerCase().includes(ex));
+    // Require bookedFor for non-zero-cost clients
+    if(!wonIsZeroCost && !str(deal.bookedFor).trim()){
+      alert('Please fill in the "Booked For" field before pushing to Lead Tracker. Open the deal card first.');
+      state.dragId=null; return;
+    }
+    if(confirm('Mark "'+name+'" as Won, push to Lead Tracker'+(wonIsZeroCost?' ($0)':'')+', and remove from CRM?')){
+      const client=wonClient;
       let leadCost='';
-      if(client && str(client.leadCost).replace(/[^0-9.]/g,'')){
+      if(wonIsZeroCost){
+        leadCost=''; // $0 for ABC, Deeter, etc.
+      } else if(client && str(client.leadCost).replace(/[^0-9.]/g,'')){
         leadCost='$'+str(client.leadCost).replace(/[^0-9.]/g,'');
       } else {
         const costInput=prompt('Enter lead cost for this client (e.g. 200, 250):','250');
