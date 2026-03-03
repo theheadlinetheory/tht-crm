@@ -1195,8 +1195,7 @@ function copyLeadInfo(dealId){
   lines.push('Hey '+clientFirst+', Just scheduled a quote request for '+timeStr+' with '+biz+'. The address, phone, contact info and instructions are all included in that calendar event. I\'ve also added you to the email thread. Please check your spam folder if you are not seeing it.');
   lines.push('');
   if(biz) lines.push('Business: '+biz);
-  if(deal.address) lines.push('Address: '+deal.address);
-  else if(deal.location) lines.push('Address: '+deal.location);
+  if(deal.location) lines.push('Address: '+deal.location);
   if(deal.phone) lines.push('Business Phone: '+deal.phone);
   if(deal.email) lines.push('Email: '+deal.email);
   const text=lines.join('\n');
@@ -1215,8 +1214,7 @@ function buildCalendlyUrl(baseUrl, deal){
   // Pack all deal info into the notes/comments field (a1) — only instructions left blank
   const lines = [];
   if(deal.company) lines.push('Business: ' + deal.company);
-  if(deal.address) lines.push('Address: ' + deal.address);
-  else if(deal.location) lines.push('Address: ' + deal.location);
+  if(deal.location) lines.push('Address: ' + deal.location);
   if(deal.phone) lines.push('Business Phone: ' + deal.phone);
   if(deal.mobilePhone) lines.push('Mobile Phone: ' + deal.mobilePhone);
   if(deal.email) lines.push('Email: ' + deal.email);
@@ -1758,7 +1756,7 @@ function doSaveDeal(id){
   const deal=state.selectedDeal;
   if(!deal)return;
   // Grab latest values from form inputs
-  ["company","contact","email","phone","website","location","address","notes","bookedFor"].forEach(k=>{
+  ["company","contact","email","phone","website","location","notes","bookedFor"].forEach(k=>{
     const el=document.getElementById("deal-"+k);
     if(el) deal[k]=el.value;
   });
