@@ -1293,7 +1293,7 @@ async function pushToLeadTracker(dealId){
   const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const monthGenerated=monthNames[now.getMonth()]+'/'+String(now.getFullYear()).slice(2);
   const dateGenerated=(now.getMonth()+1)+'/'+now.getDate()+'/'+String(now.getFullYear()).slice(2);
-  const clientName=client?client.name:deal.stage;
+  
   const leadName=deal.company||deal.contact||'Unknown';
   const leadEmail=deal.email||'';
   const row=[clientName,monthGenerated,leadName,leadEmail,dateGenerated,leadCost,'','','',''];
