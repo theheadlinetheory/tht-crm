@@ -515,8 +515,7 @@ const NURTURE_STAGES = [
 const ALL_PIPELINES = [
   { id: "acquisition", label: "Acquisition" },
   { id: "client_leads", label: "Client Leads" },
-  { id: "nurture", label: "Long Term Nurture" },
-  { id: "rerun", label: "Re-Run Lists" },
+  { id: "nurture", label: "Nurture" },
 ];
 
 // Filter pipelines based on user role
@@ -775,7 +774,7 @@ let state = {
   deals: [],
   activities: [],
   clients: [...TEST_CLIENTS],
-  pipeline: (() => { try { const h=location.hash.replace('#',''); return ['acquisition','client_leads','nurture','rerun'].includes(h)?h:'acquisition'; } catch(e){ return 'acquisition'; } })(),
+  pipeline: (() => { try { const h=location.hash.replace('#',''); return ['acquisition','client_leads','nurture'].includes(h)?h:'acquisition'; } catch(e){ return 'acquisition'; } })(),
   selectedDeal: null,
   showNew: false,
   showAddClient: false,
@@ -789,6 +788,7 @@ let state = {
   searchResults: null,
   savedSettings: null,
   // Re-Run Queue state
+  nurtureSubTab: 'board',
   rerunQueue: [],
   rerunMarketSettings: [],
   rerunLoading: false,
@@ -1583,13 +1583,13 @@ function render(){
   // Save scroll position before destroying DOM
   const board=document.querySelector('.board');
   if(board) savedScrollLeft=board.scrollLeft;
-  // ─── Re-Run Lists Tab ───
-  if(state.pipeline==='rerun'){
-    html+=`
+  // ─── Nurture Tab with Re-Run Queue Sub-Tab ───
+  if(state.pipeline==='nurture' && state.nurtureSubTab==='rerun'){
+    let html=`
     <div class="topbar">
       <div style="display:flex;align-items:center;">
         <div class="topbar-tabs">
-          ${getVisiblePipelines().map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="state.pipeline='${p.id}';location.hash='${p.id}';${p.id==='rerun'?'loadRerunData();':''}render()">${p.label}</button>`).join("")}
+          ${getVisiblePipelines().map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="state.pipeline='${p.id}';location.hash='${p.id}';if('${p.id}'!=='nurture')state.nurtureSubTab='board';render()">${p.label}</button>`).join("")}
         </div>
       </div>
       <div class="topbar-right">
@@ -1598,6 +1598,10 @@ function render(){
         <button class="btn btn-ghost" onclick="state.rerunShowMarketModal=true;render()">⚙ Markets</button>
         ${currentUser?`<button class="btn btn-ghost" onclick="logout()" title="Sign out" style="font-size:11px;padding:5px 10px;color:#9ca3af">${esc(currentUser.name)} ↗</button>`:''}
       </div>
+    </div>
+    <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin:0 20px;">
+      <button onclick="state.nurtureSubTab='board';render()" style="padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;color:var(--text-muted);border-bottom:2px solid transparent;margin-bottom:-2px">Board</button>
+      <button onclick="state.nurtureSubTab='rerun';render()" style="padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;color:var(--purple);border-bottom:2px solid var(--purple);margin-bottom:-2px">Re-Run Queue</button>
     </div>`;
     html+=renderRerunTab();
     app.innerHTML=html;
@@ -1613,7 +1617,7 @@ function render(){
   <div class="topbar">
     <div style="display:flex;align-items:center;">
       <div class="topbar-tabs">
-        ${getVisiblePipelines().map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="state.pipeline='${p.id}';location.hash='${p.id}';${p.id==='rerun'?'loadRerunData();':''}render()">${p.label}</button>`).join("")}
+        ${getVisiblePipelines().map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="state.pipeline='${p.id}';location.hash='${p.id}';if('${p.id}'!=='nurture')state.nurtureSubTab='board';render()">${p.label}</button>`).join("")}
       </div>
     </div>
     <div class="topbar-right">
@@ -1647,6 +1651,10 @@ function render(){
       ${currentUser?`<button class="btn btn-ghost" onclick="logout()" title="Sign out (${esc(currentUser.name)})" style="font-size:11px;padding:5px 10px;color:#9ca3af">${esc(currentUser.name)} ↗</button>`:''}
     </div>
   </div>
+  ${state.pipeline==='nurture'?`<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin:0 20px;">
+    <button onclick="state.nurtureSubTab='board';render()" style="padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;color:var(--purple);border-bottom:2px solid var(--purple);margin-bottom:-2px">Board</button>
+    <button onclick="state.nurtureSubTab='rerun';loadRerunData()" style="padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;color:var(--text-muted);border-bottom:2px solid transparent;margin-bottom:-2px">Re-Run Queue</button>
+  </div>`:''}
   <div class="board">`;
 
   // Search results handled inline in search dropdown
@@ -3121,7 +3129,7 @@ async function initApp(){
   syncFromSheet();
   setInterval(syncFromSheet, SYNC_INTERVAL);
   // Load rerun data if starting on that tab
-  if(state.pipeline==='rerun') loadRerunData();
+  if(state.pipeline==='nurture' && state.nurtureSubTab==='rerun') loadRerunData();
 }
 // Auth onAuthStateChanged handles calling initApp()
 </script>
