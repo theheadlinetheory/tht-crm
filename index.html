@@ -223,6 +223,24 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .login-btn:hover { background:#6d28d9; }
 .login-btn:disabled { opacity:.6; cursor:not-allowed; }
 .login-error { color:var(--red); font-size:12px; text-align:center; margin-top:12px; display:none; }
+
+/* Re-Run Queue Tab */
+.rerun-container { padding: 20px; max-width: 1200px; margin: 0 auto; }
+.rerun-filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+.rerun-filters select, .rerun-filters input { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; font-family: var(--font); }
+.rerun-table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); }
+.rerun-table th { background: #f9fafb; padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--border); }
+.rerun-table td { padding: 8px 12px; font-size: 12px; border-bottom: 1px solid #f3f4f6; }
+.rerun-table tr:hover { background: #f9fafb; }
+.rerun-status { padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+.rerun-status.queued { background: #fef3c7; color: #92400e; }
+.rerun-status.sent { background: #dcfce7; color: #166534; }
+.rerun-status.skipped { background: #f3f4f6; color: #6b7280; }
+.rerun-empty { text-align: center; padding: 40px; color: var(--text-muted); font-size: 13px; }
+.rerun-stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.rerun-stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+.rerun-stat-card .stat-label { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+.rerun-stat-card .stat-value { font-size: 24px; font-weight: 800; color: var(--text); margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -498,6 +516,7 @@ const ALL_PIPELINES = [
   { id: "acquisition", label: "Acquisition" },
   { id: "client_leads", label: "Client Leads" },
   { id: "nurture", label: "Long Term Nurture" },
+  { id: "rerun", label: "Re-Run Lists" },
 ];
 
 // Filter pipelines based on user role
@@ -756,7 +775,7 @@ let state = {
   deals: [],
   activities: [],
   clients: [...TEST_CLIENTS],
-  pipeline: (() => { try { const h=location.hash.replace('#',''); return ['acquisition','client_leads','nurture'].includes(h)?h:'acquisition'; } catch(e){ return 'acquisition'; } })(),
+  pipeline: (() => { try { const h=location.hash.replace('#',''); return ['acquisition','client_leads','nurture','rerun'].includes(h)?h:'acquisition'; } catch(e){ return 'acquisition'; } })(),
   selectedDeal: null,
   showNew: false,
   showAddClient: false,
@@ -769,6 +788,14 @@ let state = {
   searchQuery: "",
   searchResults: null,
   savedSettings: null,
+  // Re-Run Queue state
+  rerunQueue: [],
+  rerunMarketSettings: [],
+  rerunLoading: false,
+  rerunFilterState: '',
+  rerunFilterCity: '',
+  rerunFilterStatus: '',
+  rerunShowMarketModal: false,
 };
 
 // ─── API ───
@@ -1063,6 +1090,10 @@ async function moveDeal(dealId,newStage){
   pendingWrites++;
   try { await apiPost("move_deal_stage",{id:dealId,stage:newStage}); }
   finally { pendingWrites--; }
+  // Auto-queue to re-run list when moved to nurture stages
+  if(d && (newStage==='Service Area Taken' || newStage==='Revisit')){
+    addToRerunQueue(dealId).catch(e=>console.warn('Re-run queue auto-add failed:',e));
+  }
 }
 
 function addActivity(dealId,act){
@@ -1277,6 +1308,274 @@ async function pushToLeadTracker(dealId){
   apiPost('update_deal',{id:deal.id,pushedToTracker:deal.pushedToTracker}).finally(()=>{pendingWrites--;});
 }
 
+// ═══════════════════════════════════════════════════════════
+// RE-RUN QUEUE
+// ═══════════════════════════════════════════════════════════
+async function loadRerunData(){
+  state.rerunLoading=true; render();
+  try {
+    const [queueData, marketData] = await Promise.all([
+      apiGet('get_rerun_queue'),
+      apiGet('get_market_settings')
+    ]);
+    if(queueData && Array.isArray(queueData)){
+      state.rerunQueue = queueData;
+      // Normalize fields to strings
+      state.rerunQueue.forEach(r=>{
+        Object.keys(r).forEach(k=>{ if(r[k]!=null && typeof r[k]!=='string') r[k]=String(r[k]); });
+      });
+    }
+    if(marketData && Array.isArray(marketData)){
+      state.rerunMarketSettings = marketData;
+      state.rerunMarketSettings.forEach(m=>{
+        Object.keys(m).forEach(k=>{ if(m[k]!=null && typeof m[k]!=='string') m[k]=String(m[k]); });
+      });
+    }
+  } catch(e){ console.error('loadRerunData error:', e); }
+  state.rerunLoading=false; render();
+}
+
+function getFilteredRerunQueue(){
+  let q = state.rerunQueue;
+  if(state.rerunFilterState) q = q.filter(r=>(r.state||'').toLowerCase()===state.rerunFilterState.toLowerCase());
+  if(state.rerunFilterCity) q = q.filter(r=>(r.city||'').toLowerCase().includes(state.rerunFilterCity.toLowerCase()));
+  if(state.rerunFilterStatus) q = q.filter(r=>(r.status||'').toLowerCase()===state.rerunFilterStatus.toLowerCase());
+  return q;
+}
+
+function getRerunStates(){
+  const states = new Set();
+  state.rerunQueue.forEach(r=>{ if(r.state) states.add(r.state); });
+  return Array.from(states).sort();
+}
+
+function getRerunCities(){
+  const cities = new Set();
+  let q = state.rerunQueue;
+  if(state.rerunFilterState) q = q.filter(r=>(r.state||'').toLowerCase()===state.rerunFilterState.toLowerCase());
+  q.forEach(r=>{ if(r.city) cities.add(r.city); });
+  return Array.from(cities).sort();
+}
+
+function renderRerunTab(){
+  const filtered = getFilteredRerunQueue();
+  const states = getRerunStates();
+  const cities = getRerunCities();
+  const totalQueued = state.rerunQueue.filter(r=>(r.status||'').toLowerCase()==='queued').length;
+  const totalSent = state.rerunQueue.filter(r=>(r.status||'').toLowerCase()==='sent').length;
+  const uniqueStates = getRerunStates().length;
+  const uniqueCities = new Set(state.rerunQueue.map(r=>r.city).filter(Boolean)).size;
+
+  let h = `<div class="rerun-container">
+    <div class="rerun-stat-cards">
+      <div class="rerun-stat-card">
+        <div class="stat-label">Total Queued</div>
+        <div class="stat-value" style="color:#d97706">${totalQueued}</div>
+      </div>
+      <div class="rerun-stat-card">
+        <div class="stat-label">Already Sent</div>
+        <div class="stat-value" style="color:#22c55e">${totalSent}</div>
+      </div>
+      <div class="rerun-stat-card">
+        <div class="stat-label">States</div>
+        <div class="stat-value">${uniqueStates}</div>
+      </div>
+      <div class="rerun-stat-card">
+        <div class="stat-label">Cities / Markets</div>
+        <div class="stat-value">${uniqueCities}</div>
+      </div>
+    </div>
+
+    <div class="rerun-filters">
+      <select onchange="state.rerunFilterState=this.value;state.rerunFilterCity='';render()">
+        <option value="">All States</option>
+        ${states.map(s=>`<option value="${esc(s)}" ${state.rerunFilterState===s?'selected':''}>${esc(s)}</option>`).join('')}
+      </select>
+      <select onchange="state.rerunFilterCity=this.value;render()">
+        <option value="">All Cities</option>
+        ${cities.map(c=>`<option value="${esc(c)}" ${state.rerunFilterCity===c?'selected':''}>${esc(c)}</option>`).join('')}
+      </select>
+      <select onchange="state.rerunFilterStatus=this.value;render()">
+        <option value="">All Statuses</option>
+        <option value="queued" ${state.rerunFilterStatus==='queued'?'selected':''}>Queued</option>
+        <option value="sent" ${state.rerunFilterStatus==='sent'?'selected':''}>Sent</option>
+        <option value="skipped" ${state.rerunFilterStatus==='skipped'?'selected':''}>Skipped</option>
+      </select>
+      <button class="btn btn-primary" onclick="exportRerunCSV()">📥 Export CSV</button>
+      <button class="btn btn-ghost" style="background:#faf5ff;color:var(--purple);border:1px solid #e9d5ff" onclick="exportRerunForSmartlead()">📤 Export for Smartlead</button>
+      <span style="font-size:11px;color:var(--text-muted);margin-left:auto">${filtered.length} of ${state.rerunQueue.length} leads</span>
+    </div>`;
+
+  if(state.rerunLoading){
+    h += `<div class="rerun-empty">Loading re-run queue...</div>`;
+  } else if(filtered.length === 0){
+    h += `<div class="rerun-empty">No leads in the re-run queue yet.<br><span style="font-size:11px">Leads auto-queue when moved to "Service Area Taken" or "Revisit" stages.</span></div>`;
+  } else {
+    h += `<table class="rerun-table">
+      <thead><tr>
+        <th>Company</th>
+        <th>Email</th>
+        <th>State</th>
+        <th>City</th>
+        <th>Source Stage</th>
+        <th>Queued Date</th>
+        <th>Re-Run Date</th>
+        <th>Status</th>
+        <th></th>
+      </tr></thead>
+      <tbody>`;
+    for(const r of filtered){
+      const statusCls = (r.status||'').toLowerCase()==='sent' ? 'sent' : (r.status||'').toLowerCase()==='skipped' ? 'skipped' : 'queued';
+      h += `<tr>
+        <td style="font-weight:600">${esc(r.company||r.contact||'')}</td>
+        <td style="color:var(--text-muted)">${esc(r.email||'')}</td>
+        <td>${esc(r.state||'')}</td>
+        <td>${esc(r.city||'')}</td>
+        <td><span class="deal-tag">${esc(r.sourceStage||'')}</span></td>
+        <td style="color:var(--text-muted)">${esc(r.queuedDate||'')}</td>
+        <td style="font-weight:600">${esc(r.rerunDate||'')}</td>
+        <td><span class="rerun-status ${statusCls}">${esc(r.status||'Queued')}</span></td>
+        <td>
+          ${(r.status||'').toLowerCase()!=='sent'?`<button class="btn" style="font-size:10px;padding:2px 8px;background:#f3f4f6;color:#6b7280" onclick="updateRerunStatus('${esc(r.id)}','skipped')">Skip</button>`:''}
+        </td>
+      </tr>`;
+    }
+    h += `</tbody></table>`;
+  }
+
+  h += `</div>`;
+
+  // Market Settings Modal
+  if(state.rerunShowMarketModal){
+    h += renderMarketSettingsModal();
+  }
+
+  return h;
+}
+
+function renderMarketSettingsModal(){
+  const ms = state.rerunMarketSettings;
+  let h = `<div class="modal-overlay" onclick="state.rerunShowMarketModal=false;render()">
+    <div class="modal" style="width:560px" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3>⚙️ Market Re-Run Settings</h3>
+        <button class="modal-close" onclick="state.rerunShowMarketModal=false;render()">×</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Set how many months before leads are eligible for re-run by state or city. City settings override state defaults.</p>
+        <table class="rerun-table" style="margin-bottom:16px">
+          <thead><tr><th>State</th><th>City (optional)</th><th>Re-Run After (months)</th><th></th></tr></thead>
+          <tbody>`;
+  for(const [i,m] of ms.entries()){
+    h += `<tr>
+      <td><input type="text" value="${esc(m.state||'')}" style="width:60px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px" oninput="state.rerunMarketSettings[${i}].state=this.value"></td>
+      <td><input type="text" value="${esc(m.city||'')}" placeholder="All cities" style="width:120px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px" oninput="state.rerunMarketSettings[${i}].city=this.value"></td>
+      <td><input type="number" value="${esc(m.months||'6')}" min="1" max="24" style="width:60px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px" oninput="state.rerunMarketSettings[${i}].months=this.value"></td>
+      <td><button class="act-delete" onclick="state.rerunMarketSettings.splice(${i},1);render()">×</button></td>
+    </tr>`;
+  }
+  h += `</tbody></table>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost" style="background:#faf5ff;color:var(--purple);border:1px solid #e9d5ff" onclick="state.rerunMarketSettings.push({state:'',city:'',months:'6'});render()">+ Add Market</button>
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content:flex-end;gap:8px">
+        <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="state.rerunShowMarketModal=false;render()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveMarketSettings()">💾 Save Settings</button>
+      </div>
+    </div>
+  </div>`;
+  return h;
+}
+
+async function saveMarketSettings(){
+  const btn = document.querySelector('.modal-footer .btn-primary');
+  if(btn){ btn.textContent='Saving...'; btn.disabled=true; }
+  try {
+    for(const m of state.rerunMarketSettings){
+      if(!m.state) continue;
+      await apiPost('save_market_setting', { state: m.state, city: m.city||'', months: parseInt(m.months)||6 });
+    }
+    state.rerunShowMarketModal=false;
+    await loadRerunData();
+  } catch(e){
+    alert('Failed to save market settings: '+e.message);
+    if(btn){ btn.textContent='💾 Save Settings'; btn.disabled=false; }
+  }
+}
+
+async function updateRerunStatus(id, newStatus){
+  const r = state.rerunQueue.find(x=>x.id===id);
+  if(r) r.status = newStatus;
+  render();
+  await apiPost('update_rerun_status', { id, status: newStatus });
+}
+
+async function addToRerunQueue(dealId){
+  const deal = state.deals.find(d=>d.id===dealId);
+  if(!deal) return;
+  await apiPost('add_to_rerun', {
+    dealId: deal.id,
+    company: deal.company||'',
+    contact: deal.contact||'',
+    email: deal.email||'',
+    phone: deal.phone||'',
+    location: deal.location||'',
+    sourceStage: deal.stage||'',
+    campaignName: deal.campaignName||''
+  });
+}
+
+function exportRerunCSV(){
+  const filtered = getFilteredRerunQueue();
+  if(!filtered.length){ alert('No leads to export'); return; }
+  const headers = ['Company','Email','Contact','Phone','State','City','Location','Source Stage','Queued Date','Re-Run Date','Status'];
+  const rows = filtered.map(r=>[
+    r.company||'', r.email||'', r.contact||'', r.phone||'',
+    r.state||'', r.city||'', r.location||'', r.sourceStage||'',
+    r.queuedDate||'', r.rerunDate||'', r.status||'Queued'
+  ]);
+  let csv = headers.join(',')+'\n';
+  for(const row of rows){
+    csv += row.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')+'\n';
+  }
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const filterLabel = state.rerunFilterState ? '_'+state.rerunFilterState : '';
+  const cityLabel = state.rerunFilterCity ? '_'+state.rerunFilterCity.replace(/\s/g,'_') : '';
+  a.download = 'rerun_queue'+filterLabel+cityLabel+'_'+getToday()+'.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportRerunForSmartlead(){
+  const filtered = getFilteredRerunQueue().filter(r=>(r.status||'').toLowerCase()!=='sent');
+  if(!filtered.length){ alert('No queued leads to export'); return; }
+  // Smartlead CSV format: email, first_name, last_name, company_name, phone, location
+  const headers = ['email','first_name','last_name','company_name','phone_number','location','city','state'];
+  const rows = filtered.map(r=>{
+    const nameParts = (r.contact||'').split(' ');
+    const firstName = nameParts[0]||'';
+    const lastName = nameParts.slice(1).join(' ')||'';
+    return [r.email||'', firstName, lastName, r.company||'', r.phone||'', r.location||'', r.city||'', r.state||''];
+  });
+  let csv = headers.join(',')+'\n';
+  for(const row of rows){
+    csv += row.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')+'\n';
+  }
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const filterLabel = state.rerunFilterState ? '_'+state.rerunFilterState : '';
+  const cityLabel = state.rerunFilterCity ? '_'+state.rerunFilterCity.replace(/\s/g,'_') : '';
+  a.download = 'smartlead_rerun'+filterLabel+cityLabel+'_'+getToday()+'.csv';
+  a.href = url;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // ─── RENDER ───
 function render(){
   try{
@@ -1284,6 +1583,27 @@ function render(){
   // Save scroll position before destroying DOM
   const board=document.querySelector('.board');
   if(board) savedScrollLeft=board.scrollLeft;
+  // ─── Re-Run Lists Tab ───
+  if(state.pipeline==='rerun'){
+    html+=`
+    <div class="topbar">
+      <div style="display:flex;align-items:center;">
+        <div class="topbar-tabs">
+          ${getVisiblePipelines().map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="state.pipeline='${p.id}';location.hash='${p.id}';${p.id==='rerun'?'loadRerunData();':''}render()">${p.label}</button>`).join("")}
+        </div>
+      </div>
+      <div class="topbar-right">
+        <span class="topbar-stat">${state.rerunQueue.length} total leads</span>
+        <button class="btn btn-ghost" onclick="loadRerunData()">↻ Sync</button>
+        <button class="btn btn-ghost" onclick="state.rerunShowMarketModal=true;render()">⚙ Markets</button>
+        ${currentUser?`<button class="btn btn-ghost" onclick="logout()" title="Sign out" style="font-size:11px;padding:5px 10px;color:#9ca3af">${esc(currentUser.name)} ↗</button>`:''}
+      </div>
+    </div>`;
+    html+=renderRerunTab();
+    app.innerHTML=html;
+    return;
+  }
+
   const stages=getStages();
   const deals=getPipelineDeals();
   const totalValue=deals.reduce((s,d)=>s+(Number(d.value)||0),0);
@@ -1293,7 +1613,7 @@ function render(){
   <div class="topbar">
     <div style="display:flex;align-items:center;">
       <div class="topbar-tabs">
-        ${getVisiblePipelines().map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="state.pipeline='${p.id}';location.hash='${p.id}';render()">${p.label}</button>`).join("")}
+        ${getVisiblePipelines().map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="state.pipeline='${p.id}';location.hash='${p.id}';${p.id==='rerun'?'loadRerunData();':''}render()">${p.label}</button>`).join("")}
       </div>
     </div>
     <div class="topbar-right">
@@ -2793,7 +3113,6 @@ let appInitialized=false;
 async function initApp(){
   if(appInitialized) return;
   appInitialized=true;
-  // If client, load their portal stages and archive from Firestore
   if(isClient()){
     await loadClientPortalStages();
     await loadClientArchive();
@@ -2801,6 +3120,8 @@ async function initApp(){
   render();
   syncFromSheet();
   setInterval(syncFromSheet, SYNC_INTERVAL);
+  // Load rerun data if starting on that tab
+  if(state.pipeline==='rerun') loadRerunData();
 }
 // Auth onAuthStateChanged handles calling initApp()
 </script>
