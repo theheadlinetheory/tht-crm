@@ -1286,7 +1286,13 @@ async function addClient(name, extra={}){
     leadCost:''
   };
   state.clients.push(c);render();
-  await apiPost("create_client",c);
+  pendingWrites++;
+  try {
+    const resp = await apiPost("create_client",c);
+    if(resp && resp.id) c.id = resp.id;
+  } finally {
+    pendingWrites--;
+  }
 }
 
 function removeClient(name){
