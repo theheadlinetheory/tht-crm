@@ -241,6 +241,14 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .rerun-stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
 .rerun-stat-card .stat-label { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
 .rerun-stat-card .stat-value { font-size: 24px; font-weight: 800; color: var(--text); margin-top: 4px; }
+
+/* Loading Screen */
+.loading-screen { position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--bg); }
+.loading-logo { width: 56px; height: 56px; border-radius: 14px; background: linear-gradient(135deg, #7c3aed, #4f46e5); display: flex; align-items: center; justify-content: center; margin-bottom: 18px; }
+.loading-logo span { font-size: 28px; font-weight: 800; color: #fff; font-family: var(--font); }
+.loading-text { font-size: 14px; font-weight: 600; color: var(--text-secondary); margin-bottom: 20px; }
+.loading-spinner { width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--purple); border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -773,7 +781,7 @@ function fmtDate(d){
 let state = {
   deals: [],
   activities: [],
-  clients: [...TEST_CLIENTS],
+  clients: [],
   pipeline: (() => { try { const h=location.hash.replace('#',''); return ['acquisition','client_leads','nurture'].includes(h)?h:'acquisition'; } catch(e){ return 'acquisition'; } })(),
   selectedDeal: null,
   showNew: false,
@@ -881,6 +889,7 @@ async function syncFromSheet(){
     if(state.deals.length===0){
       state.deals=[...TEST_DEALS];
       state.activities=[...TEST_ACTIVITIES];
+      state.clients=[...TEST_CLIENTS];
       state.loadFailed=true;
     }
   }
@@ -1622,6 +1631,13 @@ function render(){
   // Save scroll position before destroying DOM
   const board=document.querySelector('.board');
   if(board) savedScrollLeft=board.scrollLeft;
+
+  // ─── Loading Screen ───
+  if(!state.synced && !state.loadFailed){
+    app.innerHTML=`<div class="loading-screen"><div class="loading-logo"><span>T</span></div><div class="loading-text">Loading your deals...</div><div class="loading-spinner"></div></div>`;
+    return;
+  }
+
   // ─── Nurture Tab with Re-Run Queue Sub-Tab ───
   if(state.pipeline==='nurture' && state.nurtureSubTab==='rerun'){
     let html=`
@@ -2140,6 +2156,7 @@ function openDeal(id){
 }
 
 function closeDealModal(){
+  if(state.selectedDeal) doSaveDeal(state.selectedDeal.id);
   state.selectedDeal=null;
   state.showSop=false;
   render();
