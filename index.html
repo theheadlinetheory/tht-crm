@@ -1250,8 +1250,41 @@ function buildCalendlyUrl(baseUrl, deal){
   return url.toString();
 }
 
-async function addClient(name){
-  const c={id:uid(),name,color:CLIENT_PALETTE[state.clients.length%CLIENT_PALETTE.length],calendlyUrl:''};
+function buildServiceAreaUrl(mapUrl, address){
+  if(!mapUrl || !address) return mapUrl||'';
+  // Try common map platforms and append address as search param
+  try {
+    const u = new URL(mapUrl);
+    // Google Maps
+    if(u.hostname.includes('google.com/maps')){
+      return 'https://www.google.com/maps/search/' + encodeURIComponent(address);
+    }
+    // Workiz / ServiceTitan / Jobber etc. — try appending q= or search= param
+    // Most CRM map pages accept a search query parameter
+    u.searchParams.set('q', address);
+    return u.toString();
+  } catch(e){
+    // Not a parseable URL, just return as-is
+    return mapUrl;
+  }
+}
+
+
+async function addClient(name, extra={}){
+  const c={
+    id:uid(),name,
+    color:CLIENT_PALETTE[state.clients.length%CLIENT_PALETTE.length],
+    calendlyUrl:extra.calendlyUrl||'',
+    campaignKeywords:extra.campaignKeywords||'',
+    contactFirstName:extra.contactFirstName||'',
+    notifyEmails:extra.notifyEmails||'',
+    serviceAreaUrl:extra.serviceAreaUrl||'',
+    enableForward:extra.notifyEmails?'TRUE':'FALSE',
+    enableCalendly:extra.calendlyUrl?'TRUE':'FALSE',
+    enableCopyInfo:'FALSE',
+    enableTracker:'FALSE',
+    leadCost:''
+  };
   state.clients.push(c);render();
   await apiPost("create_client",c);
 }
@@ -1903,8 +1936,29 @@ function renderDealModal(deal){
         </div>`;
       }
 
+      // Service Area Check button — show if client has a serviceAreaUrl configured
+      if(str(matchedClient.serviceAreaUrl).trim()){
+        const addr=str(deal.location||'').trim();
+        // Only pre-fill if address looks detailed enough (has a number or comma = not just "City, ST")
+        const isDetailedAddr = addr && (addr.match(/\d/) || addr.split(',').length > 2);
+        const mapUrl = isDetailedAddr
+          ? buildServiceAreaUrl(str(matchedClient.serviceAreaUrl), addr)
+          : str(matchedClient.serviceAreaUrl);
+        h+=`<div style="margin:0 0 8px 0">
+          <a href="${esc(mapUrl)}" target="_blank" rel="noopener"
+            class="btn btn-ghost" style="width:100%;justify-content:center;gap:6px;font-size:13px;text-decoration:none;display:flex;border-color:#6366f1;color:#6366f1"
+            onclick="event.stopPropagation()">
+            🗺️ Check Service Area${isDetailedAddr?' (address pre-filled)':' — copy address manually'}
+          </a>
+        </div>
+        ${!isDetailedAddr && addr ? `<div style="display:flex;align-items:center;gap:6px;margin:0 0 8px;padding:7px 10px;background:#f5f3ff;border:1px solid #c4b5fd;border-radius:var(--radius);font-size:11px;color:#6d28d9">
+          <span style="flex:1">📍 ${esc(addr)}</span>
+          <button onclick="navigator.clipboard.writeText('${esc(addr)}');this.textContent='✓ Copied!';setTimeout(()=>this.textContent='Copy',1500)" style="background:none;border:1px solid #a78bfa;border-radius:4px;padding:2px 7px;font-size:10px;color:#6d28d9;cursor:pointer;white-space:nowrap">Copy</button>
+        </div>` : ''}`;
+      }
+
       // Show warning if no actions are enabled
-      if(!isOn('enableForward') && !isOn('enableCalendly') && !isOn('enableCopyInfo') && !isOn('enableTracker')){
+      if(!isOn('enableForward') && !isOn('enableCalendly') && !isOn('enableCopyInfo') && !isOn('enableTracker') && !str(matchedClient.serviceAreaUrl).trim()){
         h+=`<div style="margin:0 0 12px 0;padding:8px 12px;background:#fef3c7;border:1px solid #fde68a;border-radius:var(--radius);font-size:11px;color:#92400e">
           ⚠️ No actions enabled for ${esc(matchedClient.name)}. Configure in Settings → Clients.
         </div>`;
@@ -2035,15 +2089,37 @@ function renderNewDealModal(stages){
 }
 
 function renderAddClientModal(){
+  const fS=`width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:var(--font);outline:none;margin-top:3px`;
+  const lS=`font-size:10px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;display:block;margin-top:10px`;
   return`<div class="modal-overlay" onclick="state.showAddClient=false;render()">
-    <div class="modal" style="width:340px" onclick="event.stopPropagation()">
+    <div class="modal" style="width:420px;max-height:90vh;overflow-y:auto" onclick="event.stopPropagation()">
       <div style="padding:20px">
-        <h3 style="margin:0 0 12px;font-size:16px;font-weight:800">Add Client</h3>
-        <input id="new-client-name" placeholder="Client name" style="width:100%;padding:8px 12px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;box-sizing:border-box;outline:none;margin-bottom:12px"
+        <h3 style="margin:0 0 4px;font-size:16px;font-weight:800">Add Client</h3>
+        <p style="font-size:11px;color:#9ca3af;margin:0 0 16px">All fields except name can be updated later in Settings → Clients.</p>
+
+        <label style="${lS}">Client Name *</label>
+        <input id="new-client-name" placeholder="e.g. Lightning Lawn Care" style="${fS}"
           onkeydown="if(event.key==='Enter'){doAddClient()}">
-        <div style="display:flex;justify-content:flex-end;gap:8px">
+
+        <label style="${lS}">Campaign Keywords</label>
+        <input id="new-client-keywords" placeholder="keyword1, keyword2 (matches Smartlead campaign name)" style="${fS}">
+
+        <label style="${lS}">Contact First Name</label>
+        <input id="new-client-firstname" placeholder="e.g. Joel" style="${fS};width:160px">
+
+        <label style="${lS}">Notification Email(s)</label>
+        <input id="new-client-email" placeholder="owner@company.com, manager@company.com" style="${fS}">
+
+        <label style="${lS}">Calendly URL</label>
+        <input id="new-client-calendly" placeholder="https://calendly.com/..." style="${fS}">
+
+        <label style="${lS}">Service Area Map URL</label>
+        <input id="new-client-mapurl" placeholder="https://workiz.com/... or any map link" style="${fS}">
+        <p style="font-size:10px;color:#9ca3af;margin:3px 0 0">Lead addresses will be pre-filled in the search when you click Check Service Area.</p>
+
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
           <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="state.showAddClient=false;render()">Cancel</button>
-          <button class="btn btn-primary" onclick="doAddClient()">Add</button>
+          <button class="btn btn-primary" onclick="doAddClient()">Add Client</button>
         </div>
       </div>
     </div></div>`;
@@ -2136,8 +2212,13 @@ function doAddClient(){
   const el=document.getElementById("new-client-name");
   const name=el?el.value.trim():"";
   if(!name)return;
+  const keywords=(document.getElementById("new-client-keywords")?.value||"").trim();
+  const firstname=(document.getElementById("new-client-firstname")?.value||"").trim();
+  const notifyEmails=(document.getElementById("new-client-email")?.value||"").trim();
+  const calendlyUrl=(document.getElementById("new-client-calendly")?.value||"").trim();
+  const serviceAreaUrl=(document.getElementById("new-client-mapurl")?.value||"").trim();
   state.showAddClient=false;
-  addClient(name);
+  addClient(name,{campaignKeywords:keywords,contactFirstName:firstname,notifyEmails,calendlyUrl,serviceAreaUrl});
 }
 
 function doAddActivity(dealId){
@@ -2631,7 +2712,8 @@ function debouncedAutoSave(){
         enableCalendly:str(c.enableCalendly),
         enableCopyInfo:str(c.enableCopyInfo),
         enableTracker:str(c.enableTracker),
-        leadCost:str(c.leadCost)
+        leadCost:str(c.leadCost),
+        serviceAreaUrl:str(c.serviceAreaUrl)
       }));
       await Promise.all([
         apiPost('save_settings',{settings:settingsDraft}),
@@ -2794,6 +2876,17 @@ function renderClientsSettings(){
           style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
       </div>`:''}
 
+      <div style="margin-bottom:8px">
+        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">🗺️ Service Area Map URL</label>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:3px">
+          <input type="text" placeholder="Paste service area map link..." value="${esc(str(c.serviceAreaUrl))}" 
+            oninput="updateClientField('${esc(c.id)}','serviceAreaUrl',this.value)"
+            style="flex:1;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text)">
+          ${str(c.serviceAreaUrl).trim()?`<a href="${esc(str(c.serviceAreaUrl))}" target="_blank" rel="noopener" style="font-size:11px;color:#6366f1;white-space:nowrap;text-decoration:none;padding:5px 8px;border:1px solid #c7d2fe;border-radius:6px;background:#eef2ff">Test ↗</a>`:''}
+        </div>
+        <p style="font-size:10px;color:var(--text-muted);margin:3px 0 0">Lead addresses will be appended as a search query when you click Check Service Area on a deal.</p>
+      </div>
+
     </div>`;
   }
 
@@ -2866,7 +2959,8 @@ async function saveSettingsToSheet(){
       enableCalendly:str(c.enableCalendly),
       enableCopyInfo:str(c.enableCopyInfo),
       enableTracker:str(c.enableTracker),
-      leadCost:str(c.leadCost)
+      leadCost:str(c.leadCost),
+      serviceAreaUrl:str(c.serviceAreaUrl)
     }));
     // Fire both in parallel — settings + all clients in one batch call
     await Promise.all([
