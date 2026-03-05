@@ -603,7 +603,7 @@ function findClientForDeal(deal){
   const cn=str(deal.campaignName).toLowerCase();
   if(!cn) return null;
   for(const c of state.clients){
-    const keywords=str(c.campaignKeywords).toLowerCase().split(',').map(k=>k.trim()).filter(k=>k);
+    const keywords=(str(c.campaignKeywords)+','+str(c.campaignName)).toLowerCase().split(',').map(k=>k.trim()).filter(k=>k);
     for(const kw of keywords){
       if(cn.includes(kw)) return c;
     }
