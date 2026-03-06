@@ -1291,7 +1291,7 @@ async function syncFromSheet(){
       });
     }
     if(data.clients && Array.isArray(data.clients) && data.clients.length>0){
-      state.clients=data.clients;
+      state.clients=data.clients.filter(c => !deletedClientIds.has(String(c.id)));
       // Apply default Calendly URLs for known clients if not already set
       for(const c of state.clients){
         if(!c.calendlyUrl){
@@ -1316,6 +1316,10 @@ async function syncFromSheet(){
       const serverActIds=new Set(data.activities.map(a=>String(a.id)));
       for(const id of deletedActivityIds){ if(!serverActIds.has(id)) deletedActivityIds.delete(id); }
       localStorage.setItem('tht_deletedActs',JSON.stringify([...deletedActivityIds]));
+    }
+    if(data.clients && deletedClientIds.size){
+      const serverClientIds=new Set(data.clients.map(c=>String(c.id)));
+      for(const id of deletedClientIds){ if(!serverClientIds.has(id)) deletedClientIds.delete(id); }
     }
     state.synced=true;
     state.loadFailed=false;
@@ -1744,8 +1748,16 @@ async function addClient(name, extra={}){
   }
 }
 
+const deletedClientIds = new Set();
 function removeClient(name){
-  state.clients=state.clients.filter(c=>c.name!==name);render();
+  const client = state.clients.find(c => c.name === name);
+  if(client && client.id){
+    deletedClientIds.add(String(client.id));
+    pendingWrites++;
+    apiPost('delete_client', { id: client.id }).finally(() => { pendingWrites--; });
+  }
+  state.clients = state.clients.filter(c => c.name !== name);
+  render();
 }
 
 const LEAD_TRACKER_SHEET_ID='1zEfZQOuzbrE9s01gfTOoVvEJ-DgtOxkPIWNiZHaxaZ4';
