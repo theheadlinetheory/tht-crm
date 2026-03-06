@@ -494,9 +494,15 @@ async function deleteFirebaseUser(uid){
 // CHANGE THIS to your deployed Apps Script URL:
 const API_URL = "https://script.google.com/macros/s/AKfycbyI_o-TL-aiKfQEMU5W5OsBadp0QMJkgZyY-RDr4dY19Wv944yxXVfgnlzxetL7-hh-/exec";
 const SYNC_INTERVAL = 30000;
-const deletedDealIds = new Set();
-const deletedActivityIds = new Set();
+// Restore deleted-ID sets from localStorage so deletions survive page refresh
+const deletedDealIds = new Set(JSON.parse(localStorage.getItem('tht_deletedDeals')||'[]'));
+const deletedActivityIds = new Set(JSON.parse(localStorage.getItem('tht_deletedActs')||'[]'));
 let pendingWrites = 0; // Prevent sync from overwriting during active writes
+
+// Warn user before closing if writes are still in flight
+window.addEventListener('beforeunload', e => {
+  if(pendingWrites > 0){ e.preventDefault(); e.returnValue=''; }
+});
 let savedScrollLeft = 0; // Preserve horizontal scroll across renders
 let settingsOpen = false;
 let settingsTab = 'stages'; // stages | activities | sop | clients | users
@@ -883,6 +889,17 @@ async function syncFromSheet(){
       }
     }
     if(data.settings && typeof data.settings==='object' && Object.keys(data.settings).length>0) applySettings(data.settings);
+    // Prune deleted-ID caches: if server no longer returns an ID, the delete is confirmed
+    if(data.deals && deletedDealIds.size){
+      const serverDealIds=new Set(data.deals.map(d=>String(d.id)));
+      for(const id of deletedDealIds){ if(!serverDealIds.has(id)) deletedDealIds.delete(id); }
+      localStorage.setItem('tht_deletedDeals',JSON.stringify([...deletedDealIds]));
+    }
+    if(data.activities && deletedActivityIds.size){
+      const serverActIds=new Set(data.activities.map(a=>String(a.id)));
+      for(const id of deletedActivityIds){ if(!serverActIds.has(id)) deletedActivityIds.delete(id); }
+      localStorage.setItem('tht_deletedActs',JSON.stringify([...deletedActivityIds]));
+    }
     state.synced=true;
     state.loadFailed=false;
   } else {
@@ -1084,10 +1101,13 @@ async function saveDeal(updated){
 
 async function deleteDeal(id){
   deletedDealIds.add(id);
+  localStorage.setItem('tht_deletedDeals',JSON.stringify([...deletedDealIds]));
   state.deals=state.deals.filter(d=>d.id!==id);
   state.activities=state.activities.filter(a=>a.dealId!==id);
   state.selectedDeal=null;render();
-  await apiPost("delete_deal",{id});
+  pendingWrites++;
+  try { await apiPost("delete_deal",{id}); }
+  finally { pendingWrites--; }
 }
 
 // cycleFlag removed - replaced with activity status dots
@@ -1178,6 +1198,7 @@ function toggleActivity(actId){
 function deleteActivity(actId){
   const sid=String(actId);
   deletedActivityIds.add(sid);
+  localStorage.setItem('tht_deletedActs',JSON.stringify([...deletedActivityIds]));
   state.activities=state.activities.filter(a=>String(a.id)!==sid);
   refreshModal();
   pendingWrites++;
@@ -2784,8 +2805,9 @@ function setupSettingsDrag(){
   });
 }
 
-function applySettings(s){
+function applySettings(s, skipCache){
   state.savedSettings = s;
+  if(!skipCache) try{ localStorage.setItem('tht_settings',JSON.stringify(s)); }catch(e){}
   // Apply stages
   if(s.acquisition_stages){
     ACQUISITION_STAGES.length=0;
@@ -3238,6 +3260,11 @@ let appInitialized=false;
 async function initApp(){
   if(appInitialized) return;
   appInitialized=true;
+  // Apply cached settings immediately so stages/SOPs are correct before first render
+  try{
+    const cached=JSON.parse(localStorage.getItem('tht_settings'));
+    if(cached) applySettings(cached, true);
+  }catch(e){}
   if(isClient()){
     await loadClientPortalStages();
     await loadClientArchive();
