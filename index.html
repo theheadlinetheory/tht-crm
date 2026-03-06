@@ -4,18 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>The Headline Theory — CRM</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237c3aed'/%3E%3Cstop offset='1' stop-color='%234f46e5'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='7' fill='url(%23g)'/%3E%3Ctext x='16' y='22.5' text-anchor='middle' font-family='system-ui' font-weight='800' font-size='17' fill='white'%3ET%3C/text%3E%3C/svg%3E">
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%237c3aed'/%3E%3Ctext x='90' y='125' text-anchor='middle' font-family='system-ui' font-weight='800' font-size='100' fill='white'%3ET%3C/text%3E%3C/svg%3E">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23059669'/%3E%3Cstop offset='1' stop-color='%230d9488'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='7' fill='url(%23g)'/%3E%3Ctext x='16' y='22.5' text-anchor='middle' font-family='system-ui' font-weight='800' font-size='17' fill='white'%3ET%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23059669'/%3E%3Ctext x='90' y='125' text-anchor='middle' font-family='system-ui' font-weight='800' font-size='100' fill='white'%3ET%3C/text%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg: #f6f5ff;
-  --nav: #1e1b3a;
-  --purple: #7c3aed;
-  --purple-light: #ede9fe;
-  --purple-mid: #a78bfa;
+  --bg: #f0fdf4;
+  --nav: #022c22;
+  --purple: #059669;
+  --purple-light: #d1fae5;
+  --purple-mid: #6ee7b7;
   --text: #111827;
   --text-secondary: #6b7280;
   --text-muted: #9ca3af;
@@ -25,41 +25,41 @@
   --green: #22c55e;
   --yellow: #eab308;
   --red: #ef4444;
-  --radius: 8px;
+  --radius: 10px;
   --font: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
 
 /* Top Nav */
-.topbar { background: var(--nav); height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; position: sticky; top: 0; z-index: 100; }
+.topbar { background: var(--nav); height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; position: sticky; top: 0; z-index: 100; }
 .topbar-brand { font-weight: 800; font-size: 15px; color: #fff; letter-spacing: -.3px; }
 .topbar-tabs { display: flex; gap: 2px; margin-left: 18px; }
-.topbar-tab { padding: 6px 14px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; background: transparent; color: #a5b4fc; font-family: var(--font); transition: all .15s; }
+.topbar-tab { padding: 6px 14px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; background: transparent; color: #a7f3d0; font-family: var(--font); transition: all .15s; }
 .topbar-tab.active { background: var(--purple); color: #fff; }
-.topbar-tab:hover:not(.active) { background: rgba(124,58,237,.25); }
+.topbar-tab:hover:not(.active) { background: rgba(5,150,105,.25); }
 .topbar-right { display: flex; align-items: center; gap: 10px; }
-.topbar-stat { font-size: 11px; color: #a5b4fc; }
+.topbar-stat { font-size: 11px; color: #a7f3d0; }
 .btn { padding: 5px 12px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font); transition: all .12s; }
-.btn-ghost { background: #312e81; color: #c4b5fd; }
-.btn-ghost:hover { background: #3b3794; }
+.btn-ghost { background: #064e3b; color: #a7f3d0; }
+.btn-ghost:hover { background: #065f46; }
 .btn-primary { background: var(--purple); color: #fff; font-weight: 700; }
-.btn-primary:hover { background: #6d28d9; }
+.btn-primary:hover { background: #047857; }
 .btn-danger { background: #fef2f2; color: var(--red); border: 1px solid #fecaca; }
 
 /* Board */
-.board { display: flex; gap: 10px; padding: 16px 14px 24px; overflow-x: auto; min-height: calc(100vh - 52px); align-items: flex-start; }
+.board { display: flex; gap: 10px; padding: 16px 14px 24px; overflow-x: auto; min-height: calc(100vh - 56px); align-items: flex-start; }
 .column { min-width: 230px; max-width: 270px; flex: 1 1 230px; display: flex; flex-direction: column; }
 .col-header { padding: 10px 12px; background: var(--card); border-radius: var(--radius) var(--radius) 0 0; border-top: 3px solid var(--purple); display: flex; justify-content: space-between; align-items: flex-start; transition: background .15s; }
 .col-header.drag-over { background: var(--purple-light); }
 .col-title { font-weight: 700; font-size: 12px; color: var(--text); margin-bottom: 2px; }
 .col-meta { font-size: 10.5px; color: var(--text-muted); }
 .col-body { flex: 1; background: var(--col-bg); padding: 6px; border-radius: 0 0 var(--radius) var(--radius); min-height: 110px; transition: background .15s; }
-.col-body.drag-over { background: #f5f3ff; }
+.col-body.drag-over { background: #ecfdf5; }
 .col-empty { padding: 28px 0; text-align: center; font-size: 11px; color: #d1d5db; font-style: italic; }
 
 /* Deal Card */
-.deal-card { background: var(--card); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 6px; border: 1px solid var(--border); cursor: pointer; transition: box-shadow .15s, transform .1s; position: relative; z-index: 1; }
+.deal-card { background: var(--card); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 6px; border: 1px solid var(--border); cursor: pointer; transition: box-shadow .15s, transform .1s; position: relative; z-index: 1; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
 .deal-card.badge-open { z-index: 100; }
 .deal-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.1); transform: translateY(-1px); }
 .deal-card.dragging { opacity: .5; }
@@ -128,7 +128,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .form-span2 { grid-column: span 2; }
 
 /* Smartlead info box */
-.sl-info { background: #faf5ff; border: 1px solid #e9d5ff; border-radius: var(--radius); padding: 8px 12px; margin-bottom: 16px; font-size: 11px; }
+.sl-info { background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: var(--radius); padding: 8px 12px; margin-bottom: 16px; font-size: 11px; }
 .sl-info-title { font-weight: 700; color: var(--purple); margin-bottom: 4px; }
 .sl-info div { color: var(--text-secondary); }
 .sl-info a { color: var(--purple); font-size: 10.5px; }
@@ -151,8 +151,8 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .sop-btn { font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--purple); cursor: pointer; font-weight: 600; font-family: var(--font); transition: all .15s; }
 .sop-btn.active { background: var(--purple); color: #fff; }
 .sop-btn:not(.active) { background: #fff; color: var(--purple); }
-.sop-grid { background: #faf5ff; border-radius: var(--radius); padding: 10px; margin-bottom: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
-.sop-day-btn { font-size: 11px; padding: 5px 10px; border-radius: 6px; border: 1px solid #d8b4fe; background: #fff; color: var(--purple); cursor: pointer; font-weight: 600; font-family: var(--font); }
+.sop-grid { background: #ecfdf5; border-radius: var(--radius); padding: 10px; margin-bottom: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+.sop-day-btn { font-size: 11px; padding: 5px 10px; border-radius: 6px; border: 1px solid #a7f3d0; background: #fff; color: var(--purple); cursor: pointer; font-weight: 600; font-family: var(--font); }
 .sop-day-btn:hover { background: var(--purple-light); }
 .add-act-row { display: flex; gap: 6px; margin-bottom: 12px; align-items: flex-end; }
 .add-act-row select, .add-act-row input { padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 11.5px; font-family: var(--font); }
@@ -197,12 +197,12 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .settings-add-row input { flex:1; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:var(--font); }
 .settings-add-row button { padding:6px 12px; font-size:11px; }
 .settings-footer { padding:12px 20px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:8px; flex-shrink:0; }
-.sop-sequence { background:#faf5ff; border:1px solid #e9d5ff; border-radius:6px; padding:8px 10px; margin-bottom:8px; }
+.sop-sequence { background:#ecfdf5; border:1px solid #a7f3d0; border-radius:6px; padding:8px 10px; margin-bottom:8px; }
 .sop-sequence-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
 .sop-sequence-header span { font-size:12px; font-weight:700; color:var(--purple); }
 .sop-act-item { display:flex; align-items:center; gap:6px; padding:3px 0; font-size:11.5px; }
-.sop-act-item select { padding:3px 6px; border:1px solid #d8b4fe; border-radius:4px; font-size:11px; font-family:var(--font); }
-.sop-act-item input { flex:1; padding:3px 6px; border:1px solid #d8b4fe; border-radius:4px; font-size:11px; font-family:var(--font); }
+.sop-act-item select { padding:3px 6px; border:1px solid #a7f3d0; border-radius:4px; font-size:11px; font-family:var(--font); }
+.sop-act-item input { flex:1; padding:3px 6px; border:1px solid #a7f3d0; border-radius:4px; font-size:11px; font-family:var(--font); }
 .settings-tab-bar { display:flex; border-bottom:1px solid var(--border); padding:0 20px; flex-shrink:0; }
 .settings-tab { padding:8px 14px; font-size:12px; font-weight:600; color:var(--text-muted); cursor:pointer; border-bottom:2px solid transparent; font-family:var(--font); background:none; border-top:none; border-left:none; border-right:none; }
 .settings-tab.active { color:var(--purple); border-bottom-color:var(--purple); }
@@ -210,7 +210,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .login-wrapper { min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--bg); padding:20px; }
 .login-box { width:360px; max-width:100%; }
 .login-logo { text-align:center; margin-bottom:32px; }
-.login-logo-icon { width:56px; height:56px; border-radius:14px; background:linear-gradient(135deg,#7c3aed,#4f46e5); display:inline-flex; align-items:center; justify-content:center; margin-bottom:16px; box-shadow:0 8px 24px rgba(124,58,237,.3); }
+.login-logo-icon { width:56px; height:56px; border-radius:14px; background:linear-gradient(135deg,#059669,#0d9488); display:inline-flex; align-items:center; justify-content:center; margin-bottom:16px; box-shadow:0 8px 24px rgba(5,150,105,.3); }
 .login-logo-icon span { font-size:28px; font-weight:900; color:#fff; }
 .login-logo h1 { font-size:20px; font-weight:800; color:var(--text); letter-spacing:-.5px; }
 .login-logo p { font-size:13px; color:var(--text-secondary); margin-top:4px; }
@@ -218,9 +218,9 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .login-field { margin-bottom:16px; }
 .login-field label { font-size:12px; font-weight:600; color:var(--text-secondary); display:block; margin-bottom:6px; }
 .login-field input { width:100%; padding:10px 14px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-family:var(--font); background:var(--bg); color:var(--text); outline:none; transition:border-color .15s; }
-.login-field input:focus { border-color:var(--purple); box-shadow:0 0 0 3px rgba(124,58,237,.1); }
+.login-field input:focus { border-color:var(--purple); box-shadow:0 0 0 3px rgba(5,150,105,.1); }
 .login-btn { width:100%; padding:11px; border-radius:8px; border:none; background:var(--purple); color:#fff; font-size:14px; font-weight:700; font-family:var(--font); cursor:pointer; transition:all .15s; }
-.login-btn:hover { background:#6d28d9; }
+.login-btn:hover { background:#047857; }
 .login-btn:disabled { opacity:.6; cursor:not-allowed; }
 .login-error { color:var(--red); font-size:12px; text-align:center; margin-top:12px; display:none; }
 
@@ -244,7 +244,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 
 /* Loading Screen */
 .loading-screen { position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--bg); }
-.loading-logo { width: 56px; height: 56px; border-radius: 14px; background: linear-gradient(135deg, #7c3aed, #4f46e5); display: flex; align-items: center; justify-content: center; margin-bottom: 18px; }
+.loading-logo { width: 56px; height: 56px; border-radius: 14px; background: linear-gradient(135deg, #059669, #0d9488); display: flex; align-items: center; justify-content: center; margin-bottom: 18px; }
 .loading-logo span { font-size: 28px; font-weight: 800; color: #fff; font-family: var(--font); }
 .loading-text { font-size: 14px; font-weight: 600; color: var(--text-secondary); margin-bottom: 20px; }
 .loading-spinner { width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--purple); border-radius: 50%; animation: spin .7s linear infinite; }
@@ -505,8 +505,8 @@ let settingsDraft = null; // Working copy of settings being edited
 
 // ─── Configs ───
 const ACQUISITION_STAGES = [
-  { id: "Cold Email Response", label: "Cold Email Response", color: "#7c3aed" },
-  { id: "Follow-up", label: "Follow-up", color: "#6366f1" },
+  { id: "Cold Email Response", label: "Cold Email Response", color: "#059669" },
+  { id: "Follow-up", label: "Follow-up", color: "#10b981" },
   { id: "Discovery Scheduled", label: "Discovery Scheduled", color: "#2563eb" },
   { id: "Demo Scheduled", label: "Demo Scheduled", color: "#0891b2" },
   { id: "No Show", label: "No Show", color: "#ef4444" },
@@ -516,7 +516,7 @@ const ACQUISITION_STAGES = [
 ];
 
 const NURTURE_STAGES = [
-  { id: "Revisit", label: "Revisit", color: "#8b5cf6" },
+  { id: "Revisit", label: "Revisit", color: "#34d399" },
   { id: "Service Area Taken", label: "Service Area Taken", color: "#f97316" },
 ];
 
@@ -537,7 +537,7 @@ const ACTIVITY_TYPES = ["Call", "Text", "Email", "Discovery Call", "Demo", "Foll
 const ACTIVITY_ICONS = { Call: "📞", Text: "💬", Email: "✉️", "Discovery Call": "🔍", Demo: "🖥️", "Follow-up": "↩️", Meeting: "📅", Task: "✓" };
 const FLAG_COLORS = { green: "#22c55e", yellow: "#eab308", red: "#ef4444", none: "transparent" };
 const FLAG_CYCLE = ["none", "green", "yellow", "red"];
-const CLIENT_PALETTE = ["#2563eb","#7c3aed","#0891b2","#059669","#d97706","#dc2626","#6366f1","#0d9488","#b45309","#4f46e5","#be185d","#15803d"];
+const CLIENT_PALETTE = ["#2563eb","#059669","#0891b2","#10b981","#d97706","#dc2626","#0d9488","#34d399","#b45309","#047857","#be185d","#15803d"];
 
 // Default Calendly links for known clients (applied on sync if not already set)
 const DEFAULT_CALENDLY_URLS = {
@@ -596,7 +596,7 @@ const TEST_ACTIVITIES = [
 
 const TEST_CLIENTS = [
   {id:"c1",name:"GreenScapes Tampa",color:"#2563eb"},
-  {id:"c2",name:"Premier Lawns Austin",color:"#7c3aed"},
+  {id:"c2",name:"Premier Lawns Austin",color:"#059669"},
   {id:"c3",name:"Elite Grounds Denver",color:"#059669"},
 ];
 
@@ -937,7 +937,7 @@ function getActivityBadge(dealId){
 
 // ─── Default Client Portal Stages ───
 const DEFAULT_CLIENT_STAGES = [
-  { id: "Positive Response", label: "Positive Response", color: "#7c3aed" },
+  { id: "Positive Response", label: "Positive Response", color: "#059669" },
   { id: "Follow Up", label: "Follow Up", color: "#2563eb" },
   { id: "Quote Given", label: "Quote Given / Waiting for Signature", color: "#d97706" },
 ];
@@ -1450,7 +1450,7 @@ function renderRerunTab(){
         <option value="skipped" ${state.rerunFilterStatus==='skipped'?'selected':''}>Skipped</option>
       </select>
       <button class="btn btn-primary" onclick="exportRerunCSV()">📥 Export CSV</button>
-      <button class="btn btn-ghost" style="background:#faf5ff;color:var(--purple);border:1px solid #e9d5ff" onclick="exportRerunForSmartlead()">📤 Export for Smartlead</button>
+      <button class="btn btn-ghost" style="background:#ecfdf5;color:var(--purple);border:1px solid #a7f3d0" onclick="exportRerunForSmartlead()">📤 Export for Smartlead</button>
       <span style="font-size:11px;color:var(--text-muted);margin-left:auto">${filtered.length} of ${state.rerunQueue.length} leads</span>
     </div>`;
 
@@ -1524,7 +1524,7 @@ function renderMarketSettingsModal(){
   }
   h += `</tbody></table>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-ghost" style="background:#faf5ff;color:var(--purple);border:1px solid #e9d5ff" onclick="state.rerunMarketSettings.push({state:'',city:'',months:'6'});render()">+ Add Market</button>
+          <button class="btn btn-ghost" style="background:#ecfdf5;color:var(--purple);border:1px solid #a7f3d0" onclick="state.rerunMarketSettings.push({state:'',city:'',months:'6'});render()">+ Add Market</button>
         </div>
       </div>
       <div class="modal-footer" style="justify-content:flex-end;gap:8px">
@@ -1968,14 +1968,14 @@ function renderDealModal(deal){
           : str(matchedClient.serviceAreaUrl);
         h+=`<div style="margin:0 0 8px 0">
           <a href="${esc(mapUrl)}" target="_blank" rel="noopener"
-            class="btn btn-ghost" style="width:100%;justify-content:center;gap:6px;font-size:13px;text-decoration:none;display:flex;border-color:#6366f1;color:#6366f1"
+            class="btn btn-ghost" style="width:100%;justify-content:center;gap:6px;font-size:13px;text-decoration:none;display:flex;border-color:#10b981;color:#10b981"
             onclick="event.stopPropagation()">
             🗺️ Check Service Area${isDetailedAddr?' (address pre-filled)':' — copy address manually'}
           </a>
         </div>
-        ${!isDetailedAddr && addr ? `<div style="display:flex;align-items:center;gap:6px;margin:0 0 8px;padding:7px 10px;background:#f5f3ff;border:1px solid #c4b5fd;border-radius:var(--radius);font-size:11px;color:#6d28d9">
+        ${!isDetailedAddr && addr ? `<div style="display:flex;align-items:center;gap:6px;margin:0 0 8px;padding:7px 10px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:var(--radius);font-size:11px;color:#047857">
           <span style="flex:1">📍 ${esc(addr)}</span>
-          <button onclick="navigator.clipboard.writeText('${esc(addr)}');this.textContent='✓ Copied!';setTimeout(()=>this.textContent='Copy',1500)" style="background:none;border:1px solid #a78bfa;border-radius:4px;padding:2px 7px;font-size:10px;color:#6d28d9;cursor:pointer;white-space:nowrap">Copy</button>
+          <button onclick="navigator.clipboard.writeText('${esc(addr)}');this.textContent='✓ Copied!';setTimeout(()=>this.textContent='Copy',1500)" style="background:none;border:1px solid #6ee7b7;border-radius:4px;padding:2px 7px;font-size:10px;color:#047857;cursor:pointer;white-space:nowrap">Copy</button>
         </div>` : ''}`;
       }
 
@@ -2016,11 +2016,11 @@ function renderDealModal(deal){
     h+=`<div class="sop-grid">
       <div style="width:100%;margin-bottom:8px;display:flex;align-items:center;gap:8px">
         <label style="font-size:11px;font-weight:600;color:#6b7280">Date:</label>
-        <input type="date" id="sop-target-date" value="${TODAY()}" style="padding:4px 8px;border:1px solid #d8b4fe;border-radius:6px;font-size:12px;font-family:inherit">
-        <span style="font-size:10px;color:#a78bfa">${deal.pipeline==='Client'?'Client SOP':'Acquisition SOP'}</span>
+        <input type="date" id="sop-target-date" value="${TODAY()}" style="padding:4px 8px;border:1px solid #a7f3d0;border-radius:6px;font-size:12px;font-family:inherit">
+        <span style="font-size:10px;color:#6ee7b7">${deal.pipeline==='Client'?'Client SOP':'Acquisition SOP'}</span>
       </div>
       ${Object.entries(sopDays).map(([day,acts])=>`
-      <button class="sop-day-btn" onclick="doAssignSequenceWithDate('${deal.id}','${day}')">${day} <span style="font-weight:400;color:#a78bfa">(${acts.length})</span></button>`).join("")}</div>`;
+      <button class="sop-day-btn" onclick="doAssignSequenceWithDate('${deal.id}','${day}')">${day} <span style="font-weight:400;color:#6ee7b7">(${acts.length})</span></button>`).join("")}</div>`;
   }
 
   h+=`<div class="add-act-row">
@@ -2172,7 +2172,7 @@ function changeDealPipeline(newPipeline){
   var newStages;
   if(newPipeline==='Acquisition') newStages = ACQUISITION_STAGES;
   else if(newPipeline==='Nurture') newStages = NURTURE_STAGES;
-  else newStages = state.clients.map(c=>({id:c.name,label:c.name,color:c.color||'#6366f1'}));
+  else newStages = state.clients.map(c=>({id:c.name,label:c.name,color:c.color||'#10b981'}));
   // Set stage to first stage of new pipeline
   state.selectedDeal.stage = newStages.length ? newStages[0].id : 'Cold Email Response';
   // Re-render the stage dropdown
@@ -2684,7 +2684,7 @@ function addSettingsStage(key,inputId){
   const el=document.getElementById(inputId);
   const name=(el?el.value:'').trim();
   if(!name) return;
-  const colors=['#7c3aed','#6366f1','#2563eb','#0891b2','#059669','#d97706','#ef4444','#8b5cf6','#f97316','#10b981'];
+  const colors=['#059669','#10b981','#2563eb','#0891b2','#059669','#d97706','#ef4444','#34d399','#f97316','#10b981'];
   settingsDraft[key].push({id:name,label:name,color:colors[settingsDraft[key].length%colors.length],order:settingsDraft[key].length});
   renderSettingsPanel();
   debouncedAutoSave();
@@ -2867,7 +2867,7 @@ function renderClientsSettings(){
         <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableForward')?'#eff6ff':'var(--card)'}">
           <input type="checkbox" ${isOn('enableForward')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableForward',this.checked)"> 📧 Forward Email
         </label>
-        <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableCalendly')?'#f5f3ff':'var(--card)'}">
+        <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableCalendly')?'#ecfdf5':'var(--card)'}">
           <input type="checkbox" ${isOn('enableCalendly')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableCalendly',this.checked)"> 📅 Calendly
         </label>
         <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableCopyInfo')?'#f0fdf4':'var(--card)'}">
@@ -2905,7 +2905,7 @@ function renderClientsSettings(){
           <input type="text" placeholder="Paste service area map link..." value="${esc(str(c.serviceAreaUrl))}" 
             oninput="updateClientField('${esc(c.id)}','serviceAreaUrl',this.value)"
             style="flex:1;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text)">
-          ${str(c.serviceAreaUrl).trim()?`<a href="${esc(str(c.serviceAreaUrl))}" target="_blank" rel="noopener" style="font-size:11px;color:#6366f1;white-space:nowrap;text-decoration:none;padding:5px 8px;border:1px solid #c7d2fe;border-radius:6px;background:#eef2ff">Test ↗</a>`:''}
+          ${str(c.serviceAreaUrl).trim()?`<a href="${esc(str(c.serviceAreaUrl))}" target="_blank" rel="noopener" style="font-size:11px;color:#10b981;white-space:nowrap;text-decoration:none;padding:5px 8px;border:1px solid #a7f3d0;border-radius:6px;background:#ecfdf5">Test ↗</a>`:''}
         </div>
         <p style="font-size:10px;color:var(--text-muted);margin:3px 0 0">Lead addresses will be appended as a search query when you click Check Service Area on a deal.</p>
       </div>
@@ -3043,7 +3043,7 @@ async function loadUsersIntoPanel(){
   } else {
     for(const u of users){
       const isSelf = u.uid === currentUser.uid;
-      const roleColor = u.role==='admin' ? '#7c3aed' : '#2563eb';
+      const roleColor = u.role==='admin' ? '#059669' : '#2563eb';
       h += `<div style="display:flex;align-items:center;gap:10px;padding:10px;margin-bottom:6px;background:#f9fafb;border:1px solid var(--border);border-radius:8px">
         <div style="width:36px;height:36px;border-radius:50%;background:${roleColor};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;flex-shrink:0">${esc((u.name||u.email||'?')[0].toUpperCase())}</div>
         <div style="flex:1;min-width:0">
@@ -3184,7 +3184,7 @@ function renderClientStageSettingsInner(overlay){
   if(!overlay) return;
   
   const stages = clientPortalStages || DEFAULT_CLIENT_STAGES;
-  const colors = ['#7c3aed','#2563eb','#d97706','#059669','#ef4444','#0891b2','#6366f1','#dc2626','#15803d','#b45309'];
+  const colors = ['#059669','#2563eb','#d97706','#059669','#ef4444','#0891b2','#10b981','#dc2626','#15803d','#b45309'];
   
   let h = `<div class="modal" style="width:420px" onclick="event.stopPropagation()">
     <div class="modal-header"><h3>⚙️ Pipeline Stages</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button></div>
@@ -3220,7 +3220,7 @@ function addClientStage(){
   const input = document.getElementById('new-client-stage-name');
   const name = input.value.trim();
   if(!name) return;
-  const colors = ['#7c3aed','#2563eb','#d97706','#059669','#ef4444','#0891b2'];
+  const colors = ['#059669','#2563eb','#d97706','#059669','#ef4444','#0891b2'];
   clientPortalStages.push({ id: name, label: name, color: colors[clientPortalStages.length % colors.length] });
   input.value = '';
   renderClientStageSettingsInner();
