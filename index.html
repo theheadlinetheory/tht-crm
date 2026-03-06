@@ -925,9 +925,12 @@ function showForwardPreview(deal, client){
 async function confirmForward(dealId){
   const btn=document.getElementById('fwd-confirm-btn');
   if(btn){btn.textContent='Sending...';btn.disabled=true;}
-  
+
   try{
-    const resp=await apiPost('forward_to_client',{dealId:dealId});
+    // Find client to send clientId — Code.gs matches by clientId
+    const deal=state.deals.find(d=>d.id===dealId);
+    const client=deal ? (findClientForDeal(deal) || state.clients.find(c=>c.name===deal.stage)) : null;
+    const resp=await apiPost('forward_to_client',{dealId:dealId, clientId: client ? client.id : ''});
     if(!resp || resp.error){
       const errMsg=resp?resp.error:'No response from server — check Apps Script deployment';
       alert('Forward failed: '+errMsg);
