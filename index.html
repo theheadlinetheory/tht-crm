@@ -1781,11 +1781,6 @@ async function pushToLeadTracker(dealId){
 
   const isZeroCost=TRACKER_ZERO_COST_CLIENTS.some(ex=>clientName.toLowerCase().includes(ex));
 
-  // Require bookedFor to be filled (unless zero-cost client that was auto-pushed)
-  if(!isZeroCost && !str(deal.bookedFor).trim()){
-    alert('Please fill in the "Booked For" field before pushing to Lead Tracker.');return;
-  }
-
   let leadCost='';
   if(isZeroCost){
     leadCost=''; // $0 for ABC, Deeter, etc.
@@ -2414,11 +2409,10 @@ function renderDealModal(deal){
       if(isOn('enableTracker')){
         const pushed=deal.pushedToTracker;
         const isZeroCostClient=TRACKER_ZERO_COST_CLIENTS.some(ex=>(matchedClient.name||'').toLowerCase().includes(ex));
-        const needsBooking=!isZeroCostClient && !str(deal.bookedFor).trim();
         h+=`<div style="margin:0 0 8px 0">
-          <button id="push-tracker-btn" class="btn ${pushed?'btn-ghost':needsBooking?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px"
-            onclick="${pushed?'':needsBooking?'':'pushToLeadTracker(\''+deal.id+'\')'}" ${pushed||needsBooking?'disabled':''}>
-            ${pushed?'✅ Pushed to Lead Tracker'+(isZeroCostClient?' ($0)':''):needsBooking?'📤 Push to Lead Tracker (fill Booked For first)':'📤 Push to Lead Tracker'+(isZeroCostClient?' ($0)':'')}
+          <button id="push-tracker-btn" class="btn ${pushed?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px"
+            onclick="${pushed?'':'pushToLeadTracker(\''+deal.id+'\')'}" ${pushed?'disabled':''}>
+            ${pushed?'✅ Pushed to Lead Tracker'+(isZeroCostClient?' ($0)':''):'📤 Push to Lead Tracker'+(isZeroCostClient?' ($0)':'')}
           </button>
         </div>`;
       }
@@ -2698,17 +2692,11 @@ function refreshPushButton(){
   const deal=state.selectedDeal;
   const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
   const isZero=client&&TRACKER_ZERO_COST_CLIENTS.some(ex=>(client.name||'').toLowerCase().includes(ex));
-  const booked=str(deal.bookedFor||'').trim();
   const pushed=deal.pushedToTracker;
   if(pushed) return;
-  if(!isZero && !booked){
-    btn.disabled=true;
-    btn.textContent='📤 Push to Lead Tracker (fill Booked For first)';
-  } else {
-    btn.disabled=false;
-    btn.textContent='📤 Push to Lead Tracker'+(isZero?' ($0)':'');
-    btn.onclick=function(){pushToLeadTracker(deal.id)};
-  }
+  btn.disabled=false;
+  btn.textContent='📤 Push to Lead Tracker'+(isZero?' ($0)':'');
+  btn.onclick=function(){pushToLeadTracker(deal.id)};
 }
 
 function doSaveDeal(id){
@@ -2914,10 +2902,6 @@ async function doWonDrop(){
     const wonClientName=wonClient?wonClient.name:deal.stage;
     const wonIsZeroCost=TRACKER_ZERO_COST_CLIENTS.some(ex=>wonClientName.toLowerCase().includes(ex));
     // Require bookedFor for non-zero-cost clients
-    if(!wonIsZeroCost && !str(deal.bookedFor).trim()){
-      alert('Please fill in the "Booked For" field before pushing to Lead Tracker. Open the deal card first.');
-      state.dragId=null; return;
-    }
     if(confirm('Mark "'+name+'" as Won, push to Lead Tracker'+(wonIsZeroCost?' ($0)':'')+', and remove from CRM?')){
       const client=wonClient;
       let leadCost='';
