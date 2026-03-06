@@ -726,33 +726,47 @@ function renderServiceAreaMap(containerId, dealId){
   const result = serviceAreaResults[dealId];
   if(!result || !result.lat) return;
 
+  const deal = state.deals.find(d => d.id === dealId);
+  const addr = deal ? (deal.address || deal.location || '') : '';
+
   const map = L.map(containerId, { zoomControl: true, scrollWheelZoom: false });
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap'
   }).addTo(map);
 
+  // Pin icon colored by in/out status
+  const pinColor = result.status === 'in' ? '#22c55e' : result.status === 'out' ? '#ef4444' : '#6b7280';
+  const pinSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="40" viewBox="0 0 28 40">
+    <path d="M14 0C6.3 0 0 6.3 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.3 21.7 0 14 0z" fill="${pinColor}" stroke="#fff" stroke-width="2"/>
+    <circle cx="14" cy="14" r="6" fill="#fff"/>
+  </svg>`;
+  const pinIcon = L.divIcon({
+    html: pinSvg,
+    iconSize: [28, 40],
+    iconAnchor: [14, 40],
+    popupAnchor: [0, -36],
+    className: ''
+  });
+
   // Add polygon if we have one
   const polyMatch = result.polygonKey ? { polygon: SERVICE_AREA_POLYGONS[result.polygonKey] } : findPolygonForClient(result.clientName);
   if(polyMatch && polyMatch.polygon){
     const geoLayer = L.geoJSON(polyMatch.polygon, {
-      style: { color: '#059669', weight: 2, fillColor: '#059669', fillOpacity: 0.12 }
+      style: { color: '#059669', weight: 2.5, fillColor: '#059669', fillOpacity: 0.18 }
     }).addTo(map);
 
-    // Add lead marker
-    const markerColor = result.status === 'in' ? '#22c55e' : result.status === 'out' ? '#ef4444' : '#9ca3af';
-    const marker = L.circleMarker([result.lat, result.lng], {
-      radius: 8, fillColor: markerColor, color: '#fff', weight: 2, fillOpacity: 1
-    }).addTo(map);
+    // Add pin marker with popup
+    const marker = L.marker([result.lat, result.lng], { icon: pinIcon }).addTo(map);
+    if(addr) marker.bindPopup('<strong>' + (deal.company || '') + '</strong><br>' + addr).openPopup();
 
     // Fit bounds to show both polygon and marker
     const bounds = geoLayer.getBounds().extend(marker.getLatLng());
     map.fitBounds(bounds, { padding: [30, 30] });
   } else {
-    // Just show the marker
+    // Just show the pin
+    const marker = L.marker([result.lat, result.lng], { icon: pinIcon }).addTo(map);
+    if(addr) marker.bindPopup('<strong>' + (deal.company || '') + '</strong><br>' + addr).openPopup();
     map.setView([result.lat, result.lng], 11);
-    L.circleMarker([result.lat, result.lng], {
-      radius: 8, fillColor: '#9ca3af', color: '#fff', weight: 2, fillOpacity: 1
-    }).addTo(map);
   }
 }
 
