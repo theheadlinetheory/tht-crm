@@ -2341,8 +2341,8 @@ function renderDealModal(deal){
         </div>${deal.pipeline==='Client'?`
         <div class="form-group form-span2" style="margin-bottom:16px">
           <label>📅 Booked For</label>
-          <input type="text" placeholder="e.g. Tuesday at 2pm" value="${esc(deal.bookedFor||'')}" 
-            oninput="updateDealField('bookedFor',this.value)"
+          <input type="text" id="deal-bookedFor" placeholder="e.g. Tuesday at 2pm" value="${esc(deal.bookedFor||'')}"
+            oninput="updateDealField('bookedFor',this.value);refreshPushButton()"
             style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font);background:var(--card);color:var(--text)">
         </div>`:''}`;
 
@@ -2416,7 +2416,7 @@ function renderDealModal(deal){
         const isZeroCostClient=TRACKER_ZERO_COST_CLIENTS.some(ex=>(matchedClient.name||'').toLowerCase().includes(ex));
         const needsBooking=!isZeroCostClient && !str(deal.bookedFor).trim();
         h+=`<div style="margin:0 0 8px 0">
-          <button class="btn ${pushed?'btn-ghost':needsBooking?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px" 
+          <button id="push-tracker-btn" class="btn ${pushed?'btn-ghost':needsBooking?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px"
             onclick="${pushed?'':needsBooking?'':'pushToLeadTracker(\''+deal.id+'\')'}" ${pushed||needsBooking?'disabled':''}>
             ${pushed?'✅ Pushed to Lead Tracker'+(isZeroCostClient?' ($0)':''):needsBooking?'📤 Push to Lead Tracker (fill Booked For first)':'📤 Push to Lead Tracker'+(isZeroCostClient?' ($0)':'')}
           </button>
@@ -2689,6 +2689,25 @@ function updateDealField(key,val){
   if(state.selectedDeal){
     if(key==="value") val=Number(val)||0;
     state.selectedDeal[key]=val;
+  }
+}
+
+function refreshPushButton(){
+  const btn=document.getElementById('push-tracker-btn');
+  if(!btn || !state.selectedDeal) return;
+  const deal=state.selectedDeal;
+  const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
+  const isZero=client&&TRACKER_ZERO_COST_CLIENTS.some(ex=>(client.name||'').toLowerCase().includes(ex));
+  const booked=str(deal.bookedFor||'').trim();
+  const pushed=deal.pushedToTracker;
+  if(pushed) return;
+  if(!isZero && !booked){
+    btn.disabled=true;
+    btn.textContent='📤 Push to Lead Tracker (fill Booked For first)';
+  } else {
+    btn.disabled=false;
+    btn.textContent='📤 Push to Lead Tracker'+(isZero?' ($0)':'');
+    btn.onclick=function(){pushToLeadTracker(deal.id)};
   }
 }
 
