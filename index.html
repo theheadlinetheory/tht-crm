@@ -1071,6 +1071,8 @@ async function syncFromSheet(){
           if(d[k]!=null && typeof d[k]!=='string') d[k]=String(d[k]);
         });
         if(d.phone && (d.phone.includes('#ERROR') || d.phone.includes('ERROR'))) d.phone='';
+        // Normalize pipeline: "Client Leads" → "Client"
+        if(d.pipeline==='Client Leads') d.pipeline='Client';
         // Clean "0" values that should be empty
         if(d.value==='0') d.value='';
       });
