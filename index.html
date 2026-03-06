@@ -937,7 +937,6 @@ async function confirmForward(dealId){
       if(btn){btn.textContent='📧 Retry';btn.disabled=false;}
       return;
     }
-    const deal=state.deals.find(d=>d.id===dealId);
     if(deal) deal.forwardedAt=new Date().toISOString();
 
     // Lead Tracker push removed from auto-forward flow
