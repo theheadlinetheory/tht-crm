@@ -59,7 +59,8 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .col-empty { padding: 28px 0; text-align: center; font-size: 11px; color: #d1d5db; font-style: italic; }
 
 /* Deal Card */
-.deal-card { background: var(--card); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 6px; border: 1px solid var(--border); cursor: pointer; transition: box-shadow .15s, transform .1s; position: relative; z-index: 1; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+.deal-card { background: var(--card); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 6px; border: 1px solid var(--border); cursor: pointer; transition: box-shadow .15s, transform .1s; position: relative; z-index: 1; box-shadow: 0 1px 3px rgba(0,0,0,.04); overflow: hidden; }
+.deal-card div, .deal-card span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .deal-card.badge-open { z-index: 100; }
 .deal-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.1); transform: translateY(-1px); }
 .deal-card.dragging { opacity: .5; }
