@@ -1673,9 +1673,18 @@ function copyLeadInfo(dealId){
   lines.push('Hey '+clientFirst+', Just scheduled a quote request for '+timeStr+' with '+biz+'. The address, phone, contact info and instructions are all included in that calendar event. I\'ve also added you to the email thread. Please check your spam folder if you are not seeing it.');
   lines.push('');
   if(biz) lines.push('Business: '+biz);
-  if(deal.location) lines.push('Address: '+deal.location);
-  if(deal.phone) lines.push('Business Phone: '+deal.phone);
+  if(deal.contact && deal.contact !== biz) lines.push('Contact: '+deal.contact);
   if(deal.email) lines.push('Email: '+deal.email);
+  if(deal.phone) lines.push('Business Phone: '+deal.phone);
+  if(deal.mobilePhone) lines.push('Mobile Phone: '+deal.mobilePhone);
+  if(deal.website) lines.push('Website: '+deal.website);
+  const addr = str(deal.address || deal.location || '').trim();
+  if(addr) lines.push('Address: '+addr);
+  if(deal.location && deal.location !== addr) lines.push('Location: '+deal.location);
+  if(deal.campaignName) lines.push('Campaign: '+deal.campaignName);
+  if(deal.leadCategory) lines.push('Category: '+deal.leadCategory);
+  if(str(deal.notes).trim()) lines.push('Notes: '+deal.notes);
+  if(str(deal.emailBody).trim()) lines.push('\nTheir Reply:\n'+deal.emailBody);
   const text=lines.join('\n');
   navigator.clipboard.writeText(text).then(()=>{
     const btn=event.target.closest('button');
