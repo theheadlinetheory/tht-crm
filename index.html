@@ -1578,9 +1578,12 @@ function refreshModal(){
     tmp.innerHTML=fresh;
     const newOverlay=tmp.firstElementChild;
     if(newOverlay) overlay.innerHTML=newOverlay.innerHTML;
-    // Restore scroll position
+    // Restore scroll position (requestAnimationFrame ensures layout is complete)
     const newModal=overlay.querySelector('.modal');
-    if(newModal) newModal.scrollTop=savedScroll;
+    if(newModal){
+      newModal.scrollTop=savedScroll;
+      requestAnimationFrame(()=>{ newModal.scrollTop=savedScroll; });
+    }
     // Restore focus and value
     if(focusId){
       const el=document.getElementById(focusId);
