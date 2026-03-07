@@ -326,6 +326,8 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
+<script src="https://assets.calendly.com/assets/external/widget.js" async></script>
+<link href="https://assets.calendly.com/assets/external/widget.css" rel="stylesheet">
 
 <script>
 // ═══════════════════════════════════════════════════════════
@@ -1726,7 +1728,6 @@ function buildCalendlyUrl(baseUrl, deal){
   const url = new URL(baseUrl.includes('://') ? baseUrl : 'https://'+baseUrl);
   const name = deal.contact || deal.company || '';
   if(name) url.searchParams.set('name', name);
-  // Pack all deal info into the notes/comments field (a1) — only instructions left blank
   const lines = [];
   if(deal.company) lines.push('Business: ' + deal.company);
   if(deal.location) lines.push('Address: ' + deal.location);
@@ -1739,6 +1740,70 @@ function buildCalendlyUrl(baseUrl, deal){
   if(lines.length) url.searchParams.set('a1', lines.join('\n'));
   return url.toString();
 }
+
+// ─── Calendly Inline Booking ───
+let calendlyBookingDealId=null;
+
+function toggleCalendlyBooking(dealId, calUrl){
+  const sec=document.getElementById('calendly-booking-section');
+  if(!sec) return;
+  sec.style.display=sec.style.display==='none'?'block':'none';
+}
+
+function openCalendlyEmbed(dealId, baseCalUrl){
+  calendlyBookingDealId=dealId;
+  const name=(document.getElementById('cal-prefill-name')?.value||'').trim();
+  const email=(document.getElementById('cal-prefill-email')?.value||'').trim();
+  const notes=(document.getElementById('cal-prefill-notes')?.value||'').trim();
+  const url=baseCalUrl.includes('://')?baseCalUrl:'https://'+baseCalUrl;
+  if(typeof Calendly!=='undefined'){
+    Calendly.initPopupWidget({
+      url: url,
+      prefill: {
+        name: name,
+        email: email,
+        customAnswers: { a1: notes }
+      }
+    });
+  } else {
+    // Fallback: build URL manually and open in new tab
+    const u=new URL(url);
+    if(name) u.searchParams.set('name',name);
+    if(email) u.searchParams.set('email',email);
+    if(notes) u.searchParams.set('a1',notes);
+    window.open(u.toString(),'_blank');
+  }
+}
+
+// Listen for Calendly booking confirmation
+window.addEventListener('message',function(e){
+  if(e.data && e.data.event==='calendly.event_scheduled' && calendlyBookingDealId){
+    const dealId=calendlyBookingDealId;
+    calendlyBookingDealId=null;
+    // Prompt SDR to confirm the booked date/time
+    const deal=state.deals.find(d=>d.id===dealId);
+    if(!deal) return;
+    const dateInput=prompt('Meeting booked! Enter the date (YYYY-MM-DD):',TODAY());
+    if(!dateInput) return;
+    const timeInput=prompt('Enter the time (HH:MM, 24h format):','09:00');
+    deal.bookedDate=dateInput;
+    deal.bookedTime=timeInput||'';
+    // Update date/time inputs if modal is open
+    const dateEl=document.getElementById('deal-bookedDate');
+    const timeEl=document.getElementById('deal-bookedTime');
+    if(dateEl) dateEl.value=deal.bookedDate;
+    if(timeEl) timeEl.value=deal.bookedTime;
+    // Persist
+    pendingWrites++;
+    apiPost('update_deal',{id:dealId,bookedDate:deal.bookedDate,bookedTime:deal.bookedTime}).finally(()=>{pendingWrites--;});
+    // Refresh upcoming meetings
+    const meetContainer=document.getElementById('upcoming-meetings-container');
+    if(meetContainer && state.selectedDeal){
+      const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
+      if(client) meetContainer.innerHTML=renderUpcomingMeetings(deal,client.name).replace(/<div id="upcoming-meetings-container">|<\/div>$/g,'');
+    }
+  }
+});
 
 function buildServiceAreaUrl(mapUrl, address){
   if(!mapUrl || !address) return mapUrl||'';
@@ -2416,15 +2481,44 @@ function renderDealModal(deal){
         </div>`;
       }
 
-      // Book Meeting via Calendly button
+      // Book Meeting via Calendly — inline with editable prefill
       if(isOn('enableCalendly') && matchedClient.calendlyUrl){
-        const calUrl=buildCalendlyUrl(matchedClient.calendlyUrl, deal);
+        const prefillLines=[];
+        if(deal.company) prefillLines.push('Business: '+deal.company);
+        if(deal.location) prefillLines.push('Address: '+deal.location);
+        if(deal.phone) prefillLines.push('Business Phone: '+deal.phone);
+        if(deal.mobilePhone) prefillLines.push('Mobile Phone: '+deal.mobilePhone);
+        if(deal.email) prefillLines.push('Email: '+deal.email);
+        if(deal.contact && deal.contact!==deal.company) prefillLines.push('Contact: '+deal.contact);
+        prefillLines.push('');
+        prefillLines.push('Instructions: ');
         h+=`<div style="margin:0 0 8px 0">
-          <a href="${esc(calUrl)}" target="_blank" rel="noopener" class="btn btn-primary" 
-            style="width:100%;justify-content:center;gap:6px;font-size:13px;text-decoration:none;display:flex;background:#818cf8;border-color:#818cf8"
-            onclick="event.stopPropagation()">
+          <button class="btn btn-primary" style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#818cf8;border-color:#818cf8"
+            onclick="toggleCalendlyBooking('${esc(deal.id)}','${esc(matchedClient.calendlyUrl)}')">
             📅 Book Meeting on ${esc(matchedClient.name)}'s Calendar
-          </a>
+          </button>
+        </div>
+        <div id="calendly-booking-section" style="display:none;margin:0 0 12px 0;padding:12px;background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px">
+          <div style="font-size:11px;font-weight:700;color:#5b21b6;margin-bottom:8px">Review & Edit Info Sent to Calendly</div>
+          <div style="margin-bottom:6px">
+            <label style="font-size:11px;color:#6b7280;font-weight:600">Guest Name</label>
+            <input type="text" id="cal-prefill-name" value="${esc(deal.contact||deal.company||'')}"
+              style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px">
+          </div>
+          <div style="margin-bottom:6px">
+            <label style="font-size:11px;color:#6b7280;font-weight:600">Guest Email</label>
+            <input type="text" id="cal-prefill-email" value="${esc(deal.email||'')}"
+              style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px">
+          </div>
+          <div style="margin-bottom:8px">
+            <label style="font-size:11px;color:#6b7280;font-weight:600">Additional Info / Instructions</label>
+            <textarea id="cal-prefill-notes" rows="5"
+              style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px;resize:vertical">${esc(prefillLines.join('\n'))}</textarea>
+          </div>
+          <button class="btn btn-primary" style="width:100%;justify-content:center;font-size:13px;background:#818cf8;border-color:#818cf8"
+            onclick="openCalendlyEmbed('${esc(deal.id)}','${esc(matchedClient.calendlyUrl)}')">
+            Open Calendar & Book
+          </button>
         </div>`;
       }
 
