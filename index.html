@@ -257,6 +257,9 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .sa-badge.sa-out { background:#fef2f2; color:#dc2626; border-color:#fecaca; }
 .sa-badge.sa-unknown { background:#f3f4f6; color:#9ca3af; border-color:#e5e7eb; }
 
+/* Details arrow rotation */
+details[open] > summary span:first-child { transform: rotate(90deg); }
+
 /* Leaflet Map in Modal */
 .sa-map-container { border-radius:var(--radius); overflow:hidden; border:1px solid var(--border); margin-bottom:12px; position:relative; }
 .sa-map-container .leaflet-container { height:220px; width:100%; }
@@ -2467,6 +2470,49 @@ function renderDealModal(deal){
     if(matchedClient){
       const isOn=(field)=>str(matchedClient[field]).toUpperCase()==='TRUE';
 
+      // Client Info panel — collapsible with sub-sections
+      {
+        const cn=matchedClient;
+        const hasNotes=str(cn.clientNotes||'').trim();
+        const sections=[];
+        // Contact section
+        const contactLines=[];
+        if(str(cn.contactFirstName).trim()) contactLines.push('Contact: '+cn.contactFirstName);
+        if(str(cn.notifyEmails).trim()) contactLines.push('Email: '+cn.notifyEmails);
+        if(str(cn.calendlyUrl).trim()) contactLines.push('Calendly: '+cn.calendlyUrl);
+        if(str(cn.leadCost).trim()) contactLines.push('Lead Cost: $'+str(cn.leadCost).replace(/[^0-9.]/g,''));
+        if(contactLines.length) sections.push({title:'Contact & Billing',content:contactLines.join('<br>')});
+        // Notes sections — split by double newline into separate collapsible blocks
+        if(hasNotes){
+          const noteBlocks=str(cn.clientNotes).trim().split(/\n{2,}/);
+          if(noteBlocks.length===1){
+            sections.push({title:'Notes & Instructions',content:esc(noteBlocks[0]).replace(/\n/g,'<br>')});
+          } else {
+            noteBlocks.forEach((block,i)=>{
+              const lines=block.trim().split('\n');
+              const heading=lines[0].replace(/^#+\s*/,'').replace(/:$/,'');
+              const body=lines.length>1?lines.slice(1).join('\n').trim():lines[0];
+              sections.push({title:esc(heading),content:esc(body).replace(/\n/g,'<br>')});
+            });
+          }
+        }
+        if(sections.length){
+          h+=`<details style="margin:0 0 12px 0;border:1px solid #e0e7ff;border-radius:8px;background:#f8fafc">
+            <summary style="padding:8px 12px;font-size:12px;font-weight:700;color:#3730a3;cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px">
+              <span style="font-size:10px;transition:transform .15s">▶</span> ℹ️ ${esc(cn.name)} Info
+            </summary>
+            <div style="padding:0 12px 10px">
+            ${sections.map(s=>`<details style="margin:4px 0;border-bottom:1px solid #e5e7eb">
+              <summary style="padding:6px 0;font-size:11px;font-weight:600;color:#4b5563;cursor:pointer;list-style:none;display:flex;align-items:center;gap:4px">
+                <span style="font-size:9px">▶</span> ${s.title}
+              </summary>
+              <div style="padding:0 0 8px 14px;font-size:12px;color:#374151;line-height:1.5">${s.content}</div>
+            </details>`).join('')}
+            </div>
+          </details>`;
+        }
+      }
+
       // Forward Lead Email button
       if(isOn('enableForward')){
         const forwarded=deal.forwardedAt && str(deal.forwardedAt).trim()!=='';
@@ -3372,7 +3418,8 @@ function debouncedAutoSave(){
         enableCopyInfo:str(c.enableCopyInfo),
         enableTracker:str(c.enableTracker),
         leadCost:str(c.leadCost),
-        serviceAreaUrl:str(c.serviceAreaUrl)
+        serviceAreaUrl:str(c.serviceAreaUrl),
+        clientNotes:str(c.clientNotes||'')
       }));
       await Promise.all([
         apiPost('save_settings',{settings:settingsDraft}),
@@ -3559,6 +3606,13 @@ function renderClientsSettings(){
         </div>
       </div>
 
+      <div style="margin-bottom:8px">
+        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">📝 Client Notes</label>
+        <textarea placeholder="Services offered, booking preferences, special instructions..." rows="3"
+          oninput="updateClientField('${esc(c.id)}','clientNotes',this.value)"
+          style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px;resize:vertical">${esc(str(c.clientNotes||''))}</textarea>
+      </div>
+
     </div>`;
   }
 
@@ -3632,7 +3686,8 @@ async function saveSettingsToSheet(){
       enableCopyInfo:str(c.enableCopyInfo),
       enableTracker:str(c.enableTracker),
       leadCost:str(c.leadCost),
-      serviceAreaUrl:str(c.serviceAreaUrl)
+      serviceAreaUrl:str(c.serviceAreaUrl),
+      clientNotes:str(c.clientNotes||'')
     }));
     // Fire both in parallel — settings + all clients in one batch call
     await Promise.all([
