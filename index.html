@@ -1556,44 +1556,69 @@ function addActivity(dealId,act){
   apiPost("create_activity",a).finally(()=>{ pendingWrites--; });
 }
 
-// Fast modal refresh — swaps inner content without destroying the overlay element
+function renderUpcomingMeetings(deal, clientName){
+  const now=new Date();
+  const upcoming=state.deals.filter(d=>{
+    if(!d.bookedDate) return false;
+    const dt=new Date(d.bookedDate+'T'+(d.bookedTime||'23:59'));
+    return dt>now && d.stage===clientName && d.id!==deal.id;
+  }).sort((a,b)=>{
+    const da=new Date(a.bookedDate+'T'+(a.bookedTime||'00:00'));
+    const db=new Date(b.bookedDate+'T'+(b.bookedTime||'00:00'));
+    return da-db;
+  });
+  if(!upcoming.length) return '<div id="upcoming-meetings-container"></div>';
+  let h='<div id="upcoming-meetings-container"><div style="margin:0 0 12px 0;padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px">';
+  h+=`<div style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:6px">📅 ${esc(clientName)}'s Upcoming Meetings (${upcoming.length})</div>`;
+  for(const m of upcoming){
+    const d=new Date(m.bookedDate+'T'+(m.bookedTime||'00:00'));
+    const dateStr=d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+    const timeStr=m.bookedTime?d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
+    h+=`<div style="font-size:12px;color:#78350f;padding:3px 0;display:flex;justify-content:space-between">
+      <span>${esc(m.company||m.contact||'Unknown')}</span>
+      <span style="font-weight:600">${dateStr}${timeStr?' @ '+timeStr:''}</span>
+    </div>`;
+  }
+  h+='</div></div>';
+  return h;
+}
+
+// Fast modal refresh — only updates activities and meetings sections to avoid map flicker and scroll reset
 function refreshModal(){
   if(!state.selectedDeal) return;
+  const deal=state.selectedDeal;
+
+  // Try targeted update first — only replace the activities container
+  const actContainer=document.getElementById('activities-container');
+  if(actContainer){
+    // Build just the activities HTML by rendering full modal and extracting it
+    const fresh=renderDealModal(deal);
+    const tmp=document.createElement('div');
+    tmp.innerHTML=fresh;
+    const newAct=tmp.querySelector('#activities-container');
+    if(newAct) actContainer.innerHTML=newAct.innerHTML;
+
+    // Also update upcoming meetings if present
+    const meetContainer=document.getElementById('upcoming-meetings-container');
+    const newMeet=tmp.querySelector('#upcoming-meetings-container');
+    if(meetContainer && newMeet) meetContainer.innerHTML=newMeet.innerHTML;
+    return;
+  }
+
+  // Fallback: full modal rebuild (e.g. first open)
   const overlay=document.querySelector('.modal-overlay');
   if(overlay){
-    // Save scroll position of the modal content
     const modal=overlay.querySelector('.modal');
     const savedScroll=modal?modal.scrollTop:0;
-    // Save currently focused input so we don't lose user's typing
-    const focused=document.activeElement;
-    let focusId=null, focusVal=null, focusSel=null;
-    if(focused && (focused.tagName==='INPUT'||focused.tagName==='TEXTAREA'||focused.tagName==='SELECT')){
-      focusId=focused.id;
-      focusVal=focused.value;
-      focusSel=focused.selectionStart;
-    }
-    // Build fresh modal HTML
-    const fresh=renderDealModal(state.selectedDeal);
+    const fresh=renderDealModal(deal);
     const tmp=document.createElement('div');
     tmp.innerHTML=fresh;
     const newOverlay=tmp.firstElementChild;
     if(newOverlay) overlay.innerHTML=newOverlay.innerHTML;
-    // Restore scroll position (requestAnimationFrame ensures layout is complete)
     const newModal=overlay.querySelector('.modal');
     if(newModal){
       newModal.scrollTop=savedScroll;
       requestAnimationFrame(()=>{ newModal.scrollTop=savedScroll; });
-    }
-    // Restore focus and value
-    if(focusId){
-      const el=document.getElementById(focusId);
-      if(el){
-        el.value=focusVal;
-        el.focus();
-        if(el.setSelectionRange && focusSel!==null && el.tagName!=='SELECT'){
-          try{el.setSelectionRange(focusSel,focusSel);}catch(e){}
-        }
-      }
     }
   } else {
     render();
@@ -2404,33 +2429,7 @@ function renderDealModal(deal){
       }
 
       // Client's Upcoming Meetings — show all future bookings for this client
-      {
-        const clientName=matchedClient.name;
-        const now=new Date();
-        const upcoming=state.deals.filter(d=>{
-          if(!d.bookedDate) return false;
-          const dt=new Date(d.bookedDate+'T'+(d.bookedTime||'23:59'));
-          return dt>now && d.stage===clientName && d.id!==deal.id;
-        }).sort((a,b)=>{
-          const da=new Date(a.bookedDate+'T'+(a.bookedTime||'00:00'));
-          const db=new Date(b.bookedDate+'T'+(b.bookedTime||'00:00'));
-          return da-db;
-        });
-        if(upcoming.length){
-          h+=`<div style="margin:0 0 12px 0;padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px">
-            <div style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:6px">📅 ${esc(clientName)}'s Upcoming Meetings (${upcoming.length})</div>`;
-          for(const m of upcoming){
-            const d=new Date(m.bookedDate+'T'+(m.bookedTime||'00:00'));
-            const dateStr=d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-            const timeStr=m.bookedTime?d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
-            h+=`<div style="font-size:12px;color:#78350f;padding:3px 0;display:flex;justify-content:space-between">
-              <span>${esc(m.company||m.contact||'Unknown')}</span>
-              <span style="font-weight:600">${dateStr}${timeStr?' @ '+timeStr:''}</span>
-            </div>`;
-          }
-          h+=`</div>`;
-        }
-      }
+      h+=renderUpcomingMeetings(deal, matchedClient.name);
 
       // Copy Lead Info button
       if(isOn('enableCopyInfo')){
@@ -2539,7 +2538,7 @@ function renderDealModal(deal){
   }
 
   // Activities section
-  h+=`<div class="activities-section">
+  h+=`<div id="activities-container"><div class="activities-section">
     <div class="activities-header">
       <h4>Activities</h4>
       <button class="sop-btn ${state.showSop?'active':''}" onclick="state.showSop=!state.showSop;refreshModal()">📋 Assign SOP Day</button>
@@ -2599,7 +2598,7 @@ function renderDealModal(deal){
 
   if(!pending.length&&!completed.length) h+=`<div class="no-activities">No activities yet</div>`;
 
-  h+=`</div></div>
+  h+=`</div></div></div>
     <div class="modal-footer">
       ${isAdmin()?`<button class="btn btn-danger" onclick="if(confirm('Delete this deal?'))deleteDeal('${deal.id}')">Delete</button>`:''}
       ${isClient()?`<button class="btn btn-danger" onclick="if(confirm('Archive this lead?'))archiveDeal('${deal.id}','manual')">Archive</button>`:''}
