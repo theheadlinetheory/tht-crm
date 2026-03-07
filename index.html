@@ -578,55 +578,84 @@ function getVisiblePipelinesWithArchive(){
   return ALL_PIPELINES;
 }
 function renderDashboard(){
+  const tab=state.dashboardTab||'client_leads';
   const now=new Date();
   const thisMonth=now.toISOString().slice(0,7);
-  const allDeals=state.deals;
-  const clientDeals=allDeals.filter(d=>d.pipeline==='Client');
-  const acqDeals=allDeals.filter(d=>d.pipeline==='Acquisition');
-  const thisMonthDeals=allDeals.filter(d=>(d.createdDate||'').slice(0,7)===thisMonth);
+  const cs=`padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;margin-bottom:-2px`;
+
+  let h=`<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin:0 20px">
+    <button onclick="state.dashboardTab='client_leads';render()" style="${cs};color:${tab==='client_leads'?'var(--purple)':'var(--text-muted)'};border-bottom:2px solid ${tab==='client_leads'?'var(--purple)':'transparent'}">Client Fulfillment</button>
+    <button onclick="state.dashboardTab='acquisition';render()" style="${cs};color:${tab==='acquisition'?'#2563eb':'var(--text-muted)'};border-bottom:2px solid ${tab==='acquisition'?'#2563eb':'transparent'}">Acquisition</button>
+  </div>`;
+
+  if(tab==='client_leads'){
+    h+=renderClientDashboard(thisMonth);
+  } else {
+    h+=renderAcquisitionDashboard(thisMonth);
+  }
+  return h;
+}
+
+function renderClientDashboard(thisMonth){
+  const clientDeals=state.deals.filter(d=>d.pipeline==='Client');
+  const thisMonthClient=clientDeals.filter(d=>(d.createdDate||'').slice(0,7)===thisMonth);
   const meetingsBooked=clientDeals.filter(d=>d.bookedDate).length;
   const forwarded=clientDeals.filter(d=>d.forwardedAt&&str(d.forwardedAt).trim()).length;
   const pushed=clientDeals.filter(d=>d.pushedToTracker&&str(d.pushedToTracker).trim()).length;
-  const overdueCount=getOverdueActivities().length;
+  const undistributed=clientDeals.filter(d=>d.stage==='Client Not Distributed').length;
+  const overdueActs=getOverdueActivities().filter(a=>{
+    const deal=state.deals.find(d=>d.id===a.dealId);
+    return deal && deal.pipeline==='Client';
+  });
 
   // Per-client breakdown
   const clientCounts={};
-  state.clients.forEach(c=>{clientCounts[c.name]={total:0,month:0,booked:0,forwarded:0};});
+  state.clients.forEach(c=>{clientCounts[c.name]={total:0,month:0,booked:0,forwarded:0,pushed:0};});
   clientDeals.forEach(d=>{
     const cn=d.stage;
-    if(!clientCounts[cn]) clientCounts[cn]={total:0,month:0,booked:0,forwarded:0};
+    if(!clientCounts[cn]) clientCounts[cn]={total:0,month:0,booked:0,forwarded:0,pushed:0};
     clientCounts[cn].total++;
     if((d.createdDate||'').slice(0,7)===thisMonth) clientCounts[cn].month++;
     if(d.bookedDate) clientCounts[cn].booked++;
     if(d.forwardedAt&&str(d.forwardedAt).trim()) clientCounts[cn].forwarded++;
+    if(d.pushedToTracker&&str(d.pushedToTracker).trim()) clientCounts[cn].pushed++;
   });
 
-  let h=`<div style="padding:24px;max-width:900px;margin:0 auto">
-    <h2 style="font-size:18px;font-weight:800;margin-bottom:16px">Dashboard</h2>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px">
-      <div style="background:#fff;border-radius:10px;padding:16px;border:1px solid var(--border)">
-        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600">Total Leads</div>
-        <div style="font-size:28px;font-weight:800;color:var(--purple)">${allDeals.length}</div>
+  const cardStyle='background:#fff;border-radius:10px;padding:16px;border:1px solid var(--border)';
+  const labelStyle='font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600';
+  const numStyle='font-size:28px;font-weight:800';
+
+  return `<div style="padding:24px;max-width:960px;margin:0 auto">
+    <h2 style="font-size:18px;font-weight:800;margin-bottom:4px">Client Fulfillment</h2>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Lead distribution, meetings, and delivery for active clients</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:24px">
+      <div style="${cardStyle}">
+        <div style="${labelStyle}">Total Client Leads</div>
+        <div style="${numStyle};color:var(--purple)">${clientDeals.length}</div>
       </div>
-      <div style="background:#fff;border-radius:10px;padding:16px;border:1px solid var(--border)">
-        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600">New This Month</div>
-        <div style="font-size:28px;font-weight:800;color:#2563eb">${thisMonthDeals.length}</div>
+      <div style="${cardStyle}">
+        <div style="${labelStyle}">New This Month</div>
+        <div style="${numStyle};color:#2563eb">${thisMonthClient.length}</div>
       </div>
-      <div style="background:#fff;border-radius:10px;padding:16px;border:1px solid var(--border)">
-        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600">Meetings Booked</div>
-        <div style="font-size:28px;font-weight:800;color:#818cf8">${meetingsBooked}</div>
+      <div style="${cardStyle}">
+        <div style="${labelStyle}">Undistributed</div>
+        <div style="${numStyle};color:${undistributed?'#f59e0b':'#22c55e'}">${undistributed}</div>
       </div>
-      <div style="background:#fff;border-radius:10px;padding:16px;border:1px solid var(--border)">
-        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600">Forwarded</div>
-        <div style="font-size:28px;font-weight:800;color:#059669">${forwarded}</div>
+      <div style="${cardStyle}">
+        <div style="${labelStyle}">Meetings Booked</div>
+        <div style="${numStyle};color:#818cf8">${meetingsBooked}</div>
       </div>
-      <div style="background:#fff;border-radius:10px;padding:16px;border:1px solid var(--border)">
-        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600">Pushed to Tracker</div>
-        <div style="font-size:28px;font-weight:800;color:#f59e0b">${pushed}</div>
+      <div style="${cardStyle}">
+        <div style="${labelStyle}">Forwarded</div>
+        <div style="${numStyle};color:#059669">${forwarded}</div>
       </div>
-      <div style="background:#fff;border-radius:10px;padding:16px;border:1px solid var(--border)">
-        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600">Overdue Tasks</div>
-        <div style="font-size:28px;font-weight:800;color:${overdueCount?'#ef4444':'#22c55e'}">${overdueCount}</div>
+      <div style="${cardStyle}">
+        <div style="${labelStyle}">Pushed to Tracker</div>
+        <div style="${numStyle};color:#f59e0b">${pushed}</div>
+      </div>
+      <div style="${cardStyle}">
+        <div style="${labelStyle}">Overdue Tasks</div>
+        <div style="${numStyle};color:${overdueActs.length?'#ef4444':'#22c55e'}">${overdueActs.length}</div>
       </div>
     </div>
     <h3 style="font-size:14px;font-weight:700;margin-bottom:10px">Leads by Client</h3>
@@ -637,27 +666,98 @@ function renderDashboard(){
         <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)">This Month</th>
         <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)">Booked</th>
         <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)">Forwarded</th>
+        <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)">Tracked</th>
       </tr></thead>
-      <tbody>${Object.entries(clientCounts).sort((a,b)=>b[1].total-a[1].total).map(([name,c])=>`<tr style="border-top:1px solid #f3f4f6">
+      <tbody>${Object.entries(clientCounts).filter(([n,c])=>c.total>0).sort((a,b)=>b[1].total-a[1].total).map(([name,c])=>`<tr style="border-top:1px solid #f3f4f6">
         <td style="padding:8px 12px;font-size:12px;font-weight:600">${esc(name)}</td>
         <td style="text-align:center;padding:8px 12px;font-size:12px">${c.total}</td>
         <td style="text-align:center;padding:8px 12px;font-size:12px">${c.month}</td>
         <td style="text-align:center;padding:8px 12px;font-size:12px">${c.booked}</td>
         <td style="text-align:center;padding:8px 12px;font-size:12px">${c.forwarded}</td>
+        <td style="text-align:center;padding:8px 12px;font-size:12px">${c.pushed}</td>
       </tr>`).join('')}</tbody>
     </table>
-    <h3 style="font-size:14px;font-weight:700;margin:20px 0 10px">Acquisition Pipeline</h3>
+  </div>`;
+}
+
+function renderAcquisitionDashboard(thisMonth){
+  const acqDeals=state.deals.filter(d=>d.pipeline==='Acquisition');
+  const thisMonthAcq=acqDeals.filter(d=>(d.createdDate||'').slice(0,7)===thisMonth);
+  const closedWon=acqDeals.filter(d=>d.stage==='Closed Won').length;
+  const closedLost=acqDeals.filter(d=>d.stage==='Closed Lost').length;
+  const discovery=acqDeals.filter(d=>d.stage==='Discovery Scheduled').length;
+  const demo=acqDeals.filter(d=>d.stage==='Demo Scheduled').length;
+  const totalValue=acqDeals.reduce((s,d)=>s+(Number(d.value)||0),0);
+  const wonValue=acqDeals.filter(d=>d.stage==='Closed Won').reduce((s,d)=>s+(Number(d.value)||0),0);
+  const overdueActs=getOverdueActivities().filter(a=>{
+    const deal=state.deals.find(d=>d.id===a.dealId);
+    return deal && deal.pipeline==='Acquisition';
+  });
+
+  // Conversion: responses → discovery → demo → won
+  const totalResponses=acqDeals.length;
+  const discoRate=totalResponses?(((discovery+demo+closedWon)/totalResponses)*100).toFixed(0):'0';
+  const closeRate=totalResponses?((closedWon/totalResponses)*100).toFixed(0):'0';
+
+  const cardStyle='background:#fff;border-radius:10px;padding:16px;border:1px solid var(--border)';
+  const labelStyle='font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600';
+  const numStyle='font-size:28px;font-weight:800';
+
+  return `<div style="padding:24px;max-width:960px;margin:0 auto">
+    <h2 style="font-size:18px;font-weight:800;margin-bottom:4px">Acquisition</h2>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Sales pipeline for signing new clients</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:24px">
+      <div style="${cardStyle}">
+        <div style="${labelStyle}">Total Responses</div>
+        <div style="${numStyle};color:#2563eb">${acqDeals.length}</div>
+      </div>
+      <div style="${cardStyle}">
+        <div style="${labelStyle}">New This Month</div>
+        <div style="${numStyle};color:#818cf8">${thisMonthAcq.length}</div>
+      </div>
+      <div style="${cardStyle}">
+        <div style="${labelStyle}">Pipeline Value</div>
+        <div style="${numStyle};color:var(--purple)">${fmt$(totalValue)}</div>
+      </div>
+      <div style="${cardStyle}">
+        <div style="${labelStyle}">Closed Won</div>
+        <div style="${numStyle};color:#22c55e">${closedWon}</div>
+        <div style="font-size:10px;color:#059669;margin-top:2px">${fmt$(wonValue)} revenue</div>
+      </div>
+      <div style="${cardStyle}">
+        <div style="${labelStyle}">Closed Lost</div>
+        <div style="${numStyle};color:#ef4444">${closedLost}</div>
+      </div>
+      <div style="${cardStyle}">
+        <div style="${labelStyle}">Overdue Tasks</div>
+        <div style="${numStyle};color:${overdueActs.length?'#ef4444':'#22c55e'}">${overdueActs.length}</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">
+      <div style="${cardStyle}">
+        <div style="${labelStyle}">Meeting Rate</div>
+        <div style="${numStyle};color:#818cf8">${discoRate}%</div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:2px">Responses → Discovery/Demo/Won</div>
+      </div>
+      <div style="${cardStyle}">
+        <div style="${labelStyle}">Close Rate</div>
+        <div style="${numStyle};color:#22c55e">${closeRate}%</div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:2px">Responses → Closed Won</div>
+      </div>
+    </div>
+    <h3 style="font-size:14px;font-weight:700;margin-bottom:10px">Pipeline Stages</h3>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px">
       ${getStagesForPipeline('Acquisition').map(s=>{
         const count=acqDeals.filter(d=>d.stage===s.id).length;
+        const stageValue=acqDeals.filter(d=>d.stage===s.id).reduce((sum,d)=>sum+(Number(d.value)||0),0);
         return `<div style="background:#fff;border-radius:8px;padding:10px 12px;border:1px solid var(--border);border-top:3px solid ${s.color}">
           <div style="font-size:10px;color:var(--text-muted);font-weight:600">${esc(s.label)}</div>
           <div style="font-size:22px;font-weight:800;color:var(--text)">${count}</div>
+          <div style="font-size:10px;color:var(--text-muted)">${fmt$(stageValue)}</div>
         </div>`;
       }).join('')}
     </div>
   </div>`;
-  return h;
 }
 const PIPELINES = ALL_PIPELINES; // Keep reference for backward compat
 
@@ -1314,6 +1414,7 @@ let state = {
   savedSettings: null,
   // Re-Run Queue state
   nurtureSubTab: 'board',
+  dashboardTab: 'client_leads',
   rerunQueue: [],
   rerunMarketSettings: [],
   rerunLoading: false,
