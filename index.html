@@ -1792,18 +1792,31 @@ function getOverdueActivities(){
 
 function renderOverdueBanner(){
   if(isClient()) return '';
-  const overdue=getOverdueActivities();
+  const allOverdue=getOverdueActivities();
+  if(!allOverdue.length) return '';
+
+  // Map pipeline tab id to deal pipeline value
+  const pipMap={'acquisition':'Acquisition','client_leads':'Client','nurture':'Nurture'};
+  const activePip=pipMap[state.pipeline]||null;
+
+  // Filter overdue to current pipeline
+  const overdue=activePip?allOverdue.filter(a=>{
+    const deal=state.deals.find(d=>d.id===a.dealId);
+    return deal && deal.pipeline===activePip;
+  }):allOverdue;
+
   if(!overdue.length) return '';
-  // Group by deal
+
   const byDeal={};
   overdue.forEach(a=>{
     if(!byDeal[a.dealId]) byDeal[a.dealId]=[];
     byDeal[a.dealId].push(a);
   });
   const dealCount=Object.keys(byDeal).length;
+  const label=activePip==='Acquisition'?'acquisition':activePip==='Client'?'client leads':'';
   return `<div id="overdue-banner" style="margin:0 20px;padding:8px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="document.getElementById('overdue-detail').style.display=document.getElementById('overdue-detail').style.display==='none'?'block':'none'">
-    <span style="font-size:12px;font-weight:600;color:#dc2626">⚠️ ${overdue.length} overdue task${overdue.length!==1?'s':''} across ${dealCount} deal${dealCount!==1?'s':''}</span>
-    <span style="font-size:10px;color:#ef4444">Click to ${overdue.length>0?'view':'hide'} ▾</span>
+    <span style="font-size:12px;font-weight:600;color:#dc2626">⚠️ ${overdue.length} overdue ${label} task${overdue.length!==1?'s':''} across ${dealCount} deal${dealCount!==1?'s':''}</span>
+    <span style="font-size:10px;color:#ef4444">Click to view ▾</span>
   </div>
   <div id="overdue-detail" style="display:none;margin:0 20px;padding:8px 14px;background:#fff5f5;border:1px solid #fecaca;border-top:none;border-radius:0 0 8px 8px;max-height:200px;overflow-y:auto">
     ${Object.entries(byDeal).map(([dealId,acts])=>{
