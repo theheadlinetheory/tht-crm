@@ -559,6 +559,7 @@ const NURTURE_STAGES = [
 ];
 
 const ALL_PIPELINES = [
+  { id: "dashboard", label: "Dashboard" },
   { id: "acquisition", label: "Acquisition" },
   { id: "client_leads", label: "Client Leads" },
   { id: "nurture", label: "Nurture" },
@@ -575,6 +576,88 @@ function getVisiblePipelinesWithArchive(){
   if(isClient()) return ALL_PIPELINES.filter(p => p.id === 'client_leads');
   if(isEmployee()) return ALL_PIPELINES.filter(p => p.id === 'client_leads' || p.id === 'archive');
   return ALL_PIPELINES;
+}
+function renderDashboard(){
+  const now=new Date();
+  const thisMonth=now.toISOString().slice(0,7);
+  const allDeals=state.deals;
+  const clientDeals=allDeals.filter(d=>d.pipeline==='Client');
+  const acqDeals=allDeals.filter(d=>d.pipeline==='Acquisition');
+  const thisMonthDeals=allDeals.filter(d=>(d.createdDate||'').slice(0,7)===thisMonth);
+  const meetingsBooked=clientDeals.filter(d=>d.bookedDate).length;
+  const forwarded=clientDeals.filter(d=>d.forwardedAt&&str(d.forwardedAt).trim()).length;
+  const pushed=clientDeals.filter(d=>d.pushedToTracker&&str(d.pushedToTracker).trim()).length;
+  const overdueCount=getOverdueActivities().length;
+
+  // Per-client breakdown
+  const clientCounts={};
+  state.clients.forEach(c=>{clientCounts[c.name]={total:0,month:0,booked:0,forwarded:0};});
+  clientDeals.forEach(d=>{
+    const cn=d.stage;
+    if(!clientCounts[cn]) clientCounts[cn]={total:0,month:0,booked:0,forwarded:0};
+    clientCounts[cn].total++;
+    if((d.createdDate||'').slice(0,7)===thisMonth) clientCounts[cn].month++;
+    if(d.bookedDate) clientCounts[cn].booked++;
+    if(d.forwardedAt&&str(d.forwardedAt).trim()) clientCounts[cn].forwarded++;
+  });
+
+  let h=`<div style="padding:24px;max-width:900px;margin:0 auto">
+    <h2 style="font-size:18px;font-weight:800;margin-bottom:16px">Dashboard</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px">
+      <div style="background:#fff;border-radius:10px;padding:16px;border:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600">Total Leads</div>
+        <div style="font-size:28px;font-weight:800;color:var(--purple)">${allDeals.length}</div>
+      </div>
+      <div style="background:#fff;border-radius:10px;padding:16px;border:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600">New This Month</div>
+        <div style="font-size:28px;font-weight:800;color:#2563eb">${thisMonthDeals.length}</div>
+      </div>
+      <div style="background:#fff;border-radius:10px;padding:16px;border:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600">Meetings Booked</div>
+        <div style="font-size:28px;font-weight:800;color:#818cf8">${meetingsBooked}</div>
+      </div>
+      <div style="background:#fff;border-radius:10px;padding:16px;border:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600">Forwarded</div>
+        <div style="font-size:28px;font-weight:800;color:#059669">${forwarded}</div>
+      </div>
+      <div style="background:#fff;border-radius:10px;padding:16px;border:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600">Pushed to Tracker</div>
+        <div style="font-size:28px;font-weight:800;color:#f59e0b">${pushed}</div>
+      </div>
+      <div style="background:#fff;border-radius:10px;padding:16px;border:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600">Overdue Tasks</div>
+        <div style="font-size:28px;font-weight:800;color:${overdueCount?'#ef4444':'#22c55e'}">${overdueCount}</div>
+      </div>
+    </div>
+    <h3 style="font-size:14px;font-weight:700;margin-bottom:10px">Leads by Client</h3>
+    <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;border:1px solid var(--border)">
+      <thead><tr style="background:#f9fafb">
+        <th style="text-align:left;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)">Client</th>
+        <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)">Total</th>
+        <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)">This Month</th>
+        <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)">Booked</th>
+        <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)">Forwarded</th>
+      </tr></thead>
+      <tbody>${Object.entries(clientCounts).sort((a,b)=>b[1].total-a[1].total).map(([name,c])=>`<tr style="border-top:1px solid #f3f4f6">
+        <td style="padding:8px 12px;font-size:12px;font-weight:600">${esc(name)}</td>
+        <td style="text-align:center;padding:8px 12px;font-size:12px">${c.total}</td>
+        <td style="text-align:center;padding:8px 12px;font-size:12px">${c.month}</td>
+        <td style="text-align:center;padding:8px 12px;font-size:12px">${c.booked}</td>
+        <td style="text-align:center;padding:8px 12px;font-size:12px">${c.forwarded}</td>
+      </tr>`).join('')}</tbody>
+    </table>
+    <h3 style="font-size:14px;font-weight:700;margin:20px 0 10px">Acquisition Pipeline</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px">
+      ${getStagesForPipeline('Acquisition').map(s=>{
+        const count=acqDeals.filter(d=>d.stage===s.id).length;
+        return `<div style="background:#fff;border-radius:8px;padding:10px 12px;border:1px solid var(--border);border-top:3px solid ${s.color}">
+          <div style="font-size:10px;color:var(--text-muted);font-weight:600">${esc(s.label)}</div>
+          <div style="font-size:22px;font-weight:800;color:var(--text)">${count}</div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+  return h;
 }
 const PIPELINES = ALL_PIPELINES; // Keep reference for backward compat
 
@@ -1216,7 +1299,7 @@ let state = {
   deals: [],
   activities: [],
   clients: [],
-  pipeline: (() => { try { const h=location.hash.replace('#',''); return ['acquisition','client_leads','nurture','archive'].includes(h)?h:'acquisition'; } catch(e){ return 'acquisition'; } })(),
+  pipeline: (() => { try { const h=location.hash.replace('#',''); return ['dashboard','acquisition','client_leads','nurture','archive'].includes(h)?h:'dashboard'; } catch(e){ return 'acquisition'; } })(),
   selectedDeal: null,
   showNew: false,
   showAddClient: false,
@@ -1576,6 +1659,61 @@ function addActivity(dealId,act){
   refreshModal();
   pendingWrites++;
   apiPost("create_activity",a).finally(()=>{ pendingWrites--; });
+}
+
+// ═══════════════════════════════════════════════════════════
+// OVERDUE ACTIVITY BANNER
+// ═══════════════════════════════════════════════════════════
+function getLeadAge(deal){
+  const ts=deal.lastUpdated||deal.forwardedAt||deal.createdDate;
+  if(!ts) return null;
+  const d=new Date(ts);
+  if(isNaN(d)) return null;
+  const days=Math.floor((Date.now()-d.getTime())/(1000*60*60*24));
+  return days;
+}
+function leadAgeBadge(deal){
+  const days=getLeadAge(deal);
+  if(days===null) return '';
+  if(days<=1) return '<span style="font-size:9px;color:#059669" title="Updated today/yesterday">●</span>';
+  if(days<=3) return '<span style="font-size:9px;color:#eab308" title="'+days+'d ago">●</span>';
+  return '<span style="font-size:9px;color:#ef4444" title="'+days+'d ago">●</span>';
+}
+
+function getOverdueActivities(){
+  const today=getToday();
+  return state.activities.filter(a=>{
+    if(a.done || String(a.done)==='TRUE') return false;
+    const dd=(a.dueDate||'').slice(0,10);
+    return dd && dd<today;
+  });
+}
+
+function renderOverdueBanner(){
+  if(isClient()) return '';
+  const overdue=getOverdueActivities();
+  if(!overdue.length) return '';
+  // Group by deal
+  const byDeal={};
+  overdue.forEach(a=>{
+    if(!byDeal[a.dealId]) byDeal[a.dealId]=[];
+    byDeal[a.dealId].push(a);
+  });
+  const dealCount=Object.keys(byDeal).length;
+  return `<div id="overdue-banner" style="margin:0 20px;padding:8px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="document.getElementById('overdue-detail').style.display=document.getElementById('overdue-detail').style.display==='none'?'block':'none'">
+    <span style="font-size:12px;font-weight:600;color:#dc2626">⚠️ ${overdue.length} overdue task${overdue.length!==1?'s':''} across ${dealCount} deal${dealCount!==1?'s':''}</span>
+    <span style="font-size:10px;color:#ef4444">Click to ${overdue.length>0?'view':'hide'} ▾</span>
+  </div>
+  <div id="overdue-detail" style="display:none;margin:0 20px;padding:8px 14px;background:#fff5f5;border:1px solid #fecaca;border-top:none;border-radius:0 0 8px 8px;max-height:200px;overflow-y:auto">
+    ${Object.entries(byDeal).map(([dealId,acts])=>{
+      const deal=state.deals.find(d=>d.id===dealId);
+      const name=deal?(deal.company||deal.contact||'Unknown'):'Unknown';
+      return acts.map(a=>`<div style="font-size:11px;padding:3px 0;display:flex;justify-content:space-between;color:#991b1b">
+        <span><strong style="cursor:pointer;text-decoration:underline" onclick="event.stopPropagation();openDeal('${dealId}')">${esc(name)}</strong> — ${esc(a.subject||a.type)}</span>
+        <span style="color:#ef4444;font-size:10px">${a.dueDate?a.dueDate.slice(0,10):''}</span>
+      </div>`).join('');
+    }).join('')}
+  </div>`;
 }
 
 function renderUpcomingMeetings(deal, clientName){
@@ -2319,6 +2457,25 @@ function render(){
     return;
   }
 
+  // ─── Dashboard Tab ───
+  if(state.pipeline==='dashboard'){
+    let html=`
+    <div class="topbar">
+      <div style="display:flex;align-items:center;">
+        <div class="topbar-tabs">
+          ${getVisiblePipelinesWithArchive().map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="state.pipeline='${p.id}';location.hash='${p.id}';render()">${p.label}</button>`).join("")}
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="btn btn-ghost" onclick="syncFromSheet()">↻ Sync</button>
+        ${currentUser?`<button class="btn btn-ghost" onclick="logout()" title="Sign out" style="font-size:11px;padding:5px 10px;color:#9ca3af">${esc(currentUser.name)} ↗</button>`:''}
+      </div>
+    </div>`;
+    html+=renderDashboard();
+    app.innerHTML=html;
+    return;
+  }
+
   // ─── Archive Tab ───
   if(state.pipeline==='archive'){
     if(!state.archiveLoaded) loadArchive();
@@ -2387,6 +2544,7 @@ function render(){
     <button onclick="state.nurtureSubTab='board';render()" style="padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;color:var(--purple);border-bottom:2px solid var(--purple);margin-bottom:-2px">Board</button>
     <button onclick="state.nurtureSubTab='rerun';loadRerunData()" style="padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;color:var(--text-muted);border-bottom:2px solid transparent;margin-bottom:-2px">Re-Run Queue</button>
   </div>`:''}
+  ${renderOverdueBanner()}
   <div class="board">`;
 
   // Search results handled inline in search dropdown
@@ -2449,6 +2607,7 @@ function render(){
             <span class="deal-value" style="color:${deal.value?'#059669':'#d1d5db'}">${fmt$(deal.value)}</span>
             <span style="display:flex;align-items:center;gap:4px">
               ${(()=>{const sa=serviceAreaResults[deal.id];if(!sa||!sa.status)return'';if(sa.status==='in')return'<span class="sa-badge sa-in" title="In service area">&#10003;</span>';if(sa.status==='out')return'<span class="sa-badge sa-out" title="Outside service area">&#10007;</span>';return'<span class="sa-badge sa-unknown" title="Service area unknown">?</span>';})()}
+              ${leadAgeBadge(deal)}
               ${deal.leadCategory?`<span class="deal-tag">${esc(deal.leadCategory)}</span>`:''}
             </span>
           </div>
@@ -2800,6 +2959,31 @@ function renderDealModal(deal){
         📅 Book Discovery Call
       </a>
     </div>`;
+  }
+
+  // Lead Timeline
+  {
+    const events=[];
+    if(deal.createdDate) events.push({date:deal.createdDate,label:'Lead created',icon:'📥'});
+    if(deal.forwardedAt) events.push({date:deal.forwardedAt,label:'Forwarded to client',icon:'📧'});
+    if(deal.bookedDate) events.push({date:deal.bookedDate+'T'+(deal.bookedTime||'00:00'),label:'Meeting scheduled',icon:'📅'});
+    if(deal.pushedToTracker) events.push({date:deal.pushedToTracker,label:'Pushed to Lead Tracker',icon:'📤'});
+    if(deal.lastUpdated && deal.lastUpdated !== deal.createdDate) events.push({date:deal.lastUpdated,label:'Last updated',icon:'✏️'});
+    events.sort((a,b)=>new Date(a.date)-new Date(b.date));
+    if(events.length){
+      h+=`<details style="margin:0 0 12px 0;border:1px solid var(--border);border-radius:8px;background:#fafafa">
+        <summary style="padding:8px 12px;font-size:12px;font-weight:700;color:var(--text);cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px">
+          <span style="font-size:10px">▶</span> 📋 Lead Timeline (${events.length})
+        </summary>
+        <div style="padding:0 12px 10px;border-left:2px solid #d1d5db;margin-left:22px">
+          ${events.map(e=>`<div style="padding:4px 0 4px 10px;font-size:11px;color:#374151;position:relative">
+            <span style="position:absolute;left:-7px;top:6px;width:8px;height:8px;background:#d1d5db;border-radius:50%;border:2px solid #fafafa"></span>
+            <span>${e.icon} ${esc(e.label)}</span>
+            <span style="color:#9ca3af;margin-left:6px">${fmtTimestamp(e.date)}</span>
+          </div>`).join('')}
+        </div>
+      </details>`;
+    }
   }
 
   // Activities section
