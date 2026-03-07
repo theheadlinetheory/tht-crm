@@ -3332,11 +3332,11 @@ function renderSettingsPanel(){
     <button class="modal-close" onclick="closeSettings()">×</button>
   </div>
   <div class="settings-tab-bar">
-    <button class="settings-tab ${settingsTab==='stages'?'active':''}" onclick="settingsTab='stages';renderSettingsPanel()">Pipeline Stages</button>
-    <button class="settings-tab ${settingsTab==='activities'?'active':''}" onclick="settingsTab='activities';renderSettingsPanel()">Activity Types</button>
-    <button class="settings-tab ${settingsTab==='sop'?'active':''}" onclick="settingsTab='sop';renderSettingsPanel()">SOP Sequences</button>
-    <button class="settings-tab ${settingsTab==='clients'?'active':''}" onclick="settingsTab='clients';renderSettingsPanel()">Clients</button>
-    <button class="settings-tab ${settingsTab==='users'?'active':''}" onclick="settingsTab='users';renderSettingsPanel()">Users</button>
+    <button class="settings-tab ${settingsTab==='stages'?'active':''}" onclick="settingsTab='stages';refreshSettingsBody()">Pipeline Stages</button>
+    <button class="settings-tab ${settingsTab==='activities'?'active':''}" onclick="settingsTab='activities';refreshSettingsBody()">Activity Types</button>
+    <button class="settings-tab ${settingsTab==='sop'?'active':''}" onclick="settingsTab='sop';refreshSettingsBody()">SOP Sequences</button>
+    <button class="settings-tab ${settingsTab==='clients'?'active':''}" onclick="settingsTab='clients';refreshSettingsBody()">Clients</button>
+    <button class="settings-tab ${settingsTab==='users'?'active':''}" onclick="settingsTab='users';refreshSettingsBody()">Users</button>
   </div>
   <div class="settings-body">`;
 
@@ -3370,6 +3370,30 @@ function renderSettingsPanel(){
 
   // Setup drag-and-drop for lists
   setupSettingsDrag();
+}
+
+function refreshSettingsBody(){
+  const panel=document.getElementById('settings-panel');
+  if(!panel){ renderSettingsPanel(); return; }
+  // Update tab active states
+  panel.querySelectorAll('.settings-tab').forEach(btn=>{
+    const tab=btn.textContent.trim().toLowerCase();
+    const map={'pipeline stages':'stages','activity types':'activities','sop sequences':'sop','clients':'clients','users':'users'};
+    btn.classList.toggle('active', map[tab]===settingsTab);
+  });
+  // Replace only the body content
+  const body=panel.querySelector('.settings-body');
+  if(!body){ renderSettingsPanel(); return; }
+  let h='';
+  if(settingsTab==='stages') h=renderStagesSettings();
+  else if(settingsTab==='activities') h=renderActivityTypesSettings();
+  else if(settingsTab==='sop') h=renderSopSettings();
+  else if(settingsTab==='clients') h=renderClientsSettings();
+  else if(settingsTab==='users') h=renderUsersSettings();
+  body.innerHTML=h;
+  body.scrollTop=0;
+  setupSettingsDrag();
+  if(settingsTab==='users') loadUsersIntoPanel();
 }
 
 function renderStagesSettings(){
