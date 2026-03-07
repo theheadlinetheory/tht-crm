@@ -2338,10 +2338,15 @@ function renderDealModal(deal){
           <textarea id="deal-notes" rows="2" oninput="updateDealField('notes',this.value)">${esc(deal.notes||'')}</textarea>
         </div>${deal.pipeline==='Client'?`
         <div class="form-group form-span2" style="margin-bottom:16px">
-          <label>📅 Booked For</label>
-          <input type="text" id="deal-bookedFor" placeholder="e.g. Tuesday at 2pm" value="${esc(deal.bookedFor||'')}"
-            oninput="updateDealField('bookedFor',this.value);refreshPushButton()"
-            style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font);background:var(--card);color:var(--text)">
+          <label>📅 Meeting Date & Time</label>
+          <div style="display:flex;gap:8px">
+            <input type="date" id="deal-bookedDate" value="${esc(deal.bookedDate||'')}"
+              onchange="updateDealField('bookedDate',this.value)"
+              style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font);background:var(--card);color:var(--text)">
+            <input type="time" id="deal-bookedTime" value="${esc(deal.bookedTime||'')}"
+              onchange="updateDealField('bookedTime',this.value)"
+              style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font);background:var(--card);color:var(--text)">
+          </div>
         </div>`:''}`;
 
   if(deal.campaignName){
@@ -2396,6 +2401,35 @@ function renderDealModal(deal){
             📅 Book Meeting on ${esc(matchedClient.name)}'s Calendar
           </a>
         </div>`;
+      }
+
+      // Client's Upcoming Meetings — show all future bookings for this client
+      {
+        const clientName=matchedClient.name;
+        const now=new Date();
+        const upcoming=state.deals.filter(d=>{
+          if(!d.bookedDate) return false;
+          const dt=new Date(d.bookedDate+'T'+(d.bookedTime||'23:59'));
+          return dt>now && d.stage===clientName && d.id!==deal.id;
+        }).sort((a,b)=>{
+          const da=new Date(a.bookedDate+'T'+(a.bookedTime||'00:00'));
+          const db=new Date(b.bookedDate+'T'+(b.bookedTime||'00:00'));
+          return da-db;
+        });
+        if(upcoming.length){
+          h+=`<div style="margin:0 0 12px 0;padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px">
+            <div style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:6px">📅 ${esc(clientName)}'s Upcoming Meetings (${upcoming.length})</div>`;
+          for(const m of upcoming){
+            const d=new Date(m.bookedDate+'T'+(m.bookedTime||'00:00'));
+            const dateStr=d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+            const timeStr=m.bookedTime?d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
+            h+=`<div style="font-size:12px;color:#78350f;padding:3px 0;display:flex;justify-content:space-between">
+              <span>${esc(m.company||m.contact||'Unknown')}</span>
+              <span style="font-weight:600">${dateStr}${timeStr?' @ '+timeStr:''}</span>
+            </div>`;
+          }
+          h+=`</div>`;
+        }
       }
 
       // Copy Lead Info button
@@ -2706,7 +2740,7 @@ function doSaveDeal(id){
   const deal=state.selectedDeal;
   if(!deal)return;
   // Grab latest values from form inputs
-  ["company","contact","email","phone","website","location","notes","bookedFor"].forEach(k=>{
+  ["company","contact","email","phone","website","location","notes","bookedFor","bookedDate","bookedTime"].forEach(k=>{
     const el=document.getElementById("deal-"+k);
     if(el) deal[k]=el.value;
   });
