@@ -561,10 +561,15 @@ const ALL_PIPELINES = [
   { id: "acquisition", label: "Acquisition" },
   { id: "client_leads", label: "Client Leads" },
   { id: "nurture", label: "Nurture" },
+  { id: "archive", label: "Archive" },
 ];
 
 // Filter pipelines based on user role
 function getVisiblePipelines(){
+  if(isClient()) return ALL_PIPELINES.filter(p => p.id === 'client_leads');
+  return ALL_PIPELINES.filter(p => p.id !== 'archive');
+}
+function getVisiblePipelinesWithArchive(){
   if(isClient()) return ALL_PIPELINES.filter(p => p.id === 'client_leads');
   return ALL_PIPELINES;
 }
@@ -1208,7 +1213,7 @@ let state = {
   deals: [],
   activities: [],
   clients: [],
-  pipeline: (() => { try { const h=location.hash.replace('#',''); return ['acquisition','client_leads','nurture'].includes(h)?h:'acquisition'; } catch(e){ return 'acquisition'; } })(),
+  pipeline: (() => { try { const h=location.hash.replace('#',''); return ['acquisition','client_leads','nurture','archive'].includes(h)?h:'acquisition'; } catch(e){ return 'acquisition'; } })(),
   selectedDeal: null,
   showNew: false,
   showAddClient: false,
@@ -1230,6 +1235,10 @@ let state = {
   rerunFilterCity: '',
   rerunFilterStatus: '',
   rerunShowMarketModal: false,
+  archiveData: [],
+  archiveLoaded: false,
+  archiveFilterPipeline: '',
+  archiveFilterStatus: '',
 };
 
 // ─── API ───
@@ -1527,14 +1536,19 @@ async function saveDeal(updated){
   finally { pendingWrites--; }
 }
 
-async function deleteDeal(id){
+async function deleteDeal(id, archiveStatus, clientName){
+  const deal=state.deals.find(d=>d.id===id);
+  const status=archiveStatus||'Deleted/Lost';
+  const cName=clientName||(deal?deal.stage:'');
+  const pipeline=deal?deal.pipeline:'';
   deletedDealIds.add(id);
   localStorage.setItem('tht_deletedDeals',JSON.stringify([...deletedDealIds]));
   state.deals=state.deals.filter(d=>d.id!==id);
   state.activities=state.activities.filter(a=>a.dealId!==id);
   state.selectedDeal=null;render();
   pendingWrites++;
-  try { await apiPost("delete_deal",{id}); }
+  try { await apiPost("archive_deal",{id, archiveStatus:status, pipeline, clientName:cName}); }
+  catch(e){ console.error('Archive failed, falling back to delete:',e); await apiPost("delete_deal",{id}); }
   finally { pendingWrites--; }
 }
 
@@ -1911,6 +1925,93 @@ async function pushToLeadTracker(dealId){
 // ═══════════════════════════════════════════════════════════
 // RE-RUN QUEUE
 // ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// ARCHIVE
+// ═══════════════════════════════════════════════════════════
+async function loadArchive(){
+  try{
+    const data=await apiGet('get_archive');
+    if(data && Array.isArray(data)){
+      state.archiveData=data;
+      state.archiveData.forEach(d=>{
+        Object.keys(d).forEach(k=>{ if(d[k]!=null && typeof d[k]!=='string') d[k]=String(d[k]); });
+      });
+    }
+  }catch(e){ console.error('loadArchive error:',e); }
+  state.archiveLoaded=true;
+  render();
+}
+
+function renderArchiveTab(){
+  let filtered=state.archiveData.slice();
+  if(state.archiveFilterPipeline) filtered=filtered.filter(d=>(d.pipeline||'').toLowerCase()===state.archiveFilterPipeline.toLowerCase());
+  if(state.archiveFilterStatus) filtered=filtered.filter(d=>(d.archiveStatus||'')=== state.archiveFilterStatus);
+  // Sort newest first
+  filtered.sort((a,b)=>(b.archivedAt||'').localeCompare(a.archivedAt||''));
+
+  let h=`<div style="padding:16px 20px">
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+      <select onchange="state.archiveFilterPipeline=this.value;render()" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+        <option value="">All Pipelines</option>
+        <option value="Acquisition" ${state.archiveFilterPipeline==='Acquisition'?'selected':''}>Acquisition</option>
+        <option value="Client" ${state.archiveFilterPipeline==='Client'?'selected':''}>Client Leads</option>
+      </select>
+      <select onchange="state.archiveFilterStatus=this.value;render()" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+        <option value="">All Statuses</option>
+        <option value="Deleted/Lost" ${state.archiveFilterStatus==='Deleted/Lost'?'selected':''}>Deleted / Lost</option>
+        <option value="Closed Won" ${state.archiveFilterStatus==='Closed Won'?'selected':''}>Closed Won</option>
+      </select>
+      <span style="font-size:12px;color:var(--text-muted)">${filtered.length} result${filtered.length!==1?'s':''}</span>
+    </div>
+    <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;background:var(--card)">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:#f9fafb;border-bottom:2px solid var(--border)">
+          <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Company</th>
+          <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Contact</th>
+          <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Email</th>
+          <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Pipeline</th>
+          <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Client</th>
+          <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Status</th>
+          <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Archived</th>
+          <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap"></th>
+        </tr></thead><tbody>`;
+  if(!filtered.length){
+    h+=`<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--text-muted)">No archived deals</td></tr>`;
+  }
+  for(const d of filtered){
+    const statusColor=d.archiveStatus==='Closed Won'?'#22c55e':'#ef4444';
+    const statusBg=d.archiveStatus==='Closed Won'?'#f0fdf4':'#fef2f2';
+    const dateStr=d.archivedAt?new Date(d.archivedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}):'';
+    h+=`<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:8px 10px;font-weight:500">${esc(d.company||'')}</td>
+      <td style="padding:8px 10px">${esc(d.contact||'')}</td>
+      <td style="padding:8px 10px;color:var(--text-muted)">${esc(d.email||'')}</td>
+      <td style="padding:8px 10px">${esc(d.pipeline==='Client'?'Client Leads':d.pipeline||'')}</td>
+      <td style="padding:8px 10px">${esc(d.clientName||d.stage||'')}</td>
+      <td style="padding:8px 10px"><span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${statusBg};color:${statusColor}">${esc(d.archiveStatus||'')}</span></td>
+      <td style="padding:8px 10px;color:var(--text-muted);white-space:nowrap">${dateStr}</td>
+      <td style="padding:8px 10px"><button class="btn btn-ghost" style="font-size:11px;padding:3px 10px;background:#f0fdf4;color:#059669;border:1px solid #a7f3d0" onclick="restoreFromArchive('${esc(d.id)}')">↩ Restore</button></td>
+    </tr>`;
+  }
+  h+=`</tbody></table></div></div>`;
+  return h;
+}
+
+async function restoreFromArchive(id){
+  if(!confirm('Restore this deal back to the board?')) return;
+  try{
+    const resp=await apiPost('restore_deal',{id});
+    if(resp.error){ alert('Restore failed: '+resp.error); return; }
+    // Remove from local archive
+    state.archiveData=state.archiveData.filter(d=>d.id!==id);
+    // Refresh deals to pick up the restored one
+    syncFromSheet();
+    render();
+  }catch(e){
+    alert('Restore failed: '+e.message);
+  }
+}
+
 async function loadRerunData(){
   state.rerunLoading=true; render();
   try {
@@ -2196,7 +2297,7 @@ function render(){
     <div class="topbar">
       <div style="display:flex;align-items:center;">
         <div class="topbar-tabs">
-          ${getVisiblePipelines().map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="state.pipeline='${p.id}';location.hash='${p.id}';if('${p.id}'!=='nurture')state.nurtureSubTab='board';render()">${p.label}</button>`).join("")}
+          ${getVisiblePipelinesWithArchive().map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="state.pipeline='${p.id}';location.hash='${p.id}';if('${p.id}'!=='nurture')state.nurtureSubTab='board';render()">${p.label}</button>`).join("")}
         </div>
       </div>
       <div class="topbar-right">
@@ -2215,6 +2316,27 @@ function render(){
     return;
   }
 
+  // ─── Archive Tab ───
+  if(state.pipeline==='archive'){
+    if(!state.archiveLoaded) loadArchive();
+    let html=`
+    <div class="topbar">
+      <div style="display:flex;align-items:center;">
+        <div class="topbar-tabs">
+          ${getVisiblePipelinesWithArchive().map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="state.pipeline='${p.id}';location.hash='${p.id}';render()">${p.label}</button>`).join("")}
+        </div>
+      </div>
+      <div class="topbar-right">
+        <span class="topbar-stat">${state.archiveData.length} archived</span>
+        <button class="btn btn-ghost" onclick="state.archiveLoaded=false;loadArchive()">↻ Refresh</button>
+        ${currentUser?`<button class="btn btn-ghost" onclick="logout()" title="Sign out" style="font-size:11px;padding:5px 10px;color:#9ca3af">${esc(currentUser.name)} ↗</button>`:''}
+      </div>
+    </div>`;
+    html+=renderArchiveTab();
+    app.innerHTML=html;
+    return;
+  }
+
   const stages=getStages();
   const deals=getPipelineDeals();
   const totalValue=deals.reduce((s,d)=>s+(Number(d.value)||0),0);
@@ -2224,7 +2346,7 @@ function render(){
   <div class="topbar">
     <div style="display:flex;align-items:center;">
       <div class="topbar-tabs">
-        ${getVisiblePipelines().map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="state.pipeline='${p.id}';location.hash='${p.id}';if('${p.id}'!=='nurture')state.nurtureSubTab='board';render()">${p.label}</button>`).join("")}
+        ${getVisiblePipelinesWithArchive().map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="state.pipeline='${p.id}';location.hash='${p.id}';if('${p.id}'!=='nurture')state.nurtureSubTab='board';render()">${p.label}</button>`).join("")}
       </div>
     </div>
     <div class="topbar-right">
@@ -2740,7 +2862,7 @@ function renderDealModal(deal){
 
   h+=`</div></div></div>
     <div class="modal-footer">
-      ${isAdmin()?`<button class="btn btn-danger" onclick="if(confirm('Delete this deal?'))deleteDeal('${deal.id}')">Delete</button>`:''}
+      ${isAdmin()?`<button class="btn btn-danger" onclick="if(confirm('Archive this deal?'))deleteDeal('${deal.id}','Deleted/Lost')">Archive</button>`:''}
       ${isClient()?`<button class="btn btn-danger" onclick="if(confirm('Archive this lead?'))archiveDeal('${deal.id}','manual')">Archive</button>`:''}
       <div style="display:flex;gap:8px">
         <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="closeDealModal()">Close</button>
@@ -3044,8 +3166,8 @@ function doLostDrop(){
         archiveDeal(state.dragId, 'lost');
       }
     } else {
-      if(confirm('Mark "'+name+'" as Lost and delete? This cannot be undone.')){
-        deleteDeal(state.dragId);
+      if(confirm('Mark "'+name+'" as Lost? It will be moved to the archive.')){
+        deleteDeal(state.dragId, 'Deleted/Lost');
       }
     }
   }
@@ -3103,7 +3225,7 @@ async function doWonDrop(){
       try{
         await apiPost('push_lead_tracker',{sheetId:LEAD_TRACKER_SHEET_ID,sheetName:'Lead Tracker',row});
         alert('\u2705 Pushed "'+leadName+'" to Lead Tracker at '+leadCost);
-        deleteDeal(state.dragId);
+        deleteDeal(state.dragId, 'Closed Won', clientName);
       }catch(e){
         alert('\u274c Failed to push to Lead Tracker: '+e.message);
       }
