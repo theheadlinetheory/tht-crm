@@ -549,8 +549,6 @@ const ACQUISITION_STAGES = [
   { id: "Demo Scheduled", label: "Demo Scheduled", color: "#0891b2" },
   { id: "No Show", label: "No Show", color: "#ef4444" },
   { id: "Waiting for Payment/Contract", label: "Waiting for Payment/Contract", color: "#d97706" },
-  { id: "Closed Won", label: "Closed Won", color: "#10b981" },
-  { id: "Closed Lost", label: "Closed Lost", color: "#64748b" },
 ];
 
 const NURTURE_STAGES = [
@@ -563,7 +561,6 @@ const ALL_PIPELINES = [
   { id: "acquisition", label: "Acquisition" },
   { id: "client_leads", label: "Client Leads" },
   { id: "nurture", label: "Nurture" },
-  { id: "archive", label: "Archive" },
 ];
 
 // Filter pipelines based on user role
@@ -574,7 +571,7 @@ function getVisiblePipelines(){
 }
 function getVisiblePipelinesWithArchive(){
   if(isClient()) return ALL_PIPELINES.filter(p => p.id === 'client_leads');
-  if(isEmployee()) return ALL_PIPELINES.filter(p => p.id === 'client_leads' || p.id === 'archive');
+  if(isEmployee()) return ALL_PIPELINES.filter(p => p.id === 'client_leads' || p.id === 'nurture');
   return ALL_PIPELINES;
 }
 function renderDashboard(){
@@ -1399,7 +1396,7 @@ let state = {
   deals: [],
   activities: [],
   clients: [],
-  pipeline: (() => { try { const h=location.hash.replace('#',''); return ['dashboard','acquisition','client_leads','nurture','archive'].includes(h)?h:'dashboard'; } catch(e){ return 'acquisition'; } })(),
+  pipeline: (() => { try { const h=location.hash.replace('#',''); if(h==='archive'){location.hash='nurture';return 'nurture';} return ['dashboard','acquisition','client_leads','nurture'].includes(h)?h:'dashboard'; } catch(e){ return 'acquisition'; } })(),
   selectedDeal: null,
   showNew: false,
   showAddClient: false,
@@ -1413,7 +1410,7 @@ let state = {
   searchResults: null,
   savedSettings: null,
   // Re-Run Queue state
-  nurtureSubTab: 'board',
+  nurtureSubTab: 'rerun',
   dashboardTab: 'client_leads',
   rerunQueue: [],
   rerunMarketSettings: [],
@@ -2546,27 +2543,36 @@ function render(){
     return;
   }
 
-  // ─── Nurture Tab with Re-Run Queue Sub-Tab ───
-  if(state.pipeline==='nurture' && state.nurtureSubTab==='rerun'){
+  // ─── Nurture Tab (Re-Run Queue + Archive sub-tabs) ───
+  if(state.pipeline==='nurture'){
+    const subTab=state.nurtureSubTab||'rerun';
+    const tabBtn=(id,label,onclick)=>{
+      const active=subTab===id;
+      return `<button onclick="${onclick}" style="padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;color:${active?'var(--purple)':'var(--text-muted)'};border-bottom:2px solid ${active?'var(--purple)':'transparent'};margin-bottom:-2px">${label}</button>`;
+    };
+    if(subTab==='archive' && !state.archiveLoaded) loadArchive();
     let html=`
     <div class="topbar">
       <div style="display:flex;align-items:center;">
         <div class="topbar-tabs">
-          ${getVisiblePipelinesWithArchive().map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="state.pipeline='${p.id}';location.hash='${p.id}';if('${p.id}'!=='nurture')state.nurtureSubTab='board';render()">${p.label}</button>`).join("")}
+          ${getVisiblePipelinesWithArchive().map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="state.pipeline='${p.id}';location.hash='${p.id}';render()">${p.label}</button>`).join("")}
         </div>
       </div>
       <div class="topbar-right">
-        <span class="topbar-stat">${state.rerunQueue.length} total leads</span>
+        ${subTab==='rerun'?`<span class="topbar-stat">${state.rerunQueue.length} queued leads</span>
         <button class="btn btn-ghost" onclick="loadRerunData()">↻ Sync</button>
-        <button class="btn btn-ghost" onclick="state.rerunShowMarketModal=true;render()">⚙ Markets</button>
+        <button class="btn btn-ghost" onclick="state.rerunShowMarketModal=true;render()">⚙ Markets</button>`:''}
+        ${subTab==='archive'?`<span class="topbar-stat">${state.archiveData.length} archived</span>
+        <button class="btn btn-ghost" onclick="state.archiveLoaded=false;loadArchive()">↻ Refresh</button>`:''}
         ${currentUser?`<button class="btn btn-ghost" onclick="logout()" title="Sign out" style="font-size:11px;padding:5px 10px;color:#9ca3af">${esc(currentUser.name)} ↗</button>`:''}
       </div>
     </div>
     <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin:0 20px;">
-      <button onclick="state.nurtureSubTab='board';render()" style="padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;color:var(--text-muted);border-bottom:2px solid transparent;margin-bottom:-2px">Board</button>
-      <button onclick="state.nurtureSubTab='rerun';render()" style="padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;color:var(--purple);border-bottom:2px solid var(--purple);margin-bottom:-2px">Re-Run Queue</button>
+      ${tabBtn('rerun','Re-Run Queue',"state.nurtureSubTab=\\'rerun\\';loadRerunData()")}
+      ${tabBtn('archive','Archive',"state.nurtureSubTab=\\'archive\\';if(!state.archiveLoaded)loadArchive();render()")}
     </div>`;
-    html+=renderRerunTab();
+    if(subTab==='rerun') html+=renderRerunTab();
+    else html+=renderArchiveTab();
     app.innerHTML=html;
     return;
   }
@@ -2590,26 +2596,6 @@ function render(){
     return;
   }
 
-  // ─── Archive Tab ───
-  if(state.pipeline==='archive'){
-    if(!state.archiveLoaded) loadArchive();
-    let html=`
-    <div class="topbar">
-      <div style="display:flex;align-items:center;">
-        <div class="topbar-tabs">
-          ${getVisiblePipelinesWithArchive().map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="state.pipeline='${p.id}';location.hash='${p.id}';render()">${p.label}</button>`).join("")}
-        </div>
-      </div>
-      <div class="topbar-right">
-        <span class="topbar-stat">${state.archiveData.length} archived</span>
-        <button class="btn btn-ghost" onclick="state.archiveLoaded=false;loadArchive()">↻ Refresh</button>
-        ${currentUser?`<button class="btn btn-ghost" onclick="logout()" title="Sign out" style="font-size:11px;padding:5px 10px;color:#9ca3af">${esc(currentUser.name)} ↗</button>`:''}
-      </div>
-    </div>`;
-    html+=renderArchiveTab();
-    app.innerHTML=html;
-    return;
-  }
 
   const stages=getStages();
   const deals=getPipelineDeals();
@@ -2620,7 +2606,7 @@ function render(){
   <div class="topbar">
     <div style="display:flex;align-items:center;">
       <div class="topbar-tabs">
-        ${getVisiblePipelinesWithArchive().map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="state.pipeline='${p.id}';location.hash='${p.id}';if('${p.id}'!=='nurture')state.nurtureSubTab='board';render()">${p.label}</button>`).join("")}
+        ${getVisiblePipelinesWithArchive().map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="state.pipeline='${p.id}';location.hash='${p.id}';if('${p.id}'!=='nurture')state.nurtureSubTab='rerun';render()">${p.label}</button>`).join("")}
       </div>
     </div>
     <div class="topbar-right">
@@ -2654,10 +2640,6 @@ function render(){
       ${currentUser?`<button class="btn btn-ghost" onclick="logout()" title="Sign out (${esc(currentUser.name)})" style="font-size:11px;padding:5px 10px;color:#9ca3af">${esc(currentUser.name)} ↗</button>`:''}
     </div>
   </div>
-  ${state.pipeline==='nurture'?`<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin:0 20px;">
-    <button onclick="state.nurtureSubTab='board';render()" style="padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;color:var(--purple);border-bottom:2px solid var(--purple);margin-bottom:-2px">Board</button>
-    <button onclick="state.nurtureSubTab='rerun';loadRerunData()" style="padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;color:var(--text-muted);border-bottom:2px solid transparent;margin-bottom:-2px">Re-Run Queue</button>
-  </div>`:''}
   ${renderOverdueBanner()}
   <div class="board">`;
 
