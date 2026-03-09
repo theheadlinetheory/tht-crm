@@ -2264,6 +2264,13 @@ async function restoreFromArchive(id){
   }
 }
 
+function switchNurtureTab(tab){
+  state.nurtureSubTab=tab;
+  if(tab==='rerun') loadRerunData();
+  else if(tab==='archive'){ if(!state.archiveLoaded) loadArchive(); else render(); }
+  else render();
+}
+
 async function loadRerunData(){
   state.rerunLoading=true; render();
   try {
@@ -2546,11 +2553,11 @@ function render(){
   // ─── Nurture Tab (Re-Run Queue + Archive sub-tabs) ───
   if(state.pipeline==='nurture'){
     const subTab=state.nurtureSubTab||'rerun';
-    const tabBtn=(id,label,onclick)=>{
-      const active=subTab===id;
-      return `<button onclick="${onclick}" style="padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;color:${active?'var(--purple)':'var(--text-muted)'};border-bottom:2px solid ${active?'var(--purple)':'transparent'};margin-bottom:-2px">${label}</button>`;
-    };
+    if(subTab==='rerun' && !state.rerunQueue.length && !state.rerunLoading) loadRerunData();
     if(subTab==='archive' && !state.archiveLoaded) loadArchive();
+    const rerunActive=subTab==='rerun';
+    const archiveActive=subTab==='archive';
+    const tabStyle=(active)=>`padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;color:${active?'var(--purple)':'var(--text-muted)'};border-bottom:2px solid ${active?'var(--purple)':'transparent'};margin-bottom:-2px`;
     let html=`
     <div class="topbar">
       <div style="display:flex;align-items:center;">
@@ -2559,19 +2566,19 @@ function render(){
         </div>
       </div>
       <div class="topbar-right">
-        ${subTab==='rerun'?`<span class="topbar-stat">${state.rerunQueue.length} queued leads</span>
+        ${rerunActive?`<span class="topbar-stat">${state.rerunQueue.length} queued leads</span>
         <button class="btn btn-ghost" onclick="loadRerunData()">↻ Sync</button>
         <button class="btn btn-ghost" onclick="state.rerunShowMarketModal=true;render()">⚙ Markets</button>`:''}
-        ${subTab==='archive'?`<span class="topbar-stat">${state.archiveData.length} archived</span>
+        ${archiveActive?`<span class="topbar-stat">${state.archiveData.length} archived</span>
         <button class="btn btn-ghost" onclick="state.archiveLoaded=false;loadArchive()">↻ Refresh</button>`:''}
         ${currentUser?`<button class="btn btn-ghost" onclick="logout()" title="Sign out" style="font-size:11px;padding:5px 10px;color:#9ca3af">${esc(currentUser.name)} ↗</button>`:''}
       </div>
     </div>
     <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin:0 20px;">
-      ${tabBtn('rerun','Re-Run Queue',"state.nurtureSubTab=\\'rerun\\';loadRerunData()")}
-      ${tabBtn('archive','Archive',"state.nurtureSubTab=\\'archive\\';if(!state.archiveLoaded)loadArchive();render()")}
+      <button onclick="switchNurtureTab('rerun')" style="${tabStyle(rerunActive)}">Re-Run Queue</button>
+      <button onclick="switchNurtureTab('archive')" style="${tabStyle(archiveActive)}">Archive</button>
     </div>`;
-    if(subTab==='rerun') html+=renderRerunTab();
+    if(rerunActive) html+=renderRerunTab();
     else html+=renderArchiveTab();
     app.innerHTML=html;
     return;
