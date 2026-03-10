@@ -1505,6 +1505,8 @@ async function syncFromSheet(){
         if(d.pipeline==='Client Leads') d.pipeline='Client';
         // Clean "0" values that should be empty
         if(d.value==='0') d.value='';
+        // Clean invalid bookedDate values (Sheets may return "0" or timestamps)
+        if(d.bookedDate && !/^\d{4}-\d{2}-\d{2}$/.test(d.bookedDate)) d.bookedDate='';
       });
     }
     if(data.activities && Array.isArray(data.activities)) {
@@ -1961,6 +1963,8 @@ function renderOverdueBanner(){
   </div>`;
 }
 
+function isValidDate(s){ return s && /^\d{4}-\d{2}-\d{2}$/.test(s); }
+
 function renderBookedMeetingsBanner(){
   if(isClient()) return '';
   const now=new Date();
@@ -1968,7 +1972,7 @@ function renderBookedMeetingsBanner(){
   const pipMap={'acquisition':'Acquisition','client_leads':'Client','nurture':'Nurture'};
   const activePip=pipMap[state.pipeline]||null;
   const booked=state.deals.filter(d=>{
-    if(!d.bookedDate) return false;
+    if(!isValidDate(d.bookedDate)) return false;
     if(activePip && d.pipeline!==activePip) return false;
     return d.bookedDate>=todayStr;
   }).sort((a,b)=>{
@@ -2004,7 +2008,7 @@ function renderUpcomingMeetings(deal, clientName){
   // Show ALL scheduled meetings for this client (past week + future) to prevent conflicts
   const oneWeekAgo=new Date(now.getTime()-7*24*60*60*1000);
   const allScheduled=state.deals.filter(d=>{
-    if(!d.bookedDate) return false;
+    if(!isValidDate(d.bookedDate)) return false;
     if(d.id===deal.id) return false;
     const dt=new Date(d.bookedDate+'T'+(d.bookedTime||'23:59'));
     return dt>oneWeekAgo && d.stage===clientName;
@@ -2131,7 +2135,7 @@ function copyLeadInfo(dealId){
   const biz=deal.company||deal.contact||'';
   // Build the time portion from bookedDate/bookedTime fields
   let timeStr='{day} at {time}';
-  if(deal.bookedDate){
+  if(deal.bookedDate && deal.bookedDate.match(/^\d{4}-\d{2}-\d{2}$/)){
     const dt=new Date(deal.bookedDate+'T'+(deal.bookedTime||'12:00'));
     const dayPart=dt.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
     const timePart=deal.bookedTime?dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
@@ -2965,7 +2969,7 @@ function render(){
           ${deal.contact&&deal.contact!==deal.company?`<div class="deal-contact">${esc(deal.contact)}</div>`:''}
           ${deal.email?`<div class="deal-detail">${esc(deal.email)}</div>`:''}
           ${deal.phone?`<div class="deal-detail">${esc(deal.phone)}</div>`:''}
-          ${deal.bookedDate?`<div class="deal-detail" style="color:#2563eb;font-weight:600">📅 ${new Date(deal.bookedDate+'T'+(deal.bookedTime||'00:00')).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}${deal.bookedTime?' @ '+fmtTime12(deal.bookedTime):''}</div>`:''}
+          ${deal.bookedDate&&deal.bookedDate.match(/^\d{4}-\d{2}-\d{2}$/)?`<div class="deal-detail" style="color:#2563eb;font-weight:600">📅 ${new Date(deal.bookedDate+'T'+(deal.bookedTime||'00:00')).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}${deal.bookedTime?' @ '+fmtTime12(deal.bookedTime):''}</div>`:''}
           <div class="deal-bottom">
             <span class="deal-value" style="color:${deal.value?'#059669':'#d1d5db'}">${fmt$(deal.value)}</span>
             <span style="display:flex;align-items:center;gap:4px">
