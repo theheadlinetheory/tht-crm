@@ -1995,10 +1995,10 @@ function renderBookedMeetingsBanner(){
       const isToday=d.bookedDate===todayStr;
       const dateStr=isToday?'Today':dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
       const timeStr=d.bookedTime?dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
-      return \`<div style="font-size:12px;padding:4px 0;display:flex;justify-content:space-between;align-items:center;\${isToday?'font-weight:600;color:#1e40af':'color:#374151'}">
-        <span style="cursor:pointer;text-decoration:underline" onclick="event.stopPropagation();openDeal('\${d.id}')">\${esc(d.company||d.contact||d.email||'Unknown')}</span>
-        <span style="font-weight:600;color:\${isToday?'#1d4ed8':'#6b7280'};white-space:nowrap;margin-left:12px">\${dateStr}\${timeStr?' @ '+timeStr:''}\${d.stage?' · '+esc(d.stage):''}</span>
-      </div>\`;
+      return `<div style="font-size:12px;padding:4px 0;display:flex;justify-content:space-between;align-items:center;${isToday?'font-weight:600;color:#1e40af':'color:#374151'}">
+        <span style="cursor:pointer;text-decoration:underline" onclick="event.stopPropagation();openDeal('${d.id}')">${esc(d.company||d.contact||d.email||'Unknown')}</span>
+        <span style="font-weight:600;color:${isToday?'#1d4ed8':'#6b7280'};white-space:nowrap;margin-left:12px">${dateStr}${timeStr?' @ '+timeStr:''}${d.stage?' · '+esc(d.stage):''}</span>
+      </div>`;
     }).join('')}
   </div>`;
 }
