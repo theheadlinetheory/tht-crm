@@ -811,12 +811,24 @@ function saveGeocodeCache(){
 }
 
 // Find the polygon key for a client name (fuzzy match)
+// Alias map for abbreviated polygon keys → full client names
+const POLYGON_ALIASES = {
+  'umbrellaps': 'umbrellapropertyservice',
+  'umbrella': 'umbrellapropertyservice'
+};
 function findPolygonForClient(clientName){
   if(!clientName) return null;
   const cn = clientName.toLowerCase().replace(/[^a-z0-9]/g,'');
   for(const [key, poly] of Object.entries(SERVICE_AREA_POLYGONS)){
     const kn = key.toLowerCase().replace(/[^a-z0-9]/g,'');
     if(cn.includes(kn) || kn.includes(cn)) return { key, polygon: poly };
+    // Check aliases: if the polygon key has an alias, check if it matches the client name
+    const alias = POLYGON_ALIASES[kn];
+    if(alias && (cn.includes(alias) || alias.includes(cn) || cn === alias)) return { key, polygon: poly };
+    // Also try matching just the first word of each
+    const cnFirst = cn.replace(/[^a-z]/g,'').slice(0,8);
+    const knFirst = kn.replace(/[^a-z]/g,'').slice(0,8);
+    if(cnFirst.length >= 5 && cnFirst === knFirst) return { key, polygon: poly };
   }
   return null;
 }
@@ -4159,6 +4171,9 @@ async function saveSettingsToSheet(){
   render();
   const btn=document.querySelector('.settings-footer .btn-primary');
   if(btn){ btn.textContent='Saving...'; btn.disabled=true; }
+  // Remove any previous save banner
+  const oldBanner=document.getElementById('settings-save-banner');
+  if(oldBanner) oldBanner.remove();
   try {
     // Build client batch data
     const clientUpdates = state.clients.filter(c=>c.id).map(c=>({
@@ -4180,8 +4195,16 @@ async function saveSettingsToSheet(){
       apiPost('save_settings',{settings:settingsDraft}),
       apiPost('batch_update_clients',{clients:clientUpdates})
     ]);
-    if(btn){ btn.textContent='✓ Saved!'; }
-    setTimeout(closeSettings, 800);
+    if(btn){ btn.textContent='Save Settings'; btn.disabled=false; }
+    // Show prominent save confirmation banner — stays visible, does NOT close panel
+    const banner=document.createElement('div');
+    banner.id='settings-save-banner';
+    banner.style.cssText='padding:12px 16px;background:#dcfce7;border:2px solid #22c55e;border-radius:8px;margin:0 20px 12px;display:flex;align-items:center;gap:8px;animation:fadeIn .3s';
+    banner.innerHTML='<span style="font-size:18px">&#9989;</span><div><div style="font-size:13px;font-weight:700;color:#166534">Settings Saved Successfully</div><div style="font-size:11px;color:#15803d">All changes have been saved and will persist. You can safely close this panel.</div></div>';
+    const settingsBody=document.querySelector('.settings-body');
+    if(settingsBody) settingsBody.insertBefore(banner, settingsBody.firstChild);
+    // Auto-dismiss banner after 6 seconds
+    setTimeout(()=>{ const b=document.getElementById('settings-save-banner'); if(b) b.style.opacity='0'; setTimeout(()=>{ const b2=document.getElementById('settings-save-banner'); if(b2) b2.remove(); },300); },6000);
   } catch(e){
     if(btn){ btn.textContent='Error — Retry'; btn.disabled=false; }
   }
