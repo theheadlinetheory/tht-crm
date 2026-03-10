@@ -1450,6 +1450,8 @@ let state = {
   // Bulk select
   bulkMode: false,
   bulkSelected: new Set(),
+  // View mode
+  viewMode: 'board',
 };
 
 // ─── API ───
@@ -2352,6 +2354,7 @@ function renderArchiveTab(){
         <option value="">All Statuses</option>
         <option value="Deleted/Lost" ${state.archiveFilterStatus==='Deleted/Lost'?'selected':''}>Deleted / Lost</option>
         <option value="Closed Won" ${state.archiveFilterStatus==='Closed Won'?'selected':''}>Closed Won</option>
+        <option value="Passed Off" ${state.archiveFilterStatus==='Passed Off'?'selected':''}>Passed Off</option>
       </select>
       <span style="font-size:12px;color:var(--text-muted)">${filtered.length} result${filtered.length!==1?'s':''}</span>
       ${state.bulkMode && state.bulkSelected.size>0?`<button class="btn btn-primary" style="font-size:11px;padding:4px 12px" onclick="bulkRestoreFromArchive()">↩ Restore ${state.bulkSelected.size} Selected</button>`:''}
@@ -2373,8 +2376,8 @@ function renderArchiveTab(){
     h+=`<tr><td colspan="${state.bulkMode?9:8}" style="padding:20px;text-align:center;color:var(--text-muted)">No archived deals</td></tr>`;
   }
   for(const d of filtered){
-    const statusColor=d.archiveStatus==='Closed Won'?'#22c55e':'#ef4444';
-    const statusBg=d.archiveStatus==='Closed Won'?'#f0fdf4':'#fef2f2';
+    const stColor=d.archiveStatus==='Closed Won'?'#22c55e':d.archiveStatus==='Passed Off'?'#f59e0b':'#ef4444';
+    const stBg=d.archiveStatus==='Closed Won'?'#f0fdf4':d.archiveStatus==='Passed Off'?'#fffbeb':'#fef2f2';
     const dateStr=d.archivedAt?new Date(d.archivedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}):'';
     const isChk=state.bulkMode&&state.bulkSelected.has(d.id);
     h+=`<tr style="border-bottom:1px solid var(--border);${isChk?'background:#ecfdf5':''}">
@@ -2384,7 +2387,11 @@ function renderArchiveTab(){
       <td style="padding:8px 10px;color:var(--text-muted)">${esc(d.email||'')}</td>
       <td style="padding:8px 10px">${esc(d.pipeline==='Client'?'Client Leads':d.pipeline||'')}</td>
       <td style="padding:8px 10px">${esc(d.clientName||d.stage||'')}</td>
-      <td style="padding:8px 10px"><span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${statusBg};color:${statusColor}">${esc(d.archiveStatus||'')}</span></td>
+      <td style="padding:8px 10px">${isAdmin()?`<select onchange="updateArchiveStatus('${esc(d.id)}',this.value)" style="padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;background:${stBg};color:${stColor};border:1px solid ${stColor}33;font-family:var(--font);cursor:pointer">
+        <option value="Deleted/Lost" ${d.archiveStatus==='Deleted/Lost'?'selected':''}>Deleted/Lost</option>
+        <option value="Closed Won" ${d.archiveStatus==='Closed Won'?'selected':''}>Closed Won</option>
+        <option value="Passed Off" ${d.archiveStatus==='Passed Off'?'selected':''}>Passed Off</option>
+      </select>`:`<span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${stBg};color:${stColor}">${esc(d.archiveStatus||'')}</span>`}</td>
       <td style="padding:8px 10px;color:var(--text-muted);white-space:nowrap">${dateStr}</td>
       <td style="padding:8px 10px">${isAdmin()?`<button class="btn btn-ghost" style="font-size:11px;padding:3px 10px;background:#f0fdf4;color:#059669;border:1px solid #a7f3d0" onclick="restoreFromArchive('${esc(d.id)}')">↩ Restore</button>`:''}</td>
     </tr>`;
@@ -2397,6 +2404,14 @@ function archiveToggleAll(ids){
   if(allIn){ ids.forEach(id=>state.bulkSelected.delete(id)); }
   else { ids.forEach(id=>state.bulkSelected.add(id)); }
   render();
+}
+
+async function updateArchiveStatus(id,newStatus){
+  const d=state.archiveData.find(x=>x.id===id);
+  if(d) d.archiveStatus=newStatus;
+  render();
+  pendingWrites++;
+  apiPost('update_archive_status',{id,archiveStatus:newStatus}).finally(()=>{pendingWrites--;});
 }
 
 async function restoreFromArchive(id){
@@ -2412,6 +2427,48 @@ async function restoreFromArchive(id){
   }catch(e){
     alert('Restore failed: '+e.message);
   }
+}
+
+function toggleViewMode(){
+  state.viewMode=state.viewMode==='board'?'list':'board';
+  render();
+}
+
+function renderListView(deals,stages){
+  let h=`<div style="padding:16px 20px">
+    <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;background:var(--card)">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:#f9fafb;border-bottom:2px solid var(--border)">
+          <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Company</th>
+          <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Contact</th>
+          <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Email</th>
+          <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Phone</th>
+          <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Stage</th>
+          <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Location</th>
+          <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Activities</th>
+          <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Created</th>
+        </tr></thead><tbody>`;
+  if(!deals.length){
+    h+=`<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--text-muted)">No deals</td></tr>`;
+  }
+  for(const d of deals){
+    const badge=getActivityBadge(d.id);
+    const stg=stages.find(s=>s.id===(isClient()?d.clientStage:d.stage));
+    const stgColor=stg?stg.color:'#6b7280';
+    const created=d.createdDate?new Date(d.createdDate).toLocaleDateString('en-US',{month:'short',day:'numeric'}):'';
+    h+=`<tr style="border-bottom:1px solid var(--border);cursor:pointer" onclick="openDeal('${esc(d.id)}')">
+      <td style="padding:8px 10px;font-weight:500">${esc(d.company||d.email||'')}</td>
+      <td style="padding:8px 10px">${esc(d.contact||'')}</td>
+      <td style="padding:8px 10px;color:var(--text-muted)">${esc(d.email||'')}</td>
+      <td style="padding:8px 10px">${esc(d.phone||'')}</td>
+      <td style="padding:8px 10px"><span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${stgColor}18;color:${stgColor}">${esc(isClient()?(d.clientStage||''):d.stage||'')}</span></td>
+      <td style="padding:8px 10px;color:var(--text-muted)">${esc(d.location||'')}</td>
+      <td style="padding:8px 10px">${badge?`<span style="display:inline-flex;align-items:center;gap:3px"><span style="width:7px;height:7px;border-radius:50%;background:${badge.color};display:inline-block"></span><span style="color:${badge.color};font-weight:600;font-size:11px">${badge.count} ${badge.label}</span></span>`:''}</td>
+      <td style="padding:8px 10px;color:var(--text-muted);white-space:nowrap">${created}</td>
+    </tr>`;
+  }
+  h+=`</tbody></table></div></div>`;
+  return h;
 }
 
 function switchNurtureTab(tab){
@@ -2793,6 +2850,7 @@ function render(){
       </div>`:''/* end search wrapper */}
       <span class="topbar-stat">${state.loadFailed?'⚠️ Offline (test data)':state.synced?'✓ Connected':'Connecting...'}${state.synced?' · ':' '}${totalDeals} deal${totalDeals!==1?'s':''}${isAdmin()?' · '+fmt$(totalValue):''}${state.syncing?' ↻':''}</span>
       ${isAdmin()||isEmployee()?`<button class="btn btn-ghost" onclick="syncFromSheet()">↻ Sync</button>`:''}
+      ${isAdmin()||isEmployee()?`<button class="btn btn-ghost" onclick="toggleViewMode()" title="Toggle board/list view">${state.viewMode==='board'?'☰ List':'▦ Board'}</button>`:''}
       ${isAdmin()||isEmployee()?`<button class="btn ${state.bulkMode?'btn-primary':'btn-ghost'}" onclick="toggleBulkMode()" title="Bulk select">${state.bulkMode?'✓ Bulk Mode':'☐ Bulk'}</button>`:''}
       ${isAdmin()&&state.pipeline==='client_leads'?'<button class="btn btn-ghost" onclick="openAddClient()">+ Client</button>':''}
       <button class="btn btn-primary" onclick="openNewDeal()">+ ${isClient()?'Lead':'Deal'}</button>
@@ -2807,10 +2865,14 @@ function render(){
     <button onclick="switchNurtureTab('rerun')" style="padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;color:var(--text-muted);border-bottom:2px solid transparent;margin-bottom:-2px">Re-Run Queue</button>
     <button onclick="switchNurtureTab('archive')" style="padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;color:var(--text-muted);border-bottom:2px solid transparent;margin-bottom:-2px">Archive</button>
   </div>`:''}
-  ${renderOverdueBanner()}
-  <div class="board">`;
+  ${renderOverdueBanner()}`;
 
-  // Search results handled inline in search dropdown
+  // ─── List View ───
+  if(state.viewMode==='list'){
+    html+=renderListView(deals,stages);
+  } else {
+  // ─── Board View ───
+  html+=`<div class="board">`;
 
   for(const stage of stages){
     // For client portal, filter by clientStage instead of stage
@@ -2896,6 +2958,7 @@ function render(){
       ondragleave="this.classList.remove('drag-hover')"
       ondrop="doWonDrop()">✅ ${isClient()?'Won / Closed':'Won → Push to Tracker'}</div>
   </div>`;
+  } // end board view
 
   // Bulk action bar
   if(state.bulkMode && state.bulkSelected.size>0){
