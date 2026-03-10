@@ -2387,7 +2387,7 @@ function renderArchiveTab(){
       <td style="padding:8px 10px;color:var(--text-muted)">${esc(d.email||'')}</td>
       <td style="padding:8px 10px">${esc(d.pipeline==='Client'?'Client Leads':d.pipeline||'')}</td>
       <td style="padding:8px 10px">${esc(d.clientName||d.stage||'')}</td>
-      <td style="padding:8px 10px">${isAdmin()?`<select onchange="updateArchiveStatus('${esc(d.id)}',this.value)" style="padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;background:${stBg};color:${stColor};border:1px solid ${stColor}33;font-family:var(--font);cursor:pointer">
+      <td style="padding:8px 10px">${isAdmin()||isEmployee()?`<select onchange="updateArchiveStatus('${esc(d.id)}',this.value)" style="padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;background:${stBg};color:${stColor};border:1px solid ${stColor}33;font-family:var(--font);cursor:pointer">
         <option value="Deleted/Lost" ${d.archiveStatus==='Deleted/Lost'?'selected':''}>Deleted/Lost</option>
         <option value="Closed Won" ${d.archiveStatus==='Closed Won'?'selected':''}>Closed Won</option>
         <option value="Passed Off" ${d.archiveStatus==='Passed Off'?'selected':''}>Passed Off</option>
