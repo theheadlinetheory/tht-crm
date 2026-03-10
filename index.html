@@ -170,6 +170,18 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .completed-item .act-subject { text-decoration: line-through; color: var(--text-muted); }
 .no-activities { font-size: 11.5px; color: #d1d5db; text-align: center; padding: 12px; }
 
+/* Bulk select */
+.deal-card.bulk-selected { border:2px solid var(--purple); background:#ecfdf5; box-shadow:0 0 0 1px var(--purple); }
+.bulk-check { position:absolute;top:6px;left:6px;width:18px;height:18px;border-radius:4px;border:2px solid #d1d5db;background:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;z-index:2;pointer-events:none; }
+.bulk-selected .bulk-check { background:var(--purple);border-color:var(--purple);color:#fff; }
+.bulk-bar { position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--nav);color:#fff;padding:10px 20px;border-radius:12px;display:flex;align-items:center;gap:12px;z-index:9998;box-shadow:0 8px 32px rgba(0,0,0,.3);font-size:13px;font-weight:600; }
+.bulk-bar button { padding:6px 14px;border-radius:6px;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font); }
+.bulk-bar .bulk-action { background:#059669;color:#fff; }
+.bulk-bar .bulk-action:hover { background:#047857; }
+.bulk-bar .bulk-danger { background:#ef4444;color:#fff; }
+.bulk-bar .bulk-danger:hover { background:#dc2626; }
+.bulk-bar .bulk-cancel { background:#374151;color:#d1d5db; }
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -1435,6 +1447,9 @@ let state = {
   archiveLoaded: false,
   archiveFilterPipeline: '',
   archiveFilterStatus: '',
+  // Bulk select
+  bulkMode: false,
+  bulkSelected: new Set(),
 };
 
 // ─── API ───
@@ -1761,6 +1776,101 @@ async function moveDeal(dealId,newStage){
   if(d && (newStage==='Service Area Taken' || newStage==='Revisit')){
     addToRerunQueue(dealId).catch(e=>console.warn('Re-run queue auto-add failed:',e));
   }
+}
+
+// ═══════════════════════════════════════════════════════════
+// BULK SELECT & ACTIONS
+// ═══════════════════════════════════════════════════════════
+function toggleBulkMode(){
+  state.bulkMode=!state.bulkMode;
+  state.bulkSelected=new Set();
+  render();
+}
+function toggleBulkSelect(id){
+  if(state.bulkSelected.has(id)) state.bulkSelected.delete(id);
+  else state.bulkSelected.add(id);
+  render();
+}
+function bulkSelectAll(){
+  // Select all visible deals in current pipeline
+  const pipMap={'acquisition':'Acquisition','client_leads':'Client','nurture':'Nurture'};
+  const pip=pipMap[state.pipeline]||null;
+  const visible=pip?state.deals.filter(d=>d.pipeline===pip):state.deals;
+  if(state.bulkSelected.size===visible.length){ state.bulkSelected=new Set(); }
+  else { state.bulkSelected=new Set(visible.map(d=>d.id)); }
+  render();
+}
+async function bulkMoveStage(){
+  const sel=document.getElementById('bulk-move-stage');
+  const stage=sel?sel.value:'';
+  if(!stage){ alert('Select a stage to move to.'); return; }
+  const ids=[...state.bulkSelected];
+  if(!confirm('Move '+ids.length+' deal'+(ids.length!==1?'s':'')+' to "'+stage+'"?')) return;
+  for(const id of ids){
+    const d=state.deals.find(x=>x.id===id);
+    if(d){ d.stage=stage; d.lastUpdated=TODAY(); }
+  }
+  state.bulkSelected=new Set();
+  state.bulkMode=false;
+  render();
+  pendingWrites++;
+  try{
+    for(const id of ids){ await apiPost('move_deal_stage',{id,stage}); }
+  }finally{ pendingWrites--; }
+}
+async function bulkAddActivity(){
+  const type=prompt('Activity type (Call, Email, Text, Task, Meeting):','Call');
+  if(!type) return;
+  const subject=prompt('Subject:',type);
+  if(subject===null) return;
+  const dueDate=prompt('Due date (YYYY-MM-DD):',TODAY());
+  if(!dueDate||!dueDate.match(/^\d{4}-\d{2}-\d{2}$/)) return;
+  const ids=[...state.bulkSelected];
+  if(!confirm('Add "'+subject+'" activity to '+ids.length+' deal'+(ids.length!==1?'s':'')+'?')) return;
+  const newActs=[];
+  for(const dealId of ids){
+    const a={id:uid(),dealId,type,subject,dueDate,done:false,dayLabel:'',scheduledTime:'',createdDate:new Date().toISOString(),completedAt:''};
+    state.activities.push(a);
+    newActs.push(a);
+  }
+  state.bulkSelected=new Set();
+  state.bulkMode=false;
+  render();
+  pendingWrites++;
+  try{
+    for(const a of newActs){ await apiPost('create_activity',a); }
+  }finally{ pendingWrites--; }
+}
+async function bulkArchive(){
+  const ids=[...state.bulkSelected];
+  if(!confirm('Archive '+ids.length+' deal'+(ids.length!==1?'s':'')+'? They can be restored later.')) return;
+  for(const id of ids){
+    state.deals=state.deals.filter(d=>d.id!==id);
+    state.activities=state.activities.filter(a=>a.dealId!==id);
+  }
+  state.bulkSelected=new Set();
+  state.bulkMode=false;
+  render();
+  pendingWrites++;
+  try{
+    for(const id of ids){ await apiPost('archive_deal',{id,archiveStatus:'Deleted/Lost'}); }
+  }finally{ pendingWrites--; }
+}
+// Bulk restore from archive
+async function bulkRestoreFromArchive(){
+  const ids=[...state.bulkSelected];
+  if(!confirm('Restore '+ids.length+' deal'+(ids.length!==1?'s':'')+'?')) return;
+  pendingWrites++;
+  try{
+    for(const id of ids){
+      await apiPost('restore_deal',{id});
+      state.archiveData=state.archiveData.filter(d=>d.id!==id);
+    }
+  }finally{ pendingWrites--; }
+  state.bulkSelected=new Set();
+  state.bulkMode=false;
+  syncFromSheet();
+  render();
 }
 
 function addActivity(dealId,act){
@@ -2226,6 +2336,8 @@ function renderArchiveTab(){
   if(state.archiveFilterStatus) filtered=filtered.filter(d=>(d.archiveStatus||'')=== state.archiveFilterStatus);
   // Sort newest first
   filtered.sort((a,b)=>(b.archivedAt||'').localeCompare(a.archivedAt||''));
+  const bulkArchiveIds=filtered.map(d=>d.id);
+  const allChecked=state.bulkMode && bulkArchiveIds.length>0 && bulkArchiveIds.every(id=>state.bulkSelected.has(id));
 
   let h=`<div style="padding:16px 20px">
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
@@ -2240,10 +2352,12 @@ function renderArchiveTab(){
         <option value="Closed Won" ${state.archiveFilterStatus==='Closed Won'?'selected':''}>Closed Won</option>
       </select>
       <span style="font-size:12px;color:var(--text-muted)">${filtered.length} result${filtered.length!==1?'s':''}</span>
+      ${state.bulkMode && state.bulkSelected.size>0?`<button class="btn btn-primary" style="font-size:11px;padding:4px 12px" onclick="bulkRestoreFromArchive()">↩ Restore ${state.bulkSelected.size} Selected</button>`:''}
     </div>
     <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;background:var(--card)">
       <table style="width:100%;border-collapse:collapse;font-size:12px">
         <thead><tr style="background:#f9fafb;border-bottom:2px solid var(--border)">
+          ${state.bulkMode?`<th style="padding:8px 6px;width:30px"><input type="checkbox" ${allChecked?'checked':''} onchange="archiveToggleAll(${JSON.stringify(bulkArchiveIds).replace(/"/g,'&quot;')})"></th>`:''}
           <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Company</th>
           <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Contact</th>
           <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Email</th>
@@ -2254,13 +2368,15 @@ function renderArchiveTab(){
           <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap"></th>
         </tr></thead><tbody>`;
   if(!filtered.length){
-    h+=`<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--text-muted)">No archived deals</td></tr>`;
+    h+=`<tr><td colspan="${state.bulkMode?9:8}" style="padding:20px;text-align:center;color:var(--text-muted)">No archived deals</td></tr>`;
   }
   for(const d of filtered){
     const statusColor=d.archiveStatus==='Closed Won'?'#22c55e':'#ef4444';
     const statusBg=d.archiveStatus==='Closed Won'?'#f0fdf4':'#fef2f2';
     const dateStr=d.archivedAt?new Date(d.archivedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}):'';
-    h+=`<tr style="border-bottom:1px solid var(--border)">
+    const isChk=state.bulkMode&&state.bulkSelected.has(d.id);
+    h+=`<tr style="border-bottom:1px solid var(--border);${isChk?'background:#ecfdf5':''}">
+      ${state.bulkMode?`<td style="padding:8px 6px"><input type="checkbox" ${isChk?'checked':''} onchange="toggleBulkSelect('${esc(d.id)}')"></td>`:''}
       <td style="padding:8px 10px;font-weight:500">${esc(d.company||'')}</td>
       <td style="padding:8px 10px">${esc(d.contact||'')}</td>
       <td style="padding:8px 10px;color:var(--text-muted)">${esc(d.email||'')}</td>
@@ -2273,6 +2389,12 @@ function renderArchiveTab(){
   }
   h+=`</tbody></table></div></div>`;
   return h;
+}
+function archiveToggleAll(ids){
+  const allIn=ids.every(id=>state.bulkSelected.has(id));
+  if(allIn){ ids.forEach(id=>state.bulkSelected.delete(id)); }
+  else { ids.forEach(id=>state.bulkSelected.add(id)); }
+  render();
 }
 
 async function restoreFromArchive(id){
@@ -2669,6 +2791,7 @@ function render(){
       </div>`:''/* end search wrapper */}
       <span class="topbar-stat">${state.loadFailed?'⚠️ Offline (test data)':state.synced?'✓ Connected':'Connecting...'}${state.synced?' · ':' '}${totalDeals} deal${totalDeals!==1?'s':''}${isAdmin()?' · '+fmt$(totalValue):''}${state.syncing?' ↻':''}</span>
       ${isAdmin()||isEmployee()?`<button class="btn btn-ghost" onclick="syncFromSheet()">↻ Sync</button>`:''}
+      ${isAdmin()||isEmployee()?`<button class="btn ${state.bulkMode?'btn-primary':'btn-ghost'}" onclick="toggleBulkMode()" title="Bulk select">${state.bulkMode?'✓ Bulk Mode':'☐ Bulk'}</button>`:''}
       ${isAdmin()&&state.pipeline==='client_leads'?'<button class="btn btn-ghost" onclick="openAddClient()">+ Client</button>':''}
       <button class="btn btn-primary" onclick="openNewDeal()">+ ${isClient()?'Lead':'Deal'}</button>
       ${isClient()?`<button class="btn btn-ghost" onclick="openClientArchive()" title="View archived leads">📦 Archive${clientArchivedDeals.length?' ('+clientArchivedDeals.length+')':''}</button>`:''}
@@ -2714,13 +2837,15 @@ function render(){
     } else {
       for(const deal of sd){
         const badge=getActivityBadge(deal.id);
-        html+=`<div class="deal-card" draggable="true"
+        const isBulkSel=state.bulkMode&&state.bulkSelected.has(deal.id);
+        html+=`<div class="deal-card${isBulkSel?' bulk-selected':''}" draggable="${state.bulkMode?'false':'true'}"
           ondragstart="event.dataTransfer.effectAllowed='move';state.dragId='${deal.id}';showDeleteZone()"
           ondragend="clearAllDragOver();hideDeleteZone()"
           ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';doDragOver(this.closest('.column'))"
           ondrop="doDrop('${stageKey}')"
           data-deal-id="${deal.id}"
-          onclick="openDeal('${deal.id}')">
+          onclick="${state.bulkMode?`event.preventDefault();event.stopPropagation();toggleBulkSelect('${deal.id}')`:`openDeal('${deal.id}')`}">
+          ${state.bulkMode?`<div class="bulk-check">${isBulkSel?'✓':''}</div>`:''}`;
 
           <div class="deal-card-top">
             <div class="deal-company">${esc(deal.company||deal.contact||deal.email||"New Deal")}</div>
@@ -2770,6 +2895,23 @@ function render(){
       ondragleave="this.classList.remove('drag-hover')"
       ondrop="doWonDrop()">✅ ${isClient()?'Won / Closed':'Won → Push to Tracker'}</div>
   </div>`;
+
+  // Bulk action bar
+  if(state.bulkMode && state.bulkSelected.size>0){
+    const allStages=[...ACQUISITION_STAGES,...NURTURE_STAGES,...state.clients.map(c=>({id:c.name,label:c.name}))];
+    html+=`<div class="bulk-bar">
+      <span>${state.bulkSelected.size} selected</span>
+      <select id="bulk-move-stage" style="padding:5px 8px;border-radius:6px;font-size:12px;font-family:var(--font);border:1px solid #4b5563;background:#1f2937;color:#fff">
+        <option value="">Move to...</option>
+        ${allStages.map(s=>`<option value="${esc(s.id)}">${esc(s.label||s.id)}</option>`).join('')}
+      </select>
+      <button class="bulk-action" onclick="bulkMoveStage()">Move</button>
+      <button class="bulk-action" onclick="bulkAddActivity()" style="background:#2563eb">+ Activity</button>
+      <button class="bulk-danger" onclick="bulkArchive()">Archive</button>
+      <button class="bulk-cancel" onclick="bulkSelectAll()">Select All</button>
+      <button class="bulk-cancel" onclick="toggleBulkMode()">✕ Cancel</button>
+    </div>`;
+  }
 
   // Modals
   if(state.selectedDeal) html+=renderDealModal(state.selectedDeal);
