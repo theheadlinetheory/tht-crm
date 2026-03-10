@@ -2129,23 +2129,20 @@ function copyLeadInfo(dealId){
   const client=state.clients.find(c=>c.name===deal.stage);
   const clientFirst=client&&str(client.contactFirstName).trim()?str(client.contactFirstName).trim():'there';
   const biz=deal.company||deal.contact||'';
-  const booked=str(deal.bookedFor||'').trim();
-  // Build the time portion — if bookedFor is filled, parse day/time; otherwise use placeholders
-  let dayPart='{day}';
-  let timePart='{time}';
-  if(booked){
-    // Try to split on " at " — e.g. "Tuesday at 2pm" → day="Tuesday", time="2pm"
+  // Build the time portion from bookedDate/bookedTime fields
+  let timeStr='{day} at {time}';
+  if(deal.bookedDate){
+    const dt=new Date(deal.bookedDate+'T'+(deal.bookedTime||'12:00'));
+    const dayPart=dt.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+    const timePart=deal.bookedTime?dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
+    timeStr=timePart?dayPart+' at '+timePart:dayPart;
+  } else if(str(deal.bookedFor||'').trim()){
+    // Legacy fallback: bookedFor free-text field
+    const booked=str(deal.bookedFor).trim();
     const atIdx=booked.toLowerCase().indexOf(' at ');
-    if(atIdx>-1){
-      dayPart=booked.substring(0,atIdx).trim();
-      timePart=booked.substring(atIdx+4).trim();
-    } else {
-      // No "at" — use whole thing as the day/time combo
-      dayPart=booked;
-      timePart='';
-    }
+    if(atIdx>-1) timeStr=booked.substring(0,atIdx).trim()+' at '+booked.substring(atIdx+4).trim();
+    else timeStr=booked;
   }
-  const timeStr=timePart?dayPart+' at '+timePart:dayPart;
   const lines=[];
   lines.push('Hey '+clientFirst+', Just scheduled a quote request for '+timeStr+' with '+biz+'. The address, phone, contact info and instructions are all included in that calendar event. I\'ve also added you to the email thread. Please check your spam folder if you are not seeing it.');
   lines.push('');
