@@ -1845,9 +1845,11 @@ async function bulkArchive(){
   const ids=[...state.bulkSelected];
   if(!confirm('Archive '+ids.length+' deal'+(ids.length!==1?'s':'')+'? They can be restored later.')) return;
   for(const id of ids){
+    deletedDealIds.add(String(id));
     state.deals=state.deals.filter(d=>d.id!==id);
     state.activities=state.activities.filter(a=>a.dealId!==id);
   }
+  localStorage.setItem('tht_deletedDeals',JSON.stringify([...deletedDealIds]));
   state.bulkSelected=new Set();
   state.bulkMode=false;
   render();
@@ -2927,10 +2929,10 @@ function render(){
       downTime=Date.now(); downX=e.clientX; downY=e.clientY;
     });
     card.addEventListener('mouseup',function(e){
+      if(state.bulkMode) return; // Bulk mode uses onclick handler instead
       const dt=Date.now()-downTime;
       const dx=Math.abs(e.clientX-downX);
       const dy=Math.abs(e.clientY-downY);
-      console.log('Card mouseup:', this.dataset.dealId, 'dt:', dt, 'dx:', dx, 'dy:', dy);
       // Only open if it was a quick tap (< 300ms) with minimal movement (< 5px)
       if(dt<300 && dx<5 && dy<5){
         if(e.target.closest('.status-indicator')||e.target.closest('button'))return;
