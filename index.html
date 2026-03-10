@@ -1961,6 +1961,44 @@ function renderOverdueBanner(){
   </div>`;
 }
 
+function renderBookedMeetingsBanner(){
+  if(isClient()) return '';
+  const now=new Date();
+  const todayStr=getToday();
+  const pipMap={'acquisition':'Acquisition','client_leads':'Client','nurture':'Nurture'};
+  const activePip=pipMap[state.pipeline]||null;
+  const booked=state.deals.filter(d=>{
+    if(!d.bookedDate) return false;
+    if(activePip && d.pipeline!==activePip) return false;
+    return d.bookedDate>=todayStr;
+  }).sort((a,b)=>{
+    const da=a.bookedDate+(a.bookedTime||'00:00');
+    const db=b.bookedDate+(b.bookedTime||'00:00');
+    return da.localeCompare(db);
+  });
+  if(!booked.length) return '';
+  const todayMeetings=booked.filter(d=>d.bookedDate===todayStr);
+  const label=todayMeetings.length?`${todayMeetings.length} today · `:'';
+  return `<div style="margin:0 20px;padding:8px 14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;cursor:pointer" onclick="document.getElementById('booked-detail').style.display=document.getElementById('booked-detail').style.display==='none'?'block':'none'">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:12px;font-weight:600;color:#1d4ed8">📅 ${label}${booked.length} upcoming meeting${booked.length!==1?'s':''}</span>
+      <span style="font-size:10px;color:#3b82f6">Click to view ▾</span>
+    </div>
+  </div>
+  <div id="booked-detail" style="display:none;margin:0 20px;padding:8px 14px;background:#f0f7ff;border:1px solid #bfdbfe;border-top:none;border-radius:0 0 8px 8px;max-height:200px;overflow-y:auto">
+    ${booked.map(d=>{
+      const dt=new Date(d.bookedDate+'T'+(d.bookedTime||'00:00'));
+      const isToday=d.bookedDate===todayStr;
+      const dateStr=isToday?'Today':dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+      const timeStr=d.bookedTime?dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
+      return \`<div style="font-size:12px;padding:4px 0;display:flex;justify-content:space-between;align-items:center;\${isToday?'font-weight:600;color:#1e40af':'color:#374151'}">
+        <span style="cursor:pointer;text-decoration:underline" onclick="event.stopPropagation();openDeal('\${d.id}')">\${esc(d.company||d.contact||d.email||'Unknown')}</span>
+        <span style="font-weight:600;color:\${isToday?'#1d4ed8':'#6b7280'};white-space:nowrap;margin-left:12px">\${dateStr}\${timeStr?' @ '+timeStr:''}\${d.stage?' · '+esc(d.stage):''}</span>
+      </div>\`;
+    }).join('')}
+  </div>`;
+}
+
 function renderUpcomingMeetings(deal, clientName){
   const now=new Date();
   // Show ALL scheduled meetings for this client (past week + future) to prevent conflicts
@@ -2865,7 +2903,8 @@ function render(){
     <button onclick="switchNurtureTab('rerun')" style="padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;color:var(--text-muted);border-bottom:2px solid transparent;margin-bottom:-2px">Re-Run Queue</button>
     <button onclick="switchNurtureTab('archive')" style="padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;color:var(--text-muted);border-bottom:2px solid transparent;margin-bottom:-2px">Archive</button>
   </div>`:''}
-  ${renderOverdueBanner()}`;
+  ${renderOverdueBanner()}
+  ${renderBookedMeetingsBanner()}`;
 
   // ─── List View ───
   if(state.viewMode==='list'){
