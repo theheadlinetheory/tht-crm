@@ -788,7 +788,7 @@ const SOP_DAYS = {
 };
 
 const CLIENT_SOP_DAYS = {
-  "Call + Email": [{type:"Call",subject:"Follow-up call"},{type:"Email",subject:"Follow-up email"}],
+  "Daily Follow-Up": [{type:"Call",subject:"Morning call",scheduledTime:"10:00"},{type:"Email",subject:"Midday email follow-up",scheduledTime:"14:00"},{type:"Call",subject:"End of day call",scheduledTime:"17:00"}],
 };
 function getSopDays(deal){
   return (deal && deal.pipeline==='Client') ? CLIENT_SOP_DAYS : SOP_DAYS;
@@ -1752,7 +1752,7 @@ async function moveDeal(dealId,newStage){
 }
 
 function addActivity(dealId,act){
-  const a={id:uid(),dealId,type:act.type,subject:act.subject||act.type,dueDate:act.dueDate||TODAY(),done:false,dayLabel:act.dayLabel||"",createdDate:new Date().toISOString(),completedAt:""};
+  const a={id:uid(),dealId,type:act.type,subject:act.subject||act.type,dueDate:act.dueDate||TODAY(),done:false,dayLabel:act.dayLabel||"",scheduledTime:act.scheduledTime||"",createdDate:new Date().toISOString(),completedAt:""};
   state.activities.push(a);
   refreshModal();
   pendingWrites++;
@@ -1780,10 +1780,18 @@ function leadAgeBadge(deal){
 
 function getOverdueActivities(){
   const today=getToday();
+  const nowDate=new Date();
   return state.activities.filter(a=>{
     if(a.done || String(a.done)==='TRUE') return false;
     const dd=(a.dueDate||'').slice(0,10);
-    return dd && dd<today;
+    if(!dd) return false;
+    if(dd<today) return true;
+    // Time-based overdue: due today with a scheduledTime that has passed
+    if(dd===today && a.scheduledTime){
+      const [h24,m24]=(a.scheduledTime||'').split(':').map(Number);
+      if(!isNaN(h24) && (nowDate.getHours()>h24 || (nowDate.getHours()===h24 && nowDate.getMinutes()>=m24))) return true;
+    }
+    return false;
   });
 }
 
@@ -1829,24 +1837,30 @@ function renderOverdueBanner(){
 
 function renderUpcomingMeetings(deal, clientName){
   const now=new Date();
-  const upcoming=state.deals.filter(d=>{
+  // Show ALL scheduled meetings for this client (past week + future) to prevent conflicts
+  const oneWeekAgo=new Date(now.getTime()-7*24*60*60*1000);
+  const allScheduled=state.deals.filter(d=>{
     if(!d.bookedDate) return false;
+    if(d.id===deal.id) return false;
     const dt=new Date(d.bookedDate+'T'+(d.bookedTime||'23:59'));
-    return dt>now && d.stage===clientName && d.id!==deal.id;
+    return dt>oneWeekAgo && d.stage===clientName;
   }).sort((a,b)=>{
     const da=new Date(a.bookedDate+'T'+(a.bookedTime||'00:00'));
     const db=new Date(b.bookedDate+'T'+(b.bookedTime||'00:00'));
     return da-db;
   });
-  if(!upcoming.length) return '<div id="upcoming-meetings-container"></div>';
+  if(!allScheduled.length) return '<div id="upcoming-meetings-container"></div>';
   let h='<div id="upcoming-meetings-container"><div style="margin:0 0 12px 0;padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px">';
-  h+=`<div style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:6px">📅 ${esc(clientName)}'s Upcoming Meetings (${upcoming.length})</div>`;
-  for(const m of upcoming){
+  h+=`<div style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:6px">📅 ${esc(clientName)}'s Scheduled Meetings (${allScheduled.length})</div>`;
+  for(const m of allScheduled){
     const d=new Date(m.bookedDate+'T'+(m.bookedTime||'00:00'));
+    const isPast=d<now;
     const dateStr=d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
     const timeStr=m.bookedTime?d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
-    h+=`<div style="font-size:12px;color:#78350f;padding:3px 0;display:flex;justify-content:space-between">
-      <span>${esc(m.company||m.contact||'Unknown')}</span>
+    // Check if this meeting is on the same day as the current deal's booking (potential conflict)
+    const sameDay=deal.bookedDate && m.bookedDate===deal.bookedDate;
+    h+=`<div style="font-size:12px;color:${sameDay?'#dc2626':isPast?'#9ca3af':'#78350f'};padding:3px 0;display:flex;justify-content:space-between;${sameDay?'font-weight:700;background:#fef2f2;padding:3px 6px;border-radius:4px;margin:1px -6px':''}">
+      <span>${sameDay?'⚠️ ':''}${esc(m.company||m.contact||'Unknown')}${isPast?' <span style="font-size:9px">(past)</span>':''}</span>
       <span style="font-weight:600">${dateStr}${timeStr?' @ '+timeStr:''}</span>
     </div>`;
   }
@@ -1930,7 +1944,7 @@ function deleteActivity(actId){
 function assignSequence(dealId,dayLabel,acts,targetDate){
   const newActs=[];
   for(const a of acts){
-    const na={id:uid(),dealId,type:a.type,subject:a.subject,dueDate:targetDate||TODAY(),done:false,dayLabel};
+    const na={id:uid(),dealId,type:a.type,subject:a.subject,dueDate:targetDate||TODAY(),done:false,dayLabel,scheduledTime:a.scheduledTime||''};
     state.activities.push(na);
     newActs.push(na);
   }
@@ -1980,8 +1994,6 @@ function copyLeadInfo(dealId){
   const addr = str(deal.address || deal.location || '').trim();
   if(addr) lines.push('Address: '+addr);
   if(deal.location && deal.location !== addr) lines.push('Location: '+deal.location);
-  if(deal.campaignName) lines.push('Campaign: '+deal.campaignName);
-  if(deal.leadCategory) lines.push('Category: '+deal.leadCategory);
   if(str(deal.notes).trim()) lines.push('Notes: '+deal.notes);
   if(str(deal.emailBody).trim()) lines.push('\nTheir Reply:\n'+deal.emailBody);
   const text=lines.join('\n');
@@ -2049,19 +2061,15 @@ window.addEventListener('message',function(e){
   if(e.data && e.data.event==='calendly.event_scheduled' && calendlyBookingDealId){
     const dealId=calendlyBookingDealId;
     calendlyBookingDealId=null;
-    // Prompt SDR to confirm the booked date/time
     const deal=state.deals.find(d=>d.id===dealId);
     if(!deal) return;
-    const dateInput=prompt('Meeting booked! Enter the date (YYYY-MM-DD):',TODAY());
-    if(!dateInput) return;
-    const timeInput=prompt('Enter the time (HH:MM, 24h format):','09:00');
-    deal.bookedDate=dateInput;
-    deal.bookedTime=timeInput||'';
-    // Update date/time inputs if modal is open
+    // Auto-set today's date and scroll to the date/time inputs for the user to adjust
+    deal.bookedDate=deal.bookedDate||TODAY();
+    deal.bookedTime=deal.bookedTime||'09:00';
     const dateEl=document.getElementById('deal-bookedDate');
     const timeEl=document.getElementById('deal-bookedTime');
-    if(dateEl) dateEl.value=deal.bookedDate;
-    if(timeEl) timeEl.value=deal.bookedTime;
+    if(dateEl){ dateEl.value=deal.bookedDate; dateEl.style.border='2px solid #22c55e'; setTimeout(()=>{dateEl.style.border='';},3000); dateEl.scrollIntoView({behavior:'smooth',block:'center'}); }
+    if(timeEl){ timeEl.value=deal.bookedTime; timeEl.style.border='2px solid #22c55e'; setTimeout(()=>{timeEl.style.border='';},3000); }
     // Persist
     pendingWrites++;
     apiPost('update_deal',{id:dealId,bookedDate:deal.bookedDate,bookedTime:deal.bookedTime}).finally(()=>{pendingWrites--;});
@@ -2071,6 +2079,12 @@ window.addEventListener('message',function(e){
       const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
       if(client) meetContainer.innerHTML=renderUpcomingMeetings(deal,client.name).replace(/<div id="upcoming-meetings-container">|<\/div>$/g,'');
     }
+    // Show confirmation toast
+    const toast=document.createElement('div');
+    toast.style.cssText='position:fixed;top:70px;left:50%;transform:translateX(-50%);background:#22c55e;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,.2)';
+    toast.textContent='Meeting booked! Confirm the date & time below.';
+    document.body.appendChild(toast);
+    setTimeout(()=>toast.remove(),4000);
   }
 });
 
@@ -2715,6 +2729,7 @@ function render(){
           ${deal.contact&&deal.contact!==deal.company?`<div class="deal-contact">${esc(deal.contact)}</div>`:''}
           ${deal.email?`<div class="deal-detail">${esc(deal.email)}</div>`:''}
           ${deal.phone?`<div class="deal-detail">${esc(deal.phone)}</div>`:''}
+          ${deal.bookedDate?`<div class="deal-detail" style="color:#2563eb;font-weight:600">📅 ${new Date(deal.bookedDate+'T'+(deal.bookedTime||'00:00')).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}${deal.bookedTime?' @ '+fmtTime12(deal.bookedTime):''}</div>`:''}
           <div class="deal-bottom">
             <span class="deal-value" style="color:${deal.value?'#059669':'#d1d5db'}">${fmt$(deal.value)}</span>
             <span style="display:flex;align-items:center;gap:4px">
@@ -3128,14 +3143,25 @@ function renderDealModal(deal){
   for(const a of pending){
     const dd=(a.dueDate||'').slice(0,10);
     const today=getToday();
-    const overdue=dd&&dd<today;
+    const nowDate=new Date();
+    let overdue=dd&&dd<today;
     const dueToday=dd===today;
+    // Time-based overdue: if due today and has a scheduledTime, mark overdue if past that time
+    let timeOverdue=false;
+    if(dueToday && a.scheduledTime){
+      const [h24,m24]=(a.scheduledTime||'').split(':').map(Number);
+      if(!isNaN(h24) && (nowDate.getHours()>h24 || (nowDate.getHours()===h24 && nowDate.getMinutes()>=m24))){
+        timeOverdue=true;
+        overdue=true;
+      }
+    }
     const cls=overdue?'overdue':dueToday?'today':'future';
+    const timeLabel=a.scheduledTime?fmtTime12(a.scheduledTime):'';
     const createdStr=a.createdDate?'<span style="font-size:9px;color:#b0b0b0;margin-left:4px" title="Created '+fmtTimestamp(a.createdDate)+'">'+fmtTimestamp(a.createdDate)+'</span>':'';
     h+=`<div class="act-item ${cls}">
       <input type="checkbox" onchange="toggleActivity('${a.id}')">
       <span style="font-size:13px">${ACTIVITY_ICONS[a.type]||"✓"}</span>
-      <span class="act-subject">${esc(a.subject||a.type)}</span>
+      <span class="act-subject">${esc(a.subject||a.type)}${timeLabel?'<span style="font-size:10px;color:'+(timeOverdue?'#ef4444':overdue?'#ef4444':'#6b7280')+';margin-left:4px;font-weight:600">by '+timeLabel+'</span>':''}</span>
       ${a.dayLabel?`<span class="act-day-label">${esc(a.dayLabel)}</span>`:''}
       ${a.dueDate?`<input type="date" value="${dd}" style="font-size:10px;color:${overdue?'#ef4444':dueToday?'#059669':'#9ca3af'};background:none;border:none;cursor:pointer;padding:0;width:90px" onchange="updateActivityDate('${a.id}',this.value)">`:''}
       <button class="act-delete" onclick="deleteActivity('${a.id}')">×</button>
@@ -3280,6 +3306,21 @@ function updateDealField(key,val){
   if(state.selectedDeal){
     if(key==="value") val=Number(val)||0;
     state.selectedDeal[key]=val;
+    // Refresh upcoming meetings display when booking date/time changes
+    if(key==='bookedDate'||key==='bookedTime'){
+      const meetContainer=document.getElementById('upcoming-meetings-container');
+      if(meetContainer){
+        const deal=state.selectedDeal;
+        const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
+        if(client){
+          const fresh=renderUpcomingMeetings(deal,client.name);
+          const tmp=document.createElement('div');
+          tmp.innerHTML=fresh;
+          const newMeet=tmp.querySelector('#upcoming-meetings-container');
+          if(newMeet) meetContainer.innerHTML=newMeet.innerHTML;
+        }
+      }
+    }
   }
 }
 
