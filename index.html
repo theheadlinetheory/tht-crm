@@ -2845,8 +2845,7 @@ function render(){
           ondrop="doDrop('${stageKey}')"
           data-deal-id="${deal.id}"
           onclick="${state.bulkMode?`event.preventDefault();event.stopPropagation();toggleBulkSelect('${deal.id}')`:`openDeal('${deal.id}')`}">
-          ${state.bulkMode?`<div class="bulk-check">${isBulkSel?'✓':''}</div>`:''}`;
-
+          ${state.bulkMode?`<div class="bulk-check">${isBulkSel?'✓':''}</div>`:''}
           <div class="deal-card-top">
             <div class="deal-company">${esc(deal.company||deal.contact||deal.email||"New Deal")}</div>
             <div class="status-indicator" onclick="event.stopPropagation();toggleBadgeDropdown('${deal.id}')">
