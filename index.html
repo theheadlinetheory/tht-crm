@@ -1969,11 +1969,9 @@ function renderBookedMeetingsBanner(){
   if(isClient()) return '';
   const now=new Date();
   const todayStr=getToday();
-  const pipMap={'acquisition':'Acquisition','client_leads':'Client','nurture':'Nurture'};
-  const activePip=pipMap[state.pipeline]||null;
+  // Show ALL upcoming meetings across ALL clients — the master calendar view
   const booked=state.deals.filter(d=>{
     if(!isValidDate(d.bookedDate)) return false;
-    if(activePip && d.pipeline!==activePip) return false;
     return d.bookedDate>=todayStr;
   }).sort((a,b)=>{
     const da=a.bookedDate+(a.bookedTime||'00:00');
@@ -1983,21 +1981,35 @@ function renderBookedMeetingsBanner(){
   if(!booked.length) return '';
   const todayMeetings=booked.filter(d=>d.bookedDate===todayStr);
   const label=todayMeetings.length?`${todayMeetings.length} today · `:'';
+  // Group by client name for easy scanning
+  const byClient={};
+  booked.forEach(d=>{
+    const cn=d.stage||'Unassigned';
+    if(!byClient[cn]) byClient[cn]=[];
+    byClient[cn].push(d);
+  });
   return `<div style="margin:0 20px;padding:8px 14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;cursor:pointer" onclick="document.getElementById('booked-detail').style.display=document.getElementById('booked-detail').style.display==='none'?'block':'none'">
     <div style="display:flex;align-items:center;justify-content:space-between">
-      <span style="font-size:12px;font-weight:600;color:#1d4ed8">📅 ${label}${booked.length} upcoming meeting${booked.length!==1?'s':''}</span>
+      <span style="font-size:12px;font-weight:600;color:#1d4ed8">📅 ${label}${booked.length} upcoming meeting${booked.length!==1?'s':''} (all clients)</span>
       <span style="font-size:10px;color:#3b82f6">Click to view ▾</span>
     </div>
   </div>
-  <div id="booked-detail" style="display:none;margin:0 20px;padding:8px 14px;background:#f0f7ff;border:1px solid #bfdbfe;border-top:none;border-radius:0 0 8px 8px;max-height:200px;overflow-y:auto">
-    ${booked.map(d=>{
-      const dt=new Date(d.bookedDate+'T'+(d.bookedTime||'00:00'));
-      const isToday=d.bookedDate===todayStr;
-      const dateStr=isToday?'Today':dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-      const timeStr=d.bookedTime?dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
-      return `<div style="font-size:12px;padding:4px 0;display:flex;justify-content:space-between;align-items:center;${isToday?'font-weight:600;color:#1e40af':'color:#374151'}">
-        <span style="cursor:pointer;text-decoration:underline" onclick="event.stopPropagation();openDeal('${d.id}')">${esc(d.company||d.contact||d.email||'Unknown')}</span>
-        <span style="font-weight:600;color:${isToday?'#1d4ed8':'#6b7280'};white-space:nowrap;margin-left:12px">${dateStr}${timeStr?' @ '+timeStr:''}${d.stage?' · '+esc(d.stage):''}</span>
+  <div id="booked-detail" style="display:none;margin:0 20px;padding:8px 14px;background:#f0f7ff;border:1px solid #bfdbfe;border-top:none;border-radius:0 0 8px 8px;max-height:300px;overflow-y:auto">
+    ${Object.keys(byClient).map(cn=>{
+      const client=state.clients.find(c=>c.name===cn);
+      const color=client&&client.color?client.color:'#6b7280';
+      return `<div style="margin-bottom:8px">
+        <div style="font-size:11px;font-weight:700;color:${color};margin-bottom:3px;border-bottom:1px solid #e5e7eb;padding-bottom:2px">${esc(cn)} (${byClient[cn].length})</div>
+        ${byClient[cn].map(d=>{
+          const dt=new Date(d.bookedDate+'T'+(d.bookedTime||'00:00'));
+          const isToday=d.bookedDate===todayStr;
+          const dateStr=isToday?'Today':dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+          const timeStr=d.bookedTime?dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
+          return `<div style="font-size:12px;padding:3px 0;display:flex;justify-content:space-between;align-items:center;${isToday?'font-weight:600;color:#1e40af':'color:#374151'}">
+            <span style="cursor:pointer;text-decoration:underline" onclick="event.stopPropagation();openDeal('${d.id}')">${esc(d.company||d.contact||d.email||'Unknown')}</span>
+            <span style="font-weight:600;color:${isToday?'#1d4ed8':'#6b7280'};white-space:nowrap;margin-left:12px">${dateStr}${timeStr?' @ '+timeStr:''}</span>
+          </div>`;
+        }).join('')}
       </div>`;
     }).join('')}
   </div>`;
@@ -2130,6 +2142,126 @@ function assignSequence(dealId,dayLabel,acts,targetDate){
 function copyLeadInfo(dealId){
   const deal=state.deals.find(d=>d.id===dealId);
   if(!deal) return;
+  // If no date/time set, show scheduling prompt first
+  const hasBooking=deal.bookedDate && /^\d{4}-\d{2}-\d{2}$/.test(deal.bookedDate) && deal.bookedTime;
+  if(!hasBooking){
+    showSchedulePrompt(dealId, function(){ doCopyLeadInfo(dealId); });
+    return;
+  }
+  doCopyLeadInfo(dealId);
+}
+
+function showSchedulePrompt(dealId, onDone){
+  const deal=state.deals.find(d=>d.id===dealId);
+  if(!deal) return;
+  const clientName=deal.stage||'';
+  const todayStr=getToday();
+  // Get this client's existing appointments
+  const clientAppts=state.deals.filter(d=>{
+    if(d.id===dealId) return false;
+    if(!isValidDate(d.bookedDate)) return false;
+    if(d.bookedDate<todayStr) return false;
+    return d.stage===clientName;
+  }).sort((a,b)=>{
+    return (a.bookedDate+(a.bookedTime||'00:00')).localeCompare(b.bookedDate+(b.bookedTime||'00:00'));
+  });
+  let apptsHtml='';
+  if(clientAppts.length){
+    apptsHtml=`<div style="margin:10px 0;padding:8px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px">
+      <div style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:4px">${esc(clientName)}'s Existing Appointments (${clientAppts.length})</div>
+      ${clientAppts.map(d=>{
+        const dt=new Date(d.bookedDate+'T'+(d.bookedTime||'00:00'));
+        const dateStr=dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+        const timeStr=d.bookedTime?dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
+        return `<div style="font-size:12px;color:#78350f;padding:2px 0;display:flex;justify-content:space-between">
+          <span>${esc(d.company||d.contact||'Unknown')}</span>
+          <span style="font-weight:600">${dateStr}${timeStr?' @ '+timeStr:''}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+  // Build prompt overlay
+  const overlay=document.createElement('div');
+  overlay.id='schedule-prompt-overlay';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100000;display:flex;align-items:center;justify-content:center';
+  overlay.innerHTML=`<div style="background:var(--card,#fff);border-radius:12px;padding:20px;width:360px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.3)" onclick="event.stopPropagation()">
+    <div style="font-size:15px;font-weight:700;color:var(--text,#111);margin-bottom:4px">Schedule This Appointment</div>
+    <div style="font-size:12px;color:var(--text-muted,#6b7280);margin-bottom:12px">Set the date & time for <strong>${esc(deal.company||deal.contact||'this lead')}</strong></div>
+    ${apptsHtml}
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <div style="flex:1">
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted,#6b7280);display:block;margin-bottom:3px">Date</label>
+        <input type="date" id="sched-date" value="${deal.bookedDate||todayStr}" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;font-family:var(--font)">
+      </div>
+      <div style="flex:1">
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted,#6b7280);display:block;margin-bottom:3px">Time</label>
+        <input type="time" id="sched-time" value="${deal.bookedTime||'09:00'}" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;font-family:var(--font)">
+      </div>
+    </div>
+    <div id="sched-conflict-warning" style="display:none;margin-bottom:10px;padding:6px 10px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;font-size:11px;color:#dc2626;font-weight:600"></div>
+    <div style="display:flex;gap:8px">
+      <button onclick="confirmScheduleAndCopy()" style="flex:1;padding:10px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font)">Save & Copy Info</button>
+      <button onclick="skipScheduleAndCopy()" style="flex:1;padding:10px;background:var(--bg-secondary,#f3f4f6);color:var(--text,#374151);border:1px solid var(--border,#d1d5db);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font)">Skip & Copy</button>
+    </div>
+    <button onclick="document.getElementById('schedule-prompt-overlay').remove()" style="position:absolute;top:10px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-muted,#9ca3af)">x</button>
+  </div>`;
+  overlay.onclick=function(){ overlay.remove(); };
+  document.body.appendChild(overlay);
+  // Live conflict checking
+  const dateInput=document.getElementById('sched-date');
+  const timeInput=document.getElementById('sched-time');
+  const checkConflict=()=>{
+    const d=dateInput.value;
+    const t=timeInput.value;
+    const warn=document.getElementById('sched-conflict-warning');
+    if(!warn) return;
+    const sameDay=clientAppts.filter(a=>a.bookedDate===d);
+    if(sameDay.length){
+      const names=sameDay.map(a=>{
+        const tm=a.bookedTime?new Date('2000-01-01T'+a.bookedTime).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
+        return esc(a.company||a.contact||'Unknown')+(tm?' @ '+tm:'');
+      }).join(', ');
+      warn.style.display='block';
+      warn.innerHTML='&#9888; '+esc(clientName)+' already has '+sameDay.length+' appointment'+(sameDay.length>1?'s':'')+' on this day: '+names;
+    } else { warn.style.display='none'; }
+  };
+  dateInput.addEventListener('change',checkConflict);
+  timeInput.addEventListener('change',checkConflict);
+  checkConflict();
+  // Store callbacks on window for the buttons
+  window._schedDealId=dealId;
+  window._schedOnDone=onDone;
+}
+
+function confirmScheduleAndCopy(){
+  const dealId=window._schedDealId;
+  const deal=state.deals.find(d=>d.id===dealId);
+  if(!deal) return;
+  const dateVal=document.getElementById('sched-date')?.value||'';
+  const timeVal=document.getElementById('sched-time')?.value||'';
+  deal.bookedDate=dateVal;
+  deal.bookedTime=timeVal;
+  // Update the modal inputs if open
+  const dateEl=document.getElementById('deal-bookedDate');
+  const timeEl=document.getElementById('deal-bookedTime');
+  if(dateEl) dateEl.value=dateVal;
+  if(timeEl) timeEl.value=timeVal;
+  // Persist
+  pendingWrites++;
+  apiPost('update_deal',{id:dealId,bookedDate:dateVal,bookedTime:timeVal}).finally(()=>{pendingWrites--;});
+  // Close prompt and proceed
+  document.getElementById('schedule-prompt-overlay')?.remove();
+  if(window._schedOnDone) window._schedOnDone();
+}
+
+function skipScheduleAndCopy(){
+  document.getElementById('schedule-prompt-overlay')?.remove();
+  if(window._schedOnDone) window._schedOnDone();
+}
+
+function doCopyLeadInfo(dealId){
+  const deal=state.deals.find(d=>d.id===dealId);
+  if(!deal) return;
   const client=state.clients.find(c=>c.name===deal.stage);
   const clientFirst=client&&str(client.contactFirstName).trim()?str(client.contactFirstName).trim():'there';
   const biz=deal.company||deal.contact||'';
@@ -2163,7 +2295,7 @@ function copyLeadInfo(dealId){
   if(str(deal.emailBody).trim()) lines.push('\nTheir Reply:\n'+deal.emailBody);
   const text=lines.join('\n');
   navigator.clipboard.writeText(text).then(()=>{
-    const btn=event.target.closest('button');
+    const btn=document.querySelector('[onclick*="copyLeadInfo"]');
     if(btn){ const orig=btn.innerHTML; btn.innerHTML='✅ Copied!'; setTimeout(()=>btn.innerHTML=orig, 1500); }
   }).catch(()=>{
     prompt('Copy this text:',text);
