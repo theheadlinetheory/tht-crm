@@ -4046,61 +4046,61 @@ function doLostDrop(){
 async function doWonDrop(){
   hideDeleteZone();
   clearAllDragOver();
-  if(state.dragId){
-    const deal=state.deals.find(d=>d.id===state.dragId);
-    if(!deal){ state.dragId=null; return; }
-    const name=deal.company||deal.contact||'this deal';
-    
-    if(isClient()){
-      // Client: archive as won
-      if(confirm('Mark "'+name+'" as Won? It will be moved to your archive.')){
-        archiveDeal(state.dragId, 'won');
-      }
-      state.dragId=null;
-      return;
-    }
-    
-    // Admin flow: push to Lead Tracker
-    if(deal.pipeline!=='Client'){
-      alert('Won → Push to Tracker is only available for Client pipeline deals. Use Lost/Delete for acquisition deals.');
-      state.dragId=null; return;
-    }
-    const wonClient=findClientForDeal(deal) || state.clients.find(c=>c.name===deal.stage);
-    const wonClientName=wonClient?wonClient.name:deal.stage;
-    const wonIsZeroCost=TRACKER_ZERO_COST_CLIENTS.some(ex=>wonClientName.toLowerCase().includes(ex));
-    // Require bookedFor for non-zero-cost clients
-    if(confirm('Mark "'+name+'" as Won, push to Lead Tracker'+(wonIsZeroCost?' ($0)':'')+', and remove from CRM?')){
-      const client=wonClient;
-      let leadCost='';
-      if(wonIsZeroCost){
-        leadCost=''; // $0 for ABC, Deeter, etc.
-      } else if(client && str(client.leadCost).replace(/[^0-9.]/g,'')){
-        leadCost='$'+str(client.leadCost).replace(/[^0-9.]/g,'');
-      } else {
-        const costInput=prompt('Enter lead cost for this client (e.g. 200, 250):','250');
-        if(costInput===null){ state.dragId=null; return; }
-        const costNum=parseFloat(costInput.replace(/[^0-9.]/g,''));
-        if(isNaN(costNum)){alert('Invalid cost. Please enter a number.'); state.dragId=null; return;}
-        leadCost='$'+costNum;
-      }
-      const now=new Date();
-      const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
-      const monthGenerated=monthNames[now.getMonth()]+'/'+String(now.getFullYear()).slice(2);
-      const dateGenerated=(now.getMonth()+1)+'/'+now.getDate()+'/'+String(now.getFullYear()).slice(2);
-      const clientName=client?client.name:deal.stage;
-      const leadName=deal.company||deal.contact||'Unknown';
-      const leadEmail=deal.email||'';
-      const row=[clientName,monthGenerated,leadName,leadEmail,dateGenerated,leadCost,'','','',''];
-      try{
-        await apiPost('push_lead_tracker',{sheetId:LEAD_TRACKER_SHEET_ID,sheetName:'Lead Tracker',row});
-        alert('\u2705 Pushed "'+leadName+'" to Lead Tracker at '+leadCost);
-        deleteDeal(state.dragId, 'Closed Won', clientName);
-      }catch(e){
-        alert('\u274c Failed to push to Lead Tracker: '+e.message);
-      }
-    }
-  }
+  const dragId=state.dragId;
   state.dragId=null;
+  if(!dragId) return;
+  const deal=state.deals.find(d=>d.id===dragId);
+  if(!deal) return;
+  const name=deal.company||deal.contact||'this deal';
+
+  if(isClient()){
+    if(confirm('Mark "'+name+'" as Won? It will be moved to your archive.')){
+      archiveDeal(dragId, 'won');
+    }
+    return;
+  }
+
+  // Non-Client pipeline deals: just archive as Closed Won (no tracker push)
+  if(deal.pipeline!=='Client'){
+    if(confirm('Mark "'+name+'" as Closed Won and archive?')){
+      deleteDeal(dragId, 'Closed Won');
+    }
+    return;
+  }
+
+  // Client pipeline: push to Lead Tracker then archive
+  const wonClient=findClientForDeal(deal) || state.clients.find(c=>c.name===deal.stage);
+  const wonClientName=wonClient?wonClient.name:deal.stage;
+  const wonIsZeroCost=TRACKER_ZERO_COST_CLIENTS.some(ex=>wonClientName.toLowerCase().includes(ex));
+  if(!confirm('Mark "'+name+'" as Won, push to Lead Tracker'+(wonIsZeroCost?' ($0)':'')+', and remove from CRM?')) return;
+
+  const client=wonClient;
+  let leadCost='';
+  if(wonIsZeroCost){
+    leadCost='';
+  } else if(client && str(client.leadCost).replace(/[^0-9.]/g,'')){
+    leadCost='$'+str(client.leadCost).replace(/[^0-9.]/g,'');
+  } else {
+    const costInput=prompt('Enter lead cost for this client (e.g. 200, 250):','250');
+    if(costInput===null) return;
+    const costNum=parseFloat(costInput.replace(/[^0-9.]/g,''));
+    if(isNaN(costNum)){alert('Invalid cost. Please enter a number.');return;}
+    leadCost='$'+costNum;
+  }
+  const now=new Date();
+  const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const monthGenerated=monthNames[now.getMonth()]+'/'+String(now.getFullYear()).slice(2);
+  const dateGenerated=(now.getMonth()+1)+'/'+now.getDate()+'/'+String(now.getFullYear()).slice(2);
+  const clientName=client?client.name:deal.stage;
+  const leadName=deal.company||deal.contact||'Unknown';
+  const leadEmail=deal.email||'';
+  const row=[clientName,monthGenerated,leadName,leadEmail,dateGenerated,leadCost,'','','',''];
+  try{
+    await apiPost('push_lead_tracker',{sheetId:LEAD_TRACKER_SHEET_ID,sheetName:'Lead Tracker',row});
+    deleteDeal(dragId, 'Closed Won', clientName);
+  }catch(e){
+    alert('\u274c Failed to push to Lead Tracker: '+e.message);
+  }
 }
 
 function toggleBadgeDropdown(dealId){
