@@ -2585,15 +2585,17 @@ async function pushToLeadTracker(dealId){
   const leadName=deal.company||deal.contact||'Unknown';
   const leadEmail=deal.email||'';
   const row=[clientName,monthGenerated,leadName,leadEmail,dateGenerated,leadCost,'','','',''];
-  // INSTANT UI update — mark as pushed immediately, fire API in background
-  deal.pushedToTracker=new Date().toISOString();
-  render();
-  // Background API calls — fire and forget
-  apiPost('push_lead_tracker',{sheetId:LEAD_TRACKER_SHEET_ID,sheetName:'Lead Tracker',row}).catch(e=>{
-    console.error('Lead Tracker push failed:',e);
-  });
-  pendingWrites++;
-  apiPost('update_deal',{id:deal.id,pushedToTracker:deal.pushedToTracker}).finally(()=>{pendingWrites--;});
+  // Push to tracker, then archive as Closed Won and remove from board
+  try {
+    await apiPost('push_lead_tracker',{sheetId:LEAD_TRACKER_SHEET_ID,sheetName:'Lead Tracker',row});
+  } catch(e){
+    alert('Failed to push to Lead Tracker: '+e.message);
+    return;
+  }
+  // Close modal before archiving
+  state.selectedDeal=null;
+  // Archive as Closed Won — removes from CRM, keeps in archive
+  deleteDeal(dealId, 'Closed Won', clientName);
 }
 
 // ═══════════════════════════════════════════════════════════
