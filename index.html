@@ -2340,7 +2340,7 @@ function addManualAppointment(clientName){
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100000;display:flex;align-items:center;justify-content:center';
   const todayStr=getToday();
   // Show existing appointments for context
-  const existing=(state.appointments||[]).filter(a=>a.clientName===clientName&&a.apptDate>=todayStr).sort((a,b)=>(a.apptDate+a.apptTime).localeCompare(b.apptDate+b.apptTime));
+  const existing=(state.appointments||[]).filter(a=>a.clientName===clientName&&a.apptDate&&/^\d{4}-\d{2}-\d{2}$/.test(a.apptDate)&&a.apptDate>=todayStr).sort((a,b)=>(a.apptDate+(a.apptTime||'')).localeCompare(b.apptDate+(b.apptTime||'')));
   let existHtml='';
   if(existing.length){
     existHtml='<div style="margin:8px 0;padding:6px 8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;font-size:11px"><div style="font-weight:700;color:#166534;margin-bottom:4px">Existing ('+existing.length+')</div>'
@@ -3192,11 +3192,15 @@ function render(){
         if(!isClientCol) return '';
         const cn=stage.label;
         const todayStr=getToday();
-        const appts=(state.appointments||[]).filter(a=>a.clientName===cn && a.apptDate>=todayStr).sort((a,b)=>(a.apptDate+a.apptTime).localeCompare(b.apptDate+b.apptTime));
+        const appts=(state.appointments||[]).filter(a=>{
+          if(a.clientName!==cn) return false;
+          if(!a.apptDate||!/^\d{4}-\d{2}-\d{2}$/.test(a.apptDate)) return false;
+          return a.apptDate>=todayStr;
+        }).sort((a,b)=>(a.apptDate+(a.apptTime||'')).localeCompare(b.apptDate+(b.apptTime||'')));
         let ah='<div class="col-appts" style="padding:6px 8px;margin:0 0 2px 0">';
         if(appts.length){
           ah+=appts.map(a=>{
-            const dt=new Date(a.apptDate+'T'+(a.apptTime||'00:00'));
+            const dt=new Date(a.apptDate+'T'+(a.apptTime||'12:00'));
             const isToday=a.apptDate===todayStr;
             const dateStr=isToday?'Today':dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
             const timeStr=a.apptTime?dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
