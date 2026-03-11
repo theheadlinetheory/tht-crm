@@ -1453,6 +1453,7 @@ let state = {
   deals: [],
   activities: [],
   clients: [],
+  appointments: [],
   pipeline: (() => { try { const h=location.hash.replace('#',''); if(h==='archive'){location.hash='nurture';return 'nurture';} return ['dashboard','acquisition','client_leads','nurture'].includes(h)?h:'dashboard'; } catch(e){ return 'acquisition'; } })(),
   selectedDeal: null,
   showNew: false,
@@ -1565,6 +1566,19 @@ async function syncFromSheet(){
           })?.[1];
           if(match) c.calendlyUrl = match;
         }
+      }
+    }
+    if(data.appointments && Array.isArray(data.appointments)){
+      state.appointments=data.appointments;
+      state.appointments.forEach(a=>{
+        Object.keys(a).forEach(k=>{ if(a[k]!=null && typeof a[k]!=='string') a[k]=String(a[k]); });
+      });
+      // Auto-purge past appointments
+      const todayStr=getToday();
+      const past=state.appointments.filter(a=>a.apptDate && a.apptDate<todayStr);
+      for(const p of past){
+        state.appointments=state.appointments.filter(a=>a.id!==p.id);
+        apiPost('delete_appointment',{id:p.id}).catch(()=>{});
       }
     }
     if(data.settings && typeof data.settings==='object' && Object.keys(data.settings).length>0) applySettings(data.settings);
@@ -2279,9 +2293,14 @@ function confirmScheduleAndCopy(){
   const timeEl=document.getElementById('deal-bookedTime');
   if(dateEl) dateEl.value=dateVal;
   if(timeEl) timeEl.value=timeVal;
-  // Persist
+  // Persist deal booking
   pendingWrites++;
   apiPost('update_deal',{id:dealId,bookedDate:dateVal,bookedTime:timeVal}).finally(()=>{pendingWrites--;});
+  // Also save as persistent appointment (survives deal deletion)
+  const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
+  if(client && dateVal){
+    saveAppointment(client.name, deal.company||deal.contact||'Unknown', dateVal, timeVal);
+  }
   // Close prompt and proceed
   document.getElementById('schedule-prompt-overlay')?.remove();
   if(window._schedOnDone) window._schedOnDone();
@@ -2290,6 +2309,60 @@ function confirmScheduleAndCopy(){
 function skipScheduleAndCopy(){
   document.getElementById('schedule-prompt-overlay')?.remove();
   if(window._schedOnDone) window._schedOnDone();
+}
+
+// ─── Persistent Appointments (survive deal deletion) ───
+function saveAppointment(clientName, leadName, apptDate, apptTime, notes){
+  const id='appt-'+Date.now();
+  const appt={id, clientName, leadName, apptDate, apptTime:apptTime||'', notes:notes||'', createdAt:new Date().toISOString()};
+  state.appointments.push(appt);
+  render();
+  apiPost('create_appointment',{clientName, leadName, apptDate, apptTime:apptTime||'', notes:notes||''}).then(r=>{
+    if(r&&r.id) appt.id=r.id; // Update with server-assigned ID
+  }).catch(()=>{});
+}
+
+function removeAppointment(id){
+  state.appointments=state.appointments.filter(a=>a.id!==id);
+  render();
+  apiPost('delete_appointment',{id}).catch(()=>{});
+}
+
+function addManualAppointment(clientName){
+  const overlay=document.createElement('div');
+  overlay.id='manual-appt-overlay';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100000;display:flex;align-items:center;justify-content:center';
+  const todayStr=getToday();
+  // Show existing appointments for context
+  const existing=(state.appointments||[]).filter(a=>a.clientName===clientName&&a.apptDate>=todayStr).sort((a,b)=>(a.apptDate+a.apptTime).localeCompare(b.apptDate+b.apptTime));
+  let existHtml='';
+  if(existing.length){
+    existHtml='<div style="margin:8px 0;padding:6px 8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;font-size:11px"><div style="font-weight:700;color:#166534;margin-bottom:4px">Existing ('+existing.length+')</div>'
+      +existing.map(a=>{
+        const dt=new Date(a.apptDate+'T'+(a.apptTime||'00:00'));
+        return '<div style="color:#166534;padding:1px 0">'+esc(a.leadName||'Appt')+' — '+dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+(a.apptTime?' '+dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'')+'</div>';
+      }).join('')+'</div>';
+  }
+  overlay.innerHTML='<div style="background:var(--card,#fff);border-radius:12px;padding:20px;width:340px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.3)" onclick="event.stopPropagation()">'
+    +'<div style="font-size:15px;font-weight:700;margin-bottom:12px">Add Appointment for '+esc(clientName)+'</div>'
+    +existHtml
+    +'<div style="margin-bottom:8px"><label style="font-size:11px;font-weight:600;color:var(--text-muted,#6b7280)">Lead / Business Name</label><input id="appt-lead" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;font-family:var(--font);margin-top:2px" placeholder="e.g. Jet City"></div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:12px"><div style="flex:1"><label style="font-size:11px;font-weight:600;color:var(--text-muted,#6b7280)">Date</label><input type="date" id="appt-date" value="'+todayStr+'" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;font-family:var(--font);margin-top:2px"></div><div style="flex:1"><label style="font-size:11px;font-weight:600;color:var(--text-muted,#6b7280)">Time</label><input type="time" id="appt-time" value="09:00" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;font-family:var(--font);margin-top:2px"></div></div>'
+    +'<button onclick="doSaveManualAppt(\''+esc(clientName)+'\')" style="width:100%;padding:10px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font)">Save Appointment</button>'
+    +'</div>';
+  overlay.onclick=function(){ overlay.remove(); };
+  document.body.appendChild(overlay);
+  document.getElementById('appt-lead')?.focus();
+}
+
+function doSaveManualAppt(clientName){
+  const lead=(document.getElementById('appt-lead')?.value||'').trim();
+  const date=document.getElementById('appt-date')?.value||'';
+  const time=document.getElementById('appt-time')?.value||'';
+  if(!lead){ alert('Enter a lead/business name'); return; }
+  if(!date){ alert('Pick a date'); return; }
+  saveAppointment(clientName, lead, date, time);
+  document.getElementById('manual-appt-overlay')?.remove();
 }
 
 function doCopyLeadInfo(dealId){
@@ -2403,6 +2476,11 @@ window.addEventListener('message',function(e){
     // Persist
     pendingWrites++;
     apiPost('update_deal',{id:dealId,bookedDate:deal.bookedDate,bookedTime:deal.bookedTime}).finally(()=>{pendingWrites--;});
+    // Save persistent appointment
+    const calClient=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
+    if(calClient && deal.bookedDate){
+      saveAppointment(calClient.name, deal.company||deal.contact||'Unknown', deal.bookedDate, deal.bookedTime);
+    }
     // Refresh upcoming meetings
     const meetContainer=document.getElementById('upcoming-meetings-container');
     if(meetContainer && state.selectedDeal){
@@ -3099,6 +3177,32 @@ function render(){
           <button style="background:none;border:none;color:#d1d5db;font-size:14px;cursor:pointer" onclick="if(confirm('Remove this client?'))removeClient(atob('${btoa(unescape(encodeURIComponent(stage.label)))}'))">×</button>
         </div>`:''}
       </div>
+      ${(()=>{
+        // Show upcoming appointments for client columns
+        if(state.pipeline!=='client_leads' || isClient()) return '';
+        const isClientCol=state.clients.some(c=>c.name===stage.label);
+        if(!isClientCol) return '';
+        const cn=stage.label;
+        const todayStr=getToday();
+        const appts=(state.appointments||[]).filter(a=>a.clientName===cn && a.apptDate>=todayStr).sort((a,b)=>(a.apptDate+a.apptTime).localeCompare(b.apptDate+b.apptTime));
+        let ah='<div class="col-appts" style="padding:6px 8px;margin:0 0 2px 0">';
+        if(appts.length){
+          ah+=appts.map(a=>{
+            const dt=new Date(a.apptDate+'T'+(a.apptTime||'00:00'));
+            const isToday=a.apptDate===todayStr;
+            const dateStr=isToday?'Today':dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+            const timeStr=a.apptTime?dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
+            return '<div style="font-size:11px;padding:3px 4px;margin:2px 0;background:'+(isToday?'#dbeafe':'#f0fdf4')+';border-radius:4px;display:flex;justify-content:space-between;align-items:center;gap:4px">'
+              +'<span style="'+(isToday?'font-weight:700;color:#1d4ed8':'color:#166534')+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1" title="'+esc(a.leadName||'')+'">'+(isToday?'TODAY ':'')+ esc(a.leadName||'Appt')+'</span>'
+              +'<span style="font-weight:600;color:'+(isToday?'#1d4ed8':'#166534')+';white-space:nowrap;font-size:10px">'+dateStr+(timeStr?' '+timeStr:'')+'</span>'
+              +'<button onclick="event.stopPropagation();removeAppointment(\''+a.id+'\')" style="background:none;border:none;color:#d1d5db;cursor:pointer;font-size:12px;padding:0 2px" title="Remove">&times;</button>'
+              +'</div>';
+          }).join('');
+        }
+        ah+='<button onclick="event.stopPropagation();addManualAppointment(\''+esc(cn)+'\')" style="width:100%;font-size:10px;color:#9ca3af;background:none;border:1px dashed #d1d5db;border-radius:4px;padding:3px;cursor:pointer;margin-top:3px;font-family:var(--font)">+ Add Appointment</button>';
+        ah+='</div>';
+        return ah;
+      })()}
       <div class="col-body" ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';doDragOver(this.closest('.column'))" ondrop="doDrop('${stageKey}')">`;
 
     if(sd.length===0){
