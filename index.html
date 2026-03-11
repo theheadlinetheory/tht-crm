@@ -862,6 +862,20 @@ function checkPointInServiceArea(lat, lng, polygon){
   }
 }
 
+// Canadian province codes — used to detect Canadian addresses and append ", Canada" for correct geocoding
+const CA_PROVINCES = /\b(AB|BC|MB|NB|NL|NS|NT|NU|ON|PE|QC|SK|YT)\b/;
+
+function normalizeAddressForGeocode(addr){
+  if(!addr) return addr;
+  // If address contains a Canadian province code and doesn't already say "Canada", append it
+  // This prevents Geocodio from mismatching Canadian addresses to US locations
+  if(CA_PROVINCES.test(addr) && !/canada/i.test(addr)){
+    // Also strip trailing postal code fragments (e.g. "ON L5N" → "ON, Canada")
+    return addr.replace(/([A-Z]{2})\s+[A-Z]\d[A-Z]?\s*\d?[A-Z]?\d?$/i, '$1').trim() + ', Canada';
+  }
+  return addr;
+}
+
 // Batch geocode addresses via Geocodio
 async function batchGeocode(addresses){
   // Filter out already cached and empty addresses
@@ -876,10 +890,12 @@ async function batchGeocode(addresses){
 
   for(const chunk of chunks){
     try {
+      // Normalize addresses for geocoding (append Canada for Canadian provinces)
+      const normalizedChunk = chunk.map(a => normalizeAddressForGeocode(a));
       const resp = await fetch('https://api.geocod.io/v1.7/geocode?api_key=' + GEOCODIO_KEY, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(chunk)
+        body: JSON.stringify(normalizedChunk)
       });
       if(!resp.ok) { console.warn('Geocodio error:', resp.status); continue; }
       const data = await resp.json();
@@ -888,6 +904,7 @@ async function batchGeocode(addresses){
           const r = data.results[i];
           if(r && r.response && r.response.results && r.response.results.length > 0){
             const loc = r.response.results[0].location;
+            // Cache under the ORIGINAL address key (not normalized) so lookups match
             geocodeCache[chunk[i]] = { lat: loc.lat, lng: loc.lng };
           }
         }
@@ -898,6 +915,25 @@ async function batchGeocode(addresses){
   }
   saveGeocodeCache();
 }
+
+// Purge bad geocode cache entries for Canadian addresses that were previously mis-geocoded
+(function purgeCanadianMisGeocode(){
+  let purged = 0;
+  for(const addr in geocodeCache){
+    if(CA_PROVINCES.test(addr)){
+      const geo = geocodeCache[addr];
+      // Canadian addresses should have lat > 41 (southern border) — if below, it's a US misfire
+      if(geo && geo.lat < 41){
+        delete geocodeCache[addr];
+        purged++;
+      }
+    }
+  }
+  if(purged > 0){
+    console.log('Purged ' + purged + ' mis-geocoded Canadian addresses from cache');
+    saveGeocodeCache();
+  }
+})();
 
 // Run service area checks for all Client pipeline deals
 async function runServiceAreaChecks(){
