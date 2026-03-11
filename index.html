@@ -1572,7 +1572,13 @@ async function syncFromSheet(){
       state.appointments=data.appointments;
       state.appointments.forEach(a=>{
         Object.keys(a).forEach(k=>{ if(a[k]!=null && typeof a[k]!=='string') a[k]=String(a[k]); });
+        // Normalize apptDate — Sheets may return timestamps or date objects
+        if(a.apptDate && !/^\d{4}-\d{2}-\d{2}$/.test(a.apptDate)){
+          try{ const d=new Date(a.apptDate); if(!isNaN(d)) a.apptDate=d.toISOString().slice(0,10); else a.apptDate=''; }catch(e){ a.apptDate=''; }
+        }
       });
+      // Remove entries with no valid date
+      state.appointments=state.appointments.filter(a=>a.apptDate && /^\d{4}-\d{2}-\d{2}$/.test(a.apptDate));
       // Auto-purge past appointments
       const todayStr=getToday();
       const past=state.appointments.filter(a=>a.apptDate && a.apptDate<todayStr);
@@ -3837,9 +3843,9 @@ function updateDealField(key,val){
     state.selectedDeal[key]=val;
     // Refresh upcoming meetings display when booking date/time changes
     if(key==='bookedDate'||key==='bookedTime'){
+      const deal=state.selectedDeal;
       const meetContainer=document.getElementById('upcoming-meetings-container');
       if(meetContainer){
-        const deal=state.selectedDeal;
         const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
         if(client){
           const fresh=renderUpcomingMeetings(deal,client.name);
@@ -3847,6 +3853,20 @@ function updateDealField(key,val){
           tmp.innerHTML=fresh;
           const newMeet=tmp.querySelector('#upcoming-meetings-container');
           if(newMeet) meetContainer.innerHTML=newMeet.innerHTML;
+        }
+      }
+      // Auto-create/update persistent appointment when both date and time are set
+      if(deal.bookedDate && /^\d{4}-\d{2}-\d{2}$/.test(deal.bookedDate) && deal.bookedTime){
+        const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
+        if(client){
+          const leadName=deal.company||deal.contact||'Unknown';
+          // Remove existing appointment for this deal (by matching client+leadName) to avoid duplicates
+          const existing=state.appointments.find(a=>a.clientName===client.name && a.leadName===leadName);
+          if(existing){
+            state.appointments=state.appointments.filter(a=>a.id!==existing.id);
+            apiPost('delete_appointment',{id:existing.id}).catch(()=>{});
+          }
+          saveAppointment(client.name, leadName, deal.bookedDate, deal.bookedTime);
         }
       }
     }
