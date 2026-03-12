@@ -1572,9 +1572,13 @@ async function syncFromSheet(){
       state.appointments=data.appointments;
       state.appointments.forEach(a=>{
         Object.keys(a).forEach(k=>{ if(a[k]!=null && typeof a[k]!=='string') a[k]=String(a[k]); });
-        // Normalize apptDate — Sheets may return timestamps or date objects
+        // Normalize apptDate — Sheets returns dates as full timestamps
         if(a.apptDate && !/^\d{4}-\d{2}-\d{2}$/.test(a.apptDate)){
-          try{ const d=new Date(a.apptDate); if(!isNaN(d)) a.apptDate=d.toISOString().slice(0,10); else a.apptDate=''; }catch(e){ a.apptDate=''; }
+          try{ const d=new Date(a.apptDate); if(!isNaN(d.getTime())) a.apptDate=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); else a.apptDate=''; }catch(e){ a.apptDate=''; }
+        }
+        // Normalize apptTime — Sheets returns times as full date timestamps like "Sat Dec 30 1899 09:00:00"
+        if(a.apptTime && !/^\d{2}:\d{2}$/.test(a.apptTime)){
+          try{ const d=new Date(a.apptTime); if(!isNaN(d.getTime())) a.apptTime=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); else a.apptTime=''; }catch(e){ a.apptTime=''; }
         }
       });
       // Remove entries with no valid date
@@ -3200,10 +3204,19 @@ function render(){
         let ah='<div class="col-appts" style="padding:6px 8px;margin:0 0 2px 0">';
         if(appts.length){
           ah+=appts.map(a=>{
-            const dt=new Date(a.apptDate+'T'+(a.apptTime||'12:00'));
             const isToday=a.apptDate===todayStr;
-            const dateStr=isToday?'Today':dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-            const timeStr=a.apptTime?dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
+            // Safe date/time formatting — never show "Invalid Date"
+            let dateStr='', timeStr='';
+            try {
+              const time=a.apptTime&&/^\d{2}:\d{2}$/.test(a.apptTime)?a.apptTime:'12:00';
+              const dt=new Date(a.apptDate+'T'+time);
+              if(isNaN(dt.getTime())) throw 0;
+              dateStr=isToday?'Today':dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+              if(a.apptTime&&/^\d{2}:\d{2}$/.test(a.apptTime)) timeStr=dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+            } catch(e) {
+              dateStr=a.apptDate||'';
+              timeStr=a.apptTime||'';
+            }
             return '<div style="font-size:11px;padding:3px 4px;margin:2px 0;background:'+(isToday?'#dbeafe':'#f0fdf4')+';border-radius:4px;display:flex;justify-content:space-between;align-items:center;gap:4px">'
               +'<span style="'+(isToday?'font-weight:700;color:#1d4ed8':'color:#166534')+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1" title="'+esc(a.leadName||'')+'">'+(isToday?'TODAY ':'')+ esc(a.leadName||'Appt')+'</span>'
               +'<span style="font-weight:600;color:'+(isToday?'#1d4ed8':'#166534')+';white-space:nowrap;font-size:10px">'+dateStr+(timeStr?' '+timeStr:'')+'</span>'
