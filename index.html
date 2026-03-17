@@ -1416,7 +1416,7 @@ async function autoPushToTracker(deal){
   const leadEmail=deal.email||'';
   // Push to Lead Entry sheet (no cost — Lead Entry script handles cost lookup + sync to Lead Tracker)
   const row=[clientName,monthGenerated,leadName,leadEmail,dateGenerated];
-  const resp=await apiPost('push_lead_tracker',{sheetId:LEAD_ENTRY_SHEET_ID,sheetName:'Sheet1',row});
+  const resp=await apiPost('push_lead_tracker',{sheetId:LEAD_ENTRY_SHEET_ID,sheetName:'Lead Entry',row});
   if(resp && !resp.error){
     deal.pushedToTracker=new Date().toISOString();
     // Persist the pushedToTracker timestamp to the sheet
@@ -2588,7 +2588,7 @@ async function pushToLeadTracker(dealId){
   const row=[clientName,monthGenerated,leadName,leadEmail,dateGenerated];
   // Push to Lead Entry, then archive as Closed Won and remove from board
   try {
-    await apiPost('push_lead_tracker',{sheetId:LEAD_ENTRY_SHEET_ID,sheetName:'Sheet1',row});
+    await apiPost('push_lead_tracker',{sheetId:LEAD_ENTRY_SHEET_ID,sheetName:'Lead Entry',row});
   } catch(e){
     alert('Failed to push to Lead Tracker: '+e.message);
     return;
@@ -4113,7 +4113,7 @@ async function doWonDrop(){
   const leadEmail=deal.email||'';
   const row=[clientName,monthGenerated,leadName,leadEmail,dateGenerated];
   try{
-    await apiPost('push_lead_tracker',{sheetId:LEAD_ENTRY_SHEET_ID,sheetName:'Sheet1',row});
+    await apiPost('push_lead_tracker',{sheetId:LEAD_ENTRY_SHEET_ID,sheetName:'Lead Entry',row});
     deleteDeal(dragId, 'Closed Won', clientName);
   }catch(e){
     alert('\u274c Failed to push to Lead Tracker: '+e.message);
