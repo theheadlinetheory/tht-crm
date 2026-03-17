@@ -2575,6 +2575,21 @@ function buildCalendlyUrl(baseUrl, deal){
   return url.toString();
 }
 
+// ─── Timezone mapping for Calendly ───
+const TZ_TO_IANA={
+  'EST':'America/New_York','EDT':'America/New_York',
+  'CST':'America/Chicago','CDT':'America/Chicago',
+  'MST':'America/Denver','MDT':'America/Denver',
+  'PST':'America/Los_Angeles','PDT':'America/Los_Angeles',
+  'AST':'America/Halifax','HST':'Pacific/Honolulu',
+  'AKST':'America/Anchorage','AKDT':'America/Anchorage'
+};
+function clientIanaTz(clientName){
+  const info=lookupClientInfo(clientName);
+  if(!info||!info.timeZone) return null;
+  return TZ_TO_IANA[info.timeZone.toUpperCase()]||info.timeZone;
+}
+
 // ─── Calendly Inline Booking ───
 let calendlyBookingDealId=null;
 
@@ -2584,27 +2599,31 @@ function toggleCalendlyBooking(dealId, calUrl){
   sec.style.display=sec.style.display==='none'?'block':'none';
 }
 
-function openCalendlyEmbed(dealId, baseCalUrl){
+function openCalendlyEmbed(dealId, baseCalUrl, clientName){
   calendlyBookingDealId=dealId;
   const name=(document.getElementById('cal-prefill-name')?.value||'').trim();
   const email=(document.getElementById('cal-prefill-email')?.value||'').trim();
   const notes=(document.getElementById('cal-prefill-notes')?.value||'').trim();
   const url=baseCalUrl.includes('://')?baseCalUrl:'https://'+baseCalUrl;
+  const ianaTz=clientIanaTz(clientName);
   if(typeof Calendly!=='undefined'){
-    Calendly.initPopupWidget({
+    const opts={
       url: url,
       prefill: {
         name: name,
         email: email,
         customAnswers: { a1: notes }
       }
-    });
+    };
+    if(ianaTz) opts.url+=(url.includes('?')?'&':'?')+'timezone='+encodeURIComponent(ianaTz);
+    Calendly.initPopupWidget(opts);
   } else {
     // Fallback: build URL manually and open in new tab
     const u=new URL(url);
     if(name) u.searchParams.set('name',name);
     if(email) u.searchParams.set('email',email);
     if(notes) u.searchParams.set('a1',notes);
+    if(ianaTz) u.searchParams.set('timezone',ianaTz);
     window.open(u.toString(),'_blank');
   }
 }
@@ -3924,7 +3943,10 @@ function renderDealModal(deal){
           </button>
         </div>
         <div id="calendly-booking-section" style="display:none;margin:0 0 12px 0;padding:12px;background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px">
-          <div style="font-size:11px;font-weight:700;color:#5b21b6;margin-bottom:8px">Review & Edit Info Sent to Calendly</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-size:11px;font-weight:700;color:#5b21b6">Review & Edit Info Sent to Calendly</div>
+            ${(()=>{const ci=lookupClientInfo(matchedClient.name);const tz=ci&&ci.timeZone?ci.timeZone:'';return tz?'<div style="font-size:11px;font-weight:700;color:#fff;background:#7c3aed;padding:2px 8px;border-radius:10px;letter-spacing:.3px">'+esc(matchedClient.name)+' Time: '+esc(tz)+'</div>':'';})()}
+          </div>
           <div style="margin-bottom:6px">
             <label style="font-size:11px;color:#6b7280;font-weight:600">Guest Name</label>
             <input type="text" id="cal-prefill-name" value="${esc(deal.contact||deal.company||'')}"
@@ -3941,7 +3963,7 @@ function renderDealModal(deal){
               style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px;resize:vertical">${esc(prefillLines.join('\n'))}</textarea>
           </div>
           <button class="btn btn-primary" style="width:100%;justify-content:center;font-size:13px;background:#818cf8;border-color:#818cf8"
-            onclick="openCalendlyEmbed('${esc(deal.id)}','${esc(matchedClient.calendlyUrl)}')">
+            onclick="openCalendlyEmbed('${esc(deal.id)}','${esc(matchedClient.calendlyUrl)}','${esc(matchedClient.name)}')">
             Open Calendar & Book
           </button>
         </div>`;
