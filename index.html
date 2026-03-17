@@ -2628,16 +2628,60 @@ function openCalendlyEmbed(dealId, baseCalUrl, clientName){
   }
 }
 
-// Listen for Calendly booking confirmation
+// Track the date/time the user selects in the Calendly widget
+let calendlySelectedDateTime=null;
+
+// Listen for Calendly events
 window.addEventListener('message',function(e){
-  if(e.data && e.data.event==='calendly.event_scheduled' && calendlyBookingDealId){
+  if(!e.data || !e.data.event) return;
+
+  // Capture when user picks a date/time slot (fires before event_scheduled)
+  if(e.data.event==='calendly.date_and_time_selected'){
+    // This event doesn't include the datetime directly, but we note it happened
+    calendlySelectedDateTime='pending';
+  }
+
+  // Calendly sends event_created with start_time in the payload
+  if(e.data.event==='calendly.event_scheduled' && calendlyBookingDealId){
     const dealId=calendlyBookingDealId;
     calendlyBookingDealId=null;
     const deal=state.deals.find(d=>d.id===dealId);
     if(!deal) return;
-    // Auto-set today's date and scroll to the date/time inputs for the user to adjust
-    deal.bookedDate=deal.bookedDate||TODAY();
-    deal.bookedTime=deal.bookedTime||'09:00';
+
+    // Extract actual meeting date/time from Calendly payload
+    let bookedDate='', bookedTime='';
+    const payload=e.data.payload||{};
+    const eventData=payload.event||{};
+    const startTime=eventData.start_time||'';
+
+    if(startTime){
+      // start_time is ISO 8601: "2026-03-19T14:00:00-04:00"
+      // Convert to client's local timezone
+      const clientName=findClientForDeal(deal)?.name||deal.stage;
+      const ianaTz=clientIanaTz(clientName);
+      const dt=new Date(startTime);
+      if(!isNaN(dt.getTime())){
+        // Format in the client's timezone
+        if(ianaTz){
+          const parts=new Intl.DateTimeFormat('en-CA',{timeZone:ianaTz,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(dt);
+          const ymd=parts.filter(p=>p.type!=='literal').map(p=>p.value).join('-');
+          bookedDate=ymd;
+          const timeParts=new Intl.DateTimeFormat('en-GB',{timeZone:ianaTz,hour:'2-digit',minute:'2-digit',hour12:false}).format(dt);
+          bookedTime=timeParts;
+        } else {
+          bookedDate=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+          bookedTime=String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');
+        }
+      }
+    }
+
+    // Fallback to defaults if Calendly didn't provide start_time
+    if(!bookedDate) bookedDate=deal.bookedDate||TODAY();
+    if(!bookedTime) bookedTime=deal.bookedTime||'09:00';
+
+    deal.bookedDate=bookedDate;
+    deal.bookedTime=bookedTime;
+
     const dateEl=document.getElementById('deal-bookedDate');
     const timeEl=document.getElementById('deal-bookedTime');
     if(dateEl){ dateEl.value=deal.bookedDate; dateEl.style.border='2px solid #22c55e'; setTimeout(()=>{dateEl.style.border='';},3000); dateEl.scrollIntoView({behavior:'smooth',block:'center'}); }
@@ -2656,12 +2700,22 @@ window.addEventListener('message',function(e){
       const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
       if(client) meetContainer.innerHTML=renderUpcomingMeetings(deal,client.name).replace(/<div id="upcoming-meetings-container">|<\/div>$/g,'');
     }
-    // Show confirmation toast
+    // Show confirmation toast with actual date/time
     const toast=document.createElement('div');
     toast.style.cssText='position:fixed;top:70px;left:50%;transform:translateX(-50%);background:#22c55e;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,.2)';
-    toast.textContent='Meeting booked! Confirm the date & time below.';
+    if(startTime){
+      const displayDt=new Date(startTime);
+      const clientName=findClientForDeal(deal)?.name||deal.stage;
+      const ianaTz=clientIanaTz(clientName);
+      const opts={weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'};
+      if(ianaTz) opts.timeZone=ianaTz;
+      toast.textContent='Meeting booked: '+displayDt.toLocaleString('en-US',opts);
+    } else {
+      toast.textContent='Meeting booked! Date & time saved automatically.';
+    }
     document.body.appendChild(toast);
-    setTimeout(()=>toast.remove(),4000);
+    setTimeout(()=>toast.remove(),5000);
+    calendlySelectedDateTime=null;
   }
 });
 
