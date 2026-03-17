@@ -495,17 +495,38 @@ async function handleGoogleSignIn(){
   }
 }
 
+function resetAppState(){
+  currentUser = null;
+  state.pipeline = 'client_leads';
+  state.selectedDeal = null;
+  state.showNew = false;
+  state.showAddClient = false;
+  state.showEmployeeArchive = false;
+  state.archiveLoaded = false;
+  state.archiveData = [];
+  state.nurtureSubTab = 'rerun';
+  state.searchQuery = '';
+  state.searchResults = null;
+  state.bulkMode = false;
+  state.bulkSelected = new Set();
+  state.synced = false;
+  state.syncing = false;
+  state.showSop = false;
+  state.viewMode = 'board';
+  location.hash = '';
+}
+
 function logout(){
+  resetAppState();
   auth.signOut().then(()=>{
-    currentUser = null;
     document.getElementById('app').style.display='none';
     document.getElementById('login-screen').style.display='flex';
   });
 }
 
 function switchUser(){
+  resetAppState();
   auth.signOut().then(()=>{
-    currentUser = null;
     document.getElementById('app').style.display='none';
     document.getElementById('login-screen').style.display='flex';
   });
@@ -565,10 +586,14 @@ auth.onAuthStateChanged(async (user) => {
     document.getElementById('login-screen').style.display='none';
     document.getElementById('app').style.display='block';
 
-    // If client or employee, force to client_leads pipeline
+    // Set default pipeline based on role
     if(isClient() || isEmployee()){
       state.pipeline = 'client_leads';
       location.hash = 'client_leads';
+    } else if(isAdmin()){
+      // Admin: restore from hash or default to dashboard
+      const hash = location.hash.replace('#','');
+      state.pipeline = hash && ['dashboard','acquisition','client_leads','nurture'].includes(hash) ? hash : 'client_leads';
     }
 
     initApp();
