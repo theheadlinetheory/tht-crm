@@ -2949,13 +2949,32 @@ function openWarmCallSheet(dealId){
   const info=lookupClientInfo(mc.name)||{};
 
   // Get upcoming meetings for this client
+  // Accept any parseable date (not just YYYY-MM-DD) to support manually entered dates
   const now=new Date();
+  const clientNameLower=mc.name.toLowerCase();
   const upcoming=state.deals.filter(d=>{
-    if(!isValidDate(d.bookedDate)) return false;
-    const dt=new Date(d.bookedDate+'T'+(d.bookedTime||'23:59'));
-    return dt>=now && d.stage===mc.name;
+    if(!d.bookedDate) return false;
+    const bd=String(d.bookedDate).trim();
+    // Try parsing: YYYY-MM-DD, M/D/YY, or any Date-parseable string
+    let dt;
+    if(/^\d{4}-\d{2}-\d{2}$/.test(bd)){
+      dt=new Date(bd+'T'+(d.bookedTime||'23:59'));
+    } else {
+      dt=new Date(bd);
+      if(!isNaN(dt.getTime()) && d.bookedTime){
+        const[hh,mm]=(d.bookedTime||'').split(':');
+        if(hh) dt.setHours(parseInt(hh),parseInt(mm||'0'));
+      }
+    }
+    if(isNaN(dt.getTime())) return false;
+    // Match by stage name (could be "Tropical Landscape Inc." or "Tropical")
+    const stageLower=String(d.stage||'').toLowerCase();
+    const stageMatch=stageLower===clientNameLower || clientNameLower.includes(stageLower) || stageLower.includes(clientNameLower);
+    return dt>=now && stageMatch;
   }).sort((a,b)=>{
-    return new Date(a.bookedDate+'T'+(a.bookedTime||'00:00'))-new Date(b.bookedDate+'T'+(b.bookedTime||'00:00'));
+    const pa=new Date(/^\d{4}-\d{2}-\d{2}$/.test(a.bookedDate)?a.bookedDate+'T'+(a.bookedTime||'00:00'):a.bookedDate);
+    const pb=new Date(/^\d{4}-\d{2}-\d{2}$/.test(b.bookedDate)?b.bookedDate+'T'+(b.bookedTime||'00:00'):b.bookedDate);
+    return pa-pb;
   }).slice(0,8);
 
   const replyText=str(deal.emailBody||'').trim();
