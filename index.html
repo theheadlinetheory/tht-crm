@@ -516,18 +516,42 @@ function resetAppState(){
   location.hash = '';
 }
 
+function showTransitionScreen(){
+  // Full-screen loading overlay that hides everything during user switch
+  let overlay = document.getElementById('transition-overlay');
+  if(!overlay){
+    overlay = document.createElement('div');
+    overlay.id = 'transition-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center';
+    overlay.innerHTML = '<div class="loading-logo"><span>T</span></div><div class="loading-text" style="color:var(--text-muted);font-size:14px;margin-top:12px">Switching account...</div><div class="loading-spinner"></div>';
+    document.body.appendChild(overlay);
+  }
+  overlay.style.display = 'flex';
+}
+
+function hideTransitionScreen(){
+  const overlay = document.getElementById('transition-overlay');
+  if(overlay) overlay.style.display = 'none';
+}
+
 function logout(){
+  showTransitionScreen();
   resetAppState();
+  document.getElementById('app').style.display='none';
+  document.getElementById('app').innerHTML='';
   auth.signOut().then(()=>{
-    document.getElementById('app').style.display='none';
+    hideTransitionScreen();
     document.getElementById('login-screen').style.display='flex';
   });
 }
 
 function switchUser(){
+  showTransitionScreen();
   resetAppState();
+  document.getElementById('app').style.display='none';
+  document.getElementById('app').innerHTML='';
   auth.signOut().then(()=>{
-    document.getElementById('app').style.display='none';
+    hideTransitionScreen();
     document.getElementById('login-screen').style.display='flex';
   });
 }
@@ -582,21 +606,31 @@ auth.onAuthStateChanged(async (user) => {
       clientName: userDoc.clientName || ''
     };
 
-    // Show app, hide login
+    // Show transition/loading screen, hide login
     document.getElementById('login-screen').style.display='none';
-    document.getElementById('app').style.display='block';
+    showTransitionScreen();
 
     // Set default pipeline based on role
     if(isClient() || isEmployee()){
       state.pipeline = 'client_leads';
       location.hash = 'client_leads';
     } else if(isAdmin()){
-      // Admin: restore from hash or default to dashboard
       const hash = location.hash.replace('#','');
       state.pipeline = hash && ['dashboard','acquisition','client_leads','nurture'].includes(hash) ? hash : 'client_leads';
     }
 
+    // Show app and render loading state, then init
+    document.getElementById('app').style.display='block';
     initApp();
+    // Hide transition once first sync completes
+    const _waitForSync = setInterval(()=>{
+      if(state.synced){
+        clearInterval(_waitForSync);
+        hideTransitionScreen();
+      }
+    }, 100)
+    // Safety timeout — hide after 8s max
+    setTimeout(hideTransitionScreen, 8000);
   } else {
     // Not logged in — show login screen
     currentUser = null;
