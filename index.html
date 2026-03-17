@@ -1256,13 +1256,13 @@ async function geocodeAndCheckDeal(dealId){
     await batchGeocode([addr]);
   }
   const geo = geocodeCache[addr];
-  if(!geo){ serviceAreaResults[dealId] = { status: 'unknown', clientName: '' }; refreshModal(); return; }
+  if(!geo){ serviceAreaResults[dealId] = { status: 'unknown', clientName: '' }; refreshModal(true); return; }
 
   const matchedClient = findClientForDeal(deal) || state.clients.find(c => c.name === deal.stage);
-  if(!matchedClient){ serviceAreaResults[dealId] = { status: 'unknown', lat: geo.lat, lng: geo.lng, clientName: '' }; refreshModal(); return; }
+  if(!matchedClient){ serviceAreaResults[dealId] = { status: 'unknown', lat: geo.lat, lng: geo.lng, clientName: '' }; refreshModal(true); return; }
 
   const polyMatch = findPolygonForClient(matchedClient.name);
-  if(!polyMatch){ serviceAreaResults[dealId] = { status: 'unknown', lat: geo.lat, lng: geo.lng, clientName: matchedClient.name }; refreshModal(); return; }
+  if(!polyMatch){ serviceAreaResults[dealId] = { status: 'unknown', lat: geo.lat, lng: geo.lng, clientName: matchedClient.name }; refreshModal(true); return; }
 
   const isIn = checkPointInServiceArea(geo.lat, geo.lng, polyMatch.polygon);
   serviceAreaResults[dealId] = {
@@ -1271,7 +1271,7 @@ async function geocodeAndCheckDeal(dealId){
     clientName: matchedClient.name,
     polygonKey: polyMatch.key
   };
-  refreshModal();
+  refreshModal(true);
 }
 
 
@@ -2144,13 +2144,13 @@ function renderUpcomingMeetings(deal, clientName){
 }
 
 // Fast modal refresh — only updates activities and meetings sections to avoid map flicker and scroll reset
-function refreshModal(){
+function refreshModal(forceFullRebuild){
   if(!state.selectedDeal) return;
   const deal=state.selectedDeal;
 
   // Try targeted update first — only replace the activities container
   const actContainer=document.getElementById('activities-container');
-  if(actContainer){
+  if(actContainer && !forceFullRebuild){
     // Build just the activities HTML by rendering full modal and extracting it
     const fresh=renderDealModal(deal);
     const tmp=document.createElement('div');
