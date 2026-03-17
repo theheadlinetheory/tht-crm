@@ -2727,9 +2727,25 @@ const CLIENT_INFO={
   }
 };
 
+// Look up CLIENT_INFO by name — handles full names, short names, partial matches
+function lookupClientInfo(name){
+  if(!name) return null;
+  const n=name.toLowerCase().trim();
+  // Exact match first
+  for(const key of Object.keys(CLIENT_INFO)){
+    if(key.toLowerCase()===n) return CLIENT_INFO[key];
+  }
+  // Partial match — check if CLIENT_INFO key is contained in name or vice versa
+  for(const key of Object.keys(CLIENT_INFO)){
+    const k=key.toLowerCase();
+    if(n.includes(k)||k.includes(n)) return CLIENT_INFO[key];
+  }
+  return null;
+}
+
 // Warm call Q&A — standard questions with answers pulled from CLIENT_INFO
 function getWarmCallQA(clientName){
-  const info=CLIENT_INFO[clientName];
+  const info=lookupClientInfo(clientName);
   if(!info) return [];
   const qa=[];
   qa.push({q:'Where are you guys located?',a:'We\'re based out of '+info.location+'.'});
@@ -3606,7 +3622,7 @@ function renderDealModal(deal){
       // Enhanced Client Info panel
       {
         const cn=matchedClient;
-        const info=CLIENT_INFO[cn.name]||{};
+        const info=lookupClientInfo(cn.name)||{};
         const fwdName=info.forwardName||str(cn.contactFirstName).trim()||'';
         const fwdEmail=info.forwardEmail||str(cn.notifyEmails).trim()||'';
         const priContact=info.primaryContact||str(cn.contactFirstName).trim()||'';
