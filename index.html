@@ -1414,15 +1414,9 @@ async function autoPushToTracker(deal){
   const dateGenerated=(now.getMonth()+1)+'/'+now.getDate()+'/'+String(now.getFullYear()).slice(2);
   const leadName=deal.company||deal.contact||'Unknown';
   const leadEmail=deal.email||'';
-  // Get cost from client config, or from deal value, or prompt
-  let cost='';
-  if(client && str(client.leadCost).replace(/[^0-9.]/g,'')){
-    cost='$'+str(client.leadCost).replace(/[^0-9.]/g,'');
-  } else if(deal.value && String(deal.value)!=='0'){
-    cost='$'+String(deal.value);
-  }
-  const row=[clientName,monthGenerated,leadName,leadEmail,dateGenerated,cost,'','','',''];
-  const resp=await apiPost('push_lead_tracker',{sheetId:LEAD_TRACKER_SHEET_ID,sheetName:'Lead Tracker',row});
+  // Push to Lead Entry sheet (no cost — Lead Entry script handles cost lookup + sync to Lead Tracker)
+  const row=[clientName,monthGenerated,leadName,leadEmail,dateGenerated];
+  const resp=await apiPost('push_lead_tracker',{sheetId:LEAD_ENTRY_SHEET_ID,sheetName:'Sheet1',row});
   if(resp && !resp.error){
     deal.pushedToTracker=new Date().toISOString();
     // Persist the pushedToTracker timestamp to the sheet
@@ -1572,13 +1566,20 @@ async function syncFromSheet(){
       state.appointments=data.appointments;
       state.appointments.forEach(a=>{
         Object.keys(a).forEach(k=>{ if(a[k]!=null && typeof a[k]!=='string') a[k]=String(a[k]); });
-        // Normalize apptDate — Sheets returns dates as full timestamps
+        // Normalize apptDate — handle ISO strings, Sheets date strings, etc.
         if(a.apptDate && !/^\d{4}-\d{2}-\d{2}$/.test(a.apptDate)){
-          try{ const d=new Date(a.apptDate); if(!isNaN(d.getTime())) a.apptDate=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); else a.apptDate=''; }catch(e){ a.apptDate=''; }
+          try{
+            // Try extracting YYYY-MM-DD from start of string first (handles "2026-03-12T00:00:00.000Z")
+            const isoMatch=a.apptDate.match(/^(\d{4}-\d{2}-\d{2})/);
+            if(isoMatch){ a.apptDate=isoMatch[1]; }
+            else { const d=new Date(a.apptDate); if(!isNaN(d.getTime())) a.apptDate=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); else a.apptDate=''; }
+          }catch(e){ a.apptDate=''; }
         }
-        // Normalize apptTime — Sheets returns times as full date timestamps like "Sat Dec 30 1899 09:00:00"
+        // Normalize apptTime — handle "Sat Dec 30 1899 09:00:00", "09:00:00", HH:MM, etc.
         if(a.apptTime && !/^\d{2}:\d{2}$/.test(a.apptTime)){
-          try{ const d=new Date(a.apptTime); if(!isNaN(d.getTime())) a.apptTime=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); else a.apptTime=''; }catch(e){ a.apptTime=''; }
+          const tmMatch=a.apptTime.match(/(\d{2}):(\d{2})/);
+          if(tmMatch){ a.apptTime=tmMatch[1]+':'+tmMatch[2]; }
+          else { a.apptTime=''; }
         }
       });
       // Remove entries with no valid date
@@ -2564,6 +2565,7 @@ function removeClient(name){
 }
 
 const LEAD_TRACKER_SHEET_ID='1zEfZQOuzbrE9s01gfTOoVvEJ-DgtOxkPIWNiZHaxaZ4';
+const LEAD_ENTRY_SHEET_ID='1RAa689xwLM2fQjO0K8cpOyBCPt8bEorTErKDbdFL_fY';
 // Clients that push to Lead Tracker at $0 (no cost)
 const TRACKER_ZERO_COST_CLIENTS=['abc','deeter'];
 
@@ -2575,29 +2577,18 @@ async function pushToLeadTracker(dealId){
 
   const isZeroCost=TRACKER_ZERO_COST_CLIENTS.some(ex=>clientName.toLowerCase().includes(ex));
 
-  let leadCost='';
-  if(isZeroCost){
-    leadCost=''; // $0 for ABC, Deeter, etc.
-  } else if(client && str(client.leadCost).replace(/[^0-9.]/g,'')){
-    leadCost='$'+str(client.leadCost).replace(/[^0-9.]/g,'');
-  } else {
-    const costInput=prompt('Enter lead cost for this client (e.g. 200, 250):','250');
-    if(costInput===null) return;
-    const costNum=parseFloat(costInput.replace(/[^0-9.]/g,''));
-    if(isNaN(costNum)){alert('Invalid cost. Please enter a number.');return;}
-    leadCost='$'+costNum;
-  }
+  // Push to Lead Entry sheet (no cost — Lead Entry script handles cost lookup + sync to Lead Tracker)
   const now=new Date();
   const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const monthGenerated=monthNames[now.getMonth()]+'/'+String(now.getFullYear()).slice(2);
   const dateGenerated=(now.getMonth()+1)+'/'+now.getDate()+'/'+String(now.getFullYear()).slice(2);
-  
+
   const leadName=deal.company||deal.contact||'Unknown';
   const leadEmail=deal.email||'';
-  const row=[clientName,monthGenerated,leadName,leadEmail,dateGenerated,leadCost,'','','',''];
-  // Push to tracker, then archive as Closed Won and remove from board
+  const row=[clientName,monthGenerated,leadName,leadEmail,dateGenerated];
+  // Push to Lead Entry, then archive as Closed Won and remove from board
   try {
-    await apiPost('push_lead_tracker',{sheetId:LEAD_TRACKER_SHEET_ID,sheetName:'Lead Tracker',row});
+    await apiPost('push_lead_tracker',{sheetId:LEAD_ENTRY_SHEET_ID,sheetName:'Sheet1',row});
   } catch(e){
     alert('Failed to push to Lead Tracker: '+e.message);
     return;
@@ -4112,18 +4103,7 @@ async function doWonDrop(){
   if(!confirm('Mark "'+name+'" as Won, push to Lead Tracker'+(wonIsZeroCost?' ($0)':'')+', and remove from CRM?')) return;
 
   const client=wonClient;
-  let leadCost='';
-  if(wonIsZeroCost){
-    leadCost='';
-  } else if(client && str(client.leadCost).replace(/[^0-9.]/g,'')){
-    leadCost='$'+str(client.leadCost).replace(/[^0-9.]/g,'');
-  } else {
-    const costInput=prompt('Enter lead cost for this client (e.g. 200, 250):','250');
-    if(costInput===null) return;
-    const costNum=parseFloat(costInput.replace(/[^0-9.]/g,''));
-    if(isNaN(costNum)){alert('Invalid cost. Please enter a number.');return;}
-    leadCost='$'+costNum;
-  }
+  // Push to Lead Entry sheet (no cost — Lead Entry script handles cost lookup + sync to Lead Tracker)
   const now=new Date();
   const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const monthGenerated=monthNames[now.getMonth()]+'/'+String(now.getFullYear()).slice(2);
@@ -4131,9 +4111,9 @@ async function doWonDrop(){
   const clientName=client?client.name:deal.stage;
   const leadName=deal.company||deal.contact||'Unknown';
   const leadEmail=deal.email||'';
-  const row=[clientName,monthGenerated,leadName,leadEmail,dateGenerated,leadCost,'','','',''];
+  const row=[clientName,monthGenerated,leadName,leadEmail,dateGenerated];
   try{
-    await apiPost('push_lead_tracker',{sheetId:LEAD_TRACKER_SHEET_ID,sheetName:'Lead Tracker',row});
+    await apiPost('push_lead_tracker',{sheetId:LEAD_ENTRY_SHEET_ID,sheetName:'Sheet1',row});
     deleteDeal(dragId, 'Closed Won', clientName);
   }catch(e){
     alert('\u274c Failed to push to Lead Tracker: '+e.message);
