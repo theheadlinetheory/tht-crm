@@ -2948,34 +2948,65 @@ function openWarmCallSheet(dealId){
   if(!mc) return;
   const info=lookupClientInfo(mc.name)||{};
 
-  // Get upcoming meetings for this client
-  // Accept any parseable date (not just YYYY-MM-DD) to support manually entered dates
+  // Get upcoming meetings for this client from BOTH deals and appointments
   const now=new Date();
   const clientNameLower=mc.name.toLowerCase();
-  const upcoming=state.deals.filter(d=>{
-    if(!d.bookedDate) return false;
-    const bd=String(d.bookedDate).trim();
-    // Try parsing: YYYY-MM-DD, M/D/YY, or any Date-parseable string
+
+  function parseBookedDate(dateStr, timeStr){
+    if(!dateStr) return null;
+    const bd=String(dateStr).trim();
     let dt;
     if(/^\d{4}-\d{2}-\d{2}$/.test(bd)){
-      dt=new Date(bd+'T'+(d.bookedTime||'23:59'));
+      dt=new Date(bd+'T'+(timeStr||'23:59'));
     } else {
       dt=new Date(bd);
-      if(!isNaN(dt.getTime()) && d.bookedTime){
-        const[hh,mm]=(d.bookedTime||'').split(':');
+      if(!isNaN(dt.getTime()) && timeStr){
+        const[hh,mm]=(timeStr||'').split(':');
         if(hh) dt.setHours(parseInt(hh),parseInt(mm||'0'));
       }
     }
-    if(isNaN(dt.getTime())) return false;
-    // Match by stage name (could be "Tropical Landscape Inc." or "Tropical")
-    const stageLower=String(d.stage||'').toLowerCase();
-    const stageMatch=stageLower===clientNameLower || clientNameLower.includes(stageLower) || stageLower.includes(clientNameLower);
-    return dt>=now && stageMatch;
-  }).sort((a,b)=>{
-    const pa=new Date(/^\d{4}-\d{2}-\d{2}$/.test(a.bookedDate)?a.bookedDate+'T'+(a.bookedTime||'00:00'):a.bookedDate);
-    const pb=new Date(/^\d{4}-\d{2}-\d{2}$/.test(b.bookedDate)?b.bookedDate+'T'+(b.bookedTime||'00:00'):b.bookedDate);
-    return pa-pb;
-  }).slice(0,8);
+    return (dt && !isNaN(dt.getTime())) ? dt : null;
+  }
+
+  function fuzzyClientMatch(name){
+    const n=String(name||'').toLowerCase();
+    return n===clientNameLower || clientNameLower.includes(n) || n.includes(clientNameLower);
+  }
+
+  // Source 1: deals with bookedDate
+  const dealMeetings=state.deals.filter(d=>{
+    const dt=parseBookedDate(d.bookedDate, d.bookedTime);
+    if(!dt || dt<now) return false;
+    return fuzzyClientMatch(d.stage);
+  }).map(d=>({
+    name: d.company||d.contact||'Unknown',
+    date: d.bookedDate,
+    time: d.bookedTime||'',
+    parsed: parseBookedDate(d.bookedDate, d.bookedTime),
+    dealId: d.id
+  }));
+
+  // Source 2: appointments (from Appointments sheet)
+  const apptMeetings=(state.appointments||[]).filter(a=>{
+    const dt=parseBookedDate(a.apptDate, a.apptTime);
+    if(!dt || dt<now) return false;
+    return fuzzyClientMatch(a.clientName);
+  }).map(a=>({
+    name: a.leadName||'Unknown',
+    date: a.apptDate,
+    time: a.apptTime||'',
+    parsed: parseBookedDate(a.apptDate, a.apptTime),
+    dealId: null
+  }));
+
+  // Merge and deduplicate (by name+date combo), sort by date
+  const seenKeys=new Set();
+  const upcoming=[...dealMeetings,...apptMeetings].filter(m=>{
+    const key=(m.name+m.date+m.time).toLowerCase();
+    if(seenKeys.has(key)) return false;
+    seenKeys.add(key);
+    return true;
+  }).sort((a,b)=>a.parsed-b.parsed).slice(0,10);
 
   const replyText=str(deal.emailBody||'').trim();
   const leadPhone=deal.phone?String(deal.phone).replace(/[^0-9+]/g,''):'';
@@ -3044,12 +3075,12 @@ function openWarmCallSheet(dealId){
             <div style="padding:12px 16px">
               ${upcoming.length?`
                 ${upcoming.map(m=>{
-                  const dt=new Date(m.bookedDate+'T'+(m.bookedTime||'00:00'));
-                  const dateStr=dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-                  const timeStr=m.bookedTime?dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
-                  const isToday=m.bookedDate===TODAY();
-                  return `<div style="font-size:13px;color:#374151;padding:6px 8px;display:flex;justify-content:space-between;align-items:center;border-radius:6px;${isToday?'background:#fef3c7;':''}${m.id===deal.id?'background:#dbeafe;':''}">
-                    <span style="font-weight:500">${esc(m.company||m.contact||'Unknown')}${m.id===deal.id?' <span style="font-size:10px;color:#3b82f6;font-weight:700">(this lead)</span>':''}</span>
+                  const dateStr=m.parsed.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+                  const timeStr=m.time?m.parsed.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
+                  const isToday=m.date===TODAY();
+                  const isThisDeal=m.dealId===deal.id;
+                  return `<div style="font-size:13px;color:#374151;padding:6px 8px;display:flex;justify-content:space-between;align-items:center;border-radius:6px;${isToday?'background:#fef3c7;':''}${isThisDeal?'background:#dbeafe;':''}">
+                    <span style="font-weight:500">${esc(m.name)}${isThisDeal?' <span style="font-size:10px;color:#3b82f6;font-weight:700">(this lead)</span>':''}</span>
                     <span style="font-weight:700;color:#b45309;white-space:nowrap">${dateStr} @ ${timeStr||'TBD'}</span>
                   </div>`;
                 }).join('')}
