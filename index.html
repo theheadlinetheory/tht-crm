@@ -370,6 +370,7 @@ let authMode = 'login';
 // client: Sees only their assigned client column in Client Leads pipeline
 const ROLES = {
   admin: { label: 'Admin', pipelines: 'all', settings: true, manageUsers: true },
+  employee: { label: 'Employee', pipelines: ['client_leads'], settings: false, manageUsers: false },
   client: { label: 'Client', pipelines: ['client_leads'], settings: false, manageUsers: false }
 };
 
@@ -583,7 +584,7 @@ function getVisiblePipelines(){
 }
 function getVisiblePipelinesWithArchive(){
   if(isClient()) return ALL_PIPELINES.filter(p => p.id === 'client_leads');
-  if(isEmployee()) return ALL_PIPELINES.filter(p => p.id === 'client_leads' || p.id === 'nurture');
+  if(isEmployee()) return ALL_PIPELINES.filter(p => p.id === 'client_leads');
   return ALL_PIPELINES;
 }
 function renderDashboard(){
@@ -2569,6 +2570,148 @@ const LEAD_ENTRY_SHEET_ID='1RAa689xwLM2fQjO0K8cpOyBCPt8bEorTErKDbdFL_fY';
 // Clients that push to Lead Tracker at $0 (no cost)
 const TRACKER_ZERO_COST_CLIENTS=['abc','deeter'];
 
+// ═══════════════════════════════════════════════════════════
+// CLIENT INFO — structured data for deal modal display
+// Source of truth: Client Info Google Sheet
+// ═══════════════════════════════════════════════════════════
+const CLIENT_INFO={
+  'High Southern':{
+    primaryContact:'Will',primaryEmail:'will@highsouthernscapes.com',phone:'(704) 621-3215',
+    location:'Charlotte, NC',timeZone:'EST',
+    serviceAreaCities:'Charlotte (Dilworth, Eastover, Myers Park, SouthPark, Ballantyne), Matthews, Mint Hill, Pineville, Waxhaw, Weddington',
+    forwardName:'Will',forwardEmail:'will@highsouthernscapes.com',
+    calendlyUrl:'https://calendly.com/will-highsouthernscapes/30min',
+    website:'https://www.highsouthernscapes.com/',
+    pricingModel:'Pay-per-meeting',
+    services:['Maintenance services (mowing, trimming, mulching, pine needle, lawn care, flower beds, irrigation)','Pesticide/chemical application','Installation services (retaining walls, outdoor patios, landscape installations)','General contracting']
+  },
+  'Time Savers':{
+    primaryContact:'Joel',primaryEmail:'timesaverslandscaping@gmail.com',phone:'',
+    location:'Brooksville, FL',timeZone:'EST',
+    serviceAreaCities:'Pasco County, Pinellas County, Hillsborough County, Hernando County',
+    forwardName:'Joel',forwardEmail:'timesaverslandscaping@gmail.com',
+    calendlyUrl:'https://calendly.com/timesaverslandscaping/meeting-with-time-savers',
+    website:'https://timesavers.services/',
+    pricingModel:'Pay-per-meeting',
+    services:['Weekly/year-round lawn maintenance (mowing, edging, trimming, blowing)','Full grounds maintenance (shrub trimming, weed control)','General property cleanups','Tree trimming, palm tree trimming','Mulch installation','Sod installation','Bush and tree installation','Irrigation services (monthly inspections, maintenance, repairs)','Storm debris cleanup','Gutter cleaning','Commercial services for HOAs, multifamily, retail, apartments']
+  },
+  'Rain':{
+    primaryContact:'Louis',primaryEmail:'Rainenviro@gmail.com',phone:'',
+    location:'Gastonia, NC',timeZone:'EST',
+    serviceAreaCities:'Gastonia, Charlotte, and surrounding areas',
+    forwardName:'Louis',forwardEmail:'Rainenviro@gmail.com',
+    website:'https://www.rainenvironmental.net/',
+    pricingModel:'Pay-per-meeting',
+    services:['Storm water management (SCM)','Retention pond compliance repairs','Annual inspections and maintenance','Fountains and aerations (HOAs)','Water quality management, algae treatment','Mowing','Neglected ponds / forestry mulching']
+  },
+  'Coastal':{
+    primaryContact:'Ryan',primaryEmail:'ryan@coastallawncare.org',phone:'',
+    location:'Pensacola, FL',timeZone:'CST',
+    serviceAreaCities:'Pensacola and surrounding areas',
+    forwardName:'Ryan',forwardEmail:'ryan@coastallawncare.org',
+    calendlyUrl:'https://calendly.com/ryan-coastallawncare/meeting-with-coastal-lawn-care',
+    website:'https://www.coastallawncare.org/',
+    pricingModel:'Pay-per-meeting',
+    services:['Lawn care / routine maintenance (mowing)','Trimming','Edging','Mulching','Pine straw installation','Planting','Gutter clean-outs','Spring & fall yard cleanups','Commercial grounds maintenance (grass cutting + bush/hedge trimming)']
+  },
+  'Lightning':{
+    primaryContact:'Jon',primaryEmail:'contact@lightninglawncare.co',phone:'(352) 352-1775',
+    location:'Orlando & Ocala, FL',timeZone:'EST',
+    serviceAreaCities:'Orlando and Ocala, FL',
+    forwardName:'Jon',forwardEmail:'contact@lightninglawncare.co',
+    calendlyUrl:'https://calendly.com/jonrebel3/quote-meeting-with-lightning-lawn-care',
+    website:'https://www.lightninglawncare.net/',
+    pricingModel:'Pay-per-meeting',
+    services:['Lawn mowing / routine maintenance (mowing, edging, detailing, blowing)','Hedge / shrub / ornamental trimming','Palm tree trimming','General property cleanups','Mulch replacement / installation','Rock & gravel installation','Sod installation (subcontracted)','Irrigation services (subcontracted)']
+  },
+  'ABC':{
+    primaryContact:'Joel',primaryEmail:'joelb.abclandscaping@gmail.com',phone:'(480) 680-8587',
+    location:'Phoenix, AZ',timeZone:'MST',
+    serviceAreaCities:'Gilbert, Mesa, Tempe, Chandler, Scottsdale',
+    forwardName:'Joel',forwardEmail:'joelb.abclandscaping@gmail.com',
+    website:'https://www.abclandscapingllc.com/',
+    pricingModel:'Retainer',
+    services:['Weekly commercial landscape maintenance (mowing, edging, trimming, blowing)','Bush / hedge trimming','Pre-emergent weed control','Irrigation repairs (valves, backflows, timers)','Tree trimming','Palm tree trimming','Landscape installations (plants, turf removal, granite rock, full installs)','Parking lot / hardscape blowing and detailing','All work performed in-house (no subcontractors)']
+  },
+  'Tropical':{
+    primaryContact:'Greg',primaryEmail:'glewis1224@gmail.com',phone:'(561) 479-8283',
+    location:'Palm Beach, FL',timeZone:'EST',
+    serviceAreaCities:'Palm Beach County',
+    forwardName:'Greg',forwardEmail:'glewis1224@gmail.com',
+    website:'https://tropicallandscapefl.com/',
+    pricingModel:'Pay-per-meeting',
+    services:['Commercial landscape maintenance','Landscape installation','Fertilization','Pest control','Tree trimming (subcontracted)','Irrigation work (subcontracted)','Seasonal flower installation (spring + fall)','Mulch installation']
+  },
+  'Distinctive':{
+    primaryContact:'Jose',primaryEmail:'info.distinctiveland@gmail.com',phone:'(206) 602-9088',
+    location:'Auburn, WA',timeZone:'PST',
+    serviceAreaCities:'Auburn, Bellevue, and King County, WA',
+    forwardName:'Jose',forwardEmail:'info.distinctiveland@gmail.com',
+    calendlyUrl:'https://calendly.com/info-distinctiveland/30min',
+    website:'https://distinctivelandscapingllc.com/',
+    pricingModel:'Pay-per-meeting',
+    services:['Commercial landscape maintenance','Lawn renovations','Reseeding / turf renovation','Mulch installation','Pressure washing','Wood fencing installation','Minor irrigation repairs']
+  },
+  'Deeter':{
+    primaryContact:'Justin',primaryEmail:'info@deeterlandscape.com',phone:'',
+    location:'Richboro, PA',timeZone:'EST',
+    serviceAreaCities:'Bensalem, Doylestown, Lansdale, Newtown, Richboro, Warrington, Holland, Sellersville, Hatfield',
+    forwardName:'Justin',forwardEmail:'info@deeterlandscape.com',
+    website:'https://deeterlandscape.com/',
+    pricingModel:'Retainer',
+    services:['Commercial landscape maintenance (contract work)','Weekly grounds maintenance (mowing, edging, trimming, blowing)','Shrub and hedge trimming','Mulch installation','Seasonal flower installation','Lawn treatments','Landscape design','Hardscaping (patios, driveways, retaining walls)']
+  },
+  'Dallas Land Care':{
+    primaryContact:'Heath',primaryEmail:'heath@dallaslandcare.com',phone:'(972) 674-3105',
+    location:'Preston Rd., Dallas, TX',timeZone:'CST',
+    serviceAreaCities:'Dallas metro area',
+    forwardName:'Heath',forwardEmail:'heath@dallaslandcare.com',
+    website:'https://www.dallaslandcare.com/',
+    pricingModel:'Pay-per-meeting',
+    services:['Commercial landscape maintenance','Lawn care (mowing, edging, trimming, blowing)','Porter services (trash pickup, trash can change-outs, property clean-up)','Power washing','Tree trimming and removal (subcontracted)','Irrigation repair and sprinkler installation','Artificial turf installation (subcontracted)']
+  },
+  'Umbrella Space PS':{
+    primaryContact:'Russ',primaryEmail:'russk@umbrellaps.com',phone:'',
+    location:'Mokena, IL',timeZone:'CST',
+    serviceAreaCities:'Chicagoland area',
+    forwardName:'George',forwardEmail:'cs@umbrellaps.com',
+    calendlyUrl:'https://calendly.com/cs-umbrellaps/meeting-with-umbrella-property-services',
+    website:'https://www.umbrellaps.com/',
+    pricingModel:'Pay-per-meeting',
+    services:['Full-service landscape maintenance','Lawn mowing and routine grounds maintenance','Spring cleanups','Shrub and bush trimming','Tree trimming and tree work','Fertilization and weed control','Core aeration and overseeding','Snow removal','Outdoor living installation (pavers, decks, water features)','Facility maintenance (building maintenance services)']
+  },
+  'Shade Tree':{
+    primaryContact:'Alan',primaryEmail:'contact@shadetreelandscaping.ca',phone:'+1 (289) 891-0313',
+    location:'Richmond Hill, ON',timeZone:'EST',
+    serviceAreaCities:'Greater Toronto Area (GTA) and beyond',
+    forwardName:'Alan',forwardEmail:'contact@shadetreelandscaping.ca',
+    website:'https://www.shadetreelandscaping.ca/',
+    pricingModel:'Pay-per-meeting',
+    services:['Commercial property maintenance / grounds maintenance','Lawn maintenance (mowing/trim work)','Fertilizer application','Spring and fall cleanup','Shrub/bush maintenance','Flower bed maintenance','Weed control','Tree trimming and removal','Snow plowing','Salting / de-icing']
+  }
+};
+
+// Warm call Q&A — standard questions with answers pulled from CLIENT_INFO
+function getWarmCallQA(clientName){
+  const info=CLIENT_INFO[clientName];
+  if(!info) return [];
+  const qa=[];
+  qa.push({q:'Where are you guys located?',a:'We\'re based out of '+info.location+'.'});
+  qa.push({q:'What areas do you service?',a:'We service '+info.serviceAreaCities+'.'});
+  qa.push({q:'What services do you offer?',a:info.services.join(', ')+'.'});
+  qa.push({q:'How does your pricing work?',a:info.pricingModel==='Retainer'?'We work on a monthly retainer basis.':'We do a pay-per-meeting model — you only pay when we set up a meeting.'});
+  qa.push({q:'Can I get a quote?',a:'Absolutely! We can schedule a quick call to go over your property and get you a quote. What day works best for you?'});
+  qa.push({q:'How soon can you start?',a:'Once we do a walkthrough and get everything squared away, we can usually get started within 1-2 weeks.'});
+  qa.push({q:'Do you do residential or commercial?',a:'We specialize in commercial properties — HOAs, apartment complexes, retail centers, office parks, and more.'});
+  return qa;
+}
+
+function copyToClipboard(text,btnEl){
+  navigator.clipboard.writeText(text).then(()=>{
+    if(btnEl){const orig=btnEl.textContent;btnEl.textContent='Copied!';setTimeout(()=>btnEl.textContent=orig,1500);}
+  });
+}
+
 async function pushToLeadTracker(dealId){
   const deal=state.deals.find(d=>d.id===dealId);
   if(!deal) return;
@@ -3256,7 +3399,7 @@ function render(){
           ${deal.phone?`<div class="deal-detail">${esc(deal.phone)}</div>`:''}
           ${deal.bookedDate&&deal.bookedDate.match(/^\d{4}-\d{2}-\d{2}$/)?`<div class="deal-detail" style="color:#2563eb;font-weight:600">📅 ${new Date(deal.bookedDate+'T'+(deal.bookedTime||'00:00')).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}${deal.bookedTime?' @ '+fmtTime12(deal.bookedTime):''}</div>`:''}
           <div class="deal-bottom">
-            <span class="deal-value" style="color:${deal.value?'#059669':'#d1d5db'}">${fmt$(deal.value)}</span>
+            ${isAdmin()?`<span class="deal-value" style="color:${deal.value?'#059669':'#d1d5db'}">${fmt$(deal.value)}</span>`:''}
             <span style="display:flex;align-items:center;gap:4px">
               ${(()=>{const sa=serviceAreaResults[deal.id];if(!sa||!sa.status)return'';if(sa.status==='in')return'<span class="sa-badge sa-in" title="In service area">&#10003;</span>';if(sa.status==='out')return'<span class="sa-badge sa-out" title="Outside service area">&#10007;</span>';return'<span class="sa-badge sa-unknown" title="Service area unknown">?</span>';})()}
               ${leadAgeBadge(deal)}
@@ -3355,7 +3498,7 @@ function renderDealModal(deal){
       <div class="modal-header"><h3>Edit Deal</h3><button class="modal-close" onclick="closeDealModal()">×</button></div>
       <div class="modal-body">
         <div class="form-grid">
-          ${["company:Company","contact:Contact Name","email:Email","phone:Business Phone","mobilePhone:Mobile Phone","website:Website","location:Address","value:Deal Value ($)"].map(f=>{
+          ${["company:Company","contact:Contact Name","email:Email","phone:Business Phone","mobilePhone:Mobile Phone","website:Website","location:Address",...(isAdmin()?["value:Deal Value ($)"]:[])].map(f=>{
             const[k,label]=f.split(":");
             let extra='';
             if((k==='phone'||k==='mobilePhone')&&deal[k]){
@@ -3424,47 +3567,109 @@ function renderDealModal(deal){
     if(matchedClient){
       const isOn=(field)=>str(matchedClient[field]).toUpperCase()==='TRUE';
 
-      // Client Info panel — collapsible with sub-sections
+      // Enhanced Client Info panel
       {
         const cn=matchedClient;
-        const hasNotes=str(cn.clientNotes||'').trim();
-        const sections=[];
-        // Contact section
-        const contactLines=[];
-        if(str(cn.contactFirstName).trim()) contactLines.push('Contact: '+cn.contactFirstName);
-        if(str(cn.notifyEmails).trim()) contactLines.push('Email: '+cn.notifyEmails);
-        if(str(cn.calendlyUrl).trim()) contactLines.push('Calendly: '+cn.calendlyUrl);
-        if(str(cn.leadCost).trim()) contactLines.push('Lead Cost: $'+str(cn.leadCost).replace(/[^0-9.]/g,''));
-        if(contactLines.length) sections.push({title:'Contact & Billing',content:contactLines.join('<br>')});
-        // Notes sections — split by double newline into separate collapsible blocks
-        if(hasNotes){
-          const noteBlocks=str(cn.clientNotes).trim().split(/\n{2,}/);
-          if(noteBlocks.length===1){
-            sections.push({title:'Notes & Instructions',content:esc(noteBlocks[0]).replace(/\n/g,'<br>')});
-          } else {
-            noteBlocks.forEach((block,i)=>{
-              const lines=block.trim().split('\n');
-              const heading=lines[0].replace(/^#+\s*/,'').replace(/:$/,'');
-              const body=lines.length>1?lines.slice(1).join('\n').trim():lines[0];
-              sections.push({title:esc(heading),content:esc(body).replace(/\n/g,'<br>')});
-            });
-          }
+        const info=CLIENT_INFO[cn.name]||{};
+        const fwdName=info.forwardName||str(cn.contactFirstName).trim()||'';
+        const fwdEmail=info.forwardEmail||str(cn.notifyEmails).trim()||'';
+        const priContact=info.primaryContact||str(cn.contactFirstName).trim()||'';
+        const priEmail=info.primaryEmail||'';
+        const phone=info.phone||'';
+        const loc=info.location||'';
+        const tz=info.timeZone||'';
+        const saCities=info.serviceAreaCities||'';
+        const svcs=info.services||[];
+        const pModel=info.pricingModel||'';
+        const warmQA=getWarmCallQA(cn.name);
+
+        h+=`<div style="margin:0 0 12px 0;border:1px solid #059669;border-radius:10px;background:#f0fdf4;overflow:hidden">
+          <div style="background:#059669;padding:8px 12px;color:#fff;font-size:13px;font-weight:700">ℹ️ ${esc(cn.name)} — Client Info</div>
+          <div style="padding:12px">`;
+
+        // Lead Forwarding — MOST PROMINENT
+        if(fwdName||fwdEmail){
+          h+=`<div style="background:#ecfdf5;border:2px solid #059669;border-radius:8px;padding:10px 12px;margin-bottom:10px">
+            <div style="font-size:10px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">📧 Lead Forwarding (CC This Person)</div>
+            <div style="font-size:15px;font-weight:700;color:#065f46">${esc(fwdName)}</div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
+              <span style="font-size:13px;color:#047857;font-weight:600">${esc(fwdEmail)}</span>
+              <button onclick="event.stopPropagation();copyToClipboard('${esc(fwdEmail)}',this)" style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #059669;background:#fff;color:#059669;cursor:pointer;font-weight:700">Copy</button>
+            </div>
+          </div>`;
         }
-        if(sections.length){
-          h+=`<details style="margin:0 0 12px 0;border:1px solid #e0e7ff;border-radius:8px;background:#f8fafc">
-            <summary style="padding:8px 12px;font-size:12px;font-weight:700;color:#3730a3;cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px">
-              <span style="font-size:10px;transition:transform .15s">▶</span> ℹ️ ${esc(cn.name)} Info
-            </summary>
-            <div style="padding:0 12px 10px">
-            ${sections.map(s=>`<details style="margin:4px 0;border-bottom:1px solid #e5e7eb">
-              <summary style="padding:6px 0;font-size:11px;font-weight:600;color:#4b5563;cursor:pointer;list-style:none;display:flex;align-items:center;gap:4px">
-                <span style="font-size:9px">▶</span> ${s.title}
-              </summary>
-              <div style="padding:0 0 8px 14px;font-size:12px;color:#374151;line-height:1.5">${s.content}</div>
-            </details>`).join('')}
+
+        // Primary Contact
+        if(priContact||priEmail){
+          h+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #e5e7eb">
+            <div><span style="font-size:11px;color:#6b7280;font-weight:600">Primary Contact:</span> <span style="font-size:12px;font-weight:600">${esc(priContact)}</span></div>
+            ${priEmail?`<div style="display:flex;align-items:center;gap:4px">
+              <span style="font-size:11px;color:#6b7280">${esc(priEmail)}</span>
+              <button onclick="event.stopPropagation();copyToClipboard('${esc(priEmail)}',this)" style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid var(--border);background:#fff;color:var(--text-secondary);cursor:pointer">Copy</button>
+            </div>`:''}
+          </div>`;
+        }
+
+        // Phone
+        if(phone){
+          h+=`<div style="padding:6px 0;border-bottom:1px solid #e5e7eb">
+            <span style="font-size:11px;color:#6b7280;font-weight:600">Phone:</span> <span style="font-size:12px">${esc(phone)}</span>
+          </div>`;
+        }
+
+        // Location + Time Zone
+        if(loc){
+          h+=`<div style="padding:6px 0;border-bottom:1px solid #e5e7eb">
+            <span style="font-size:11px;color:#6b7280;font-weight:600">Location:</span> <span style="font-size:12px;font-weight:600">${esc(loc)}</span>${tz?' <span style="font-size:11px;color:#9ca3af">('+esc(tz)+')</span>':''}
+          </div>`;
+        }
+
+        // Service Area Cities — conversational, ready to read off
+        if(saCities){
+          h+=`<div style="padding:6px 0;border-bottom:1px solid #e5e7eb">
+            <span style="font-size:11px;color:#6b7280;font-weight:600">Service Area:</span>
+            <div style="font-size:12px;font-weight:600;color:#065f46;margin-top:2px">${esc(saCities)}</div>
+          </div>`;
+        }
+
+        // Pricing Model (no dollar amounts)
+        if(pModel){
+          h+=`<div style="padding:6px 0;border-bottom:1px solid #e5e7eb">
+            <span style="font-size:11px;color:#6b7280;font-weight:600">Pricing Model:</span> <span style="font-size:12px">${esc(pModel)}</span>
+          </div>`;
+        }
+
+        // Lead Cost — ADMIN ONLY
+        if(isAdmin()&&str(cn.leadCost).trim()){
+          h+=`<div style="padding:6px 0;border-bottom:1px solid #e5e7eb">
+            <span style="font-size:11px;color:#6b7280;font-weight:600">Lead Cost:</span> <span style="font-size:12px;font-weight:600;color:#059669">$${str(cn.leadCost).replace(/[^0-9.]/g,'')}</span>
+          </div>`;
+        }
+
+        // Services Offered — clean list
+        if(svcs.length){
+          h+=`<details style="margin-top:8px">
+            <summary style="font-size:11px;font-weight:700;color:#4b5563;cursor:pointer;padding:4px 0">Services Offered (${svcs.length})</summary>
+            <ul style="margin:4px 0 0 16px;font-size:11px;color:#374151;line-height:1.8">
+              ${svcs.map(s=>'<li>'+esc(s)+'</li>').join('')}
+            </ul>
+          </details>`;
+        }
+
+        // Warm Call Q&A — expandable dropdown
+        if(warmQA.length){
+          h+=`<details style="margin-top:8px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:0">
+            <summary style="font-size:11px;font-weight:700;color:#92400e;cursor:pointer;padding:8px 10px">🔥 Warm Call Script & FAQ</summary>
+            <div style="padding:0 10px 10px">
+              ${warmQA.map(qa=>`<div style="margin-top:8px">
+                <div style="font-size:11px;font-weight:700;color:#1f2937">❓ "${esc(qa.q)}"</div>
+                <div style="font-size:12px;color:#065f46;background:#ecfdf5;padding:6px 8px;border-radius:4px;margin-top:3px;line-height:1.5">💬 "${esc(qa.a)}"</div>
+              </div>`).join('')}
             </div>
           </details>`;
         }
+
+        h+=`</div></div>`;
       }
 
       // Forward Lead Email button
@@ -3542,7 +3747,7 @@ function renderDealModal(deal){
         h+=`<div style="margin:0 0 8px 0">
           <button id="push-tracker-btn" class="btn ${pushed?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px"
             onclick="${pushed?'':'pushToLeadTracker(\''+deal.id+'\')'}" ${pushed?'disabled':''}>
-            ${pushed?'✅ Pushed to Lead Tracker'+(isZeroCostClient?' ($0)':''):'📤 Push to Lead Tracker'+(isZeroCostClient?' ($0)':'')}
+            ${pushed?'✅ Pushed to Lead Tracker':'📤 Push to Lead Tracker'}
           </button>
         </div>`;
       }
@@ -3890,7 +4095,7 @@ function refreshPushButton(){
   const pushed=deal.pushedToTracker;
   if(pushed) return;
   btn.disabled=false;
-  btn.textContent='📤 Push to Lead Tracker'+(isZero?' ($0)':'');
+  btn.textContent='📤 Push to Lead Tracker';
   btn.onclick=function(){pushToLeadTracker(deal.id)};
 }
 
@@ -4100,7 +4305,7 @@ async function doWonDrop(){
   const wonClient=findClientForDeal(deal) || state.clients.find(c=>c.name===deal.stage);
   const wonClientName=wonClient?wonClient.name:deal.stage;
   const wonIsZeroCost=TRACKER_ZERO_COST_CLIENTS.some(ex=>wonClientName.toLowerCase().includes(ex));
-  if(!confirm('Mark "'+name+'" as Won, push to Lead Tracker'+(wonIsZeroCost?' ($0)':'')+', and remove from CRM?')) return;
+  if(!confirm('Mark "'+name+'" as Won, push to Lead Tracker, and remove from CRM?')) return;
 
   const client=wonClient;
   // Push to Lead Entry sheet (no cost — Lead Entry script handles cost lookup + sync to Lead Tracker)
