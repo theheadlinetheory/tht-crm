@@ -3555,6 +3555,11 @@ function renderDealModal(deal){
               const cleanNum=String(deal[k]||'').replace(/[^0-9+]/g,'');
               extra='<div style="margin-top:4px;display:flex;gap:6px"><a href="sms:'+cleanNum+'" class="imessage-btn" title="Open in iMessage">💬 Text</a><a href="tel:'+cleanNum+'" class="imessage-btn" title="Call from computer">📞 Call</a></div>';
             }
+            if(k==='website'&&deal[k]){
+              const url=String(deal[k]||'').trim();
+              const href=url.match(/^https?:\/\//i)?url:'https://'+url;
+              extra='<div style="margin-top:4px"><a href="'+esc(href)+'" target="_blank" rel="noopener" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px">🔗 Open Website</a></div>';
+            }
             const extraOninput = (k === 'location' && deal.pipeline === 'Client') ? ';onAddressFieldChange(\''+deal.id+'\',this.value)' : '';
             return'<div class="form-group"><label>'+label+'</label><input id="deal-'+k+'" value="'+esc(String(deal[k]||''))+'" oninput="updateDealField(\''+k+'\',this.value)'+extraOninput+'">'+extra+'</div>';
           }).join("")}
