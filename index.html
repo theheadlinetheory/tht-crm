@@ -503,6 +503,37 @@ function logout(){
   });
 }
 
+function switchUser(){
+  auth.signOut().then(()=>{
+    currentUser = null;
+    document.getElementById('app').style.display='none';
+    document.getElementById('login-screen').style.display='flex';
+  });
+}
+
+function toggleUserMenu(e){
+  e.stopPropagation();
+  const menu = document.getElementById('user-menu-dropdown');
+  if(menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+}
+
+// Close user menu on outside click
+document.addEventListener('click', ()=>{ const m=document.getElementById('user-menu-dropdown'); if(m) m.style.display='none'; });
+
+function renderUserMenu(){
+  if(!currentUser) return '';
+  return `<div style="position:relative;display:inline-block">
+    <button class="btn btn-ghost" onclick="toggleUserMenu(event)" style="font-size:11px;padding:5px 10px;color:#9ca3af;display:flex;align-items:center;gap:4px">
+      ${esc(currentUser.name)} ▾
+    </button>
+    <div id="user-menu-dropdown" style="display:none;position:absolute;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);min-width:160px;z-index:9999;overflow:hidden">
+      <div style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:11px;color:#6b7280">${esc(currentUser.email||'')}</div>
+      <button onclick="switchUser()" style="width:100%;text-align:left;padding:8px 12px;border:none;background:none;font-size:12px;cursor:pointer;color:var(--text);font-family:var(--font)" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">🔄 Switch User</button>
+      <button onclick="logout()" style="width:100%;text-align:left;padding:8px 12px;border:none;background:none;font-size:12px;cursor:pointer;color:#dc2626;font-family:var(--font)" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='none'">🚪 Log Out</button>
+    </div>
+  </div>`;
+}
+
 // ─── Auth State Listener ───
 auth.onAuthStateChanged(async (user) => {
   if(user){
@@ -3262,7 +3293,7 @@ function render(){
         <button class="btn btn-ghost" onclick="state.rerunShowMarketModal=true;render()">⚙ Markets</button>`:''}
         ${archiveActive?`<span class="topbar-stat">${state.archiveData.length} archived</span>
         <button class="btn btn-ghost" onclick="state.archiveLoaded=false;loadArchive()">↻ Refresh</button>`:''}
-        ${currentUser?`<button class="btn btn-ghost" onclick="logout()" title="Sign out" style="font-size:11px;padding:5px 10px;color:#9ca3af">${esc(currentUser.name)} ↗</button>`:''}
+        ${renderUserMenu()}
       </div>
     </div>
     <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin:0 20px;">
@@ -3287,7 +3318,7 @@ function render(){
       </div>
       <div class="topbar-right">
         <button class="btn btn-ghost" onclick="syncFromSheet()">↻ Sync</button>
-        ${currentUser?`<button class="btn btn-ghost" onclick="logout()" title="Sign out" style="font-size:11px;padding:5px 10px;color:#9ca3af">${esc(currentUser.name)} ↗</button>`:''}
+        ${renderUserMenu()}
       </div>
     </div>`;
     html+=renderDashboard();
@@ -3338,7 +3369,7 @@ function render(){
       ${isClient()?`<button class="btn btn-ghost" onclick="openClientArchive()" title="View archived leads">📦 Archive${clientArchivedDeals.length?' ('+clientArchivedDeals.length+')':''}</button>`:''}
       ${isAdmin()?`<button class="btn btn-ghost" onclick="openSettings()" title="Settings" style="font-size:16px;padding:6px 10px">⚙️</button>`:''}
       ${isClient()?`<button class="btn btn-ghost" onclick="openClientStageSettings()" title="Edit stages" style="font-size:16px;padding:6px 10px">⚙️</button>`:''}
-      ${currentUser?`<button class="btn btn-ghost" onclick="logout()" title="Sign out (${esc(currentUser.name)})" style="font-size:11px;padding:5px 10px;color:#9ca3af">${esc(currentUser.name)} ↗</button>`:''}
+      ${renderUserMenu()}
     </div>
   </div>
   ${state.pipeline==='nurture'?`<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin:0 20px;">
@@ -3805,63 +3836,15 @@ function renderDealModal(deal){
         </div>`;
       }
 
-      // Service Area — always show map when there's an address, polygon, or geocoded coords
-      {
-        const saResult = serviceAreaResults[deal.id] || {};
-        const polyMatch = findPolygonForClient(matchedClient.name);
-        const hasGeo = saResult.lat && saResult.lng;
-        const hasAddr = str(deal.address || deal.location || '').trim().length > 0;
-        const hasResult = saResult.status && saResult.status !== 'unknown' && hasGeo;
-
-        // Status banner
-        if(hasResult){
-          const bannerClass = saResult.status === 'in' ? 'sa-in-banner' : 'sa-out-banner';
-          const bannerIcon = saResult.status === 'in' ? '&#10003;' : '&#10007;';
-          const bannerText = saResult.status === 'in'
-            ? 'In ' + esc(matchedClient.name) + "'s service area"
-            : 'Outside ' + esc(matchedClient.name) + "'s service area";
-          h += `<div class="sa-result-banner ${bannerClass}">${bannerIcon} ${bannerText}</div>`;
-        } else if(!polyMatch && !hasAddr){
-          h += `<div class="sa-result-banner sa-unknown-banner">? No service area polygon configured for ${esc(matchedClient.name)}</div>`;
-        }
-
-        // Always show map if we have a polygon, geocoded coordinates, OR an address to geocode
-        if(polyMatch || hasGeo || hasAddr){
-          const mapId = 'sa-map-' + deal.id;
-          h += `<div class="sa-map-container">
-            <div id="${mapId}"></div>
-            <button class="sa-enlarge-btn" onclick="event.stopPropagation();openEnlargedMap('${esc(deal.id)}','${esc(matchedClient.name)}')" title="Enlarge map">
-              ⛶ Enlarge
-            </button>
-          </div>`;
-
-          // Auto-geocode on first open if not yet geocoded
-          {
-            const _addr = str(deal.address || deal.location || '').trim();
-            if(_addr && !hasGeo && !geocodeCache[_addr]){
-              const _did = deal.id;
-              setTimeout(() => geocodeAndCheckDeal(_did), 100);
-            }
-          }
-
-          setTimeout(() => renderServiceAreaMap(mapId, deal.id, {
-            clientName: matchedClient.name,
-            polygonKey: polyMatch ? polyMatch.key : undefined,
-            lat: saResult.lat, lng: saResult.lng,
-            status: saResult.status
-          }), 50);
-        }
-
-        // Legacy external map link
-        if(str(matchedClient.serviceAreaUrl).trim()){
-          h+=`<div style="margin:0 0 8px 0">
-            <a href="${esc(str(matchedClient.serviceAreaUrl))}" target="_blank" rel="noopener"
-              class="btn btn-ghost" style="width:100%;justify-content:center;gap:6px;font-size:12px;text-decoration:none;display:flex;color:var(--text-muted)"
-              onclick="event.stopPropagation()">
-              Open external service area map ↗
-            </a>
-          </div>`;
-        }
+      // Legacy external map link
+      if(str(matchedClient.serviceAreaUrl).trim()){
+        h+=`<div style="margin:0 0 8px 0">
+          <a href="${esc(str(matchedClient.serviceAreaUrl))}" target="_blank" rel="noopener"
+            class="btn btn-ghost" style="width:100%;justify-content:center;gap:6px;font-size:12px;text-decoration:none;display:flex;color:var(--text-muted)"
+            onclick="event.stopPropagation()">
+            Open external service area map ↗
+          </a>
+        </div>`;
       }
 
       // Show warning if no actions are enabled
@@ -3888,6 +3871,53 @@ function renderDealModal(deal){
         📅 Book Discovery Call
       </a>
     </div>`;
+  }
+
+  // Location Map — show for ANY deal with an address, regardless of pipeline or matched client
+  {
+    const saResult = serviceAreaResults[deal.id] || {};
+    const _mc = (deal.pipeline==='Client') ? (findClientForDeal(deal) || state.clients.find(c=>c.name===deal.stage)) : null;
+    const polyMatch = _mc ? findPolygonForClient(_mc.name) : null;
+    const hasGeo = saResult.lat && saResult.lng;
+    const hasAddr = str(deal.address || deal.location || '').trim().length > 0;
+    const hasResult = saResult.status && saResult.status !== 'unknown' && hasGeo;
+
+    // Status banner (only for client pipeline with polygon)
+    if(hasResult && _mc){
+      const bannerClass = saResult.status === 'in' ? 'sa-in-banner' : 'sa-out-banner';
+      const bannerIcon = saResult.status === 'in' ? '&#10003;' : '&#10007;';
+      const bannerText = saResult.status === 'in'
+        ? 'In ' + esc(_mc.name) + "'s service area"
+        : 'Outside ' + esc(_mc.name) + "'s service area";
+      h += `<div class="sa-result-banner ${bannerClass}">${bannerIcon} ${bannerText}</div>`;
+    }
+
+    // Show map if we have polygon, geocoded coordinates, OR an address to geocode
+    if(polyMatch || hasGeo || hasAddr){
+      const mapId = 'sa-map-' + deal.id;
+      h += `<div class="sa-map-container">
+        <div id="${mapId}"></div>
+        <button class="sa-enlarge-btn" onclick="event.stopPropagation();openEnlargedMap('${esc(deal.id)}','${esc(_mc ? _mc.name : '')}')" title="Enlarge map">
+          ⛶ Enlarge
+        </button>
+      </div>`;
+
+      // Auto-geocode on first open if not yet geocoded
+      {
+        const _addr = str(deal.address || deal.location || '').trim();
+        if(_addr && !hasGeo && !geocodeCache[_addr]){
+          const _did = deal.id;
+          setTimeout(() => geocodeAndCheckDeal(_did), 100);
+        }
+      }
+
+      setTimeout(() => renderServiceAreaMap(mapId, deal.id, {
+        clientName: _mc ? _mc.name : '',
+        polygonKey: polyMatch ? polyMatch.key : undefined,
+        lat: saResult.lat, lng: saResult.lng,
+        status: saResult.status
+      }), 50);
+    }
   }
 
   // Lead Timeline
