@@ -2751,9 +2751,7 @@ function getWarmCallQA(clientName){
   qa.push({q:'Where are you guys located?',a:'We\'re based out of '+info.location+'.'});
   qa.push({q:'What areas do you service?',a:'We service '+info.serviceAreaCities+'.'});
   qa.push({q:'What services do you offer?',a:info.services.join(', ')+'.'});
-  qa.push({q:'How does your pricing work?',a:info.pricingModel==='Retainer'?'We work on a monthly retainer basis.':'We do a pay-per-meeting model — you only pay when we set up a meeting.'});
   qa.push({q:'Can I get a quote?',a:'Absolutely! We can schedule a quick call to go over your property and get you a quote. What day works best for you?'});
-  qa.push({q:'How soon can you start?',a:'Once we do a walkthrough and get everything squared away, we can usually get started within 1-2 weeks.'});
   qa.push({q:'Do you do residential or commercial?',a:'We specialize in commercial properties — HOAs, apartment complexes, retail centers, office parks, and more.'});
   return qa;
 }
