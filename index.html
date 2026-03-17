@@ -1056,17 +1056,21 @@ async function runServiceAreaChecks(){
 function renderServiceAreaMap(containerId, dealId, opts){
   opts = opts || {};
   const result = serviceAreaResults[dealId] || {};
-  const lat = opts.lat || result.lat;
-  const lng = opts.lng || result.lng;
+  // Try opts, then serviceAreaResults, then geocodeCache as last resort
+  const deal = state.deals.find(d => d.id === dealId);
+  const addr = deal ? str(deal.address || deal.location || '').trim() : '';
+  const cachedGeo = addr ? geocodeCache[addr] : null;
+  const lat = opts.lat || result.lat || (cachedGeo ? cachedGeo.lat : null);
+  const lng = opts.lng || result.lng || (cachedGeo ? cachedGeo.lng : null);
   const clientName = opts.clientName || result.clientName || '';
   const status = opts.status || result.status || 'unknown';
   const polygonKey = opts.polygonKey || result.polygonKey;
 
-  const deal = state.deals.find(d => d.id === dealId);
-  const addr = deal ? str(deal.address || deal.location || '') : '';
-
   const el = document.getElementById(containerId);
   if(!el) return null;
+
+  // Prevent re-init if Leaflet already initialized this container
+  if(el._leaflet_id){ try { el._leaflet_id = undefined; } catch(e){} }
 
   const map = L.map(containerId, { zoomControl: true, scrollWheelZoom: opts.scrollWheelZoom || false });
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -2212,7 +2216,10 @@ function refreshModal(forceFullRebuild){
     const newModal=overlay.querySelector('.modal');
     if(newModal){
       newModal.scrollTop=savedScroll;
+      // Restore scroll multiple times to counteract Leaflet map init reflows
       requestAnimationFrame(()=>{ newModal.scrollTop=savedScroll; });
+      setTimeout(()=>{ newModal.scrollTop=savedScroll; }, 80);
+      setTimeout(()=>{ newModal.scrollTop=savedScroll; }, 200);
     }
   } else {
     render();
@@ -3878,8 +3885,13 @@ function renderDealModal(deal){
     const saResult = serviceAreaResults[deal.id] || {};
     const _mc = (deal.pipeline==='Client') ? (findClientForDeal(deal) || state.clients.find(c=>c.name===deal.stage)) : null;
     const polyMatch = _mc ? findPolygonForClient(_mc.name) : null;
-    const hasGeo = saResult.lat && saResult.lng;
-    const hasAddr = str(deal.address || deal.location || '').trim().length > 0;
+    const _addr = str(deal.address || deal.location || '').trim();
+    const cachedGeo = _addr ? geocodeCache[_addr] : null;
+    // Use serviceAreaResults OR fall back to geocodeCache directly
+    const mapLat = saResult.lat || (cachedGeo ? cachedGeo.lat : null);
+    const mapLng = saResult.lng || (cachedGeo ? cachedGeo.lng : null);
+    const hasGeo = mapLat && mapLng;
+    const hasAddr = _addr.length > 0;
     const hasResult = saResult.status && saResult.status !== 'unknown' && hasGeo;
 
     // Status banner (only for client pipeline with polygon)
@@ -3902,20 +3914,18 @@ function renderDealModal(deal){
         </button>
       </div>`;
 
-      // Auto-geocode on first open if not yet geocoded
-      {
-        const _addr = str(deal.address || deal.location || '').trim();
-        if(_addr && !hasGeo && !geocodeCache[_addr]){
-          const _did = deal.id;
-          setTimeout(() => geocodeAndCheckDeal(_did), 100);
-        }
+      // Auto-geocode if not yet geocoded (no cache entry at all)
+      if(hasAddr && !cachedGeo){
+        const _did = deal.id;
+        setTimeout(() => geocodeAndCheckDeal(_did), 100);
       }
 
+      // Render map — use cached geo coords directly if serviceAreaResults doesn't have them
       setTimeout(() => renderServiceAreaMap(mapId, deal.id, {
         clientName: _mc ? _mc.name : '',
         polygonKey: polyMatch ? polyMatch.key : undefined,
-        lat: saResult.lat, lng: saResult.lng,
-        status: saResult.status
+        lat: mapLat, lng: mapLng,
+        status: saResult.status || (hasGeo ? 'unknown' : undefined)
       }), 50);
     }
   }
