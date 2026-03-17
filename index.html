@@ -272,6 +272,9 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 /* Details arrow rotation */
 details[open] > summary span:first-child { transform: rotate(90deg); }
 
+/* Collapsible dropdown arrows */
+details[open] > summary span:first-child { transform: rotate(90deg); }
+details > summary::-webkit-details-marker { display:none; }
 /* Leaflet Map in Modal */
 .sa-map-container { border-radius:var(--radius); overflow:hidden; border:1px solid var(--border); margin-bottom:12px; position:relative; }
 .sa-map-container .leaflet-container { height:220px; width:100%; }
@@ -3638,13 +3641,9 @@ function renderDealModal(deal){
         const pModel=info.pricingModel||'';
         const warmQA=getWarmCallQA(cn.name);
 
-        h+=`<div style="margin:0 0 12px 0;border:1px solid #059669;border-radius:10px;background:#f0fdf4;overflow:hidden">
-          <div style="background:#059669;padding:8px 12px;color:#fff;font-size:13px;font-weight:700">ℹ️ ${esc(cn.name)} — Client Info</div>
-          <div style="padding:12px">`;
-
-        // Lead Forwarding — MOST PROMINENT
+        // Lead Forwarding — always visible, most important
         if(fwdName||fwdEmail){
-          h+=`<div style="background:#ecfdf5;border:2px solid #059669;border-radius:8px;padding:10px 12px;margin-bottom:10px">
+          h+=`<div style="margin:0 0 8px 0;background:#ecfdf5;border:2px solid #059669;border-radius:8px;padding:10px 12px">
             <div style="font-size:10px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">📧 Lead Forwarding (CC This Person)</div>
             <div style="font-size:15px;font-weight:700;color:#065f46">${esc(fwdName)}</div>
             <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
@@ -3654,68 +3653,69 @@ function renderDealModal(deal){
           </div>`;
         }
 
-        // Primary Contact
-        if(priContact||priEmail){
-          h+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #e5e7eb">
-            <div><span style="font-size:11px;color:#6b7280;font-weight:600">Primary Contact:</span> <span style="font-size:12px;font-weight:600">${esc(priContact)}</span></div>
-            ${priEmail?`<div style="display:flex;align-items:center;gap:4px">
-              <span style="font-size:11px;color:#6b7280">${esc(priEmail)}</span>
-              <button onclick="event.stopPropagation();copyToClipboard('${esc(priEmail)}',this)" style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid var(--border);background:#fff;color:var(--text-secondary);cursor:pointer">Copy</button>
-            </div>`:''}
-          </div>`;
+        // Client Info — collapsible dropdown
+        {
+          let ciContent='';
+          if(priContact||priEmail){
+            ciContent+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #e5e7eb">
+              <div><span style="font-size:11px;color:#6b7280;font-weight:600">Primary Contact:</span> <span style="font-size:12px;font-weight:600">${esc(priContact)}</span></div>
+              ${priEmail?`<div style="display:flex;align-items:center;gap:4px">
+                <span style="font-size:11px;color:#6b7280">${esc(priEmail)}</span>
+                <button onclick="event.stopPropagation();copyToClipboard('${esc(priEmail)}',this)" style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid var(--border);background:#fff;color:var(--text-secondary);cursor:pointer">Copy</button>
+              </div>`:''}
+            </div>`;
+          }
+          if(phone){
+            ciContent+=`<div style="padding:6px 0;border-bottom:1px solid #e5e7eb">
+              <span style="font-size:11px;color:#6b7280;font-weight:600">Phone:</span> <span style="font-size:12px">${esc(phone)}</span>
+            </div>`;
+          }
+          if(loc){
+            ciContent+=`<div style="padding:6px 0;border-bottom:1px solid #e5e7eb">
+              <span style="font-size:11px;color:#6b7280;font-weight:600">Location:</span> <span style="font-size:12px;font-weight:600">${esc(loc)}</span>${tz?' <span style="font-size:11px;color:#9ca3af">('+esc(tz)+')</span>':''}
+            </div>`;
+          }
+          if(saCities){
+            ciContent+=`<div style="padding:6px 0;border-bottom:1px solid #e5e7eb">
+              <span style="font-size:11px;color:#6b7280;font-weight:600">Service Area:</span>
+              <div style="font-size:12px;font-weight:600;color:#065f46;margin-top:2px">${esc(saCities)}</div>
+            </div>`;
+          }
+          if(pModel){
+            ciContent+=`<div style="padding:6px 0;border-bottom:1px solid #e5e7eb">
+              <span style="font-size:11px;color:#6b7280;font-weight:600">Pricing Model:</span> <span style="font-size:12px">${esc(pModel)}</span>
+            </div>`;
+          }
+          if(isAdmin()&&str(cn.leadCost).trim()){
+            ciContent+=`<div style="padding:6px 0;border-bottom:1px solid #e5e7eb">
+              <span style="font-size:11px;color:#6b7280;font-weight:600">Lead Cost:</span> <span style="font-size:12px;font-weight:600;color:#059669">$${str(cn.leadCost).replace(/[^0-9.]/g,'')}</span>
+            </div>`;
+          }
+          if(svcs.length){
+            ciContent+=`<div style="padding:6px 0">
+              <span style="font-size:11px;font-weight:700;color:#4b5563">Services Offered (${svcs.length}):</span>
+              <ul style="margin:4px 0 0 16px;font-size:11px;color:#374151;line-height:1.8">
+                ${svcs.map(s=>'<li>'+esc(s)+'</li>').join('')}
+              </ul>
+            </div>`;
+          }
+          if(ciContent){
+            h+=`<details style="margin:0 0 8px 0;border:1px solid #059669;border-radius:10px;background:#f0fdf4;overflow:hidden">
+              <summary style="background:#059669;padding:8px 12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px">
+                <span style="transition:transform .2s">▶</span> ℹ️ ${esc(cn.name)} — Client Info
+              </summary>
+              <div style="padding:12px">${ciContent}</div>
+            </details>`;
+          }
         }
 
-        // Phone
-        if(phone){
-          h+=`<div style="padding:6px 0;border-bottom:1px solid #e5e7eb">
-            <span style="font-size:11px;color:#6b7280;font-weight:600">Phone:</span> <span style="font-size:12px">${esc(phone)}</span>
-          </div>`;
-        }
-
-        // Location + Time Zone
-        if(loc){
-          h+=`<div style="padding:6px 0;border-bottom:1px solid #e5e7eb">
-            <span style="font-size:11px;color:#6b7280;font-weight:600">Location:</span> <span style="font-size:12px;font-weight:600">${esc(loc)}</span>${tz?' <span style="font-size:11px;color:#9ca3af">('+esc(tz)+')</span>':''}
-          </div>`;
-        }
-
-        // Service Area Cities — conversational, ready to read off
-        if(saCities){
-          h+=`<div style="padding:6px 0;border-bottom:1px solid #e5e7eb">
-            <span style="font-size:11px;color:#6b7280;font-weight:600">Service Area:</span>
-            <div style="font-size:12px;font-weight:600;color:#065f46;margin-top:2px">${esc(saCities)}</div>
-          </div>`;
-        }
-
-        // Pricing Model (no dollar amounts)
-        if(pModel){
-          h+=`<div style="padding:6px 0;border-bottom:1px solid #e5e7eb">
-            <span style="font-size:11px;color:#6b7280;font-weight:600">Pricing Model:</span> <span style="font-size:12px">${esc(pModel)}</span>
-          </div>`;
-        }
-
-        // Lead Cost — ADMIN ONLY
-        if(isAdmin()&&str(cn.leadCost).trim()){
-          h+=`<div style="padding:6px 0;border-bottom:1px solid #e5e7eb">
-            <span style="font-size:11px;color:#6b7280;font-weight:600">Lead Cost:</span> <span style="font-size:12px;font-weight:600;color:#059669">$${str(cn.leadCost).replace(/[^0-9.]/g,'')}</span>
-          </div>`;
-        }
-
-        // Services Offered — clean list
-        if(svcs.length){
-          h+=`<details style="margin-top:8px">
-            <summary style="font-size:11px;font-weight:700;color:#4b5563;cursor:pointer;padding:4px 0">Services Offered (${svcs.length})</summary>
-            <ul style="margin:4px 0 0 16px;font-size:11px;color:#374151;line-height:1.8">
-              ${svcs.map(s=>'<li>'+esc(s)+'</li>').join('')}
-            </ul>
-          </details>`;
-        }
-
-        // Warm Call Q&A — expandable dropdown
+        // Warm Call Q&A — collapsible dropdown
         if(warmQA.length){
-          h+=`<details style="margin-top:8px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:0">
-            <summary style="font-size:11px;font-weight:700;color:#92400e;cursor:pointer;padding:8px 10px">🔥 Warm Call Script & FAQ</summary>
-            <div style="padding:0 10px 10px">
+          h+=`<details style="margin:0 0 8px 0;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;overflow:hidden">
+            <summary style="background:#fef3c7;padding:8px 12px;font-size:13px;font-weight:700;color:#92400e;cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px">
+              <span style="transition:transform .2s">▶</span> 🔥 Warm Call Script & FAQ
+            </summary>
+            <div style="padding:8px 12px">
               ${warmQA.map(qa=>`<div style="margin-top:8px">
                 <div style="font-size:11px;font-weight:700;color:#1f2937">❓ "${esc(qa.q)}"</div>
                 <div style="font-size:12px;color:#065f46;background:#ecfdf5;padding:6px 8px;border-radius:4px;margin-top:3px;line-height:1.5">💬 "${esc(qa.a)}"</div>
@@ -3723,8 +3723,6 @@ function renderDealModal(deal){
             </div>
           </details>`;
         }
-
-        h+=`</div></div>`;
       }
 
       // Forward Lead Email button
@@ -3807,11 +3805,12 @@ function renderDealModal(deal){
         </div>`;
       }
 
-      // Service Area — always show map when polygon exists
+      // Service Area — always show map when there's an address, polygon, or geocoded coords
       {
         const saResult = serviceAreaResults[deal.id] || {};
         const polyMatch = findPolygonForClient(matchedClient.name);
         const hasGeo = saResult.lat && saResult.lng;
+        const hasAddr = str(deal.address || deal.location || '').trim().length > 0;
         const hasResult = saResult.status && saResult.status !== 'unknown' && hasGeo;
 
         // Status banner
@@ -3822,12 +3821,12 @@ function renderDealModal(deal){
             ? 'In ' + esc(matchedClient.name) + "'s service area"
             : 'Outside ' + esc(matchedClient.name) + "'s service area";
           h += `<div class="sa-result-banner ${bannerClass}">${bannerIcon} ${bannerText}</div>`;
-        } else if(!polyMatch){
+        } else if(!polyMatch && !hasAddr){
           h += `<div class="sa-result-banner sa-unknown-banner">? No service area polygon configured for ${esc(matchedClient.name)}</div>`;
         }
 
-        // Always show map if we have a polygon OR geocoded coordinates
-        if(polyMatch || hasGeo){
+        // Always show map if we have a polygon, geocoded coordinates, OR an address to geocode
+        if(polyMatch || hasGeo || hasAddr){
           const mapId = 'sa-map-' + deal.id;
           h += `<div class="sa-map-container">
             <div id="${mapId}"></div>
@@ -3836,7 +3835,7 @@ function renderDealModal(deal){
             </button>
           </div>`;
 
-          // Auto-geocode town names on first open if not yet geocoded
+          // Auto-geocode on first open if not yet geocoded
           {
             const _addr = str(deal.address || deal.location || '').trim();
             if(_addr && !hasGeo && !geocodeCache[_addr]){
