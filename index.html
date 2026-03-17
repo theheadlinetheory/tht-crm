@@ -2940,6 +2940,157 @@ function getWarmCallQA(clientName){
   return qa;
 }
 
+// ─── Warm Call Sheet (full-screen overlay) ───
+function openWarmCallSheet(dealId){
+  const deal=state.deals.find(d=>d.id===dealId);
+  if(!deal) return;
+  const mc=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
+  if(!mc) return;
+  const info=lookupClientInfo(mc.name)||{};
+
+  // Get upcoming meetings for this client
+  const now=new Date();
+  const upcoming=state.deals.filter(d=>{
+    if(!isValidDate(d.bookedDate)) return false;
+    const dt=new Date(d.bookedDate+'T'+(d.bookedTime||'23:59'));
+    return dt>=now && d.stage===mc.name;
+  }).sort((a,b)=>{
+    return new Date(a.bookedDate+'T'+(a.bookedTime||'00:00'))-new Date(b.bookedDate+'T'+(b.bookedTime||'00:00'));
+  }).slice(0,8);
+
+  const replyText=str(deal.emailBody||'').trim();
+  const leadPhone=deal.phone?String(deal.phone).replace(/[^0-9+]/g,''):'';
+  const leadMobile=deal.mobilePhone?String(deal.mobilePhone).replace(/[^0-9+]/g,''):'';
+  const clientPhone=info.phone?String(info.phone).replace(/[^0-9+]/g,''):'';
+
+  let h=`<div id="warm-call-overlay" style="position:fixed;inset:0;z-index:100000;background:#f8fafc;overflow-y:auto;animation:fadeIn .2s ease">
+    <div style="max-width:1100px;margin:0 auto;padding:20px 24px">
+      <!-- Header -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #e2e8f0">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="width:10px;height:10px;border-radius:50%;background:#22c55e;box-shadow:0 0 6px #22c55e"></div>
+          <h2 style="margin:0;font-size:20px;color:#1e293b">Warm Call Sheet</h2>
+        </div>
+        <button onclick="document.getElementById('warm-call-overlay').remove()" style="padding:8px 20px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;color:#475569;cursor:pointer;font-size:13px;font-weight:600">Close</button>
+      </div>
+
+      <!-- Two Column Layout -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+
+        <!-- LEFT: Our Client -->
+        <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden">
+          <div style="background:#059669;padding:12px 16px;color:#fff">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;opacity:.8">Our Client</div>
+            <div style="font-size:18px;font-weight:700;margin-top:2px">${esc(mc.name)}</div>
+          </div>
+          <div style="padding:16px">
+            <div style="display:grid;gap:12px">
+              ${info.primaryContact?`<div>
+                <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">Point of Contact</div>
+                <div style="font-size:14px;font-weight:600;color:#1e293b;margin-top:2px">${esc(info.primaryContact)}</div>
+                ${info.primaryEmail?`<div style="font-size:12px;color:#6b7280;margin-top:1px">${esc(info.primaryEmail)}</div>`:''}
+                ${info.phone?`<div style="font-size:12px;color:#6b7280;margin-top:1px">${esc(info.phone)}</div>`:''}
+              </div>`:''}
+
+              <div style="border-top:1px solid #f1f5f9;padding-top:12px">
+                <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">Location & Service Area</div>
+                <div style="font-size:14px;font-weight:600;color:#1e293b;margin-top:2px">${esc(info.location||'—')}</div>
+                ${info.timeZone?`<div style="font-size:11px;color:#6b7280;margin-top:1px">Timezone: ${esc(info.timeZone)}</div>`:''}
+                ${info.serviceAreaCities?`<div style="font-size:12px;color:#374151;margin-top:4px">${esc(info.serviceAreaCities)}</div>`:''}
+              </div>
+
+              ${info.services&&info.services.length?`<div style="border-top:1px solid #f1f5f9;padding-top:12px">
+                <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Services Offered</div>
+                <div style="display:flex;flex-wrap:wrap;gap:4px">
+                  ${info.services.map(s=>`<span style="font-size:11px;background:#ecfdf5;color:#065f46;padding:3px 8px;border-radius:4px;border:1px solid #d1fae5">${esc(s)}</span>`).join('')}
+                </div>
+              </div>`:''}
+
+              ${info.website?`<div style="border-top:1px solid #f1f5f9;padding-top:12px">
+                <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">Website</div>
+                <a href="${esc(info.website)}" target="_blank" rel="noopener" style="font-size:12px;color:#2563eb;text-decoration:none">${esc(info.website)}</a>
+              </div>`:''}
+
+              ${upcoming.length?`<div style="border-top:1px solid #f1f5f9;padding-top:12px">
+                <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Upcoming Meetings (${upcoming.length})</div>
+                ${upcoming.map(m=>{
+                  const dt=new Date(m.bookedDate+'T'+(m.bookedTime||'00:00'));
+                  const dateStr=dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+                  const timeStr=m.bookedTime?dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
+                  return `<div style="font-size:12px;color:#374151;padding:3px 0;display:flex;justify-content:space-between">
+                    <span>${esc(m.company||m.contact||'Unknown')}</span>
+                    <span style="font-weight:600;color:#059669">${dateStr}${timeStr?' @ '+timeStr:''}</span>
+                  </div>`;
+                }).join('')}
+              </div>`:''}
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: The Lead -->
+        <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden">
+          <div style="background:#3b82f6;padding:12px 16px;color:#fff">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;opacity:.8">The Lead</div>
+            <div style="font-size:18px;font-weight:700;margin-top:2px">${esc(deal.company||deal.contact||'Unknown')}</div>
+          </div>
+          <div style="padding:16px">
+            <div style="display:grid;gap:12px">
+              <div>
+                <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">Contact</div>
+                <div style="font-size:14px;font-weight:600;color:#1e293b;margin-top:2px">${esc(deal.contact||'—')}</div>
+                ${deal.email?`<div style="font-size:12px;color:#6b7280;margin-top:1px">${esc(deal.email)}</div>`:''}
+              </div>
+
+              ${deal.phone||deal.mobilePhone?`<div style="border-top:1px solid #f1f5f9;padding-top:12px">
+                <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Phone</div>
+                ${deal.phone?`<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                  <span style="font-size:13px;font-weight:600;color:#1e293b">${esc(deal.phone)}</span>
+                  <span style="font-size:10px;color:#9ca3af">Business</span>
+                  <a href="tel:${leadPhone}" style="font-size:11px;color:#2563eb;text-decoration:none;font-weight:600">Call</a>
+                </div>`:''}
+                ${deal.mobilePhone?`<div style="display:flex;align-items:center;gap:8px">
+                  <span style="font-size:13px;font-weight:600;color:#1e293b">${esc(deal.mobilePhone)}</span>
+                  <span style="font-size:10px;color:#9ca3af">Mobile</span>
+                  <a href="tel:${leadMobile}" style="font-size:11px;color:#2563eb;text-decoration:none;font-weight:600">Call</a>
+                </div>`:''}
+              </div>`:''}
+
+              ${deal.location?`<div style="border-top:1px solid #f1f5f9;padding-top:12px">
+                <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">Address</div>
+                <div style="font-size:13px;font-weight:600;color:#1e293b;margin-top:2px">${esc(deal.location)}</div>
+              </div>`:''}
+
+              ${deal.website?`<div style="border-top:1px solid #f1f5f9;padding-top:12px">
+                <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">Website</div>
+                <a href="${esc(deal.website.match(/^https?:\/\//)?deal.website:'https://'+deal.website)}" target="_blank" rel="noopener" style="font-size:12px;color:#2563eb;text-decoration:none">${esc(deal.website)}</a>
+              </div>`:''}
+
+              ${deal.campaignName?`<div style="border-top:1px solid #f1f5f9;padding-top:12px">
+                <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">Campaign</div>
+                <div style="font-size:12px;color:#374151;margin-top:2px">${esc(deal.campaignName)}</div>
+                ${deal.leadCategory?`<div style="font-size:11px;color:#059669;font-weight:600;margin-top:2px">Category: ${esc(deal.leadCategory)}</div>`:''}
+              </div>`:''}
+
+              ${replyText?`<div style="border-top:1px solid #f1f5f9;padding-top:12px">
+                <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Their Reply / Why They Reached Out</div>
+                <div style="font-size:12px;color:#374151;background:#f8fafc;padding:10px 12px;border-radius:6px;border:1px solid #e2e8f0;line-height:1.6;white-space:pre-wrap;max-height:200px;overflow-y:auto">${esc(replyText)}</div>
+              </div>`:''}
+
+              ${deal.notes?`<div style="border-top:1px solid #f1f5f9;padding-top:12px">
+                <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">Notes</div>
+                <div style="font-size:12px;color:#374151;margin-top:2px;line-height:1.5">${esc(deal.notes)}</div>
+              </div>`:''}
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>`;
+
+  document.body.insertAdjacentHTML('beforeend',h);
+}
+
 function copyToClipboard(text,btnEl){
   navigator.clipboard.writeText(text).then(()=>{
     if(btnEl){const orig=btnEl.textContent;btnEl.textContent='Copied!';setTimeout(()=>btnEl.textContent=orig,1500);}
@@ -3881,21 +4032,19 @@ function renderDealModal(deal){
         const pModel=info.pricingModel||'';
         const warmQA=getWarmCallQA(cn.name);
 
-        // Lead Forwarding — always visible, most important
-        if(fwdName||fwdEmail){
-          h+=`<div style="margin:0 0 8px 0;background:#ecfdf5;border:2px solid #059669;border-radius:8px;padding:10px 12px">
-            <div style="font-size:10px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">📧 Lead Forwarding (CC This Person)</div>
-            <div style="font-size:15px;font-weight:700;color:#065f46">${esc(fwdName)}</div>
-            <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
-              <span style="font-size:13px;color:#047857;font-weight:600">${esc(fwdEmail)}</span>
-              <button onclick="event.stopPropagation();copyToClipboard('${esc(fwdEmail)}',this)" style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #059669;background:#fff;color:#059669;cursor:pointer;font-weight:700">Copy</button>
-            </div>
-          </div>`;
-        }
-
-        // Client Info — collapsible dropdown
+        // Client Info — collapsible dropdown with lead forwarding inside
         {
           let ciContent='';
+          // Lead forwarding — compact row at top of client info
+          if(fwdName||fwdEmail){
+            ciContent+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #e5e7eb">
+              <div><span style="font-size:11px;color:#6b7280;font-weight:600">Forward To:</span> <span style="font-size:12px;font-weight:600">${esc(fwdName)}</span></div>
+              <div style="display:flex;align-items:center;gap:4px">
+                <span style="font-size:11px;color:#6b7280">${esc(fwdEmail)}</span>
+                <button onclick="event.stopPropagation();copyToClipboard('${esc(fwdEmail)}',this)" style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #059669;background:#fff;color:#059669;cursor:pointer;font-weight:600">Copy</button>
+              </div>
+            </div>`;
+          }
           if(priContact||priEmail){
             ciContent+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #e5e7eb">
               <div><span style="font-size:11px;color:#6b7280;font-weight:600">Primary Contact:</span> <span style="font-size:12px;font-weight:600">${esc(priContact)}</span></div>
@@ -3921,11 +4070,6 @@ function renderDealModal(deal){
               <div style="font-size:12px;font-weight:600;color:#065f46;margin-top:2px">${esc(saCities)}</div>
             </div>`;
           }
-          if(pModel){
-            ciContent+=`<div style="padding:6px 0;border-bottom:1px solid #e5e7eb">
-              <span style="font-size:11px;color:#6b7280;font-weight:600">Pricing Model:</span> <span style="font-size:12px">${esc(pModel)}</span>
-            </div>`;
-          }
           if(isAdmin()&&str(cn.leadCost).trim()){
             ciContent+=`<div style="padding:6px 0;border-bottom:1px solid #e5e7eb">
               <span style="font-size:11px;color:#6b7280;font-weight:600">Lead Cost:</span> <span style="font-size:12px;font-weight:600;color:#059669">$${str(cn.leadCost).replace(/[^0-9.]/g,'')}</span>
@@ -3942,27 +4086,20 @@ function renderDealModal(deal){
           if(ciContent){
             h+=`<details style="margin:0 0 8px 0;border:1px solid #059669;border-radius:10px;background:#f0fdf4;overflow:hidden">
               <summary style="background:#059669;padding:8px 12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px">
-                <span style="transition:transform .2s">▶</span> ℹ️ ${esc(cn.name)} — Client Info
+                <span style="transition:transform .2s">▶</span> ${esc(cn.name)} — Client Info
               </summary>
               <div style="padding:12px">${ciContent}</div>
             </details>`;
           }
         }
 
-        // Warm Call Q&A — collapsible dropdown
-        if(warmQA.length){
-          h+=`<details style="margin:0 0 8px 0;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;overflow:hidden">
-            <summary style="background:#fef3c7;padding:8px 12px;font-size:13px;font-weight:700;color:#92400e;cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px">
-              <span style="transition:transform .2s">▶</span> 🔥 Warm Call Script & FAQ
-            </summary>
-            <div style="padding:8px 12px">
-              ${warmQA.map(qa=>`<div style="margin-top:8px">
-                <div style="font-size:11px;font-weight:700;color:#1f2937">❓ "${esc(qa.q)}"</div>
-                <div style="font-size:12px;color:#065f46;background:#ecfdf5;padding:6px 8px;border-radius:4px;margin-top:3px;line-height:1.5">💬 "${esc(qa.a)}"</div>
-              </div>`).join('')}
-            </div>
-          </details>`;
-        }
+        // Warm Call Sheet button
+        h+=`<div style="margin:0 0 8px 0">
+          <button class="btn" style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#f59e0b;border-color:#f59e0b;color:#fff;font-weight:700"
+            onclick="openWarmCallSheet('${esc(deal.id)}')">
+            📋 Open Warm Call Sheet
+          </button>
+        </div>`;
       }
 
       // Forward Lead Email button
