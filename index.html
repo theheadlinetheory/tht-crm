@@ -2604,16 +2604,28 @@ function openCalendlyEmbed(dealId, baseCalUrl, clientName){
   const name=(document.getElementById('cal-prefill-name')?.value||'').trim();
   const email=(document.getElementById('cal-prefill-email')?.value||'').trim();
   const notes=(document.getElementById('cal-prefill-notes')?.value||'').trim();
-  const url=baseCalUrl.includes('://')?baseCalUrl:'https://'+baseCalUrl;
+  let url=baseCalUrl.includes('://')?baseCalUrl:'https://'+baseCalUrl;
   const ianaTz=clientIanaTz(clientName);
-  // Open Calendly in new tab — the hosted page reliably respects the timezone param,
-  // whereas the popup widget always defaults to the visitor's browser timezone.
-  const u=new URL(url);
-  if(name) u.searchParams.set('name',name);
-  if(email) u.searchParams.set('email',email);
-  if(notes) u.searchParams.set('a1',notes);
-  if(ianaTz) u.searchParams.set('timezone',ianaTz);
-  window.open(u.toString(),'_blank');
+  if(typeof Calendly!=='undefined'){
+    // Build full URL with timezone baked in before passing to widget
+    const u=new URL(url);
+    if(ianaTz) u.searchParams.set('timezone',ianaTz);
+    Calendly.initPopupWidget({
+      url: u.toString(),
+      prefill: {
+        name: name,
+        email: email,
+        customAnswers: { a1: notes }
+      }
+    });
+  } else {
+    const u=new URL(url);
+    if(name) u.searchParams.set('name',name);
+    if(email) u.searchParams.set('email',email);
+    if(notes) u.searchParams.set('a1',notes);
+    if(ianaTz) u.searchParams.set('timezone',ianaTz);
+    window.open(u.toString(),'_blank');
+  }
 }
 
 // Listen for Calendly booking confirmation
