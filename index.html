@@ -4032,7 +4032,7 @@ function render(){
           ${state.bulkMode?`<div class="bulk-check">${isBulkSel?'✓':''}</div>`:''}
           <div class="deal-card-top">
             <div class="deal-company">${esc(deal.company||deal.contact||deal.email||"New Deal")}${isRetainerClient(deal)?'<span style="display:inline-block;margin-left:6px;font-size:9px;font-weight:700;background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:3px;vertical-align:middle;white-space:nowrap;letter-spacing:.3px">RETAINER</span>':''}</div>
-            <div class="status-indicator" onclick="event.stopPropagation();toggleBadgeDropdown('${deal.id}')">
+            ${isClient()?'':`<div class="status-indicator" onclick="event.stopPropagation();toggleBadgeDropdown('${deal.id}')">
               <div class="status-dot" style="background:${badge?badge.color:'#d1d5db'}"></div>
               ${badge?`<span class="status-count" style="color:${badge.color}">${badge.count}</span>`:''}
               ${badge?`<div class="badge-dropdown" id="badge-${deal.id}" style="display:none">
@@ -4044,7 +4044,7 @@ function render(){
                       <span style="font-size:10px;color:#9ca3af">${fmtDate(a.dueDate)}</span>
                     </div>`).join("")}
                 </div>`:''}
-            </div>
+            </div>`}
           </div>
           ${deal.contact&&deal.contact!==deal.company?`<div class="deal-contact">${esc(deal.contact)}</div>`:''}
           ${deal.email?`<div class="deal-detail">${esc(deal.email)}</div>`:''}
@@ -4465,7 +4465,8 @@ function renderDealModal(deal){
     }
   }
 
-  // Activities section
+  // Activities section — hidden for client users
+  if(!isClient()){
   h+=`<div id="activities-container"><div class="activities-section">
     <div class="activities-header">
       <h4>Activities</h4>
@@ -4537,8 +4538,10 @@ function renderDealModal(deal){
 
   if(!pending.length&&!completed.length) h+=`<div class="no-activities">No activities yet</div>`;
 
-  h+=`</div></div></div>
-    <div class="modal-footer">
+  h+=`</div></div></div>`;
+  } // end !isClient() activities block
+
+  h+=`<div class="modal-footer">
       ${isAdmin()||isEmployee()?`<button class="btn btn-danger" onclick="if(confirm('Archive this deal?'))deleteDeal('${deal.id}','Deleted/Lost')">Archive</button>`:''}
       ${isClient()?`<button class="btn btn-danger" onclick="if(confirm('Archive this lead?'))archiveDeal('${deal.id}','manual')">Archive</button>`:''}
       <div style="display:flex;gap:8px">
