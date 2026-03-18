@@ -2892,18 +2892,27 @@ const TRACKER_ZERO_COST_CLIENTS=['abc','deeter'];
 // Source of truth: Client Info Google Sheet
 // ═══════════════════════════════════════════════════════════
 // Gmail thread IDs for client lead delivery threads
-const CLIENT_THREAD_IDS={
-  'High Southern':'KtbxLxGcCbnJLmfFBNcfFlmGJLVxBjvSgB',
-  'Time Savers':'FMfcgzQfCDXfPjgmfTbSVjrMQsXRWqzj',
-  'Rain':'QgrcJHsbflhZbVrZVQjFqCmdvtmtLJrmVXB',
-  'Coastal':'FMfcgzQfBsnVhBXNbTxVfZDVcRgpLZTm',
-  'Lightning':'QgrcJHsbdJzQkGZpKBSDlnGvPmQNLwvSZRb',
-  'Tropical':'QgrcJHsbhNVcPKWvRTnSLBDdkdvqprZqslB',
-  'Distinctive':'KtbxLvHPwvMJfnbRzlWSXlMlWjBblgFjXB',
-  'Dallas Land Care':'QgrcJHsBqzhSBXCtVWJTsCnMCdrmFBDNtxq',
-  'Umbrella Space PS':'KtbxLvHkRZwSmlFtJHBvxBzBzhzLFbzQVV',
-  'Shade Tree':'FMfcgzQfBsvRrnPzkwHzWqphSTCLCMpl'
+const _CLIENT_THREAD_MAP={
+  'high southern':'KtbxLxGcCbnJLmfFBNcfFlmGJLVxBjvSgB',
+  'time savers':'FMfcgzQfCDXfPjgmfTbSVjrMQsXRWqzj',
+  'rain':'QgrcJHsbflhZbVrZVQjFqCmdvtmtLJrmVXB',
+  'coastal':'FMfcgzQfBsnVhBXNbTxVfZDVcRgpLZTm',
+  'lightning':'QgrcJHsbdJzQkGZpKBSDlnGvPmQNLwvSZRb',
+  'tropical':'QgrcJHsbhNVcPKWvRTnSLBDdkdvqprZqslB',
+  'distinctive':'KtbxLvHPwvMJfnbRzlWSXlMlWjBblgFjXB',
+  'dallas land care':'QgrcJHsBqzhSBXCtVWJTsCnMCdrmFBDNtxq',
+  'umbrella':'KtbxLvHkRZwSmlFtJHBvxBzBzhzLFbzQVV',
+  'shade tree':'FMfcgzQfBsvRrnPzkwHzWqphSTCLCMpl'
 };
+// Fuzzy lookup — matches "Distinctive Landscape" to "distinctive", etc.
+function getClientThreadId(name){
+  const n=(name||'').toLowerCase();
+  for(const key of Object.keys(_CLIENT_THREAD_MAP)){
+    if(n===key || n.includes(key) || key.includes(n)) return _CLIENT_THREAD_MAP[key];
+  }
+  return '';
+}
+const CLIENT_THREAD_IDS=new Proxy({},{get:(_,prop)=>typeof prop==='string'?getClientThreadId(prop):undefined});
 
 const CLIENT_INFO={
   'High Southern':{
