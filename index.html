@@ -2558,6 +2558,112 @@ function doCopyLeadInfo(dealId){
   });
 }
 
+// ─── Send Lead Info to Client Thread ───
+function buildLeadMessage(deal, clientName){
+  const client=state.clients.find(c=>c.name===deal.stage)||state.clients.find(c=>c.name===clientName);
+  const clientFirst=client&&str(client.contactFirstName).trim()?str(client.contactFirstName).trim():'there';
+  const biz=deal.company||deal.contact||'';
+  // Build the time portion
+  let timeStr='';
+  if(deal.bookedDate && deal.bookedDate.match(/^\d{4}-\d{2}-\d{2}$/)){
+    const dt=new Date(deal.bookedDate+'T'+(deal.bookedTime||'12:00'));
+    const dayPart=dt.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+    const timePart=deal.bookedTime?dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
+    timeStr=timePart?dayPart+' at '+timePart:dayPart;
+  }
+  const lines=[];
+  if(timeStr){
+    lines.push('Hey '+clientFirst+', Just scheduled a quote request for '+timeStr+' with '+biz+'. The address, phone, contact info and instructions are all included in that calendar event. I\'ve also added you to the email thread. Please check your spam folder if you are not seeing it.');
+  } else {
+    lines.push('Hey '+clientFirst+', Here\'s a new lead for you — '+biz+'. Details below:');
+  }
+  lines.push('');
+  if(biz) lines.push('Business: '+biz);
+  if(deal.contact && deal.contact !== biz) lines.push('Contact: '+deal.contact);
+  if(deal.email) lines.push('Email: '+deal.email);
+  if(deal.phone) lines.push('Business Phone: '+deal.phone);
+  if(deal.mobilePhone) lines.push('Mobile Phone: '+deal.mobilePhone);
+  if(deal.website) lines.push('Website: '+deal.website);
+  const addr=str(deal.address||deal.location||'').trim();
+  if(addr) lines.push('Address: '+addr);
+  if(deal.location && deal.location!==addr) lines.push('Location: '+deal.location);
+  if(str(deal.notes).trim()) lines.push('Notes: '+deal.notes);
+  if(str(deal.emailBody).trim()) lines.push('\nTheir Reply:\n'+deal.emailBody);
+  return lines.join('\n');
+}
+
+function openSendToClientPreview(dealId, clientName){
+  const deal=state.deals.find(d=>d.id===dealId);
+  if(!deal) return;
+  const threadId=CLIENT_THREAD_IDS[clientName]||'';
+  if(!threadId){ alert('No thread ID configured for '+clientName); return; }
+  const info=lookupClientInfo(clientName)||{};
+  const fwdEmail=info.forwardEmail||info.primaryEmail||'';
+  const message=buildLeadMessage(deal, clientName);
+
+  const overlay=document.createElement('div');
+  overlay.id='send-preview-overlay';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100000;display:flex;align-items:center;justify-content:center';
+  overlay.innerHTML=`<div style="background:#fff;border-radius:12px;width:500px;max-width:92vw;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)" onclick="event.stopPropagation()">
+    <div style="padding:16px 20px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:15px;font-weight:700;color:#1e293b">Send to ${esc(clientName)}</div>
+        <div style="font-size:11px;color:#6b7280;margin-top:2px">Replying to thread with ${esc(fwdEmail)} from contact@theheadlinetheory.com</div>
+      </div>
+      <button onclick="document.getElementById('send-preview-overlay').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9ca3af;padding:4px">x</button>
+    </div>
+    <div style="padding:16px 20px">
+      <label style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px">Message Preview (editable)</label>
+      <textarea id="send-preview-body" rows="14" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;font-family:var(--font);line-height:1.6;resize:vertical;color:#1f2937">${esc(message)}</textarea>
+    </div>
+    <div style="padding:12px 20px 20px;display:flex;gap:8px">
+      <button id="send-to-thread-btn" onclick="doSendToClientThread('${esc(dealId)}','${esc(clientName)}','${esc(threadId)}')" style="flex:1;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--font)">Send to ${esc(clientName)}</button>
+      <button onclick="document.getElementById('send-preview-overlay').remove()" style="padding:12px 20px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font)">Cancel</button>
+    </div>
+  </div>`;
+  overlay.onclick=function(){ overlay.remove(); };
+  document.body.appendChild(overlay);
+}
+
+async function doSendToClientThread(dealId, clientName, threadId){
+  const btn=document.getElementById('send-to-thread-btn');
+  const messageBody=document.getElementById('send-preview-body')?.value||'';
+  if(!messageBody.trim()){ alert('Message is empty'); return; }
+
+  // Show loading state
+  if(btn){ btn.disabled=true; btn.textContent='Sending...'; btn.style.opacity='0.6'; }
+
+  try {
+    const result=await apiPost('send_to_client_thread',{
+      dealId: dealId,
+      clientName: clientName,
+      threadId: threadId,
+      messageBody: messageBody
+    });
+    if(result && result.ok){
+      // Mark deal as forwarded
+      const deal=state.deals.find(d=>d.id===dealId);
+      if(deal) deal.forwardedAt=new Date().toISOString();
+      // Close preview
+      document.getElementById('send-preview-overlay')?.remove();
+      // Refresh modal
+      if(state.selectedDeal) refreshModal(true);
+      // Toast
+      const toast=document.createElement('div');
+      toast.style.cssText='position:fixed;top:70px;left:50%;transform:translateX(-50%);background:#22c55e;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:100001;box-shadow:0 4px 12px rgba(0,0,0,.2)';
+      toast.textContent='Sent to '+clientName+'\'s thread!';
+      document.body.appendChild(toast);
+      setTimeout(()=>toast.remove(),4000);
+    } else {
+      alert('Failed to send: '+(result?.error||'Unknown error'));
+      if(btn){ btn.disabled=false; btn.textContent='Send to '+clientName; btn.style.opacity='1'; }
+    }
+  } catch(err){
+    alert('Error: '+err.message);
+    if(btn){ btn.disabled=false; btn.textContent='Send to '+clientName; btn.style.opacity='1'; }
+  }
+}
+
 function buildCalendlyUrl(baseUrl, deal){
   const url = new URL(baseUrl.includes('://') ? baseUrl : 'https://'+baseUrl);
   const name = deal.contact || deal.company || '';
@@ -2785,6 +2891,20 @@ const TRACKER_ZERO_COST_CLIENTS=['abc','deeter'];
 // CLIENT INFO — structured data for deal modal display
 // Source of truth: Client Info Google Sheet
 // ═══════════════════════════════════════════════════════════
+// Gmail thread IDs for client lead delivery threads
+const CLIENT_THREAD_IDS={
+  'High Southern':'KtbxLxGcCbnJLmfFBNcfFlmGJLVxBjvSgB',
+  'Time Savers':'FMfcgzQfCDXfPjgmfTbSVjrMQsXRWqzj',
+  'Rain':'QgrcJHsbflhZbVrZVQjFqCmdvtmtLJrmVXB',
+  'Coastal':'FMfcgzQfBsnVhBXNbTxVfZDVcRgpLZTm',
+  'Lightning':'QgrcJHsbdJzQkGZpKBSDlnGvPmQNLwvSZRb',
+  'Tropical':'QgrcJHsbhNVcPKWvRTnSLBDdkdvqprZqslB',
+  'Distinctive':'KtbxLvHPwvMJfnbRzlWSXlMlWjBblgFjXB',
+  'Dallas Land Care':'QgrcJHsBqzhSBXCtVWJTsCnMCdrmFBDNtxq',
+  'Umbrella Space PS':'KtbxLvHkRZwSmlFtJHBvxBzBzhzLFbzQVV',
+  'Shade Tree':'FMfcgzQfBsvRrnPzkwHzWqphSTCLCMpl'
+};
+
 const CLIENT_INFO={
   'High Southern':{
     primaryContact:'Will',primaryEmail:'will@highsouthernscapes.com',phone:'(704) 621-3215',
@@ -4225,14 +4345,25 @@ function renderDealModal(deal){
       // Client's Upcoming Meetings — show all future bookings for this client
       h+=renderUpcomingMeetings(deal, matchedClient.name);
 
-      // Copy Lead Info button
+      // Send Lead Info to Client Thread button
       if(isOn('enableCopyInfo')){
-        h+=`<div style="margin:0 0 8px 0">
-          <button class="btn btn-ghost" style="width:100%;justify-content:center;gap:6px;font-size:13px"
-            onclick="copyLeadInfo('${esc(deal.id)}')">
-            📋 Copy Lead Info for ${esc(matchedClient.name)}
-          </button>
-        </div>`;
+        const hasThread=!!CLIENT_THREAD_IDS[matchedClient.name];
+        const forwarded=deal.forwardedAt && str(deal.forwardedAt).trim()!=='';
+        if(hasThread){
+          h+=`<div style="margin:0 0 8px 0">
+            <button class="btn ${forwarded?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px;${forwarded?'':'background:#2563eb;border-color:#2563eb'}"
+              onclick="openSendToClientPreview('${esc(deal.id)}','${esc(matchedClient.name)}')" ${forwarded?'':''}>
+              ${forwarded?'✅ Sent to '+esc(matchedClient.name)+' — Send Again?':'📨 Send Lead Info to '+esc(matchedClient.name)}
+            </button>
+          </div>`;
+        } else {
+          h+=`<div style="margin:0 0 8px 0">
+            <button class="btn btn-ghost" style="width:100%;justify-content:center;gap:6px;font-size:13px"
+              onclick="copyLeadInfo('${esc(deal.id)}')">
+              📋 Copy Lead Info for ${esc(matchedClient.name)}
+            </button>
+          </div>`;
+        }
       }
 
       // Push to Lead Tracker button
