@@ -2705,11 +2705,18 @@ function toggleCalendlyBooking(dealId, calUrl){
   sec.style.display=sec.style.display==='none'?'block':'none';
 }
 
+// Save prefill field values to the deal object so they survive re-renders
+function savePrefillField(dealId, field, value){
+  const deal=state.deals.find(d=>d.id===dealId);
+  if(deal) deal[field]=value;
+}
+
 function openCalendlyEmbed(dealId, baseCalUrl, clientName){
   calendlyBookingDealId=dealId;
-  const name=(document.getElementById('cal-prefill-name')?.value||'').trim();
-  const email=(document.getElementById('cal-prefill-email')?.value||'').trim();
-  const notes=(document.getElementById('cal-prefill-notes')?.value||'').trim();
+  const deal=state.deals.find(d=>d.id===dealId);
+  const name=(document.getElementById('cal-prefill-name')?.value||deal?._calName||'').trim();
+  const email=(document.getElementById('cal-prefill-email')?.value||deal?._calEmail||'').trim();
+  const notes=(document.getElementById('cal-prefill-notes')?.value||deal?._calNotes||'').trim();
   let url=baseCalUrl.includes('://')?baseCalUrl:'https://'+baseCalUrl;
   const ianaTz=clientIanaTz(clientName);
   if(typeof Calendly!=='undefined'){
@@ -4285,18 +4292,21 @@ function renderDealModal(deal){
           </div>
           <div style="margin-bottom:6px">
             <label style="font-size:11px;color:#6b7280;font-weight:600">Guest Name</label>
-            <input type="text" id="cal-prefill-name" value="${esc(deal.contact||deal.company||'')}"
+            <input type="text" id="cal-prefill-name" value="${esc(deal._calName!=null?deal._calName:(deal.contact||deal.company||''))}"
+              oninput="savePrefillField('${esc(deal.id)}','_calName',this.value)"
               style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px">
           </div>
           <div style="margin-bottom:6px">
             <label style="font-size:11px;color:#6b7280;font-weight:600">Guest Email</label>
-            <input type="text" id="cal-prefill-email" value="${esc(deal.email||'')}"
+            <input type="text" id="cal-prefill-email" value="${esc(deal._calEmail!=null?deal._calEmail:(deal.email||''))}"
+              oninput="savePrefillField('${esc(deal.id)}','_calEmail',this.value)"
               style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px">
           </div>
           <div style="margin-bottom:8px">
             <label style="font-size:11px;color:#6b7280;font-weight:600">Additional Info / Instructions</label>
             <textarea id="cal-prefill-notes" rows="5"
-              style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px;resize:vertical">${esc(prefillLines.join('\n'))}</textarea>
+              oninput="savePrefillField('${esc(deal.id)}','_calNotes',this.value)"
+              style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px;resize:vertical">${esc(deal._calNotes!=null?deal._calNotes:prefillLines.join('\n'))}</textarea>
           </div>
           <button class="btn btn-primary" style="width:100%;justify-content:center;font-size:13px;background:#818cf8;border-color:#818cf8"
             onclick="openCalendlyEmbed('${esc(deal.id)}','${esc(matchedClient.calendlyUrl)}','${esc(matchedClient.name)}')">
