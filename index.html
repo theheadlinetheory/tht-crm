@@ -3169,8 +3169,20 @@ function openWarmCallSheet(dealId){
                 ${info.primaryContact?`<div>
                   <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">Point of Contact</div>
                   <div style="font-size:14px;font-weight:600;color:#1e293b;margin-top:2px">${esc(info.primaryContact)}</div>
-                  ${info.primaryEmail?`<div style="font-size:12px;color:#6b7280;margin-top:1px">${esc(info.primaryEmail)}</div>`:''}
+                  ${info.primaryEmail?`<div style="display:flex;align-items:center;gap:6px;margin-top:1px">
+                    <span style="font-size:12px;color:#6b7280">${esc(info.primaryEmail)}</span>
+                    <button onclick="event.stopPropagation();copyToClipboard('${esc(info.primaryEmail)}',this)" style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #d1d5db;background:#fff;color:#6b7280;cursor:pointer;font-weight:600">Copy</button>
+                  </div>`:''}
                   ${info.phone?`<div style="font-size:12px;color:#6b7280;margin-top:1px">${esc(info.phone)}</div>`:''}
+                </div>`:''}
+
+                ${info.forwardEmail&&info.forwardEmail!==info.primaryEmail?`<div style="border-top:1px solid #f1f5f9;padding-top:12px">
+                  <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">Forward Leads To</div>
+                  <div style="font-size:14px;font-weight:600;color:#1e293b;margin-top:2px">${esc(info.forwardName||info.primaryContact||'')}</div>
+                  <div style="display:flex;align-items:center;gap:6px;margin-top:1px">
+                    <span style="font-size:12px;color:#6b7280">${esc(info.forwardEmail)}</span>
+                    <button onclick="event.stopPropagation();copyToClipboard('${esc(info.forwardEmail)}',this)" style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #d1d5db;background:#fff;color:#6b7280;cursor:pointer;font-weight:600">Copy</button>
+                  </div>
                 </div>`:''}
 
                 <div style="border-top:1px solid #f1f5f9;padding-top:12px">
@@ -3229,7 +3241,10 @@ function openWarmCallSheet(dealId){
               <div>
                 <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">Contact</div>
                 <div style="font-size:14px;font-weight:600;color:#1e293b;margin-top:2px">${esc(deal.contact||'—')}</div>
-                ${deal.email?`<div style="font-size:12px;color:#6b7280;margin-top:1px">${esc(deal.email)}</div>`:''}
+                ${deal.email?`<div style="display:flex;align-items:center;gap:6px;margin-top:1px">
+                  <span style="font-size:12px;color:#6b7280">${esc(deal.email)}</span>
+                  <button onclick="event.stopPropagation();copyToClipboard('${esc(deal.email)}',this)" style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #d1d5db;background:#fff;color:#6b7280;cursor:pointer;font-weight:600">Copy</button>
+                </div>`:''}
               </div>
 
               ${deal.phone||deal.mobilePhone?`<div style="border-top:1px solid #f1f5f9;padding-top:12px">
@@ -4223,72 +4238,11 @@ function renderDealModal(deal){
         const pModel=info.pricingModel||'';
         const warmQA=getWarmCallQA(cn.name);
 
-        // Client Info — collapsible dropdown with lead forwarding inside
-        {
-          let ciContent='';
-          // Lead forwarding — compact row at top of client info
-          if(fwdName||fwdEmail){
-            ciContent+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #e5e7eb">
-              <div><span style="font-size:11px;color:#6b7280;font-weight:600">Forward To:</span> <span style="font-size:12px;font-weight:600">${esc(fwdName)}</span></div>
-              <div style="display:flex;align-items:center;gap:4px">
-                <span style="font-size:11px;color:#6b7280">${esc(fwdEmail)}</span>
-                <button onclick="event.stopPropagation();copyToClipboard('${esc(fwdEmail)}',this)" style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #059669;background:#fff;color:#059669;cursor:pointer;font-weight:600">Copy</button>
-              </div>
-            </div>`;
-          }
-          if(priContact||priEmail){
-            ciContent+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #e5e7eb">
-              <div><span style="font-size:11px;color:#6b7280;font-weight:600">Primary Contact:</span> <span style="font-size:12px;font-weight:600">${esc(priContact)}</span></div>
-              ${priEmail?`<div style="display:flex;align-items:center;gap:4px">
-                <span style="font-size:11px;color:#6b7280">${esc(priEmail)}</span>
-                <button onclick="event.stopPropagation();copyToClipboard('${esc(priEmail)}',this)" style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid var(--border);background:#fff;color:var(--text-secondary);cursor:pointer">Copy</button>
-              </div>`:''}
-            </div>`;
-          }
-          if(phone){
-            ciContent+=`<div style="padding:6px 0;border-bottom:1px solid #e5e7eb">
-              <span style="font-size:11px;color:#6b7280;font-weight:600">Phone:</span> <span style="font-size:12px">${esc(phone)}</span>
-            </div>`;
-          }
-          if(loc){
-            ciContent+=`<div style="padding:6px 0;border-bottom:1px solid #e5e7eb">
-              <span style="font-size:11px;color:#6b7280;font-weight:600">Location:</span> <span style="font-size:12px;font-weight:600">${esc(loc)}</span>${tz?' <span style="font-size:11px;color:#9ca3af">('+esc(tz)+')</span>':''}
-            </div>`;
-          }
-          if(saCities){
-            ciContent+=`<div style="padding:6px 0;border-bottom:1px solid #e5e7eb">
-              <span style="font-size:11px;color:#6b7280;font-weight:600">Service Area:</span>
-              <div style="font-size:12px;font-weight:600;color:#065f46;margin-top:2px">${esc(saCities)}</div>
-            </div>`;
-          }
-          if(isAdmin()&&str(cn.leadCost).trim()){
-            ciContent+=`<div style="padding:6px 0;border-bottom:1px solid #e5e7eb">
-              <span style="font-size:11px;color:#6b7280;font-weight:600">Lead Cost:</span> <span style="font-size:12px;font-weight:600;color:#059669">$${str(cn.leadCost).replace(/[^0-9.]/g,'')}</span>
-            </div>`;
-          }
-          if(svcs.length){
-            ciContent+=`<div style="padding:6px 0">
-              <span style="font-size:11px;font-weight:700;color:#4b5563">Services Offered (${svcs.length}):</span>
-              <ul style="margin:4px 0 0 16px;font-size:11px;color:#374151;line-height:1.8">
-                ${svcs.map(s=>'<li>'+esc(s)+'</li>').join('')}
-              </ul>
-            </div>`;
-          }
-          if(ciContent){
-            h+=`<details style="margin:0 0 8px 0;border:1px solid #059669;border-radius:10px;background:#f0fdf4;overflow:hidden">
-              <summary style="background:#059669;padding:8px 12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px">
-                <span style="transition:transform .2s">▶</span> ${esc(cn.name)} — Client Info
-              </summary>
-              <div style="padding:12px">${ciContent}</div>
-            </details>`;
-          }
-        }
-
-        // Warm Call Sheet button
+        // Warm Call Sheet button (contains all client info + lead info)
         h+=`<div style="margin:0 0 8px 0">
-          <button class="btn" style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#f59e0b;border-color:#f59e0b;color:#fff;font-weight:700"
+          <button class="btn" style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#059669;border-color:#059669;color:#fff;font-weight:700"
             onclick="openWarmCallSheet('${esc(deal.id)}')">
-            📋 Open Warm Call Sheet
+            📋 ${esc(cn.name)} — Client Info & Warm Call Sheet
           </button>
         </div>`;
       }
