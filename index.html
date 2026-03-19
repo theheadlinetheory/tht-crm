@@ -1450,19 +1450,25 @@ function showForwardPreview(deal, client){
   const smartleadUrl=deal.smartleadUrl||'';
   const notifyEmails=str(client.notifyEmails).split(',').map(e=>e.trim()).filter(e=>e);
 
+  const leadEmail2=deal.email2||'';
+  const leadEmail3=deal.email3||'';
+  const leadEmail4=deal.email4||'';
   let emailPreview=`
     <div style="background:#1a1a2e;color:#fff;padding:20px 24px;border-radius:8px 8px 0 0">
       <h2 style="margin:0;font-size:18px">New Lead from Your Campaign</h2>
     </div>
     <div style="background:#fff;padding:24px;border:1px solid #e0e0e0;border-top:none;border-radius:0 0 8px 8px">
       <table style="width:100%;border-collapse:collapse;font-size:14px">
-        <tr><td style="padding:8px 0;color:#888;width:120px">Company</td><td style="padding:8px 0;font-weight:bold">${esc(companyName)}</td></tr>
-        ${contactName?`<tr><td style="padding:8px 0;color:#888">Contact</td><td style="padding:8px 0">${esc(contactName)}</td></tr>`:''}
+        <tr><td style="padding:8px 0;color:#888;width:140px">Business</td><td style="padding:8px 0;font-weight:bold">${esc(companyName)}</td></tr>
         ${leadWebsite?`<tr><td style="padding:8px 0;color:#888">Website</td><td style="padding:8px 0;color:#2563eb">${esc(leadWebsite)}</td></tr>`:''}
+        ${leadLocation?`<tr><td style="padding:8px 0;color:#888">Address</td><td style="padding:8px 0">${esc(leadLocation)}</td></tr>`:''}
         ${leadEmail?`<tr><td style="padding:8px 0;color:#888">Email</td><td style="padding:8px 0;color:#2563eb">${esc(leadEmail)}</td></tr>`:''}
         ${leadPhone?`<tr><td style="padding:8px 0;color:#888">Business Phone</td><td style="padding:8px 0">${esc(leadPhone)}</td></tr>`:''}
+        ${contactName?`<tr><td style="padding:8px 0;color:#888">Contact</td><td style="padding:8px 0">${esc(contactName)}</td></tr>`:''}
+        ${leadEmail2?`<tr><td style="padding:8px 0;color:#888">Contact email</td><td style="padding:8px 0;color:#2563eb">${esc(leadEmail2)}</td></tr>`:''}
+        ${leadEmail3?`<tr><td style="padding:8px 0;color:#888">Email 3</td><td style="padding:8px 0;color:#2563eb">${esc(leadEmail3)}</td></tr>`:''}
+        ${leadEmail4?`<tr><td style="padding:8px 0;color:#888">Email 4</td><td style="padding:8px 0;color:#2563eb">${esc(leadEmail4)}</td></tr>`:''}
         ${leadMobilePhone?`<tr><td style="padding:8px 0;color:#888">Mobile Phone</td><td style="padding:8px 0">${esc(leadMobilePhone)}</td></tr>`:''}
-        ${leadLocation?`<tr><td style="padding:8px 0;color:#888">Address</td><td style="padding:8px 0">${esc(leadLocation)}</td></tr>`:''}
       </table>
       ${smartleadUrl?`<div style="margin-top:20px"><span style="display:inline-block;background:#2563eb;color:#fff;padding:10px 24px;border-radius:6px;font-weight:bold;font-size:14px">Click to Reply →</span></div>`:''}
       <p style="margin-top:20px;color:#888;font-size:12px">Go get em while they're hot!</p>
@@ -1838,12 +1844,29 @@ let clientArchivedDeals = [];
 
 async function loadClientArchive(){
   if(!isClient()||!currentUser.clientName) return;
+  // Load from both Firestore (client-initiated archives) and Sheet (admin-initiated archives)
+  let firestoreArchived = [];
+  let sheetArchived = [];
   try {
-    const doc = await db.collection('client_settings').doc(currentUser.clientName).get();
+    const [doc, sheetData] = await Promise.all([
+      db.collection('client_settings').doc(currentUser.clientName).get(),
+      apiGet('get_client_archive&clientName=' + encodeURIComponent(currentUser.clientName))
+    ]);
     if(doc.exists && doc.data().archivedDeals){
-      clientArchivedDeals = doc.data().archivedDeals;
+      firestoreArchived = doc.data().archivedDeals;
+    }
+    if(Array.isArray(sheetData)){
+      sheetArchived = sheetData.map(d => ({
+        ...d,
+        archiveReason: d.archiveStatus === 'Closed Won' ? 'won' : (d.archiveStatus === 'Passed Off' ? 'passed' : 'admin'),
+      }));
     }
   } catch(e){ console.warn('Failed to load archive:', e); }
+  // Merge and deduplicate by id (Firestore takes priority since client may have modified)
+  const seen = new Set();
+  clientArchivedDeals = [];
+  for(const d of firestoreArchived){ seen.add(d.id); clientArchivedDeals.push(d); }
+  for(const d of sheetArchived){ if(!seen.has(d.id)){ clientArchivedDeals.push(d); } }
 }
 
 async function archiveDeal(dealId, reason){
@@ -1868,19 +1891,31 @@ async function restoreDeal(dealId){
   const idx = clientArchivedDeals.findIndex(d=>d.id===dealId);
   if(idx===-1) return;
   const deal = clientArchivedDeals.splice(idx, 1)[0];
+  const isSheetArchived = deal.archiveReason === 'admin' || deal.archiveReason === 'passed';
   delete deal.archivedAt;
   delete deal.archiveReason;
-  // Put it back in the first client stage
-  if(clientPortalStages && clientPortalStages.length > 0){
-    deal.clientStage = clientPortalStages[0].id;
+  if(isSheetArchived){
+    // Restore via backend (moves from Archive sheet back to Deals sheet)
+    pendingWrites++;
+    try {
+      await apiPost('restore_deal', { id: dealId });
+      // Re-sync to pick up the restored deal
+      syncFromSheet();
+    } catch(e){ console.error('Failed to restore from sheet archive:', e); }
+    finally { pendingWrites--; }
+  } else {
+    // Firestore-only archive: put it back in the first client stage
+    if(clientPortalStages && clientPortalStages.length > 0){
+      deal.clientStage = clientPortalStages[0].id;
+    }
+    state.deals.push(deal);
+    // Update Firestore archive
+    try {
+      await db.collection('client_settings').doc(currentUser.clientName).set(
+        { archivedDeals: clientArchivedDeals }, { merge: true }
+      );
+    } catch(e){ console.error('Failed to update archive:', e); }
   }
-  state.deals.push(deal);
-  // Update Firestore archive
-  try {
-    await db.collection('client_settings').doc(currentUser.clientName).set(
-      { archivedDeals: clientArchivedDeals }, { merge: true }
-    );
-  } catch(e){ console.error('Failed to update archive:', e); }
   render();
 }
 
@@ -2535,19 +2570,20 @@ function doCopyLeadInfo(dealId){
     if(atIdx>-1) timeStr=booked.substring(0,atIdx).trim()+' at '+booked.substring(atIdx+4).trim();
     else timeStr=booked;
   }
+  // Format like "Next Thursday, March 26 at 11:00 AM"
   const lines=[];
   lines.push('Hey '+clientFirst+', Just scheduled a quote request for '+timeStr+' with '+biz+'. The address, phone, contact info and instructions are all included in that calendar event. I\'ve also added you to the email thread. Please check your spam folder if you are not seeing it.');
   lines.push('');
   if(biz) lines.push('Business: '+biz);
-  if(deal.contact && deal.contact !== biz) lines.push('Contact: '+deal.contact);
-  if(deal.email) lines.push('Email: '+deal.email);
-  if(deal.phone) lines.push('Business Phone: '+deal.phone);
-  if(deal.mobilePhone) lines.push('Mobile Phone: '+deal.mobilePhone);
   if(deal.website) lines.push('Website: '+deal.website);
   const addr = str(deal.address || deal.location || '').trim();
   if(addr) lines.push('Address: '+addr);
-  if(deal.location && deal.location !== addr) lines.push('Location: '+deal.location);
-  if(str(deal.notes).trim()) lines.push('Notes: '+deal.notes);
+  if(deal.email) lines.push('Email: '+deal.email);
+  if(deal.phone) lines.push('Business Phone: '+deal.phone);
+  if(deal.contact && deal.contact !== biz) lines.push('Contact: '+deal.contact);
+  if(deal.email2) lines.push('Contact email: '+deal.email2);
+  if(deal.mobilePhone) lines.push('Mobile Phone: '+deal.mobilePhone);
+  if(str(deal.notes).trim()) lines.push('Instruction: '+deal.notes);
   if(str(deal.emailBody).trim()) lines.push('\nTheir Reply:\n'+deal.emailBody);
   const text=lines.join('\n');
   navigator.clipboard.writeText(text).then(()=>{
@@ -2567,9 +2603,14 @@ function buildLeadMessage(deal, clientName){
   let timeStr='';
   if(deal.bookedDate && deal.bookedDate.match(/^\d{4}-\d{2}-\d{2}$/)){
     const dt=new Date(deal.bookedDate+'T'+(deal.bookedTime||'12:00'));
-    const dayPart=dt.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+    const dayName=dt.toLocaleDateString('en-US',{weekday:'long'});
+    const dayPart=dt.toLocaleDateString('en-US',{month:'long',day:'numeric'});
     const timePart=deal.bookedTime?dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
-    timeStr=timePart?dayPart+' at '+timePart:dayPart;
+    // Format like "Next Thursday, March 26 at 11:00 AM"
+    const todayDate=new Date();
+    const diffDays=Math.round((dt-todayDate)/(1000*60*60*24));
+    const prefix=diffDays>=0&&diffDays<=7?'This '+dayName:diffDays>7&&diffDays<=14?'Next '+dayName:dayName;
+    timeStr=timePart?prefix+', '+dayPart+' at '+timePart:prefix+', '+dayPart;
   }
   const lines=[];
   if(timeStr){
@@ -2579,15 +2620,15 @@ function buildLeadMessage(deal, clientName){
   }
   lines.push('');
   if(biz) lines.push('Business: '+biz);
-  if(deal.contact && deal.contact !== biz) lines.push('Contact: '+deal.contact);
-  if(deal.email) lines.push('Email: '+deal.email);
-  if(deal.phone) lines.push('Business Phone: '+deal.phone);
-  if(deal.mobilePhone) lines.push('Mobile Phone: '+deal.mobilePhone);
   if(deal.website) lines.push('Website: '+deal.website);
   const addr=str(deal.address||deal.location||'').trim();
   if(addr) lines.push('Address: '+addr);
-  if(deal.location && deal.location!==addr) lines.push('Location: '+deal.location);
-  if(str(deal.notes).trim()) lines.push('Notes: '+deal.notes);
+  if(deal.email) lines.push('Email: '+deal.email);
+  if(deal.phone) lines.push('Business Phone: '+deal.phone);
+  if(deal.contact && deal.contact !== biz) lines.push('Contact: '+deal.contact);
+  if(deal.email2) lines.push('Contact email: '+deal.email2);
+  if(deal.mobilePhone) lines.push('Mobile Phone: '+deal.mobilePhone);
+  if(str(deal.notes).trim()) lines.push('Instruction: '+deal.notes);
   if(str(deal.emailBody).trim()) lines.push('\nTheir Reply:\n'+deal.emailBody);
   return lines.join('\n');
 }
@@ -2670,13 +2711,15 @@ function buildCalendlyUrl(baseUrl, deal){
   if(name) url.searchParams.set('name', name);
   const lines = [];
   if(deal.company) lines.push('Business: ' + deal.company);
-  if(deal.location) lines.push('Address: ' + deal.location);
-  if(deal.phone) lines.push('Business Phone: ' + deal.phone);
-  if(deal.mobilePhone) lines.push('Mobile Phone: ' + deal.mobilePhone);
+  if(deal.website) lines.push('Website: ' + deal.website);
+  const addr = str(deal.address || deal.location || '').trim();
+  if(addr) lines.push('Address: ' + addr);
   if(deal.email) lines.push('Email: ' + deal.email);
+  if(deal.email2) lines.push('Contact email: ' + deal.email2);
+  if(deal.phone) lines.push('Business Phone: ' + deal.phone);
   if(deal.contact && deal.contact !== deal.company) lines.push('Contact: ' + deal.contact);
-  lines.push('');
-  lines.push('Instructions: ');
+  if(deal.mobilePhone) lines.push('Mobile Phone: ' + deal.mobilePhone);
+  lines.push('Instruction: ');
   if(lines.length) url.searchParams.set('a1', lines.join('\n'));
   return url.toString();
 }
@@ -2718,19 +2761,32 @@ function openCalendlyEmbed(dealId, baseCalUrl, clientName){
   const email=(document.getElementById('cal-prefill-email')?.value||deal?._calEmail||'').trim();
   const notes=(document.getElementById('cal-prefill-notes')?.value||deal?._calNotes||'').trim();
   let url=baseCalUrl.includes('://')?baseCalUrl:'https://'+baseCalUrl;
+  // Strip any trailing slashes then ensure clean URL
+  url=url.replace(/\/+$/,'');
   const ianaTz=clientIanaTz(clientName);
   if(typeof Calendly!=='undefined'){
-    // Build full URL with timezone baked in before passing to widget
+    // Remove any existing Calendly popups first to prevent stacking
+    document.querySelectorAll('.calendly-overlay').forEach(el=>el.remove());
+    // Build URL with timezone — must be baked into URL string for Calendly to respect it
     const u=new URL(url);
     if(ianaTz) u.searchParams.set('timezone',ianaTz);
+    const finalUrl=u.toString();
+    console.log('Calendly opening with URL:',finalUrl,'timezone:',ianaTz);
     Calendly.initPopupWidget({
-      url: u.toString(),
+      url: finalUrl,
       prefill: {
         name: name,
         email: email,
         customAnswers: { a1: notes }
       }
     });
+    // Fallback: if Calendly widget iframe loaded, force timezone via postMessage
+    if(ianaTz){
+      setTimeout(()=>{
+        const iframe=document.querySelector('.calendly-overlay iframe');
+        if(iframe) iframe.src=iframe.src.replace(/(timezone=)[^&]*/,'$1'+encodeURIComponent(ianaTz));
+      },500);
+    }
   } else {
     const u=new URL(url);
     if(name) u.searchParams.set('name',name);
@@ -3044,14 +3100,17 @@ const CLIENT_INFO={
 function lookupClientInfo(name){
   if(!name) return null;
   const n=name.toLowerCase().trim();
+  const nNoSpace=n.replace(/\s+/g,'');
   // Exact match first
   for(const key of Object.keys(CLIENT_INFO)){
     if(key.toLowerCase()===n) return CLIENT_INFO[key];
   }
   // Partial match — check if CLIENT_INFO key is contained in name or vice versa
+  // Also compare with spaces stripped to catch "Timesavers" vs "Time Savers"
   for(const key of Object.keys(CLIENT_INFO)){
     const k=key.toLowerCase();
-    if(n.includes(k)||k.includes(n)) return CLIENT_INFO[key];
+    const kNoSpace=k.replace(/\s+/g,'');
+    if(n.includes(k)||k.includes(n)||nNoSpace.includes(kNoSpace)||kNoSpace.includes(nNoSpace)) return CLIENT_INFO[key];
   }
   return null;
 }
@@ -3254,6 +3313,10 @@ function openWarmCallSheet(dealId){
                   <span style="font-size:12px;color:#6b7280">${esc(deal.email)}</span>
                   <button onclick="event.stopPropagation();copyToClipboard('${esc(deal.email)}',this)" style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #d1d5db;background:#fff;color:#6b7280;cursor:pointer;font-weight:600">Copy</button>
                 </div>`:''}
+                ${[deal.email2,deal.email3,deal.email4].filter(e=>e&&str(e).trim()).map(e=>`<div style="display:flex;align-items:center;gap:6px;margin-top:1px">
+                  <span style="font-size:12px;color:#6b7280">${esc(e)}</span>
+                  <button onclick="event.stopPropagation();copyToClipboard('${esc(e)}',this)" style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #d1d5db;background:#fff;color:#6b7280;cursor:pointer;font-weight:600">Copy</button>
+                </div>`).join('')}
               </div>
 
               ${deal.phone||deal.mobilePhone?`<div style="border-top:1px solid #f1f5f9;padding-top:12px">
@@ -3273,6 +3336,10 @@ function openWarmCallSheet(dealId){
               ${deal.location?`<div style="border-top:1px solid #f1f5f9;padding-top:12px">
                 <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">Address</div>
                 <div style="font-size:13px;font-weight:600;color:#1e293b;margin-top:2px">${esc(deal.location)}</div>
+                <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(str(deal.address||deal.location||''))}" target="_blank" rel="noopener"
+                  style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;font-size:11px;color:#fff;background:#4285f4;padding:4px 10px;border-radius:4px;text-decoration:none;font-weight:600">
+                  📍 Open in Google Maps
+                </a>
               </div>`:''}
 
               ${deal.website?`<div style="border-top:1px solid #f1f5f9;padding-top:12px">
@@ -4169,9 +4236,24 @@ function renderDealModal(deal){
               const href=url.match(/^https?:\/\//i)?url:'https://'+url;
               extra='<div style="margin-top:4px"><a href="'+esc(href)+'" target="_blank" rel="noopener" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px">🔗 Open Website</a></div>';
             }
+            if(k==='location'&&deal[k]){
+              const mapsAddr=String(deal.address||deal[k]||'').trim();
+              extra+='<div style="margin-top:4px"><a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(mapsAddr)+'" target="_blank" rel="noopener" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#4285f4;color:#fff;border-color:#4285f4">📍 Open in Google Maps</a></div>';
+            }
             const extraOninput = (k === 'location' && deal.pipeline === 'Client') ? ';onAddressFieldChange(\''+deal.id+'\',this.value)' : '';
             return'<div class="form-group"><label>'+label+'</label><input id="deal-'+k+'" value="'+esc(String(deal[k]||''))+'" oninput="updateDealField(\''+k+'\',this.value)'+extraOninput+'">'+extra+'</div>';
           }).join("")}
+          <div class="form-group form-span2" style="margin-top:0">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+              <label style="margin:0;font-size:11px;font-weight:600;color:var(--text-muted)">Additional Emails</label>
+              ${!(deal.email2||deal.email3||deal.email4)?`<button onclick="document.getElementById('extra-emails').style.display='flex';this.style.display='none'" style="background:none;border:1px solid var(--border);border-radius:4px;font-size:11px;color:#2563eb;cursor:pointer;padding:1px 8px;font-weight:600">+ Add</button>`:''}
+            </div>
+            <div id="extra-emails" style="display:${(deal.email2||deal.email3||deal.email4)?'flex':'none'};flex-direction:column;gap:4px">
+              <input id="deal-email2" placeholder="Email 2" value="${esc(String(deal.email2||''))}" oninput="updateDealField('email2',this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+              <input id="deal-email3" placeholder="Email 3" value="${esc(String(deal.email3||''))}" oninput="updateDealField('email3',this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+              <input id="deal-email4" placeholder="Email 4" value="${esc(String(deal.email4||''))}" oninput="updateDealField('email4',this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+            </div>
+          </div>
           <div class="form-group">
             <label>Pipeline</label>
             <select id="deal-pipeline" onchange="changeDealPipeline(this.value)">
@@ -4274,13 +4356,15 @@ function renderDealModal(deal){
       if(isOn('enableCalendly') && matchedClient.calendlyUrl){
         const prefillLines=[];
         if(deal.company) prefillLines.push('Business: '+deal.company);
-        if(deal.location) prefillLines.push('Address: '+deal.location);
-        if(deal.phone) prefillLines.push('Business Phone: '+deal.phone);
-        if(deal.mobilePhone) prefillLines.push('Mobile Phone: '+deal.mobilePhone);
+        if(deal.website) prefillLines.push('Website: '+deal.website);
+        const calAddr=str(deal.address||deal.location||'').trim();
+        if(calAddr) prefillLines.push('Address: '+calAddr);
         if(deal.email) prefillLines.push('Email: '+deal.email);
+        if(deal.email2) prefillLines.push('Contact email: '+deal.email2);
+        if(deal.phone) prefillLines.push('Business Phone: '+deal.phone);
         if(deal.contact && deal.contact!==deal.company) prefillLines.push('Contact: '+deal.contact);
-        prefillLines.push('');
-        prefillLines.push('Instructions: ');
+        if(deal.mobilePhone) prefillLines.push('Mobile Phone: '+deal.mobilePhone);
+        prefillLines.push('Instruction: ');
         h+=`<div style="margin:0 0 8px 0">
           <button class="btn btn-primary" style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#818cf8;border-color:#818cf8"
             onclick="toggleCalendlyBooking('${esc(deal.id)}','${esc(matchedClient.calendlyUrl)}')">
@@ -5712,7 +5796,7 @@ function openClientArchive(){
     h += `<div style="text-align:center;padding:30px;color:var(--text-muted)">No archived leads yet.<br><span style="font-size:11px">Drag a lead to "Archive" or "Won" to move it here.</span></div>`;
   } else {
     for(const deal of clientArchivedDeals){
-      const reason = deal.archiveReason === 'won' ? '✅ Won' : '📦 Archived';
+      const reason = deal.archiveReason === 'won' ? '✅ Won' : deal.archiveReason === 'passed' ? '🤝 Passed Off' : deal.archiveReason === 'admin' ? '🗂️ Archived by Admin' : '📦 Archived';
       const date = deal.archivedAt ? new Date(deal.archivedAt).toLocaleDateString() : '';
       h += `<div style="display:flex;align-items:center;gap:10px;padding:10px;margin-bottom:6px;background:#f9fafb;border:1px solid var(--border);border-radius:8px">
         <div style="flex:1;min-width:0">
