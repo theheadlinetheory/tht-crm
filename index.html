@@ -3360,10 +3360,79 @@ function openWarmCallSheet(dealId){
         </div>
 
       </div>
+
+      ${(()=>{
+        // Appointment map — show pins for all upcoming appointments with addresses
+        const mapAppts=upcoming.filter(m=>{
+          const d=state.deals.find(dd=>dd.id===m.dealId);
+          const a=(state.appointments||[]).find(aa=>aa.leadName===m.name&&aa.apptDate===m.date);
+          const addr=d?str(d.address||d.location||'').trim():(a?str(a.address||'').trim():'');
+          return !!addr;
+        });
+        // Also include the current deal's address
+        const currentAddr=str(deal.address||deal.location||'').trim();
+        if(!mapAppts.length && !currentAddr) return '';
+        return `<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;margin-top:20px">
+          <div style="background:#1e293b;padding:10px 16px;color:#fff;display:flex;justify-content:space-between;align-items:center">
+            <div style="font-size:13px;font-weight:700">Appointment Locations</div>
+            ${info.timeZone?'<div style="font-size:11px;font-weight:600;background:rgba(255,255,255,.15);padding:2px 8px;border-radius:10px">'+esc(info.timeZone)+'</div>':''}
+          </div>
+          <div id="warm-call-map" style="height:350px;width:100%"></div>
+        </div>`;
+      })()}
+
     </div>
   </div>`;
 
   document.body.insertAdjacentHTML('beforeend',h);
+
+  // Initialize appointment map if container exists
+  const mapEl=document.getElementById('warm-call-map');
+  if(mapEl && typeof L!=='undefined'){
+    const map=L.map(mapEl,{scrollWheelZoom:true}).setView([39.8,-98.5],4);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      attribution:'&copy; OpenStreetMap',maxZoom:18
+    }).addTo(map);
+    // Collect all addresses to geocode
+    const pins=[];
+    // Current deal
+    const currentAddr=str(deal.address||deal.location||'').trim();
+    if(currentAddr){
+      pins.push({name:deal.company||deal.contact||'This Lead',time:'Current Lead',addr:currentAddr,isCurrent:true});
+    }
+    // Upcoming appointments
+    upcoming.forEach(m=>{
+      const d=state.deals.find(dd=>dd.id===m.dealId);
+      const a=(state.appointments||[]).find(aa=>aa.leadName===m.name&&aa.apptDate===m.date);
+      const addr=d?str(d.address||d.location||'').trim():(a?str(a.address||'').trim():'');
+      if(!addr) return;
+      const timeDisp=m.time?m.parsed.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'TBD';
+      const dateDisp=m.parsed.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+      pins.push({name:m.name,time:dateDisp+' @ '+timeDisp,addr:addr,isCurrent:false});
+    });
+    // Geocode and place markers
+    const bounds=[];
+    let pending=pins.length;
+    if(!pending){ map.setView([39.8,-98.5],4); }
+    pins.forEach(p=>{
+      fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(p.addr))
+        .then(r=>r.json()).then(data=>{
+          if(data&&data[0]){
+            const lat=parseFloat(data[0].lat),lng=parseFloat(data[0].lon);
+            const marker=L.marker([lat,lng]).addTo(map);
+            const color=p.isCurrent?'#3b82f6':'#059669';
+            marker.bindPopup('<div style="font-size:13px;font-weight:700;color:'+color+'">'+p.name+'</div><div style="font-size:11px;color:#475569;margin-top:2px">'+p.time+'</div><div style="font-size:11px;color:#6b7280;margin-top:2px">'+p.addr+'</div>',{maxWidth:250});
+            bounds.push([lat,lng]);
+          }
+        }).catch(()=>{}).finally(()=>{
+          pending--;
+          if(pending<=0 && bounds.length){
+            if(bounds.length===1) map.setView(bounds[0],13);
+            else map.fitBounds(bounds,{padding:[30,30]});
+          }
+        });
+    });
+  }
 }
 
 function copyToClipboard(text,btnEl){
