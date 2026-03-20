@@ -3270,6 +3270,24 @@ function openWarmCallSheet(dealId){
               `:`<div style="font-size:13px;color:#9ca3af;text-align:center;padding:8px 0">No upcoming meetings — calendar is open</div>`}
             </div>
           </div>
+
+          ${(()=>{
+            const calUrl=str(mc.calendlyUrl).trim();
+            if(!calUrl) return '';
+            const ianaTz=clientIanaTz(mc.name)||'';
+            const fullUrl=calUrl.includes('://')?calUrl:'https://'+calUrl;
+            return `<!-- Calendly Availability Widget -->
+            <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden">
+              <div style="background:#7c3aed;padding:10px 16px;color:#fff;display:flex;justify-content:space-between;align-items:center">
+                <div style="font-size:13px;font-weight:700">${esc(mc.name)}'s Availability</div>
+                ${info.timeZone?'<div style="font-size:11px;font-weight:600;background:rgba(255,255,255,.25);padding:2px 8px;border-radius:10px">'+esc(info.timeZone)+'</div>':''}
+              </div>
+              <div style="height:500px">
+                <iframe src="${esc(fullUrl)}${fullUrl.includes('?')?'&':'?'}hide_event_type_details=1&hide_gdpr_banner=1${ianaTz?'&timezone='+encodeURIComponent(ianaTz):''}"
+                  style="width:100%;height:100%;border:none" loading="lazy"></iframe>
+              </div>
+            </div>`;
+          })()}
         </div>
 
         <!-- RIGHT: The Lead -->
