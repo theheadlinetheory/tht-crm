@@ -4308,9 +4308,8 @@ function renderDealModal(deal){
           ${["company:Company","contact:Contact Name","email:Email","phone:Business Phone","mobilePhone:Mobile Phone","website:Website","location:Address",...(isAdmin()?["value:Deal Value ($)"]:[])].map(f=>{
             const[k,label]=f.split(":");
             let extra='';
-            if((k==='phone'||k==='mobilePhone')&&deal[k]){
-              const cleanNum=String(deal[k]||'').replace(/[^0-9+]/g,'');
-              extra='<div style="margin-top:4px;display:flex;gap:6px"><a href="sms:'+cleanNum+'" class="imessage-btn" title="Open in iMessage">💬 Text</a><a href="tel:'+cleanNum+'" class="imessage-btn" title="Call from computer">📞 Call</a></div>';
+            if(false){
+              // Call/Text buttons removed — dialer integration pending
             }
             if(k==='website'&&deal[k]){
               const url=String(deal[k]||'').trim();
@@ -4494,12 +4493,8 @@ function renderDealModal(deal){
             ${forwarded?'✅ Sent to '+esc(matchedClient.name)+' — Send Again?':'📨 Send Lead Info to '+esc(matchedClient.name)}
           </button>
         </div>
-        <div style="margin:0 0 8px 0">
-          <button class="btn btn-ghost" style="width:100%;justify-content:center;gap:6px;font-size:13px"
-            onclick="copyLeadInfo('${esc(deal.id)}')">
-            📋 Copy Lead Info for ${esc(matchedClient.name)}
-          </button>
-        </div>`;
+`;
+
       }
 
       // Push to Lead Tracker button
