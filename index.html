@@ -2553,39 +2553,8 @@ function doSaveManualAppt(clientName){
 function doCopyLeadInfo(dealId){
   const deal=state.deals.find(d=>d.id===dealId);
   if(!deal) return;
-  const client=state.clients.find(c=>c.name===deal.stage);
-  const clientFirst=client&&str(client.contactFirstName).trim()?str(client.contactFirstName).trim():'there';
-  const biz=deal.company||deal.contact||'';
-  // Build the time portion from bookedDate/bookedTime fields
-  let timeStr='{day} at {time}';
-  if(deal.bookedDate && deal.bookedDate.match(/^\d{4}-\d{2}-\d{2}$/)){
-    const dt=new Date(deal.bookedDate+'T'+(deal.bookedTime||'12:00'));
-    const dayPart=dt.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
-    const timePart=deal.bookedTime?dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
-    timeStr=timePart?dayPart+' at '+timePart:dayPart;
-  } else if(str(deal.bookedFor||'').trim()){
-    // Legacy fallback: bookedFor free-text field
-    const booked=str(deal.bookedFor).trim();
-    const atIdx=booked.toLowerCase().indexOf(' at ');
-    if(atIdx>-1) timeStr=booked.substring(0,atIdx).trim()+' at '+booked.substring(atIdx+4).trim();
-    else timeStr=booked;
-  }
-  // Format like "Next Thursday, March 26 at 11:00 AM"
-  const lines=[];
-  lines.push('Hey '+clientFirst+', Just scheduled a quote request for '+timeStr+' with '+biz+'. The address, phone, contact info and instructions are all included in that calendar event. I\'ve also added you to the email thread. Please check your spam folder if you are not seeing it.');
-  lines.push('');
-  if(biz) lines.push('Business: '+biz);
-  if(deal.website) lines.push('Website: '+deal.website);
-  const addr = str(deal.address || deal.location || '').trim();
-  if(addr) lines.push('Address: '+addr);
-  if(deal.email) lines.push('Email: '+deal.email);
-  if(deal.phone) lines.push('Business Phone: '+deal.phone);
-  if(deal.contact && deal.contact !== biz) lines.push('Contact: '+deal.contact);
-  if(deal.email2) lines.push('Contact email: '+deal.email2);
-  if(deal.mobilePhone) lines.push('Mobile Phone: '+deal.mobilePhone);
-  if(str(deal.notes).trim()) lines.push('Instruction: '+deal.notes);
-  if(str(deal.emailBody).trim()) lines.push('\nTheir Reply:\n'+deal.emailBody);
-  const text=lines.join('\n');
+  const clientName=deal.stage||'';
+  const text=buildLeadMessage(deal, clientName);
   navigator.clipboard.writeText(text).then(()=>{
     const btn=document.querySelector('[onclick*="copyLeadInfo"]');
     if(btn){ const orig=btn.innerHTML; btn.innerHTML='✅ Copied!'; setTimeout(()=>btn.innerHTML=orig, 1500); }
@@ -2637,10 +2606,10 @@ function openSendToClientPreview(dealId, clientName){
   const deal=state.deals.find(d=>d.id===dealId);
   if(!deal) return;
   const threadId=CLIENT_THREAD_IDS[clientName]||'';
-  if(!threadId){ alert('No thread ID configured for '+clientName); return; }
   const info=lookupClientInfo(clientName)||{};
   const fwdEmail=info.forwardEmail||info.primaryEmail||'';
   const message=buildLeadMessage(deal, clientName);
+  const sendMode=threadId?'Replying to lead delivery thread':'Direct email to '+fwdEmail;
 
   const overlay=document.createElement('div');
   overlay.id='send-preview-overlay';
@@ -2649,7 +2618,7 @@ function openSendToClientPreview(dealId, clientName){
     <div style="padding:16px 20px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center">
       <div>
         <div style="font-size:15px;font-weight:700;color:#1e293b">Send to ${esc(clientName)}</div>
-        <div style="font-size:11px;color:#6b7280;margin-top:2px">Replying to thread with ${esc(fwdEmail)} from aidan@theheadlinetheory.com</div>
+        <div style="font-size:11px;color:#6b7280;margin-top:2px">${esc(sendMode)} from contact@theheadlinetheory.com</div>
       </div>
       <button onclick="document.getElementById('send-preview-overlay').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9ca3af;padding:4px">x</button>
     </div>
@@ -2749,17 +2718,25 @@ function toggleCalendlyBooking(dealId, calUrl){
 }
 
 // Save prefill field values to the deal object so they survive re-renders
+let _prefillSaveTimers={};
 function savePrefillField(dealId, field, value){
   const deal=state.deals.find(d=>d.id===dealId);
   if(deal) deal[field]=value;
+  // Debounce-persist to server (800ms)
+  const timerKey=dealId+'_'+field;
+  if(_prefillSaveTimers[timerKey]) clearTimeout(_prefillSaveTimers[timerKey]);
+  _prefillSaveTimers[timerKey]=setTimeout(()=>{
+    pendingWrites++;
+    apiPost('update_deal',{id:dealId,[field]:value}).finally(()=>{pendingWrites--;});
+  },800);
 }
 
 function openCalendlyEmbed(dealId, baseCalUrl, clientName){
   calendlyBookingDealId=dealId;
   const deal=state.deals.find(d=>d.id===dealId);
-  const name=(document.getElementById('cal-prefill-name')?.value||deal?._calName||'').trim();
-  const email=(document.getElementById('cal-prefill-email')?.value||deal?._calEmail||'').trim();
-  const notes=(document.getElementById('cal-prefill-notes')?.value||deal?._calNotes||'').trim();
+  const name=(document.getElementById('cal-prefill-name')?.value||deal?.calName||'').trim();
+  const email=(document.getElementById('cal-prefill-email')?.value||deal?.calEmail||'').trim();
+  const notes=(document.getElementById('cal-prefill-notes')?.value||deal?.calNotes||'').trim();
   let url=baseCalUrl.includes('://')?baseCalUrl:'https://'+baseCalUrl;
   // Strip any trailing slashes then ensure clean URL
   url=url.replace(/\/+$/,'');
@@ -2956,18 +2933,15 @@ const TRACKER_ZERO_COST_CLIENTS=['abc','deeter'];
 // ═══════════════════════════════════════════════════════════
 // Gmail thread IDs for client lead delivery threads
 const _CLIENT_THREAD_MAP={
-  'high southern':'19c6d7e4f7ddcc2e',
-  'time savers':'19c356211a012106',
-  'rain':'19c355e392429e1b',
-  'coastal':'19c2b50100179e88',
-  'lightning':'19be782c7aaf8968',
-  'abc':'19c109e092369a5a',
-  'tropical':'19c110bf23efc8e7',
-  'distinctive':'19c29aafb7bdc5ce',
-  'deeter':'19c34361f1b86afe',
-  'dallas land care':'19c7bd5b224ff268',
-  'umbrella':'19c72acad65deb32',
-  'shade tree':'19c8cd0ed129eb6e'
+  'coastal':'QgrcJHsBnjKQcSZjMgCgFGkGXTTkftqvKqV',
+  'high southern':'QgrcJHrjCsHKGnFzbJKfdBDqpjRkDqlFJLl',
+  'time savers':'QgrcJHrtsHmskplJjWhGqMBqHgRhQRSMkxV',
+  'rain':'KtbxLthZhjsnlCmbqkLBHffvDJfdDlrMKg',
+  'lightning':'QgrcJHrhstfkKgsTsKkPRZVTfxTjlZftmtQ',
+  'tropical':'QgrcJHsNjBzcHQKwFRZzmlcDJXpmDGzZrFV',
+  'distinctive':'KtbxLrjGQDGShZsKKFBpSKqCMWQDpJksGV',
+  'shade tree':'KtbxLzFzTZmwWnZrnGVFqVPrJNnMQQQwgV',
+  'dallas land care':'KtbxLvhNTpfbgpCKHPMGZqQbDCgptrTSxq'
 };
 // Fuzzy lookup — matches "Distinctive Landscape" to "distinctive", etc.
 function getClientThreadId(name){
@@ -4034,7 +4008,7 @@ function render(){
       ondrop="doDrop('${stageKey}')">
       <div class="col-header" style="border-top-color:${stage.color}">
         <div>
-          <div class="col-title">${esc(stage.label)}</div>
+          <div class="col-title">${esc(stage.label)}${(()=>{if(state.pipeline!=='client_leads') return '';const ci=lookupClientInfo(stage.label);return ci&&ci.timeZone?` <span style="font-size:10px;font-weight:600;color:#94a3b8;background:#f1f5f9;padding:1px 6px;border-radius:8px;letter-spacing:.3px;vertical-align:middle">${esc(ci.timeZone)}</span>`:''})()}</div>
           <div class="col-meta">${sd.length} lead${sd.length!==1?'s':''}</div>
         </div>
         ${isAdmin()&&state.pipeline==='client_leads'?`<div style="display:flex;gap:6px;align-items:center">
@@ -4378,21 +4352,21 @@ function renderDealModal(deal){
           </div>
           <div style="margin-bottom:6px">
             <label style="font-size:11px;color:#6b7280;font-weight:600">Guest Name</label>
-            <input type="text" id="cal-prefill-name" value="${esc(deal._calName!=null?deal._calName:(deal.contact||deal.company||''))}"
-              oninput="savePrefillField('${esc(deal.id)}','_calName',this.value)"
+            <input type="text" id="cal-prefill-name" value="${esc(deal.calName!=null?deal.calName:(deal.contact||deal.company||''))}"
+              oninput="savePrefillField('${esc(deal.id)}','calName',this.value)"
               style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px">
           </div>
           <div style="margin-bottom:6px">
             <label style="font-size:11px;color:#6b7280;font-weight:600">Guest Email</label>
-            <input type="text" id="cal-prefill-email" value="${esc(deal._calEmail!=null?deal._calEmail:(deal.email||''))}"
-              oninput="savePrefillField('${esc(deal.id)}','_calEmail',this.value)"
+            <input type="text" id="cal-prefill-email" value="${esc(deal.calEmail!=null?deal.calEmail:(deal.email||''))}"
+              oninput="savePrefillField('${esc(deal.id)}','calEmail',this.value)"
               style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px">
           </div>
           <div style="margin-bottom:8px">
             <label style="font-size:11px;color:#6b7280;font-weight:600">Additional Info / Instructions</label>
             <textarea id="cal-prefill-notes" rows="5"
-              oninput="savePrefillField('${esc(deal.id)}','_calNotes',this.value)"
-              style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px;resize:vertical">${esc(deal._calNotes!=null?deal._calNotes:prefillLines.join('\n'))}</textarea>
+              oninput="savePrefillField('${esc(deal.id)}','calNotes',this.value)"
+              style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px;resize:vertical">${esc(deal.calNotes!=null?deal.calNotes:prefillLines.join('\n'))}</textarea>
           </div>
           <button class="btn btn-primary" style="width:100%;justify-content:center;font-size:13px;background:#818cf8;border-color:#818cf8"
             onclick="openCalendlyEmbed('${esc(deal.id)}','${esc(matchedClient.calendlyUrl)}','${esc(matchedClient.name)}')">
@@ -4404,25 +4378,21 @@ function renderDealModal(deal){
       // Client's Upcoming Meetings — show all future bookings for this client
       h+=renderUpcomingMeetings(deal, matchedClient.name);
 
-      // Send Lead Info to Client Thread button
+      // Send Lead Info to Client button
       if(isOn('enableCopyInfo')){
-        const hasThread=!!CLIENT_THREAD_IDS[matchedClient.name];
         const forwarded=deal.forwardedAt && str(deal.forwardedAt).trim()!=='';
-        if(hasThread){
-          h+=`<div style="margin:0 0 8px 0">
-            <button class="btn ${forwarded?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px;${forwarded?'':'background:#2563eb;border-color:#2563eb'}"
-              onclick="openSendToClientPreview('${esc(deal.id)}','${esc(matchedClient.name)}')" ${forwarded?'':''}>
-              ${forwarded?'✅ Sent to '+esc(matchedClient.name)+' — Send Again?':'📨 Send Lead Info to '+esc(matchedClient.name)}
-            </button>
-          </div>`;
-        } else {
-          h+=`<div style="margin:0 0 8px 0">
-            <button class="btn btn-ghost" style="width:100%;justify-content:center;gap:6px;font-size:13px"
-              onclick="copyLeadInfo('${esc(deal.id)}')">
-              📋 Copy Lead Info for ${esc(matchedClient.name)}
-            </button>
-          </div>`;
-        }
+        h+=`<div style="margin:0 0 8px 0">
+          <button class="btn ${forwarded?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px;${forwarded?'':'background:#2563eb;border-color:#2563eb'}"
+            onclick="openSendToClientPreview('${esc(deal.id)}','${esc(matchedClient.name)}')" ${forwarded?'':''}>
+            ${forwarded?'✅ Sent to '+esc(matchedClient.name)+' — Send Again?':'📨 Send Lead Info to '+esc(matchedClient.name)}
+          </button>
+        </div>
+        <div style="margin:0 0 8px 0">
+          <button class="btn btn-ghost" style="width:100%;justify-content:center;gap:6px;font-size:13px"
+            onclick="copyLeadInfo('${esc(deal.id)}')">
+            📋 Copy Lead Info for ${esc(matchedClient.name)}
+          </button>
+        </div>`;
       }
 
       // Push to Lead Tracker button
