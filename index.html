@@ -3458,7 +3458,6 @@ function openWarmCallSheet(dealId){
   const propMapEl=document.getElementById('warm-call-property-map');
   const propAddr=str(deal.address||deal.location||'').trim();
   if(propMapEl && typeof L!=='undefined' && propAddr){
-    const REGRID_TOKEN='eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJyZWdyaWQuY29tIiwiaWF0IjoxNzc0MDI3MzQxLCJleHAiOjE3NzY2MTkzNDEsInUiOjcyNzQ3NywiZyI6MjMxNTMsImNhcCI6InBhOnRzOnBzOmJmOm1hOnR5OmVvOnpvOnNiIn0.F6uPLMvc8fG1i5j7Oy0embY18dXyHB43K2N4kjoquw4';
     const propMap=L.map(propMapEl,{scrollWheelZoom:true}).setView([39.8,-98.5],17);
     // Satellite tile layer (Esri World Imagery — free, no API key)
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
@@ -3471,11 +3470,7 @@ function openWarmCallSheet(dealId){
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{
       maxZoom:20,opacity:0.8
     }).addTo(propMap);
-    // Regrid parcel boundary overlay — shows property lines on top of satellite
-    L.tileLayer('https://tiles.regrid.com/api/v1/parcels/{z}/{x}/{y}.png?token='+REGRID_TOKEN,{
-      maxZoom:20,opacity:0.8,attribution:'Regrid'
-    }).addTo(propMap);
-    // Geocode the property address, place marker, and fetch parcel boundary
+    // Geocode the property address and fetch building/land boundaries from OpenStreetMap
     fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=1&q='+encodeURIComponent(propAddr))
       .then(r=>r.json()).then(data=>{
         if(data&&data[0]){
@@ -3489,27 +3484,62 @@ function openWarmCallSheet(dealId){
           });
           L.marker([lat,lng],{icon:propIcon}).addTo(propMap)
             .bindPopup('<div style="font-size:13px;font-weight:700;color:#1e293b">'+(deal.company||deal.contact||'Property')+'</div><div style="font-size:12px;color:#475569;margin-top:4px">'+propAddr+'</div>',{maxWidth:280});
-          // Try Regrid API for exact parcel boundary
-          fetch('https://app.regrid.com/api/v2/parcels/point?lat='+lat+'&lon='+lng+'&token='+REGRID_TOKEN+'&limit=1')
-            .then(r=>r.json()).then(parcelData=>{
-              if(parcelData&&parcelData.parcels&&parcelData.parcels.features&&parcelData.parcels.features.length){
-                const feature=parcelData.parcels.features[0];
-                L.geoJSON(feature,{
-                  style:{color:'#ef4444',weight:3,fillColor:'#ef4444',fillOpacity:0.15}
-                }).addTo(propMap);
-                // Show parcel info if available
-                const props=feature.properties||{};
-                const acres=props.ll_gisacre||props.acres||'';
-                const owner=props.owner||props.ll_owner||'';
-                if(acres||owner){
-                  const infoDiv=document.createElement('div');
-                  infoDiv.style.cssText='padding:6px 10px;background:#1e293b;color:#fff;font-size:11px;border-top:1px solid #334155';
-                  infoDiv.innerHTML=(owner?'<span style="font-weight:600">Owner:</span> '+owner:'')+(acres?(owner?' &bull; ':'')+'<span style="font-weight:600">Lot:</span> '+parseFloat(acres).toFixed(2)+' acres':'');
-                  propMapEl.parentElement.appendChild(infoDiv);
-                }
-              } else {
-                // No parcel data — show approximate boundary circle
+          // Query Overpass API for building footprints and land use boundaries near this point
+          const radius=150; // meters
+          const overpassQuery='[out:json][timeout:10];('
+            +'way["building"](around:'+radius+','+lat+','+lng+');'
+            +'relation["building"](around:'+radius+','+lat+','+lng+');'
+            +'way["landuse"](around:'+radius+','+lat+','+lng+');'
+            +'way["leisure"="park"](around:'+radius+','+lat+','+lng+');'
+            +'way["leisure"="garden"](around:'+radius+','+lat+','+lng+');'
+            +'way["natural"](around:'+radius+','+lat+','+lng+');'
+            +');out body;>;out skel qt;';
+          fetch('https://overpass-api.de/api/interpreter?data='+encodeURIComponent(overpassQuery))
+            .then(r=>r.json()).then(osm=>{
+              if(!osm||!osm.elements||!osm.elements.length){
+                // No OSM data — fallback circle
                 L.circle([lat,lng],{radius:30,color:'#ef4444',weight:2,fillColor:'#ef4444',fillOpacity:0.15,dashArray:'6 4'}).addTo(propMap);
+                return;
+              }
+              // Build node lookup
+              const nodes={};
+              osm.elements.filter(e=>e.type==='node').forEach(n=>{nodes[n.id]={lat:n.lat,lon:n.lon};});
+              // Find the building/way closest to our point
+              let closestDist=Infinity, closestWay=null;
+              const ways=osm.elements.filter(e=>e.type==='way'&&e.nodes&&e.nodes.length>2);
+              ways.forEach(w=>{
+                // Calculate centroid distance
+                const pts=w.nodes.map(nid=>nodes[nid]).filter(Boolean);
+                if(!pts.length) return;
+                const cx=pts.reduce((s,p)=>s+p.lat,0)/pts.length;
+                const cy=pts.reduce((s,p)=>s+p.lon,0)/pts.length;
+                const dist=Math.sqrt(Math.pow(cx-lat,2)+Math.pow(cy-lng,2));
+                if(dist<closestDist){closestDist=dist;closestWay=w;}
+              });
+              // Draw all buildings in the area (light outline)
+              ways.forEach(w=>{
+                const isBuilding=w.tags&&w.tags.building;
+                const pts=w.nodes.map(nid=>nodes[nid]).filter(Boolean);
+                if(pts.length<3) return;
+                const latlngs=pts.map(p=>[p.lat,p.lon]);
+                const isClosest=w===closestWay;
+                L.polygon(latlngs,{
+                  color:isClosest?'#ef4444':(isBuilding?'#fbbf24':'#60a5fa'),
+                  weight:isClosest?3:1.5,
+                  fillColor:isClosest?'#ef4444':(isBuilding?'#fbbf24':'#60a5fa'),
+                  fillOpacity:isClosest?0.25:0.1
+                }).addTo(propMap);
+              });
+              // Show info bar
+              const buildingCount=ways.filter(w=>w.tags&&w.tags.building).length;
+              const landUseWays=ways.filter(w=>w.tags&&(w.tags.landuse||w.tags.leisure||w.tags.natural));
+              if(buildingCount||landUseWays.length){
+                const infoDiv=document.createElement('div');
+                infoDiv.style.cssText='padding:6px 10px;background:#1e293b;color:#fff;font-size:11px;border-top:1px solid #334155;display:flex;gap:12px';
+                infoDiv.innerHTML='<span><span style="display:inline-block;width:8px;height:8px;background:#ef4444;border-radius:2px;margin-right:4px"></span>Closest match</span>'
+                  +(buildingCount?'<span><span style="display:inline-block;width:8px;height:8px;background:#fbbf24;border-radius:2px;margin-right:4px"></span>Buildings ('+buildingCount+')</span>':'')
+                  +(landUseWays.length?'<span><span style="display:inline-block;width:8px;height:8px;background:#60a5fa;border-radius:2px;margin-right:4px"></span>Land boundaries ('+landUseWays.length+')</span>':'');
+                propMapEl.parentElement.appendChild(infoDiv);
               }
             }).catch(()=>{
               L.circle([lat,lng],{radius:30,color:'#ef4444',weight:2,fillColor:'#ef4444',fillOpacity:0.15,dashArray:'6 4'}).addTo(propMap);
