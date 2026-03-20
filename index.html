@@ -2484,7 +2484,8 @@ function confirmScheduleAndCopy(){
   // Also save as persistent appointment (survives deal deletion)
   const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
   if(client && dateVal){
-    saveAppointment(client.name, deal.company||deal.contact||'Unknown', dateVal, timeVal);
+    const apptAddr=str(deal.address||deal.location||'').trim();
+    saveAppointment(client.name, deal.company||deal.contact||'Unknown', dateVal, timeVal, '', apptAddr);
   }
   // Close prompt and proceed
   document.getElementById('schedule-prompt-overlay')?.remove();
@@ -2497,12 +2498,12 @@ function skipScheduleAndCopy(){
 }
 
 // ─── Persistent Appointments (survive deal deletion) ───
-function saveAppointment(clientName, leadName, apptDate, apptTime, notes){
+function saveAppointment(clientName, leadName, apptDate, apptTime, notes, address){
   const id='appt-'+Date.now();
-  const appt={id, clientName, leadName, apptDate, apptTime:apptTime||'', notes:notes||'', createdAt:new Date().toISOString()};
+  const appt={id, clientName, leadName, apptDate, apptTime:apptTime||'', notes:notes||'', address:address||'', createdAt:new Date().toISOString()};
   state.appointments.push(appt);
   render();
-  apiPost('create_appointment',{clientName, leadName, apptDate, apptTime:apptTime||'', notes:notes||''}).then(r=>{
+  apiPost('create_appointment',{clientName, leadName, apptDate, apptTime:apptTime||'', notes:notes||'', address:address||''}).then(r=>{
     if(r&&r.id) appt.id=r.id; // Update with server-assigned ID
   }).catch(()=>{});
 }
@@ -2532,6 +2533,7 @@ function addManualAppointment(clientName){
     +'<div style="font-size:15px;font-weight:700;margin-bottom:12px">Add Appointment for '+esc(clientName)+'</div>'
     +existHtml
     +'<div style="margin-bottom:8px"><label style="font-size:11px;font-weight:600;color:var(--text-muted,#6b7280)">Lead / Business Name</label><input id="appt-lead" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;font-family:var(--font);margin-top:2px" placeholder="e.g. Jet City"></div>'
+    +'<div style="margin-bottom:8px"><label style="font-size:11px;font-weight:600;color:var(--text-muted,#6b7280)">Address</label><input id="appt-address" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;font-family:var(--font);margin-top:2px" placeholder="e.g. 123 Main St, Orlando, FL"></div>'
     +'<div style="display:flex;gap:8px;margin-bottom:12px"><div style="flex:1"><label style="font-size:11px;font-weight:600;color:var(--text-muted,#6b7280)">Date</label><input type="date" id="appt-date" value="'+todayStr+'" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;font-family:var(--font);margin-top:2px"></div><div style="flex:1"><label style="font-size:11px;font-weight:600;color:var(--text-muted,#6b7280)">Time</label><input type="time" id="appt-time" value="09:00" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;font-family:var(--font);margin-top:2px"></div></div>'
     +'<button onclick="doSaveManualAppt(\''+esc(clientName)+'\')" style="width:100%;padding:10px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font)">Save Appointment</button>'
     +'</div>';
@@ -2542,11 +2544,12 @@ function addManualAppointment(clientName){
 
 function doSaveManualAppt(clientName){
   const lead=(document.getElementById('appt-lead')?.value||'').trim();
+  const address=(document.getElementById('appt-address')?.value||'').trim();
   const date=document.getElementById('appt-date')?.value||'';
   const time=document.getElementById('appt-time')?.value||'';
   if(!lead){ alert('Enter a lead/business name'); return; }
   if(!date){ alert('Pick a date'); return; }
-  saveAppointment(clientName, lead, date, time);
+  saveAppointment(clientName, lead, date, time, '', address);
   document.getElementById('manual-appt-overlay')?.remove();
 }
 
@@ -2807,13 +2810,10 @@ window.addEventListener('message',function(e){
       const ianaTz=clientIanaTz(clientName);
       const dt=new Date(startTime);
       if(!isNaN(dt.getTime())){
-        // Format in the client's timezone
+        // Format in the client's timezone using direct format (YYYY-MM-DD)
         if(ianaTz){
-          const parts=new Intl.DateTimeFormat('en-CA',{timeZone:ianaTz,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(dt);
-          const ymd=parts.filter(p=>p.type!=='literal').map(p=>p.value).join('-');
-          bookedDate=ymd;
-          const timeParts=new Intl.DateTimeFormat('en-GB',{timeZone:ianaTz,hour:'2-digit',minute:'2-digit',hour12:false}).format(dt);
-          bookedTime=timeParts;
+          bookedDate=new Intl.DateTimeFormat('en-CA',{timeZone:ianaTz,year:'numeric',month:'2-digit',day:'2-digit'}).format(dt);
+          bookedTime=new Intl.DateTimeFormat('en-GB',{timeZone:ianaTz,hour:'2-digit',minute:'2-digit',hour12:false}).format(dt);
         } else {
           bookedDate=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
           bookedTime=String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');
@@ -2838,7 +2838,8 @@ window.addEventListener('message',function(e){
     // Save persistent appointment
     const calClient=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
     if(calClient && deal.bookedDate){
-      saveAppointment(calClient.name, deal.company||deal.contact||'Unknown', deal.bookedDate, deal.bookedTime);
+      const apptAddr=str(deal.address||deal.location||'').trim();
+      saveAppointment(calClient.name, deal.company||deal.contact||'Unknown', deal.bookedDate, deal.bookedTime, '', apptAddr);
     }
     // Refresh upcoming meetings
     const meetContainer=document.getElementById('upcoming-meetings-container');
@@ -4062,10 +4063,16 @@ function render(){
               dateStr=a.apptDate||'';
               timeStr=a.apptTime||'';
             }
-            return '<div style="font-size:11px;padding:3px 4px;margin:2px 0;background:'+(isToday?'#dbeafe':'#f0fdf4')+';border-radius:4px;display:flex;justify-content:space-between;align-items:center;gap:4px">'
+            const addrText=str(a.address||'').trim();
+            return '<div style="font-size:11px;margin:2px 0">'
+              +'<div style="padding:3px 4px;background:'+(isToday?'#dbeafe':'#f0fdf4')+';border-radius:4px;display:flex;justify-content:space-between;align-items:center;gap:4px;cursor:pointer" onclick="event.stopPropagation();this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\'">'
               +'<span style="'+(isToday?'font-weight:700;color:#1d4ed8':'color:#166534')+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1" title="'+esc(a.leadName||'')+'">'+(isToday?'TODAY ':'')+ esc(a.leadName||'Appt')+'</span>'
               +'<span style="font-weight:600;color:'+(isToday?'#1d4ed8':'#166534')+';white-space:nowrap;font-size:10px">'+dateStr+(timeStr?' '+timeStr:'')+'</span>'
               +'<button onclick="event.stopPropagation();removeAppointment(\''+a.id+'\')" style="background:none;border:none;color:#d1d5db;cursor:pointer;font-size:12px;padding:0 2px" title="Remove">&times;</button>'
+              +'</div>'
+              +'<div style="display:none;padding:4px 6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;margin-top:2px;font-size:10px;color:#475569">'
+              +(addrText?'<div style="margin-bottom:2px">'+esc(addrText)+'</div><a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(addrText)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:#2563eb;text-decoration:none;font-weight:600">Open in Maps</a>':'<div style="color:#9ca3af">No address saved</div>')
+              +'</div>'
               +'</div>';
           }).join('');
         }
