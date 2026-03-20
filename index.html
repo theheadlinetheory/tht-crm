@@ -4428,8 +4428,12 @@ function renderDealModal(deal){
           ${["company:Company","contact:Contact Name","email:Email","phone:Business Phone","mobilePhone:Mobile Phone","website:Website","location:Address",...(isAdmin()?["value:Deal Value ($)"]:[])].map(f=>{
             const[k,label]=f.split(":");
             let extra='';
-            if(false){
-              // Call/Text buttons removed — dialer integration pending
+            if((k==='phone'||k==='mobilePhone') && deal[k] && deal.pipeline==='Acquisition'){
+              const ph=String(deal[k]).replace(/[^0-9+]/g,'');
+              extra='<div style="margin-top:4px;display:flex;gap:6px">'
+                +'<a href="tel:'+esc(ph)+'" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px">📞 Call</a>'
+                +'<a href="sms:'+esc(ph)+'" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;color:#166534;border-color:#86efac">💬 Text</a>'
+                +'</div>';
             }
             if(k==='website'&&deal[k]){
               const url=String(deal[k]||'').trim();
