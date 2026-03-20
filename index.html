@@ -3365,6 +3365,18 @@ function openWarmCallSheet(dealId){
               </div>`:''}
             </div>
           </div>
+
+          ${(()=>{
+            const propAddr=str(deal.address||deal.location||'').trim();
+            if(!propAddr) return '';
+            return `<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;margin-top:16px">
+              <div style="background:#334155;padding:10px 16px;color:#fff;display:flex;justify-content:space-between;align-items:center">
+                <div style="font-size:13px;font-weight:700">Property View</div>
+                <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(propAddr)}" target="_blank" rel="noopener" style="font-size:10px;color:#93c5fd;text-decoration:none;font-weight:600">Open Full Map &rarr;</a>
+              </div>
+              <div id="warm-call-property-map" style="height:400px;width:100%"></div>
+            </div>`;
+          })()}
         </div>
 
       </div>
@@ -3440,6 +3452,42 @@ function openWarmCallSheet(dealId){
           }
         });
     });
+  }
+
+  // Initialize property satellite view if container exists
+  const propMapEl=document.getElementById('warm-call-property-map');
+  const propAddr=str(deal.address||deal.location||'').trim();
+  if(propMapEl && typeof L!=='undefined' && propAddr){
+    const propMap=L.map(propMapEl,{scrollWheelZoom:true}).setView([39.8,-98.5],17);
+    // Satellite tile layer (Esri World Imagery — free, no API key)
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
+      attribution:'Esri, Maxar, Earthstar Geographics',maxZoom:20
+    }).addTo(propMap);
+    // Add street labels overlay on top of satellite
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{
+      maxZoom:20,opacity:0.7
+    }).addTo(propMap);
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{
+      maxZoom:20,opacity:0.8
+    }).addTo(propMap);
+    // Geocode the property address and place marker
+    fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=1&q='+encodeURIComponent(propAddr))
+      .then(r=>r.json()).then(data=>{
+        if(data&&data[0]){
+          const lat=parseFloat(data[0].lat),lng=parseFloat(data[0].lon);
+          propMap.setView([lat,lng],18);
+          // Property pin
+          const propIcon=L.divIcon({
+            className:'',
+            html:'<div style="background:#ef4444;color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4);white-space:nowrap">'+deal.company+'</div>',
+            iconAnchor:[40,20]
+          });
+          L.marker([lat,lng],{icon:propIcon}).addTo(propMap)
+            .bindPopup('<div style="font-size:13px;font-weight:700;color:#1e293b">'+(deal.company||deal.contact||'Property')+'</div><div style="font-size:12px;color:#475569;margin-top:4px">'+propAddr+'</div>',{maxWidth:280});
+          // Draw approximate property boundary circle as visual indicator
+          L.circle([lat,lng],{radius:30,color:'#ef4444',weight:2,fillColor:'#ef4444',fillOpacity:0.15,dashArray:'6 4'}).addTo(propMap);
+        }
+      }).catch(()=>{});
   }
 }
 
