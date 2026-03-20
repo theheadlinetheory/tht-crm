@@ -277,7 +277,7 @@ details[open] > summary span:first-child { transform: rotate(90deg); }
 details > summary::-webkit-details-marker { display:none; }
 /* Leaflet Map in Modal */
 .sa-map-container { border-radius:var(--radius); overflow:hidden; border:1px solid var(--border); margin-bottom:12px; position:relative; }
-.sa-map-container .leaflet-container { height:220px; width:100%; }
+.sa-map-container .leaflet-container { height:220px; width:100%; touch-action:none; }
 .sa-enlarge-btn { position:absolute; top:8px; right:8px; z-index:1000; background:white; border:1px solid var(--border); border-radius:6px; padding:4px 10px; font-size:12px; font-weight:600; cursor:pointer; color:var(--text-muted); box-shadow:0 1px 3px rgba(0,0,0,0.15); transition:background 0.15s; }
 .sa-enlarge-btn:hover { background:#f3f4f6; color:var(--text); }
 #sa-enlarged-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:10000; display:flex; align-items:center; justify-content:center; }
@@ -1128,10 +1128,11 @@ function renderServiceAreaMap(containerId, dealId, opts){
   const el = document.getElementById(containerId);
   if(!el) return null;
 
-  // Prevent re-init if Leaflet already initialized this container
-  if(el._leaflet_id){ try { el._leaflet_id = undefined; } catch(e){} }
+  // Properly remove previous Leaflet instance if re-initializing
+  if(el._leaflet_id){ try { el._leafletMap.remove(); } catch(e){} try { el._leaflet_id = undefined; } catch(e){} }
 
-  const map = L.map(containerId, { zoomControl: true, scrollWheelZoom: opts.scrollWheelZoom || false });
+  const map = L.map(containerId, { zoomControl: true, dragging: true, scrollWheelZoom: opts.scrollWheelZoom || false });
+  el._leafletMap = map; // Store reference for clean teardown
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap'
   }).addTo(map);
@@ -1175,6 +1176,9 @@ function renderServiceAreaMap(containerId, dealId, opts){
   } else if(marker){
     map.setView([lat, lng], 11);
   }
+
+  // Fix map sizing when rendered inside modals (container may not be fully laid out yet)
+  setTimeout(() => { map.invalidateSize(); }, 150);
 
   return map;
 }
@@ -1762,7 +1766,17 @@ async function syncFromSheet(){
       state.loadFailed=true;
     }
   }
-  state.syncing=false; render();
+  state.syncing=false;
+  // If a deal modal is open (user opened it while sync was in-flight), don't do a full
+  // render() which would destroy the modal DOM (scroll reset, Leaflet map breakage).
+  // Instead, update the selectedDeal reference to fresh data and do a targeted refresh.
+  if(state.selectedDeal){
+    const freshDeal=state.deals.find(d=>String(d.id)===String(state.selectedDeal.id));
+    if(freshDeal) state.selectedDeal=freshDeal;
+    refreshModal();
+  } else {
+    render();
+  }
 }
 
 // ─── Global Search ───
