@@ -1927,8 +1927,16 @@ function getStages(){
   if(isClient() && clientPortalStages){
     return clientPortalStages;
   }
-  // Admin view: Client Leads pipeline
-  const clientCols=state.clients.map((c,i)=>({id:c.name,label:c.name,color:c.color||CLIENT_PALETTE[i%CLIENT_PALETTE.length]}));
+  // Admin view: Client Leads pipeline — sorted by timezone (EST→CST→MST→PST)
+  const TZ_ORDER={'EST':0,'CST':1,'MST':2,'PST':3};
+  const sorted=[...state.clients].sort((a,b)=>{
+    const aInfo=lookupClientInfo(a.name);
+    const bInfo=lookupClientInfo(b.name);
+    const aOrd=aInfo&&aInfo.timeZone?TZ_ORDER[aInfo.timeZone.toUpperCase()]??9:9;
+    const bOrd=bInfo&&bInfo.timeZone?TZ_ORDER[bInfo.timeZone.toUpperCase()]??9:9;
+    return aOrd-bOrd;
+  });
+  const clientCols=sorted.map((c,i)=>({id:c.name,label:c.name,color:c.color||CLIENT_PALETTE[i%CLIENT_PALETTE.length]}));
   return [{id:"Client Not Distributed",label:"Not Distributed",color:"#6b7280"},...clientCols];
 }
 
@@ -4269,8 +4277,13 @@ function render(){
 function getStagesForPipeline(pip){
   if(pip==='Acquisition') return ACQUISITION_STAGES;
   if(pip==='Nurture') return NURTURE_STAGES;
-  // Client
-  const clientCols=state.clients.map((c,i)=>({id:c.name,label:c.name,color:c.color||CLIENT_PALETTE[i%CLIENT_PALETTE.length]}));
+  // Client — sorted by timezone (EST→CST→MST→PST)
+  const TZ_ORD={'EST':0,'CST':1,'MST':2,'PST':3};
+  const sortedC=[...state.clients].sort((a,b)=>{
+    const aI=lookupClientInfo(a.name),bI=lookupClientInfo(b.name);
+    return (aI&&aI.timeZone?TZ_ORD[aI.timeZone.toUpperCase()]??9:9)-(bI&&bI.timeZone?TZ_ORD[bI.timeZone.toUpperCase()]??9:9);
+  });
+  const clientCols=sortedC.map((c,i)=>({id:c.name,label:c.name,color:c.color||CLIENT_PALETTE[i%CLIENT_PALETTE.length]}));
   return [{id:"Client Not Distributed",label:"Not Distributed",color:"#6b7280"},...clientCols];
 }
 
