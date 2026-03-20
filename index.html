@@ -3458,6 +3458,7 @@ function openWarmCallSheet(dealId){
   const propMapEl=document.getElementById('warm-call-property-map');
   const propAddr=str(deal.address||deal.location||'').trim();
   if(propMapEl && typeof L!=='undefined' && propAddr){
+    const REGRID_TOKEN='eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJyZWdyaWQuY29tIiwiaWF0IjoxNzc0MDI3MzQxLCJleHAiOjE3NzY2MTkzNDEsInUiOjcyNzQ3NywiZyI6MjMxNTMsImNhcCI6InBhOnRzOnBzOmJmOm1hOnR5OmVvOnpvOnNiIn0.F6uPLMvc8fG1i5j7Oy0embY18dXyHB43K2N4kjoquw4';
     const propMap=L.map(propMapEl,{scrollWheelZoom:true}).setView([39.8,-98.5],17);
     // Satellite tile layer (Esri World Imagery — free, no API key)
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
@@ -3470,7 +3471,11 @@ function openWarmCallSheet(dealId){
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{
       maxZoom:20,opacity:0.8
     }).addTo(propMap);
-    // Geocode the property address and place marker
+    // Regrid parcel boundary overlay — shows property lines on top of satellite
+    L.tileLayer('https://tiles.regrid.com/api/v1/parcels/{z}/{x}/{y}.png?token='+REGRID_TOKEN,{
+      maxZoom:20,opacity:0.8,attribution:'Regrid'
+    }).addTo(propMap);
+    // Geocode the property address, place marker, and fetch parcel boundary
     fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=1&q='+encodeURIComponent(propAddr))
       .then(r=>r.json()).then(data=>{
         if(data&&data[0]){
@@ -3479,13 +3484,36 @@ function openWarmCallSheet(dealId){
           // Property pin
           const propIcon=L.divIcon({
             className:'',
-            html:'<div style="background:#ef4444;color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4);white-space:nowrap">'+deal.company+'</div>',
+            html:'<div style="background:#ef4444;color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4);white-space:nowrap">'+(deal.company||'Property')+'</div>',
             iconAnchor:[40,20]
           });
           L.marker([lat,lng],{icon:propIcon}).addTo(propMap)
             .bindPopup('<div style="font-size:13px;font-weight:700;color:#1e293b">'+(deal.company||deal.contact||'Property')+'</div><div style="font-size:12px;color:#475569;margin-top:4px">'+propAddr+'</div>',{maxWidth:280});
-          // Draw approximate property boundary circle as visual indicator
-          L.circle([lat,lng],{radius:30,color:'#ef4444',weight:2,fillColor:'#ef4444',fillOpacity:0.15,dashArray:'6 4'}).addTo(propMap);
+          // Try Regrid API for exact parcel boundary
+          fetch('https://app.regrid.com/api/v2/parcels/point?lat='+lat+'&lon='+lng+'&token='+REGRID_TOKEN+'&limit=1')
+            .then(r=>r.json()).then(parcelData=>{
+              if(parcelData&&parcelData.parcels&&parcelData.parcels.features&&parcelData.parcels.features.length){
+                const feature=parcelData.parcels.features[0];
+                L.geoJSON(feature,{
+                  style:{color:'#ef4444',weight:3,fillColor:'#ef4444',fillOpacity:0.15}
+                }).addTo(propMap);
+                // Show parcel info if available
+                const props=feature.properties||{};
+                const acres=props.ll_gisacre||props.acres||'';
+                const owner=props.owner||props.ll_owner||'';
+                if(acres||owner){
+                  const infoDiv=document.createElement('div');
+                  infoDiv.style.cssText='padding:6px 10px;background:#1e293b;color:#fff;font-size:11px;border-top:1px solid #334155';
+                  infoDiv.innerHTML=(owner?'<span style="font-weight:600">Owner:</span> '+owner:'')+(acres?(owner?' &bull; ':'')+'<span style="font-weight:600">Lot:</span> '+parseFloat(acres).toFixed(2)+' acres':'');
+                  propMapEl.parentElement.appendChild(infoDiv);
+                }
+              } else {
+                // No parcel data — show approximate boundary circle
+                L.circle([lat,lng],{radius:30,color:'#ef4444',weight:2,fillColor:'#ef4444',fillOpacity:0.15,dashArray:'6 4'}).addTo(propMap);
+              }
+            }).catch(()=>{
+              L.circle([lat,lng],{radius:30,color:'#ef4444',weight:2,fillColor:'#ef4444',fillOpacity:0.15,dashArray:'6 4'}).addTo(propMap);
+            });
         }
       }).catch(()=>{});
   }
