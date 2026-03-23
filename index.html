@@ -2633,7 +2633,7 @@ function buildLeadMessage(deal, clientName){
     if(deal.contact && deal.contact !== biz) lines.push('Contact: '+deal.contact);
     if(deal.email2) lines.push('Contact email: '+deal.email2);
     if(deal.mobilePhone) lines.push('Mobile Phone: '+deal.mobilePhone);
-    if(str(deal.notes).trim()) lines.push('Instruction: '+deal.notes);
+    if(str(deal.notes).trim()) lines.push('Instructions: '+deal.notes);
   }
   if(str(deal.emailBody).trim()) lines.push('\nTheir Reply:\n'+deal.emailBody);
   return lines.join('\n');
@@ -4638,7 +4638,7 @@ function renderDealModal(deal){
         if(deal.phone) prefillLines.push('Business Phone: '+deal.phone);
         if(deal.contact && deal.contact!==deal.company) prefillLines.push('Contact: '+deal.contact);
         if(deal.mobilePhone) prefillLines.push('Mobile Phone: '+deal.mobilePhone);
-        prefillLines.push('Instruction: ');
+        prefillLines.push('Instructions: ');
         h+=`<div style="margin:0 0 8px 0">
           <button class="btn btn-primary" style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#818cf8;border-color:#818cf8"
             onclick="toggleCalendlyBooking('${esc(deal.id)}','${esc(matchedClient.calendlyUrl)}')">
