@@ -2821,11 +2821,18 @@ window.addEventListener('message',function(e){
 
   // Capture when user picks a date/time slot (fires before event_scheduled)
   if(e.data.event==='calendly.date_and_time_selected'){
-    // This event doesn't include the datetime directly, but we note it happened
     calendlySelectedDateTime='pending';
+    // Try to extract datetime from Calendly iframe URL (contains selected slot)
+    try{
+      const iframe=document.querySelector('.calendly-overlay iframe');
+      if(iframe && iframe.src){
+        const m=iframe.src.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})/);
+        if(m) calendlySelectedDateTime=m[1];
+      }
+    }catch(ex){}
   }
 
-  // Calendly sends event_created with start_time in the payload
+  // Calendly sends event_scheduled when booking is confirmed
   if(e.data.event==='calendly.event_scheduled' && calendlyBookingDealId){
     const dealId=calendlyBookingDealId;
     calendlyBookingDealId=null;
@@ -2833,33 +2840,51 @@ window.addEventListener('message',function(e){
     if(!deal) return;
 
     // Extract actual meeting date/time from Calendly payload
-    let bookedDate='', bookedTime='';
+    // Try multiple payload paths — Calendly widget versions vary
     const payload=e.data.payload||{};
     const eventData=payload.event||{};
-    const startTime=eventData.start_time||'';
+    console.log('[THT-CRM] Calendly event_scheduled payload:', JSON.stringify(payload));
+    const startTime=eventData.start_time||payload.start_time||eventData.startTime||'';
 
-    if(startTime){
-      // start_time is ISO 8601: "2026-03-19T14:00:00-04:00"
-      // Convert to client's local timezone
-      const clientName=findClientForDeal(deal)?.name||deal.stage;
-      const ianaTz=clientIanaTz(clientName);
-      const dt=new Date(startTime);
-      if(!isNaN(dt.getTime())){
-        // Format in the client's timezone using direct format (YYYY-MM-DD)
-        if(ianaTz){
-          bookedDate=new Intl.DateTimeFormat('en-CA',{timeZone:ianaTz,year:'numeric',month:'2-digit',day:'2-digit'}).format(dt);
-          bookedTime=new Intl.DateTimeFormat('en-GB',{timeZone:ianaTz,hour:'2-digit',minute:'2-digit',hour12:false}).format(dt);
-        } else {
-          bookedDate=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
-          bookedTime=String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');
-        }
+    const clientName=findClientForDeal(deal)?.name||deal.stage;
+    const ianaTz=clientIanaTz(clientName);
+
+    function parseIsoToBookedFields(iso){
+      const dt=new Date(iso);
+      if(isNaN(dt.getTime())) return null;
+      let bd,bt;
+      if(ianaTz){
+        bd=new Intl.DateTimeFormat('en-CA',{timeZone:ianaTz,year:'numeric',month:'2-digit',day:'2-digit'}).format(dt);
+        bt=new Intl.DateTimeFormat('en-GB',{timeZone:ianaTz,hour:'2-digit',minute:'2-digit',hour12:false}).format(dt);
+      } else {
+        bd=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+        bt=String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');
       }
+      return {bookedDate:bd,bookedTime:bt};
     }
 
-    // Fallback to defaults if Calendly didn't provide start_time
-    if(!bookedDate) bookedDate=deal.bookedDate||TODAY();
-    if(!bookedTime) bookedTime=deal.bookedTime||'09:00';
+    let result=null;
+    // 1) Try start_time from payload
+    if(startTime) result=parseIsoToBookedFields(startTime);
+    // 2) Try datetime captured from iframe URL on date_and_time_selected
+    if(!result && calendlySelectedDateTime && calendlySelectedDateTime!=='pending'){
+      result=parseIsoToBookedFields(calendlySelectedDateTime);
+    }
 
+    // 3) If extraction failed, prompt user to confirm the actual booked date/time
+    if(!result){
+      showCalendlyTimeConfirm(dealId, deal, clientName, ianaTz);
+      calendlySelectedDateTime=null;
+      return;
+    }
+
+    applyBookedDateTime(dealId, deal, result.bookedDate, result.bookedTime, clientName, ianaTz, startTime);
+    calendlySelectedDateTime=null;
+  }
+});
+
+// Apply booked date/time to deal and save — shared by auto-extract and manual confirm
+function applyBookedDateTime(dealId, deal, bookedDate, bookedTime, clientName, ianaTz, startTimeIso){
     deal.bookedDate=bookedDate;
     deal.bookedTime=bookedTime;
 
@@ -2882,24 +2907,57 @@ window.addEventListener('message',function(e){
       const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
       if(client) meetContainer.innerHTML=renderUpcomingMeetings(deal,client.name).replace(/<div id="upcoming-meetings-container">|<\/div>$/g,'');
     }
-    // Show confirmation toast with actual date/time
+    // Show confirmation toast
     const toast=document.createElement('div');
     toast.style.cssText='position:fixed;top:70px;left:50%;transform:translateX(-50%);background:#22c55e;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,.2)';
-    if(startTime){
-      const displayDt=new Date(startTime);
-      const clientName=findClientForDeal(deal)?.name||deal.stage;
-      const ianaTz=clientIanaTz(clientName);
+    if(startTimeIso){
+      const displayDt=new Date(startTimeIso);
       const opts={weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'};
       if(ianaTz) opts.timeZone=ianaTz;
       toast.textContent='Meeting booked: '+displayDt.toLocaleString('en-US',opts);
     } else {
-      toast.textContent='Meeting booked! Date & time saved automatically.';
+      const dt=new Date(bookedDate+'T'+bookedTime);
+      const opts={weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'};
+      toast.textContent='Meeting booked: '+dt.toLocaleString('en-US',opts);
     }
     document.body.appendChild(toast);
     setTimeout(()=>toast.remove(),5000);
-    calendlySelectedDateTime=null;
-  }
-});
+}
+
+// Show confirmation prompt when Calendly doesn't provide the booked date/time
+function showCalendlyTimeConfirm(dealId, deal, clientName, ianaTz){
+  const overlay=document.createElement('div');
+  overlay.id='cal-time-confirm-overlay';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100000;display:flex;align-items:center;justify-content:center';
+  const tzLabel=ianaTz?` (${clientName} time)`:'';
+  overlay.innerHTML=`<div style="background:#fff;border-radius:12px;width:380px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden" onclick="event.stopPropagation()">
+    <div style="padding:16px 20px;background:#f5f3ff;border-bottom:1px solid #e5e7eb">
+      <div style="font-size:15px;font-weight:700;color:#5b21b6">✅ Meeting Booked!</div>
+      <div style="font-size:12px;color:#6b7280;margin-top:4px">Confirm the appointment date & time${esc(tzLabel)}</div>
+    </div>
+    <div style="padding:20px">
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Date</label>
+        <input type="date" id="cal-confirm-date" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;font-family:var(--font)">
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Time</label>
+        <input type="time" id="cal-confirm-time" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;font-family:var(--font)">
+      </div>
+      <button id="cal-confirm-save-btn" style="width:100%;padding:10px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--font)">Confirm & Save</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  // Wire up save
+  document.getElementById('cal-confirm-save-btn').onclick=function(){
+    const bd=document.getElementById('cal-confirm-date').value;
+    const bt=document.getElementById('cal-confirm-time').value;
+    if(!bd){alert('Please select the appointment date.');return;}
+    if(!bt){alert('Please select the appointment time.');return;}
+    overlay.remove();
+    applyBookedDateTime(dealId, deal, bd, bt, clientName, ianaTz, '');
+  };
+}
 
 function buildServiceAreaUrl(mapUrl, address){
   if(!mapUrl || !address) return mapUrl||'';
