@@ -1413,8 +1413,14 @@ function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
 function str(v){return v===null||v===undefined?'':String(v)}
 
-// Find matching client for a deal based on campaign keywords
+// Find matching client for a deal — prioritize current stage (client column) over campaign keywords
 function findClientForDeal(deal){
+  // First: if the deal's stage matches a client name, that's the assigned client (handles reassignments)
+  if(deal.pipeline==='Client' && deal.stage){
+    const stageClient=state.clients.find(c=>c.name===deal.stage);
+    if(stageClient) return stageClient;
+  }
+  // Fallback: match by campaign keywords (for initial routing / unassigned deals)
   const cn=str(deal.campaignName).toLowerCase();
   if(!cn) return null;
   for(const c of state.clients){
