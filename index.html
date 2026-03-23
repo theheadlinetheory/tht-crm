@@ -2612,19 +2612,18 @@ function buildLeadMessage(deal, clientName){
     const prefix=diffDays>=0&&diffDays<=7?'This '+dayName:diffDays>7&&diffDays<=14?'Next '+dayName:dayName;
     timeStr=timePart?prefix+', '+dayPart+' at '+timePart:prefix+', '+dayPart;
   }
+  // Always use the same greeting format — with time if booked, placeholder if not
   const lines=[];
   if(timeStr){
     lines.push('Hey '+clientFirst+', just scheduled a quote request for '+timeStr+' with '+biz+'. The address, phone, contact info and instructions are all included in that calendar event. I\'ve also added you to the email thread. Please check your spam folder if you are not seeing it.');
   } else {
-    lines.push('Hey '+clientFirst+', Here\'s a new lead for you — '+biz+'. Details below:');
+    lines.push('Hey '+clientFirst+', just scheduled a quote request for [Day] at [Time] with '+biz+'. The address, phone, contact info and instructions are all included in that calendar event. I\'ve also added you to the email thread. Please check your spam folder if you are not seeing it.');
   }
   lines.push('');
-  // If Calendly booking was done, use the exact instructions from the Calendly widget
-  // (calNotes contains all the lead info + any edits made before booking)
+  // Lead details from Calendly instructions if available, otherwise from deal fields
   if(str(deal.calNotes).trim()){
     lines.push(deal.calNotes.trim());
   } else {
-    // Fallback: build details from individual fields (no Calendly booking yet)
     if(biz) lines.push('Business: '+biz);
     if(deal.website) lines.push('Website: '+deal.website);
     const addr=str(deal.address||deal.location||'').trim();
