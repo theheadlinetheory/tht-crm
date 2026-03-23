@@ -2614,21 +2614,28 @@ function buildLeadMessage(deal, clientName){
   }
   const lines=[];
   if(timeStr){
-    lines.push('Hey '+clientFirst+', Just scheduled a quote request for '+timeStr+' with '+biz+'. The address, phone, contact info and instructions are all included in that calendar event. I\'ve also added you to the email thread. Please check your spam folder if you are not seeing it.');
+    lines.push('Hey '+clientFirst+', just scheduled a quote request for '+timeStr+' with '+biz+'. The address, phone, contact info and instructions are all included in that calendar event. I\'ve also added you to the email thread. Please check your spam folder if you are not seeing it.');
   } else {
     lines.push('Hey '+clientFirst+', Here\'s a new lead for you — '+biz+'. Details below:');
   }
   lines.push('');
-  if(biz) lines.push('Business: '+biz);
-  if(deal.website) lines.push('Website: '+deal.website);
-  const addr=str(deal.address||deal.location||'').trim();
-  if(addr) lines.push('Address: '+addr);
-  if(deal.email) lines.push('Email: '+deal.email);
-  if(deal.phone) lines.push('Business Phone: '+deal.phone);
-  if(deal.contact && deal.contact !== biz) lines.push('Contact: '+deal.contact);
-  if(deal.email2) lines.push('Contact email: '+deal.email2);
-  if(deal.mobilePhone) lines.push('Mobile Phone: '+deal.mobilePhone);
-  if(str(deal.notes).trim()) lines.push('Instruction: '+deal.notes);
+  // If Calendly booking was done, use the exact instructions from the Calendly widget
+  // (calNotes contains all the lead info + any edits made before booking)
+  if(str(deal.calNotes).trim()){
+    lines.push(deal.calNotes.trim());
+  } else {
+    // Fallback: build details from individual fields (no Calendly booking yet)
+    if(biz) lines.push('Business: '+biz);
+    if(deal.website) lines.push('Website: '+deal.website);
+    const addr=str(deal.address||deal.location||'').trim();
+    if(addr) lines.push('Address: '+addr);
+    if(deal.email) lines.push('Email: '+deal.email);
+    if(deal.phone) lines.push('Business Phone: '+deal.phone);
+    if(deal.contact && deal.contact !== biz) lines.push('Contact: '+deal.contact);
+    if(deal.email2) lines.push('Contact email: '+deal.email2);
+    if(deal.mobilePhone) lines.push('Mobile Phone: '+deal.mobilePhone);
+    if(str(deal.notes).trim()) lines.push('Instruction: '+deal.notes);
+  }
   if(str(deal.emailBody).trim()) lines.push('\nTheir Reply:\n'+deal.emailBody);
   return lines.join('\n');
 }
