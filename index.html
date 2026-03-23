@@ -3349,12 +3349,18 @@ function openWarmCallSheet(dealId){
                   <a href="${esc(info.website)}" target="_blank" rel="noopener" style="font-size:12px;color:#2563eb;text-decoration:none">${esc(info.website)}</a>
                 </div>`:''}
 
-                ${info.warmCallNotes&&info.warmCallNotes.length?`<div style="border-top:1px solid #f1f5f9;padding-top:12px">
+                ${(()=>{
+                  // Prefer saved warmCallNotesText from client settings, fall back to hardcoded CLIENT_INFO
+                  const savedText=str(mc.warmCallNotesText).trim();
+                  const notes=savedText?savedText.split('\n').filter(l=>l.trim()):(info.warmCallNotes||[]);
+                  if(!notes.length) return '';
+                  return `<div style="border-top:1px solid #f1f5f9;padding-top:12px">
                   <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">SDR Quick Reference</div>
                   <ul style="margin:0;padding-left:16px;display:flex;flex-direction:column;gap:4px">
-                    ${info.warmCallNotes.map(n=>`<li style="font-size:12px;color:#374151;line-height:1.5">${esc(n)}</li>`).join('')}
+                    ${notes.map(n=>'<li style="font-size:12px;color:#374151;line-height:1.5">'+esc(n)+'</li>').join('')}
                   </ul>
-                </div>`:''}
+                </div>`;
+                })()}
               </div>
             </div>
           </div>
@@ -5630,7 +5636,8 @@ function debouncedAutoSave(){
         enableTracker:str(c.enableTracker),
         leadCost:str(c.leadCost),
         serviceAreaUrl:str(c.serviceAreaUrl),
-        clientNotes:str(c.clientNotes||'')
+        clientNotes:str(c.clientNotes||''),
+        warmCallNotesText:str(c.warmCallNotesText||'')
       }));
       await Promise.all([
         apiPost('save_settings',{settings:settingsDraft}),
@@ -5824,6 +5831,19 @@ function renderClientsSettings(){
           style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px;resize:vertical">${esc(str(c.clientNotes||''))}</textarea>
       </div>
 
+      ${(()=>{
+        let wcDefault='';
+        if(!str(c.warmCallNotesText).trim()){const ci=lookupClientInfo(c.name);if(ci&&ci.warmCallNotes)wcDefault=ci.warmCallNotes.join('\n');}
+        const wcVal=str(c.warmCallNotesText).trim()||wcDefault;
+        return `<div style="margin-bottom:8px">
+        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">📋 SDR / Warm Call Notes</label>
+        <div style="font-size:10px;color:var(--text-muted);margin:2px 0 4px">Key talking points for the appointment setter (one per line)</div>
+        <textarea placeholder="e.g. Veteran-owned&#10;24 years in business&#10;10% discount for churches&#10;Current clients: Marriott, YMCA" rows="6"
+          oninput="updateClientField('${esc(c.id)}','warmCallNotesText',this.value)"
+          style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px;resize:vertical">${esc(wcVal)}</textarea>
+      </div>`;
+      })()}
+
     </div>`;
   }
 
@@ -5901,7 +5921,8 @@ async function saveSettingsToSheet(){
       enableTracker:str(c.enableTracker),
       leadCost:str(c.leadCost),
       serviceAreaUrl:str(c.serviceAreaUrl),
-      clientNotes:str(c.clientNotes||'')
+      clientNotes:str(c.clientNotes||''),
+      warmCallNotesText:str(c.warmCallNotesText||'')
     }));
     // Fire both in parallel — settings + all clients in one batch call
     await Promise.all([
