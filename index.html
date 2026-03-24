@@ -1342,7 +1342,7 @@ function onAddressFieldChange(dealId, newAddr){
       clientName: matchedClient.name,
       polygonKey: polyMatch ? polyMatch.key : undefined
     };
-    refreshModal();
+    updateServiceAreaMapInPlace(deal.id);
   }, 800);
 }
 
@@ -1357,13 +1357,13 @@ async function geocodeAndCheckDeal(dealId){
     await batchGeocode([addr]);
   }
   const geo = geocodeCache[addr];
-  if(!geo){ serviceAreaResults[dealId] = { status: 'unknown', clientName: '' }; refreshModal(true); return; }
+  if(!geo){ serviceAreaResults[dealId] = { status: 'unknown', clientName: '' }; updateServiceAreaMapInPlace(dealId); return; }
 
   const matchedClient = findClientForDeal(deal) || state.clients.find(c => c.name === deal.stage);
-  if(!matchedClient){ serviceAreaResults[dealId] = { status: 'unknown', lat: geo.lat, lng: geo.lng, clientName: '' }; refreshModal(true); return; }
+  if(!matchedClient){ serviceAreaResults[dealId] = { status: 'unknown', lat: geo.lat, lng: geo.lng, clientName: '' }; updateServiceAreaMapInPlace(dealId); return; }
 
   const polyMatch = findPolygonForClient(matchedClient.name);
-  if(!polyMatch){ serviceAreaResults[dealId] = { status: 'unknown', lat: geo.lat, lng: geo.lng, clientName: matchedClient.name }; refreshModal(true); return; }
+  if(!polyMatch){ serviceAreaResults[dealId] = { status: 'unknown', lat: geo.lat, lng: geo.lng, clientName: matchedClient.name }; updateServiceAreaMapInPlace(dealId); return; }
 
   const isIn = checkPointInServiceArea(geo.lat, geo.lng, polyMatch.polygon);
   serviceAreaResults[dealId] = {
@@ -1372,7 +1372,36 @@ async function geocodeAndCheckDeal(dealId){
     clientName: matchedClient.name,
     polygonKey: polyMatch.key
   };
-  refreshModal(true);
+  updateServiceAreaMapInPlace(dealId);
+}
+
+// Re-render just the service area map without rebuilding the entire modal
+function updateServiceAreaMapInPlace(dealId){
+  const mapId = 'sa-map-' + dealId;
+  const el = document.getElementById(mapId);
+  if(!el){
+    // Map container doesn't exist in DOM — need full rebuild (e.g. map section wasn't rendered initially)
+    refreshModal(true);
+    return;
+  }
+  const result = serviceAreaResults[dealId] || {};
+  const deal = state.deals.find(d => d.id === dealId);
+  const mc = deal ? (findClientForDeal(deal) || state.clients.find(c => c.name === deal.stage)) : null;
+  const polyMatch = mc ? findPolygonForClient(mc.name) : null;
+  renderServiceAreaMap(mapId, dealId, {
+    clientName: mc ? mc.name : '',
+    polygonKey: polyMatch ? polyMatch.key : undefined,
+    lat: result.lat, lng: result.lng,
+    status: result.status || 'unknown'
+  });
+  // Also update the status badge text if present
+  const badge = document.getElementById('sa-status-' + dealId);
+  if(badge){
+    const s = result.status;
+    badge.textContent = s === 'in' ? 'In Service Area' : s === 'out' ? 'Outside Service Area' : 'Checking...';
+    badge.style.background = s === 'in' ? '#dcfce7' : s === 'out' ? '#fee2e2' : '#f3f4f6';
+    badge.style.color = s === 'in' ? '#166534' : s === 'out' ? '#991b1b' : '#6b7280';
+  }
 }
 
 
@@ -2344,6 +2373,8 @@ function refreshModal(forceFullRebuild){
       requestAnimationFrame(()=>{ newModal.scrollTop=savedScroll; });
       setTimeout(()=>{ newModal.scrollTop=savedScroll; }, 80);
       setTimeout(()=>{ newModal.scrollTop=savedScroll; }, 200);
+      setTimeout(()=>{ newModal.scrollTop=savedScroll; }, 500);
+      setTimeout(()=>{ newModal.scrollTop=savedScroll; }, 1000);
     }
   } else {
     render();
