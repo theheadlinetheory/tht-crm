@@ -3048,8 +3048,10 @@ const _CLIENT_THREAD_MAP={
 // Fuzzy lookup — matches "Distinctive Landscape" to "distinctive", etc.
 function getClientThreadId(name){
   const n=(name||'').toLowerCase();
+  const nStrip=n.replace(/\s+/g,'');
   for(const key of Object.keys(_CLIENT_THREAD_MAP)){
-    if(n===key || n.includes(key) || key.includes(n)) return _CLIENT_THREAD_MAP[key];
+    const kStrip=key.replace(/\s+/g,'');
+    if(n===key || nStrip===kStrip || n.includes(key) || key.includes(n)) return _CLIENT_THREAD_MAP[key];
   }
   return '';
 }
