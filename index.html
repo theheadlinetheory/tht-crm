@@ -1476,7 +1476,7 @@ async function pushDealToLeadHero(dealId){
       const deal=state.deals.find(d=>d.id===dealId);
       if(deal && res.leadHeroId) deal.leadHeroId=res.leadHeroId;
       // Open LeadHero immediately
-      const lhUrl=res.leadHeroUrl||LEADHERO_APP+'/leads/'+res.leadHeroId;
+      const lhUrl=LEADHERO_APP+'/leads';
       window.open(lhUrl,'_blank');
       if(btn){
         btn.outerHTML=`<a href="${esc(lhUrl)}" target="_blank" rel="noopener" class="btn"
