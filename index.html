@@ -4891,7 +4891,7 @@ function renderDealModal(deal){
   // LeadHero Dialer — Call button (auto-syncs if not yet in LeadHero)
   if(isAdmin() && (deal.phone || deal.mobilePhone)){
     const hasLH = deal.leadHeroId && String(deal.leadHeroId).trim() !== '';
-    const lhUrl = LEADHERO_APP;
+    const lhUrl = LEADHERO_APP + '/leads';
     h+=`<div style="margin:0 0 8px 0">
       ${hasLH
         ? `<a href="${esc(lhUrl)}" target="_blank" rel="noopener" class="btn"
