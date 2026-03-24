@@ -2768,12 +2768,21 @@ function savePrefillField(dealId, field, value){
   },800);
 }
 
-function openCalendlyEmbed(dealId, baseCalUrl, clientName){
+// Open Calendly from warm call sheet — reads wc-prefixed fields
+function openCalendlyFromWarmCall(dealId, baseCalUrl, clientName){
+  const deal=state.deals.find(d=>d.id===dealId);
+  const name=(document.getElementById('wc-cal-prefill-name')?.value||deal?.calName||'').trim();
+  const email=(document.getElementById('wc-cal-prefill-email')?.value||deal?.calEmail||'').trim();
+  const notes=(document.getElementById('wc-cal-prefill-notes')?.value||deal?.calNotes||'').trim();
+  openCalendlyEmbed(dealId, baseCalUrl, clientName, name, email, notes);
+}
+
+function openCalendlyEmbed(dealId, baseCalUrl, clientName, overrideName, overrideEmail, overrideNotes){
   calendlyBookingDealId=dealId;
   const deal=state.deals.find(d=>d.id===dealId);
-  const name=(document.getElementById('cal-prefill-name')?.value||deal?.calName||'').trim();
-  const email=(document.getElementById('cal-prefill-email')?.value||deal?.calEmail||'').trim();
-  const notes=(document.getElementById('cal-prefill-notes')?.value||deal?.calNotes||'').trim();
+  const name=overrideName!=null?overrideName:(document.getElementById('cal-prefill-name')?.value||deal?.calName||'').trim();
+  const email=overrideEmail!=null?overrideEmail:(document.getElementById('cal-prefill-email')?.value||deal?.calEmail||'').trim();
+  const notes=overrideNotes!=null?overrideNotes:(document.getElementById('cal-prefill-notes')?.value||deal?.calNotes||'').trim();
   let url=baseCalUrl.includes('://')?baseCalUrl:'https://'+baseCalUrl;
   // Strip any trailing slashes then ensure clean URL
   url=url.replace(/\/+$/,'');
@@ -3390,17 +3399,50 @@ function openWarmCallSheet(dealId){
           ${(()=>{
             const calUrl=str(mc.calendlyUrl).trim();
             if(!calUrl) return '';
-            const ianaTz=clientIanaTz(mc.name)||'';
-            const fullUrl=calUrl.includes('://')?calUrl:'https://'+calUrl;
-            return `<!-- Calendly Availability Widget -->
+            // Build prefill lines — same as deal card
+            const wcPrefillLines=[];
+            if(deal.company) wcPrefillLines.push('Business: '+deal.company);
+            if(deal.website) wcPrefillLines.push('Website: '+deal.website);
+            const wcCalAddr=str(deal.address||deal.location||'').trim();
+            if(wcCalAddr) wcPrefillLines.push('Address: '+wcCalAddr);
+            if(deal.email) wcPrefillLines.push('Email: '+deal.email);
+            if(deal.email2) wcPrefillLines.push('Contact email: '+deal.email2);
+            if(deal.phone) wcPrefillLines.push('Business Phone: '+deal.phone);
+            if(deal.contact && deal.contact!==deal.company) wcPrefillLines.push('Contact: '+deal.contact);
+            if(deal.mobilePhone) wcPrefillLines.push('Mobile Phone: '+deal.mobilePhone);
+            wcPrefillLines.push('Instructions: ');
+            const wcNameVal=deal.calName!=null?deal.calName:(deal.contact||deal.company||'');
+            const wcEmailVal=deal.calEmail!=null?deal.calEmail:(deal.email||'');
+            const wcNotesVal=deal.calNotes!=null?deal.calNotes:wcPrefillLines.join('\n');
+            return `<!-- Calendly Booking Widget -->
             <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden">
               <div style="background:#7c3aed;padding:10px 16px;color:#fff;display:flex;justify-content:space-between;align-items:center">
                 <div style="font-size:13px;font-weight:700">${esc(mc.name)}'s Availability</div>
                 ${info.timeZone?'<div style="font-size:11px;font-weight:600;background:rgba(255,255,255,.25);padding:2px 8px;border-radius:10px">'+esc(info.timeZone)+'</div>':''}
               </div>
-              <div style="height:500px">
-                <iframe src="${esc(fullUrl)}${fullUrl.includes('?')?'&':'?'}hide_event_type_details=1&hide_gdpr_banner=1${ianaTz?'&timezone='+encodeURIComponent(ianaTz):''}"
-                  style="width:100%;height:100%;border:none" loading="lazy"></iframe>
+              <div style="padding:16px">
+                <div style="margin-bottom:6px">
+                  <label style="font-size:11px;color:#6b7280;font-weight:600">Guest Name</label>
+                  <input type="text" id="wc-cal-prefill-name" value="${esc(wcNameVal)}"
+                    oninput="savePrefillField('${esc(deal.id)}','calName',this.value)"
+                    style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px">
+                </div>
+                <div style="margin-bottom:6px">
+                  <label style="font-size:11px;color:#6b7280;font-weight:600">Guest Email</label>
+                  <input type="text" id="wc-cal-prefill-email" value="${esc(wcEmailVal)}"
+                    oninput="savePrefillField('${esc(deal.id)}','calEmail',this.value)"
+                    style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px">
+                </div>
+                <div style="margin-bottom:8px">
+                  <label style="font-size:11px;color:#6b7280;font-weight:600">Additional Info / Instructions</label>
+                  <textarea id="wc-cal-prefill-notes" rows="5"
+                    oninput="savePrefillField('${esc(deal.id)}','calNotes',this.value)"
+                    style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px;resize:vertical">${esc(wcNotesVal)}</textarea>
+                </div>
+                <button style="width:100%;padding:10px;border-radius:8px;border:none;background:#7c3aed;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)"
+                  onclick="openCalendlyFromWarmCall('${esc(deal.id)}','${esc(calUrl)}','${esc(mc.name)}')">
+                  Open Calendar & Book
+                </button>
               </div>
             </div>`;
           })()}
