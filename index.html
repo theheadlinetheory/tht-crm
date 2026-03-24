@@ -2859,25 +2859,6 @@ function openCalendlyFromWarmCall(dealId, baseCalUrl, clientName){
   openCalendlyEmbed(dealId, baseCalUrl, clientName, name, email, notes);
 }
 
-// Re-initialize the inline Calendly widget when prefill fields change (debounced)
-let _wcCalTimer=null;
-function updateWcCalendlyPrefill(){
-  if(_wcCalTimer) clearTimeout(_wcCalTimer);
-  _wcCalTimer=setTimeout(()=>{
-    const container=document.getElementById('wc-calendly-inline');
-    if(!container || typeof Calendly==='undefined') return;
-    const calUrl=container.dataset.url;
-    const name=(document.getElementById('wc-cal-prefill-name')?.value||'').trim();
-    const email=(document.getElementById('wc-cal-prefill-email')?.value||'').trim();
-    const notes=(document.getElementById('wc-cal-prefill-notes')?.value||'').trim();
-    // Calendly inline widget doesn't support live prefill updates —
-    // the prefill is baked in when the user reaches the booking form step.
-    // Store updated values so the event_scheduled handler has them.
-    container.dataset.name=name;
-    container.dataset.email=email;
-    container.dataset.notes=notes;
-  },500);
-}
 
 function openCalendlyEmbed(dealId, baseCalUrl, clientName, overrideName, overrideEmail, overrideNotes){
   calendlyBookingDealId=dealId;
@@ -3503,7 +3484,6 @@ function openWarmCallSheet(dealId){
           ${(()=>{
             const calUrl=str(mc.calendlyUrl).trim();
             if(!calUrl) return '';
-            // Build prefill lines — same as deal card
             const wcPrefillLines=[];
             if(deal.company) wcPrefillLines.push('Business: '+deal.company);
             if(deal.website) wcPrefillLines.push('Website: '+deal.website);
@@ -3518,40 +3498,34 @@ function openWarmCallSheet(dealId){
             const wcNameVal=deal.calName!=null?deal.calName:(deal.contact||deal.company||'');
             const wcEmailVal=deal.calEmail!=null?deal.calEmail:(deal.email||'');
             const wcNotesVal=deal.calNotes!=null?deal.calNotes:wcPrefillLines.join('\n');
-            const ianaTz=clientIanaTz(mc.name);
-            const calUrlObj=new URL(calUrl.includes('://')?calUrl:'https://'+calUrl);
-            if(ianaTz) calUrlObj.searchParams.set('timezone',ianaTz);
-            const finalCalUrl=calUrlObj.toString();
-            return `<!-- Calendly Inline Booking Widget — shows available times directly -->
-            <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden">
-              <div style="background:#7c3aed;padding:10px 16px;color:#fff;display:flex;justify-content:space-between;align-items:center">
-                <div style="font-size:13px;font-weight:700">📅 ${esc(mc.name)}'s Available Times — Book Directly</div>
-                ${info.timeZone?'<div style="font-size:11px;font-weight:600;background:rgba(255,255,255,.25);padding:2px 8px;border-radius:10px">'+esc(info.timeZone)+'</div>':''}
-              </div>
-              <div style="padding:12px 16px">
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            return `<!-- Quick Book — compact prefill + one-click Calendly popup -->
+            <div style="background:#fff;border-radius:12px;border:2px solid #7c3aed;overflow:hidden">
+              <div style="padding:12px 16px;display:flex;flex-direction:column;gap:8px">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
                   <div>
                     <label style="font-size:10px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.3px">Guest Name</label>
                     <input type="text" id="wc-cal-prefill-name" value="${esc(wcNameVal)}"
-                      oninput="savePrefillField('${esc(deal.id)}','calName',this.value);updateWcCalendlyPrefill()"
+                      oninput="savePrefillField('${esc(deal.id)}','calName',this.value)"
                       style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px">
                   </div>
                   <div>
                     <label style="font-size:10px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.3px">Guest Email</label>
                     <input type="text" id="wc-cal-prefill-email" value="${esc(wcEmailVal)}"
-                      oninput="savePrefillField('${esc(deal.id)}','calEmail',this.value);updateWcCalendlyPrefill()"
+                      oninput="savePrefillField('${esc(deal.id)}','calEmail',this.value)"
                       style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px">
                   </div>
                 </div>
-                <details style="margin-bottom:8px">
-                  <summary style="font-size:10px;color:#6b7280;font-weight:600;cursor:pointer;text-transform:uppercase;letter-spacing:.3px">Additional Info / Instructions</summary>
-                  <textarea id="wc-cal-prefill-notes" rows="4"
+                <div>
+                  <label style="font-size:10px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.3px">Additional Info</label>
+                  <textarea id="wc-cal-prefill-notes" rows="3"
                     oninput="savePrefillField('${esc(deal.id)}','calNotes',this.value)"
-                    style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;font-family:var(--font);margin-top:4px;resize:vertical">${esc(wcNotesVal)}</textarea>
-                </details>
+                    style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:11px;font-family:var(--font);margin-top:2px;resize:vertical">${esc(wcNotesVal)}</textarea>
+                </div>
+                <button style="width:100%;padding:12px;border-radius:8px;border:none;background:#7c3aed;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--font);display:flex;align-items:center;justify-content:center;gap:8px"
+                  onclick="openCalendlyFromWarmCall('${esc(deal.id)}','${esc(calUrl)}','${esc(mc.name)}')">
+                  📅 Book on ${esc(mc.name)}'s Calendar
+                </button>
               </div>
-              <div id="wc-calendly-inline" data-url="${esc(finalCalUrl)}" data-name="${esc(wcNameVal)}" data-email="${esc(wcEmailVal)}" data-notes="${esc(wcNotesVal)}" data-deal-id="${esc(deal.id)}" data-client-name="${esc(mc.name)}"
-                style="min-height:660px;width:100%;border-top:1px solid #e2e8f0"></div>
             </div>`;
           })()}
         </div>
@@ -3662,27 +3636,6 @@ function openWarmCallSheet(dealId){
   </div>`;
 
   document.body.insertAdjacentHTML('beforeend',h);
-
-  // Initialize inline Calendly widget in warm call sheet
-  const wcCalContainer=document.getElementById('wc-calendly-inline');
-  if(wcCalContainer && typeof Calendly!=='undefined'){
-    const calUrl=wcCalContainer.dataset.url;
-    const calName=wcCalContainer.dataset.name;
-    const calEmail=wcCalContainer.dataset.email;
-    const calNotes=wcCalContainer.dataset.notes;
-    const calDealId=wcCalContainer.dataset.dealId;
-    const calClientName=wcCalContainer.dataset.clientName;
-    calendlyBookingDealId=calDealId;
-    Calendly.initInlineWidget({
-      url: calUrl,
-      parentElement: wcCalContainer,
-      prefill: {
-        name: calName,
-        email: calEmail,
-        customAnswers: { a1: calNotes }
-      }
-    });
-  }
 
   // Initialize appointment map if container exists
   const mapEl=document.getElementById('warm-call-map');
