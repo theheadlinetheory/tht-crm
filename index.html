@@ -668,6 +668,10 @@ async function deleteFirebaseUser(uid){
 // CHANGE THIS to your deployed Apps Script URL:
 const API_URL = "https://script.google.com/macros/s/AKfycbwd4j6VLMVeLGJepqvSKp6Uh6UYNgma50tAx_-ILxL2jzlJWRBJoaJA57f7R_GXrlH_/exec";
 const SYNC_INTERVAL = 30000;
+
+// ─── LeadHero Dialer Integration ───
+const LEADHERO_ORG = 'tht';
+const LEADHERO_APP = 'https://app.leadhero.io/organization/' + LEADHERO_ORG;
 // Restore deleted-ID sets from localStorage so deletions survive page refresh
 const deletedDealIds = new Set(JSON.parse(localStorage.getItem('tht_deletedDeals')||'[]'));
 const deletedActivityIds = new Set(JSON.parse(localStorage.getItem('tht_deletedActs')||'[]'));
@@ -1462,6 +1466,32 @@ function findClientForDeal(deal){
 }
 
 // Forward deal to matched client via Apps Script (email + optional SMS)
+// ─── LeadHero Dialer Integration ───
+async function pushDealToLeadHero(dealId){
+  const btn=document.getElementById('leadhero-push-btn');
+  if(btn){btn.disabled=true;btn.textContent='Pushing to LeadHero...';}
+  try{
+    const res=await apiPost('push_to_leadhero',{dealId});
+    if(res.ok){
+      const deal=state.deals.find(d=>d.id===dealId);
+      if(deal && res.leadHeroId) deal.leadHeroId=res.leadHeroId;
+      if(btn){
+        btn.outerHTML=`<a href="${esc(res.leadHeroUrl||LEADHERO_APP+'/leads/'+res.leadHeroId)}" target="_blank" rel="noopener" class="btn"
+          style="width:100%;justify-content:center;gap:6px;font-size:13px;text-decoration:none;display:flex;background:#f97316;border-color:#f97316;color:#fff;font-weight:700"
+          onclick="event.stopPropagation()">
+          📞 Open in LeadHero — Call
+        </a>`;
+      }
+    } else {
+      alert('LeadHero push failed: '+(res.error||'Unknown error'));
+      if(btn){btn.disabled=false;btn.textContent='📞 Push to LeadHero Dialer';}
+    }
+  }catch(e){
+    alert('Error pushing to LeadHero: '+e.message);
+    if(btn){btn.disabled=false;btn.textContent='📞 Push to LeadHero Dialer';}
+  }
+}
+
 async function forwardDealToClient(dealId){
   const deal=state.deals.find(d=>d.id===dealId);
   if(!deal) return;
@@ -4833,11 +4863,31 @@ function renderDealModal(deal){
   if(deal.pipeline==='Acquisition'){
     const discCalUrl=buildCalendlyUrl('https://calendly.com/aidan-theheadlinetheory/discovery-call-with-the-headline-theory-clone', deal);
     h+=`<div style="margin:0 0 8px 0">
-      <a href="${esc(discCalUrl)}" target="_blank" rel="noopener" class="btn btn-primary" 
+      <a href="${esc(discCalUrl)}" target="_blank" rel="noopener" class="btn btn-primary"
         style="width:100%;justify-content:center;gap:6px;font-size:13px;text-decoration:none;display:flex;background:#2563eb;border-color:#2563eb"
         onclick="event.stopPropagation()">
         📅 Book Discovery Call
       </a>
+    </div>`;
+  }
+
+  // LeadHero Dialer — Push to LeadHero / Open in LeadHero
+  if(isAdmin() && (deal.phone || deal.mobilePhone)){
+    const hasLH = deal.leadHeroId && String(deal.leadHeroId).trim() !== '';
+    const lhUrl = hasLH ? LEADHERO_APP + '/leads/' + deal.leadHeroId : '';
+    h+=`<div style="margin:0 0 8px 0">
+      ${hasLH
+        ? `<a href="${esc(lhUrl)}" target="_blank" rel="noopener" class="btn"
+            style="width:100%;justify-content:center;gap:6px;font-size:13px;text-decoration:none;display:flex;background:#f97316;border-color:#f97316;color:#fff;font-weight:700"
+            onclick="event.stopPropagation()">
+            📞 Open in LeadHero — Call
+          </a>`
+        : `<button class="btn" id="leadhero-push-btn"
+            style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#f97316;border-color:#f97316;color:#fff;font-weight:700"
+            onclick="pushDealToLeadHero('${esc(deal.id)}')">
+            📞 Push to LeadHero Dialer
+          </button>`
+      }
     </div>`;
   }
 
