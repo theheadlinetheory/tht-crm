@@ -1475,8 +1475,9 @@ async function pushDealToLeadHero(dealId){
     if(res.ok){
       const deal=state.deals.find(d=>d.id===dealId);
       if(deal && res.leadHeroId) deal.leadHeroId=res.leadHeroId;
-      // Open LeadHero immediately
-      const lhUrl=LEADHERO_APP+'/leads';
+      // Open LeadHero immediately — search by phone so lead is front and center
+      const lhPhone = deal ? (deal.phone || deal.mobilePhone || '').replace(/[^\d+]/g,'') : '';
+      const lhUrl=LEADHERO_APP+'/leads' + (lhPhone ? '?search='+encodeURIComponent(lhPhone) : '');
       window.open(lhUrl,'_blank');
       if(btn){
         btn.outerHTML=`<a href="${esc(lhUrl)}" target="_blank" rel="noopener" class="btn"
@@ -4891,7 +4892,8 @@ function renderDealModal(deal){
   // LeadHero Dialer — Call button (auto-syncs if not yet in LeadHero)
   if(isAdmin() && (deal.phone || deal.mobilePhone)){
     const hasLH = deal.leadHeroId && String(deal.leadHeroId).trim() !== '';
-    const lhUrl = LEADHERO_APP + '/leads';
+    const lhPhone = (deal.phone || deal.mobilePhone || '').replace(/[^\d+]/g,'');
+    const lhUrl = LEADHERO_APP + '/leads?search=' + encodeURIComponent(lhPhone);
     h+=`<div style="margin:0 0 8px 0">
       ${hasLH
         ? `<a href="${esc(lhUrl)}" target="_blank" rel="noopener" class="btn"
