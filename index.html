@@ -1537,6 +1537,13 @@ function showForwardPreview(deal, client){
   const leadLocation=deal.location||'';
   const smartleadUrl=deal.smartleadUrl||'';
   const notifyEmails=str(client.notifyEmails).split(',').map(e=>e.trim()).filter(e=>e);
+  // Build CC list to show in preview — mirrors Code.gs buildCcList()
+  const PREVIEW_ALWAYS_CC=['aidan@theheadlinetheory.com','lars@theheadlinetheory.com'];
+  const PREVIEW_EXTRA_CCS={'Dallas Land Care':['pdirlis@gmail.com']};
+  const previewCCs=PREVIEW_ALWAYS_CC.slice();
+  const cn=client.name||'';
+  for(const k in PREVIEW_EXTRA_CCS){if(cn.toLowerCase().includes(k.toLowerCase())||k.toLowerCase().includes(cn.toLowerCase())){previewCCs.push(...PREVIEW_EXTRA_CCS[k]);break;}}
+
 
   const leadEmail2=deal.email2||'';
   const leadEmail3=deal.email3||'';
@@ -1584,7 +1591,10 @@ function showForwardPreview(deal, client){
     <div style="padding:16px 20px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center">
       <div>
         <h3 style="margin:0;font-size:16px;color:#111">Preview: Email to ${esc(client.name)}</h3>
-        <p style="margin:4px 0 0;font-size:12px;color:#6b7280">Sending to: ${esc(notifyEmails.join(', ')||'No emails configured!')}</p>
+        <div style="margin-top:6px;font-size:12px;color:#6b7280;line-height:1.6">
+          <div><strong style="color:#374151">TO:</strong> ${esc(notifyEmails.join(', ')||'No emails configured!')}</div>
+          <div><strong style="color:#374151">CC:</strong> ${esc(previewCCs.join(', '))}</div>
+        </div>
       </div>
       <button onclick="this.closest('#fwd-preview-overlay').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9ca3af;padding:4px">×</button>
     </div>
@@ -2729,6 +2739,14 @@ function openSendToClientPreview(dealId, clientName){
   const fwdEmail=info.forwardEmail||info.primaryEmail||'';
   const message=buildLeadMessage(deal, clientName);
   const sendMode=threadId?'Replying to lead delivery thread':'Direct email to '+fwdEmail;
+  // Build recipient preview — mirrors Code.gs
+  const _mc=state.clients.find(c=>c.name===clientName);
+  const _toEmail=_mc?(str(_mc.notifyEmail||_mc.notifyEmails).split(',')[0].trim()||fwdEmail):fwdEmail;
+  const _ALWAYS_CC=['aidan@theheadlinetheory.com','lars@theheadlinetheory.com'];
+  const _EXTRA_CCS={'Dallas Land Care':['pdirlis@gmail.com']};
+  const _ccs=_ALWAYS_CC.slice();
+  for(const k in _EXTRA_CCS){if(clientName.toLowerCase().includes(k.toLowerCase())||k.toLowerCase().includes(clientName.toLowerCase())){_ccs.push(..._EXTRA_CCS[k]);break;}}
+
 
   const overlay=document.createElement('div');
   overlay.id='send-preview-overlay';
@@ -2737,7 +2755,11 @@ function openSendToClientPreview(dealId, clientName){
     <div style="padding:16px 20px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center">
       <div>
         <div style="font-size:15px;font-weight:700;color:#1e293b">Send to ${esc(clientName)}</div>
-        <div style="font-size:11px;color:#6b7280;margin-top:2px">${esc(sendMode)} from contact@theheadlinetheory.com</div>
+        <div style="font-size:11px;color:#6b7280;margin-top:4px;line-height:1.5">
+          <div><strong style="color:#374151">TO:</strong> ${esc(_toEmail)}</div>
+          <div><strong style="color:#374151">CC:</strong> ${esc(_ccs.join(', '))}</div>
+          <div style="margin-top:2px;color:#9ca3af">${esc(sendMode)} from contact@theheadlinetheory.com</div>
+        </div>
       </div>
       <button onclick="document.getElementById('send-preview-overlay').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9ca3af;padding:4px">x</button>
     </div>
