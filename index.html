@@ -1215,7 +1215,8 @@ function openEnlargedMap(dealId, clientName){
       <div id="sa-enlarged-map" style="flex:1;min-height:0"></div>
     </div>
   `;
-  overlay.addEventListener('click', closeEnlargedMap);
+  overlay.addEventListener('mousedown', function(e){overlay._mdownTarget=e.target;});
+  overlay.addEventListener('click', function(e){if(e.target===overlay&&overlay._mdownTarget===overlay)closeEnlargedMap();});
   document.body.appendChild(overlay);
 
   setTimeout(() => {
@@ -4180,7 +4181,7 @@ function renderRerunTab(){
 
 function renderMarketSettingsModal(){
   const ms = state.rerunMarketSettings;
-  let h = `<div class="modal-overlay" onclick="state.rerunShowMarketModal=false;render()">
+  let h = `<div class="modal-overlay" onmousedown="this._mdownTarget=event.target" onclick="if(event.target===this&&this._mdownTarget===this){state.rerunShowMarketModal=false;render()}">
     <div class="modal" style="width:560px" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h3>⚙️ Market Re-Run Settings</h3>
@@ -4686,7 +4687,7 @@ function renderDealModal(deal){
   const pending=dealActs.filter(a=>!a.done&&String(a.done)!=="TRUE");
   const completed=dealActs.filter(a=>a.done||String(a.done)==="TRUE");
 
-  let h=`<div class="modal-overlay" onclick="closeDealModal()">
+  let h=`<div class="modal-overlay" onmousedown="this._mdownTarget=event.target" onclick="if(event.target===this&&this._mdownTarget===this)closeDealModal()">
     <div class="modal" style="width:520px" onclick="event.stopPropagation()">
       <div class="modal-header"><h3>Edit Deal</h3><button class="modal-close" onclick="closeDealModal()">×</button></div>
       <div class="modal-body">
@@ -5132,7 +5133,7 @@ function renderNewDealModal(stages){
   const fields = isClientView 
     ? ["company:Company/Name","contact:Contact Name","email:Email","phone:Phone","location:Address/Location"]
     : ["company:Company","contact:Contact Name","email:Email","phone:Phone","website:Website"];
-  return`<div class="modal-overlay" onclick="state.showNew=false;render()">
+  return`<div class="modal-overlay" onmousedown="this._mdownTarget=event.target" onclick="if(event.target===this&&this._mdownTarget===this){state.showNew=false;render()}">
     <div class="modal" style="width:440px" onclick="event.stopPropagation()">
       <div class="modal-header"><h3>${isClientView?'New Lead':'New Deal'}</h3><button class="modal-close" onclick="state.showNew=false;render()">×</button></div>
       <div class="modal-body">
@@ -5162,7 +5163,7 @@ function renderNewDealModal(stages){
 function renderAddClientModal(){
   const fS=`width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:var(--font);outline:none;margin-top:3px`;
   const lS=`font-size:10px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;display:block;margin-top:10px`;
-  return`<div class="modal-overlay" onclick="state.showAddClient=false;render()">
+  return`<div class="modal-overlay" onmousedown="this._mdownTarget=event.target" onclick="if(event.target===this&&this._mdownTarget===this){state.showAddClient=false;render()}">
     <div class="modal" style="width:420px;max-height:90vh;overflow-y:auto" onclick="event.stopPropagation()">
       <div style="padding:20px">
         <h3 style="margin:0 0 4px;font-size:16px;font-weight:800">Add Client</h3>
