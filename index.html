@@ -3534,7 +3534,7 @@ function openWarmCallSheet(dealId){
                     style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:11px;font-family:var(--font);margin-top:2px;resize:vertical">${esc(wcNotesVal)}</textarea>
                 </div>
               </div>
-              <div id="wc-calendly-inline" data-deal-id="${esc(deal.id)}" data-base-url="${esc(calUrl)}" data-client="${esc(mc.name)}" style="min-height:660px"></div>
+              <div id="wc-calendly-inline" data-deal-id="${esc(deal.id)}" data-base-url="${esc(calUrl)}" data-client="${esc(mc.name)}" style="min-height:500px;height:500px;overflow:hidden"></div>
             </div>`;
           })()}
         </div>
@@ -3809,6 +3809,8 @@ function initWcCalendlyInline(baseUrl, clientName, dealId){
   const email=emailEl?emailEl.value:'';
   const notes=notesEl?notesEl.value:'';
   const url=new URL(baseUrl.includes('://')?baseUrl:'https://'+baseUrl);
+  url.searchParams.set('hide_event_type_details','1');
+  url.searchParams.set('hide_gdpr_banner','1');
   if(name) url.searchParams.set('name',name);
   if(email) url.searchParams.set('email',email);
   if(notes) url.searchParams.set('a1',notes);
@@ -3816,6 +3818,12 @@ function initWcCalendlyInline(baseUrl, clientName, dealId){
   if(ianaTz) url.searchParams.set('timezone',ianaTz);
   container.innerHTML='';
   Calendly.initInlineWidget({url:url.toString(),parentElement:container,prefill:{},utm:{}});
+  // Fix iframe height once loaded
+  const observer=new MutationObserver(()=>{
+    const iframe=container.querySelector('iframe');
+    if(iframe){iframe.style.height='500px';observer.disconnect();}
+  });
+  observer.observe(container,{childList:true,subtree:true});
 }
 
 let _wcCalRefreshTimer=null;
