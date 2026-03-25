@@ -1522,7 +1522,7 @@ async function forwardDealToClient(dealId){
   showForwardPreview(deal, client);
 }
 
-function showForwardPreview(deal, client){
+async function showForwardPreview(deal, client){
   const overlay=document.createElement('div');
   overlay.id='fwd-preview-overlay';
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:20000;display:flex;align-items:center;justify-content:center';
@@ -1536,13 +1536,19 @@ function showForwardPreview(deal, client){
   const leadWebsite=deal.website||'';
   const leadLocation=deal.location||'';
   const smartleadUrl=deal.smartleadUrl||'';
-  const notifyEmails=str(client.notifyEmails).split(',').map(e=>e.trim()).filter(e=>e);
-  // Build CC list to show in preview — mirrors Code.gs buildCcList()
-  const PREVIEW_ALWAYS_CC=['aidan@theheadlinetheory.com','lars@theheadlinetheory.com'];
-  const PREVIEW_EXTRA_CCS={'Dallas Land Care':['pdirlis@gmail.com']};
-  const previewCCs=PREVIEW_ALWAYS_CC.slice();
-  const cn=client.name||'';
-  for(const k in PREVIEW_EXTRA_CCS){if(cn.toLowerCase().includes(k.toLowerCase())||k.toLowerCase().includes(cn.toLowerCase())){previewCCs.push(...PREVIEW_EXTRA_CCS[k]);break;}}
+
+  // Get REAL recipients from backend — single source of truth
+  let recipientTo='Loading...';
+  let recipientCCs=[];
+  let recipientThread='';
+  try{
+    const preview=await apiPost('preview_email_recipients',{dealId:deal.id,clientName:client.name,emailAction:'forward_to_client'});
+    if(preview&&preview.ok){
+      recipientTo=preview.to||'NO EMAIL CONFIGURED';
+      recipientCCs=preview.cc||[];
+      recipientThread=preview.threadFound?('Thread: '+preview.threadSubject):'New email (no existing thread)';
+    }
+  }catch(e){ recipientTo='Error loading recipients'; }
 
 
   const leadEmail2=deal.email2||'';
@@ -1591,9 +1597,11 @@ function showForwardPreview(deal, client){
     <div style="padding:16px 20px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center">
       <div>
         <h3 style="margin:0;font-size:16px;color:#111">Preview: Email to ${esc(client.name)}</h3>
-        <div style="margin-top:6px;font-size:12px;color:#6b7280;line-height:1.6">
-          <div><strong style="color:#374151">TO:</strong> ${esc(notifyEmails.join(', ')||'No emails configured!')}</div>
-          <div><strong style="color:#374151">CC:</strong> ${esc(previewCCs.join(', '))}</div>
+        <div style="margin-top:6px;font-size:12px;line-height:1.8;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px 12px">
+          <div><strong style="color:#dc2626">TO:</strong> <span style="color:#111;font-weight:600">${esc(recipientTo)}</span></div>
+          <div><strong style="color:#dc2626">CC:</strong> <span style="color:#111;font-weight:600">${esc(recipientCCs.join(', ')||'none')}</span></div>
+          <div><strong style="color:#6b7280">FROM:</strong> contact@theheadlinetheory.com</div>
+          <div style="color:#6b7280;font-size:11px;margin-top:2px">${esc(recipientThread)}</div>
         </div>
       </div>
       <button onclick="this.closest('#fwd-preview-overlay').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9ca3af;padding:4px">×</button>
@@ -2731,21 +2739,26 @@ function buildLeadMessage(deal, clientName){
   return lines.join('\n');
 }
 
-function openSendToClientPreview(dealId, clientName){
+async function openSendToClientPreview(dealId, clientName){
   const deal=state.deals.find(d=>d.id===dealId);
   if(!deal) return;
   const threadId=CLIENT_THREAD_IDS[clientName]||'';
   const info=lookupClientInfo(clientName)||{};
   const fwdEmail=info.forwardEmail||info.primaryEmail||'';
   const message=buildLeadMessage(deal, clientName);
-  const sendMode=threadId?'Replying to lead delivery thread':'Direct email to '+fwdEmail;
-  // Build recipient preview — mirrors Code.gs
-  const _mc=state.clients.find(c=>c.name===clientName);
-  const _toEmail=_mc?(str(_mc.notifyEmail||_mc.notifyEmails).split(',')[0].trim()||fwdEmail):fwdEmail;
-  const _ALWAYS_CC=['aidan@theheadlinetheory.com','lars@theheadlinetheory.com'];
-  const _EXTRA_CCS={'Dallas Land Care':['pdirlis@gmail.com']};
-  const _ccs=_ALWAYS_CC.slice();
-  for(const k in _EXTRA_CCS){if(clientName.toLowerCase().includes(k.toLowerCase())||k.toLowerCase().includes(clientName.toLowerCase())){_ccs.push(..._EXTRA_CCS[k]);break;}}
+
+  // Get REAL recipients from backend
+  let _toEmail='Loading...';
+  let _ccs=[];
+  let _threadInfo='';
+  try{
+    const preview=await apiPost('preview_email_recipients',{dealId:dealId,clientName:clientName,emailAction:'send_to_client_thread'});
+    if(preview&&preview.ok){
+      _toEmail=preview.to||'NO EMAIL CONFIGURED';
+      _ccs=preview.cc||[];
+      _threadInfo=preview.threadFound?('Thread: '+preview.threadSubject):'New email (no existing thread)';
+    }
+  }catch(e){ _toEmail='Error loading recipients'; }
 
 
   const overlay=document.createElement('div');
@@ -2755,10 +2768,11 @@ function openSendToClientPreview(dealId, clientName){
     <div style="padding:16px 20px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center">
       <div>
         <div style="font-size:15px;font-weight:700;color:#1e293b">Send to ${esc(clientName)}</div>
-        <div style="font-size:11px;color:#6b7280;margin-top:4px;line-height:1.5">
-          <div><strong style="color:#374151">TO:</strong> ${esc(_toEmail)}</div>
-          <div><strong style="color:#374151">CC:</strong> ${esc(_ccs.join(', '))}</div>
-          <div style="margin-top:2px;color:#9ca3af">${esc(sendMode)} from contact@theheadlinetheory.com</div>
+        <div style="margin-top:6px;font-size:12px;line-height:1.8;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px 12px">
+          <div><strong style="color:#dc2626">TO:</strong> <span style="color:#111;font-weight:600">${esc(_toEmail)}</span></div>
+          <div><strong style="color:#dc2626">CC:</strong> <span style="color:#111;font-weight:600">${esc(_ccs.join(', ')||'none')}</span></div>
+          <div><strong style="color:#6b7280">FROM:</strong> contact@theheadlinetheory.com</div>
+          <div style="color:#6b7280;font-size:11px;margin-top:2px">${esc(_threadInfo)}</div>
         </div>
       </div>
       <button onclick="document.getElementById('send-preview-overlay').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9ca3af;padding:4px">x</button>
