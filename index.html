@@ -3890,7 +3890,7 @@ async function loadArchive(silent){
     }
   }catch(e){ console.error('loadArchive error:',e); }
   state.archiveLoaded=true;
-  if(!silent) render();
+  render();
 }
 
 function renderArchiveTab(){
@@ -4414,7 +4414,7 @@ function render(){
       ${isAdmin()&&state.pipeline==='client_leads'?'<button class="btn btn-ghost" onclick="openAddClient()">+ Client</button>':''}
       <button class="btn btn-primary" onclick="openNewDeal()">+ ${isClient()?'Lead':'Deal'}</button>
       ${isClient()?`<button class="btn btn-ghost" onclick="openClientArchive()" title="View archived leads">📦 Archive${clientArchivedDeals.length?' ('+clientArchivedDeals.length+')':''}</button>`:''}
-      ${isEmployee()?`<button class="btn ${state.showEmployeeArchive?'btn-primary':'btn-ghost'}" onclick="state.showEmployeeArchive=!state.showEmployeeArchive;render()" title="View archived leads">📦 Archive</button>`:''}
+      ${isEmployee()||isAdmin()?`<button class="btn ${state.showEmployeeArchive?'btn-primary':'btn-ghost'}" onclick="state.showEmployeeArchive=!state.showEmployeeArchive;render()" title="View archived leads">📦 Archive</button>`:''}
       ${isAdmin()?`<button class="btn btn-ghost" onclick="openSettings()" title="Settings" style="font-size:16px;padding:6px 10px">⚙️</button>`:''}
       ${isClient()?`<button class="btn btn-ghost" onclick="openClientStageSettings()" title="Edit stages" style="font-size:16px;padding:6px 10px">⚙️</button>`:''}
       ${renderUserMenu()}
@@ -4428,8 +4428,8 @@ function render(){
   ${renderOverdueBanner()}
   ${renderBookedMeetingsBanner()}`;
 
-  // ─── Employee Archive View ───
-  if(isEmployee() && state.showEmployeeArchive){
+  // ─── Employee/Admin Archive View ───
+  if((isEmployee()||isAdmin()) && state.showEmployeeArchive){
     // If archive not loaded yet (edge case), trigger background load and show what we have
     if(!state.archiveLoaded){ loadArchive(); }
     // Filter to Client pipeline only
