@@ -3498,34 +3498,43 @@ function openWarmCallSheet(dealId){
             const wcNameVal=deal.calName!=null?deal.calName:(deal.contact||deal.company||'');
             const wcEmailVal=deal.calEmail!=null?deal.calEmail:(deal.email||'');
             const wcNotesVal=deal.calNotes!=null?deal.calNotes:wcPrefillLines.join('\n');
-            return `<!-- Quick Book — compact prefill + one-click Calendly popup -->
+            // Build Calendly inline URL with prefill baked in
+            const _cu=new URL(calUrl.includes('://')?calUrl:'https://'+calUrl);
+            if(wcNameVal) _cu.searchParams.set('name',wcNameVal);
+            if(wcEmailVal) _cu.searchParams.set('email',wcEmailVal);
+            if(wcNotesVal) _cu.searchParams.set('a1',wcNotesVal);
+            const ianaTz=clientIanaTz(mc.name);
+            if(ianaTz) _cu.searchParams.set('timezone',ianaTz);
+            const _calInlineUrl=_cu.toString();
+            return `<!-- Inline Calendly — shows available times directly -->
             <div style="background:#fff;border-radius:12px;border:2px solid #7c3aed;overflow:hidden">
-              <div style="padding:12px 16px;display:flex;flex-direction:column;gap:8px">
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div style="background:#7c3aed;padding:8px 16px;display:flex;justify-content:space-between;align-items:center">
+                <div style="font-size:13px;font-weight:700;color:#fff">📅 Book on ${esc(mc.name)}'s Calendar</div>
+                <button onclick="document.getElementById('wc-cal-prefill-toggle').style.display=document.getElementById('wc-cal-prefill-toggle').style.display==='none'?'block':'none'" style="background:rgba(255,255,255,.2);border:none;color:#fff;font-size:11px;padding:3px 10px;border-radius:6px;cursor:pointer;font-weight:600">Edit Guest Info</button>
+              </div>
+              <div id="wc-cal-prefill-toggle" style="display:none;padding:10px 16px;border-bottom:1px solid #e2e8f0;background:#f5f3ff">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px">
                   <div>
                     <label style="font-size:10px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.3px">Guest Name</label>
                     <input type="text" id="wc-cal-prefill-name" value="${esc(wcNameVal)}"
-                      oninput="savePrefillField('${esc(deal.id)}','calName',this.value)"
+                      oninput="savePrefillField('${esc(deal.id)}','calName',this.value);refreshWcCalendlyInline()"
                       style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px">
                   </div>
                   <div>
                     <label style="font-size:10px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.3px">Guest Email</label>
                     <input type="text" id="wc-cal-prefill-email" value="${esc(wcEmailVal)}"
-                      oninput="savePrefillField('${esc(deal.id)}','calEmail',this.value)"
+                      oninput="savePrefillField('${esc(deal.id)}','calEmail',this.value);refreshWcCalendlyInline()"
                       style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px">
                   </div>
                 </div>
                 <div>
                   <label style="font-size:10px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.3px">Additional Info</label>
-                  <textarea id="wc-cal-prefill-notes" rows="3"
-                    oninput="savePrefillField('${esc(deal.id)}','calNotes',this.value)"
+                  <textarea id="wc-cal-prefill-notes" rows="2"
+                    oninput="savePrefillField('${esc(deal.id)}','calNotes',this.value);refreshWcCalendlyInline()"
                     style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:11px;font-family:var(--font);margin-top:2px;resize:vertical">${esc(wcNotesVal)}</textarea>
                 </div>
-                <button style="width:100%;padding:12px;border-radius:8px;border:none;background:#7c3aed;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--font);display:flex;align-items:center;justify-content:center;gap:8px"
-                  onclick="openCalendlyFromWarmCall('${esc(deal.id)}','${esc(calUrl)}','${esc(mc.name)}')">
-                  📅 Book on ${esc(mc.name)}'s Calendar
-                </button>
               </div>
+              <div id="wc-calendly-inline" data-deal-id="${esc(deal.id)}" data-base-url="${esc(calUrl)}" data-client="${esc(mc.name)}" style="min-height:660px"></div>
             </div>`;
           })()}
         </div>
@@ -3778,6 +3787,45 @@ function openWarmCallSheet(dealId){
         }
       }).catch(()=>{});
   }
+
+  // Initialize Calendly inline widget if container exists
+  const calInlineEl=document.getElementById('wc-calendly-inline');
+  if(calInlineEl && typeof Calendly!=='undefined'){
+    const _baseUrl=calInlineEl.dataset.baseUrl;
+    const _clientName=calInlineEl.dataset.client;
+    const _dealId=calInlineEl.dataset.dealId;
+    initWcCalendlyInline(_baseUrl, _clientName, _dealId);
+  }
+}
+
+function initWcCalendlyInline(baseUrl, clientName, dealId){
+  const container=document.getElementById('wc-calendly-inline');
+  if(!container||typeof Calendly==='undefined') return;
+  calendlyBookingDealId=dealId;
+  const nameEl=document.getElementById('wc-cal-prefill-name');
+  const emailEl=document.getElementById('wc-cal-prefill-email');
+  const notesEl=document.getElementById('wc-cal-prefill-notes');
+  const name=nameEl?nameEl.value:'';
+  const email=emailEl?emailEl.value:'';
+  const notes=notesEl?notesEl.value:'';
+  const url=new URL(baseUrl.includes('://')?baseUrl:'https://'+baseUrl);
+  if(name) url.searchParams.set('name',name);
+  if(email) url.searchParams.set('email',email);
+  if(notes) url.searchParams.set('a1',notes);
+  const ianaTz=clientIanaTz(clientName);
+  if(ianaTz) url.searchParams.set('timezone',ianaTz);
+  container.innerHTML='';
+  Calendly.initInlineWidget({url:url.toString(),parentElement:container,prefill:{},utm:{}});
+}
+
+let _wcCalRefreshTimer=null;
+function refreshWcCalendlyInline(){
+  clearTimeout(_wcCalRefreshTimer);
+  _wcCalRefreshTimer=setTimeout(()=>{
+    const container=document.getElementById('wc-calendly-inline');
+    if(!container) return;
+    initWcCalendlyInline(container.dataset.baseUrl,container.dataset.client,container.dataset.dealId);
+  },1200);
 }
 
 function copyToClipboard(text,btnEl){
