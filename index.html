@@ -4439,7 +4439,7 @@ function render(){
       ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';doDragOver(this)"
       ondragleave="doDragLeave(event,this)"
       ondrop="doDrop('${stageKey}')">
-      <div class="col-header" style="border-top-color:${(()=>{if(state.pipeline!=='client_leads') return stage.color;const _cl=state.clients.find(c=>c.name===stage.label);if(!_cl) return stage.color;const st=str(_cl.clientStanding).toLowerCase()||'neutral';return st==='happy'?'#22c55e':st==='unhappy'?'#ef4444':'#eab308';})()}">
+      <div class="col-header" style="border-top-color:${stage.color}">
         <div>
           <div class="col-title">${esc(stage.label)}${(()=>{if(state.pipeline!=='client_leads') return '';const ci=lookupClientInfo(stage.label);return ci&&ci.timeZone?` <span style="font-size:10px;font-weight:600;color:#94a3b8;background:#f1f5f9;padding:1px 6px;border-radius:8px;letter-spacing:.3px;vertical-align:middle">${esc(ci.timeZone)}</span>`:''})()}</div>
           <div class="col-meta">${sd.length} lead${sd.length!==1?'s':''}${(()=>{if(state.pipeline!=='client_leads') return '';const _cl=state.clients.find(c=>c.name===stage.label);if(!_cl) return '';const st=str(_cl.clientStanding).toLowerCase()||'neutral';const standingMap={happy:{color:'#22c55e',bg:'#f0fdf4',label:'Happy',rule:'Pass all tiers'},neutral:{color:'#eab308',bg:'#fefce8',label:'Neutral',rule:'A & B freely, limit C\'s'},unhappy:{color:'#ef4444',bg:'#fef2f2',label:'Unhappy',rule:'A & B only, hold C\'s'}};const s=standingMap[st];if(!s) return '';return ` <span title="${s.rule}" style="font-size:9px;font-weight:700;color:${s.color};background:${s.bg};padding:1px 6px;border-radius:8px;letter-spacing:.3px;vertical-align:middle;cursor:help;border:1px solid ${s.color}33">${s.label}</span>`;})()}</div>
@@ -5899,7 +5899,7 @@ function renderClientsSettings(){
           <span style="width:12px;height:12px;border-radius:50%;background:${c.color||'#818cf8'};flex-shrink:0"></span>
           <span style="font-size:14px;font-weight:700;color:var(--text)">${esc(c.name)}</span>
         </div>
-        <select onchange="updateClientField('${esc(c.id)}','clientStanding',this.value)"
+        <select onchange="updateClientField('${esc(c.id)}','clientStanding',this.value);debouncedAutoSave();render()"
           style="padding:4px 8px;border-radius:6px;font-size:11px;font-weight:700;font-family:var(--font);cursor:pointer;border:1px solid ${str(c.clientStanding).toLowerCase()==='happy'?'#22c55e':str(c.clientStanding).toLowerCase()==='unhappy'?'#ef4444':'#eab308'};color:${str(c.clientStanding).toLowerCase()==='happy'?'#22c55e':str(c.clientStanding).toLowerCase()==='unhappy'?'#ef4444':'#eab308'};background:${str(c.clientStanding).toLowerCase()==='happy'?'#f0fdf4':str(c.clientStanding).toLowerCase()==='unhappy'?'#fef2f2':'#fefce8'}">
           <option value="happy" ${str(c.clientStanding).toLowerCase()==='happy'?'selected':''}>Happy</option>
           <option value="neutral" ${str(c.clientStanding).toLowerCase()==='neutral'||!str(c.clientStanding).trim()?'selected':''}>Neutral</option>
