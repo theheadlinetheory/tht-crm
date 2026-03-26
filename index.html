@@ -79,6 +79,13 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .deal-bottom { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
 .deal-value { font-size: 12px; font-weight: 700; }
 .deal-tag { font-size: 9.5px; padding: 1px 6px; border-radius: 8px; background: #f3f4f6; color: var(--text-secondary); }
+.owner-tag { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 8px; letter-spacing: .3px; }
+.owner-tag-blue { background: #dbeafe; color: #1d4ed8; }
+.owner-tag-yellow { background: #fef3c7; color: #92400e; }
+.acq-filter-bar { display: flex; align-items: center; gap: 6px; padding: 0 14px; margin-top: -4px; margin-bottom: 4px; }
+.acq-filter-btn { padding: 4px 12px; border-radius: 6px; border: 1px solid var(--border); font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font); background: #fff; color: var(--text-secondary); transition: all .12s; }
+.acq-filter-btn.active { background: var(--purple); color: #fff; border-color: var(--purple); }
+.acq-filter-btn:hover:not(.active) { background: #f0fdf4; border-color: #86efac; }
 .book-discovery-btn { display:block;text-align:center;background:#2563eb;color:#fff;font-size:11px;font-weight:600;padding:5px 8px;border-radius:6px;text-decoration:none;margin:6px 0 2px; }
 .book-discovery-btn:hover { background:#1d4ed8; }
 
@@ -662,6 +669,43 @@ async function deleteFirebaseUser(uid){
   try { await db.collection('users').doc(uid).delete(); }
   catch(e){ alert('Failed to remove user: '+e.message); }
 }
+
+// ─── Campaign Assignments (Firestore) ───
+const OWNER_COLORS = { 'Aidan': { cls: 'owner-tag-blue', label: 'Aidan' }, 'Lars': { cls: 'owner-tag-yellow', label: 'Lars' } };
+async function loadCampaignAssignments(){
+  try {
+    const doc = await db.collection('crm_settings').doc('campaign_assignments').get();
+    if(doc.exists && doc.data().assignments){
+      state.campaignAssignments = doc.data().assignments;
+    }
+  } catch(e){ console.warn('Failed to load campaign assignments:', e); }
+}
+async function saveCampaignAssignment(campaignName, userName){
+  state.campaignAssignments[campaignName] = userName;
+  // Update all deals with this campaign immediately in local state
+  render();
+  try {
+    await db.collection('crm_settings').doc('campaign_assignments').set({ assignments: state.campaignAssignments }, { merge: true });
+  } catch(e){ console.warn('Failed to save campaign assignment:', e); }
+}
+function getOwnerForDeal(deal){
+  if(!deal.campaignName) return null;
+  const owner = state.campaignAssignments[deal.campaignName];
+  if(!owner) return null;
+  return OWNER_COLORS[owner] || { cls: 'owner-tag-blue', label: owner };
+}
+// Listen for real-time changes so both users see updates instantly
+function listenCampaignAssignments(){
+  try {
+    db.collection('crm_settings').doc('campaign_assignments').onSnapshot(doc => {
+      if(doc.exists && doc.data().assignments){
+        state.campaignAssignments = doc.data().assignments;
+        render();
+      }
+    });
+  } catch(e){ console.warn('Campaign assignment listener failed:', e); }
+}
+
 // ═══════════════════════════════════════════════════════════
 // THT CRM — The Headline Theory Deal Pipeline
 // ═══════════════════════════════════════════════════════════
@@ -1726,6 +1770,9 @@ let state = {
   bulkSelected: new Set(),
   // View mode
   viewMode: 'board',
+  // Campaign assignment (acquisition owner split)
+  campaignAssignments: {}, // { campaignName: userName }
+  acquisitionFilter: '', // '' = all, or userName to filter
 };
 
 // ─── API ───
@@ -2059,7 +2106,15 @@ function getStages(){
 // ─── Filter deals for pipeline ───
 function getPipelineDeals(){
   if(state.pipeline==="acquisition"){
-    return state.deals.filter(d=>ACQUISITION_STAGES.some(s=>s.id===d.stage));
+    let acqDeals = state.deals.filter(d=>ACQUISITION_STAGES.some(s=>s.id===d.stage));
+    // Filter by owner if acquisition filter is active
+    if(state.acquisitionFilter){
+      acqDeals = acqDeals.filter(d => {
+        const owner = state.campaignAssignments[d.campaignName];
+        return owner === state.acquisitionFilter;
+      });
+    }
+    return acqDeals;
   }
   if(state.pipeline==="nurture") return state.deals.filter(d=>NURTURE_STAGES.some(s=>s.id===d.stage));
   
@@ -4057,9 +4112,10 @@ function renderListView(deals,stages){
           <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Location</th>
           <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Activities</th>
           <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Created</th>
+          ${state.pipeline==='acquisition'?'<th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Owner</th>':''}
         </tr></thead><tbody>`;
   if(!deals.length){
-    h+=`<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--text-muted)">No deals</td></tr>`;
+    h+=`<tr><td colspan="${state.pipeline==='acquisition'?9:8}" style="padding:20px;text-align:center;color:var(--text-muted)">No deals</td></tr>`;
   }
   for(const d of deals){
     const badge=getActivityBadge(d.id);
@@ -4075,6 +4131,7 @@ function renderListView(deals,stages){
       <td style="padding:8px 10px;color:var(--text-muted)">${esc(d.location||'')}</td>
       <td style="padding:8px 10px">${badge?`<span style="display:inline-flex;align-items:center;gap:3px"><span style="width:7px;height:7px;border-radius:50%;background:${badge.color};display:inline-block"></span><span style="color:${badge.color};font-weight:600;font-size:11px">${badge.count} ${badge.label}</span></span>`:''}</td>
       <td style="padding:8px 10px;color:var(--text-muted);white-space:nowrap">${created}</td>
+      ${state.pipeline==='acquisition'?`<td style="padding:8px 10px">${(()=>{ const ow=getOwnerForDeal(d); return ow?`<span class="owner-tag ${ow.cls}">${esc(ow.label)}</span>`:''; })()}</td>`:''}
     </tr>`;
   }
   h+=`</tbody></table></div></div>`;
@@ -4479,6 +4536,21 @@ function render(){
   ${renderOverdueBanner()}
   ${renderBookedMeetingsBanner()}`;
 
+  // ─── Acquisition Owner Filter Bar ───
+  if(state.pipeline==='acquisition' && (isAdmin()||isEmployee())){
+    const owners = [...new Set(Object.values(state.campaignAssignments))].filter(Boolean);
+    if(owners.length > 0){
+      html+=`<div class="acq-filter-bar">
+        <span style="font-size:11px;font-weight:600;color:var(--text-muted)">Filter:</span>
+        <button class="acq-filter-btn ${state.acquisitionFilter===''?'active':''}" onclick="state.acquisitionFilter='';render()">All</button>
+        ${owners.map(o => {
+          const oc = OWNER_COLORS[o] || {};
+          return `<button class="acq-filter-btn ${state.acquisitionFilter===o?'active':''}" onclick="state.acquisitionFilter='${esc(o)}';render()">${esc(o)}</button>`;
+        }).join('')}
+      </div>`;
+    }
+  }
+
   // ─── Employee/Admin Archive View ───
   if((isEmployee()||isAdmin()) && state.showEmployeeArchive){
     // If archive not loaded yet (edge case), trigger background load and show what we have
@@ -4644,6 +4716,7 @@ function render(){
               ${(()=>{const sa=serviceAreaResults[deal.id];if(!sa||!sa.status)return'';if(sa.status==='in')return'<span class="sa-badge sa-in" title="In service area">&#10003;</span>';if(sa.status==='out')return'<span class="sa-badge sa-out" title="Outside service area">&#10007;</span>';return'<span class="sa-badge sa-unknown" title="Service area unknown">?</span>';})()}
               ${leadAgeBadge(deal)}
               ${deal.leadCategory?`<span class="deal-tag">${esc(deal.leadCategory)}</span>`:''}
+              ${(()=>{ const ow=getOwnerForDeal(deal); return ow?`<span class="owner-tag ${ow.cls}">${esc(ow.label)}</span>`:''; })()}
             </span>
           </div>
           ${deal.emailBody?`<div class="deal-reply-snippet" title="${esc(deal.emailBody)}">${esc(String(deal.emailBody).substring(0,80))}${String(deal.emailBody).length>80?'…':''}</div>`:''}
@@ -5662,6 +5735,7 @@ function renderSettingsPanel(){
     <button class="settings-tab ${settingsTab==='sop'?'active':''}" onclick="settingsTab='sop';refreshSettingsBody()">SOP Sequences</button>
     <button class="settings-tab ${settingsTab==='clients'?'active':''}" onclick="settingsTab='clients';refreshSettingsBody()">Clients</button>
     <button class="settings-tab ${settingsTab==='users'?'active':''}" onclick="settingsTab='users';refreshSettingsBody()">Users</button>
+    <button class="settings-tab ${settingsTab==='campaigns'?'active':''}" onclick="settingsTab='campaigns';refreshSettingsBody()">Campaigns</button>
     <button class="settings-tab ${settingsTab==='leadhero'?'active':''}" onclick="settingsTab='leadhero';refreshSettingsBody()">LeadHero</button>
   </div>
   <div class="settings-body">`;
@@ -5671,6 +5745,7 @@ function renderSettingsPanel(){
   else if(settingsTab==='sop') h+=renderSopSettings();
   else if(settingsTab==='clients') h+=renderClientsSettings();
   else if(settingsTab==='users') h+=renderUsersSettings();
+  else if(settingsTab==='campaigns') h+=renderCampaignAssignSettings();
   else if(settingsTab==='leadhero') h+=renderLeadHeroSettings();
 
   h+=`</div>
@@ -5705,7 +5780,7 @@ function refreshSettingsBody(){
   // Update tab active states
   panel.querySelectorAll('.settings-tab').forEach(btn=>{
     const tab=btn.textContent.trim().toLowerCase();
-    const map={'pipeline stages':'stages','activity types':'activities','sop sequences':'sop','clients':'clients','users':'users'};
+    const map={'pipeline stages':'stages','activity types':'activities','sop sequences':'sop','clients':'clients','users':'users','campaigns':'campaigns','leadhero':'leadhero'};
     btn.classList.toggle('active', map[tab]===settingsTab);
   });
   // Replace only the body content
@@ -5717,10 +5792,13 @@ function refreshSettingsBody(){
   else if(settingsTab==='sop') h=renderSopSettings();
   else if(settingsTab==='clients') h=renderClientsSettings();
   else if(settingsTab==='users') h=renderUsersSettings();
+  else if(settingsTab==='campaigns') h=renderCampaignAssignSettings();
+  else if(settingsTab==='leadhero') h=renderLeadHeroSettings();
   body.innerHTML=h;
   body.scrollTop=0;
   setupSettingsDrag();
   if(settingsTab==='users') loadUsersIntoPanel();
+  if(settingsTab==='campaigns') fetchAcquisitionCampaigns();
 }
 
 function renderStagesSettings(){
@@ -6222,6 +6300,123 @@ async function saveSettingsToSheet(){
 
 // ─── Users Settings (Admin only) ───
 let usersListCache = null;
+// ─── Campaign Assignment Settings ───
+let _fetchedCampaigns = null; // cached list from SmartLead
+function renderCampaignAssignSettings(){
+  const assignments = state.campaignAssignments || {};
+  // Get admin users for the dropdown
+  const adminUsers = (usersListCache||[]).filter(u => u.role==='admin').map(u => u.name||u.email);
+
+  let h = `<div class="settings-section">
+    <h4>📊 Acquisition Campaign Assignments</h4>
+    <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Assign each acquisition campaign to a team member. Leads from that campaign will be tagged with their color on the board.</p>
+    <div id="campaign-assign-container"><div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px">Loading campaigns...</div></div>
+  </div>`;
+  // Auto-fetch campaigns when tab opens
+  setTimeout(()=>fetchAcquisitionCampaigns(), 50);
+  return h;
+}
+
+async function fetchAcquisitionCampaigns(){
+  const container = document.getElementById('campaign-assign-container');
+  if(!container) return;
+
+  // Load admin users if not cached
+  if(!usersListCache || usersListCache.length===0){
+    try { usersListCache = await loadAllUsers(); } catch(e){}
+  }
+  const adminUsers = (usersListCache||[]).filter(u => u.role==='admin').map(u => u.name||u.email);
+
+  // Fetch campaigns from SmartLead via backend
+  if(!_fetchedCampaigns){
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px">Fetching campaigns from SmartLead...</div>';
+    try {
+      const campaigns = await apiGet('get_acquisition_campaigns');
+      if(Array.isArray(campaigns)){
+        _fetchedCampaigns = campaigns;
+      } else {
+        container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--red);font-size:12px">Failed to load campaigns. Try again.</div>';
+        return;
+      }
+    } catch(e){
+      container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--red);font-size:12px">Error: '+esc(e.message)+'</div>';
+      return;
+    }
+  }
+
+  if(!container.parentElement) return; // Panel closed
+  const assignments = state.campaignAssignments || {};
+
+  // Also show any campaigns that have assignments but weren't in the SmartLead list
+  const allNames = new Set(_fetchedCampaigns.map(c=>c.name));
+  const extraAssigned = Object.keys(assignments).filter(n => !allNames.has(n));
+
+  let h = '';
+  if(_fetchedCampaigns.length === 0 && extraAssigned.length === 0){
+    h = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px">No acquisition campaigns found in SmartLead.</div>';
+  } else {
+    h += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <span style="font-size:11px;font-weight:600;color:var(--text-secondary)">${_fetchedCampaigns.length} acquisition campaign${_fetchedCampaigns.length!==1?'s':''}</span>
+      <button class="btn btn-ghost" style="font-size:10px;padding:3px 10px;background:#f9fafb;color:#6b7280;border:1px solid var(--border)" onclick="_fetchedCampaigns=null;fetchAcquisitionCampaigns()">↻ Refresh</button>
+    </div>`;
+
+    for(const camp of _fetchedCampaigns){
+      const assigned = assignments[camp.name] || '';
+      const ownerInfo = assigned ? (OWNER_COLORS[assigned] || { cls:'owner-tag-blue' }) : null;
+      h += `<div style="display:flex;align-items:center;gap:10px;padding:10px;margin-bottom:6px;background:#f9fafb;border:1px solid var(--border);border-radius:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(camp.name)}</div>
+          <div style="font-size:10px;color:var(--text-muted)">${esc(camp.status||'')}</div>
+        </div>
+        ${ownerInfo?`<span class="owner-tag ${ownerInfo.cls}">${esc(assigned)}</span>`:''}
+        <select onchange="assignCampaignOwner('${esc(camp.name).replace(/'/g,"\\'")}',this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:var(--font);min-width:120px">
+          <option value=""${!assigned?' selected':''}>Unassigned</option>
+          ${adminUsers.map(u => `<option value="${esc(u)}"${assigned===u?' selected':''}>${esc(u)}</option>`).join('')}
+        </select>
+      </div>`;
+    }
+
+    if(extraAssigned.length > 0){
+      h += '<div style="margin-top:12px;padding-top:8px;border-top:1px solid var(--border)"><div style="font-size:10px;font-weight:600;color:var(--text-muted);margin-bottom:6px">Previously assigned (not currently in SmartLead):</div>';
+      for(const name of extraAssigned){
+        h += `<div style="display:flex;align-items:center;gap:10px;padding:6px 10px;margin-bottom:4px;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;font-size:11px">
+          <span style="flex:1">${esc(name)}</span>
+          <span style="color:#92400e;font-weight:600">${esc(assignments[name])}</span>
+          <button onclick="removeCampaignAssignment('${esc(name).replace(/'/g,"\\'")}')" style="background:none;border:none;color:#d1d5db;cursor:pointer;font-size:14px" title="Remove">&times;</button>
+        </div>`;
+      }
+      h += '</div>';
+    }
+  }
+
+  container.innerHTML = h;
+}
+
+async function assignCampaignOwner(campaignName, userName){
+  if(!userName){
+    delete state.campaignAssignments[campaignName];
+  } else {
+    state.campaignAssignments[campaignName] = userName;
+  }
+  // Save to Firestore immediately
+  try {
+    await db.collection('crm_settings').doc('campaign_assignments').set({ assignments: state.campaignAssignments }, { merge: true });
+  } catch(e){ console.warn('Failed to save campaign assignment:', e); }
+  // Re-render the settings panel to show the tag
+  fetchAcquisitionCampaigns();
+  // Re-render the board too (in case it's visible behind the settings)
+  render();
+}
+
+async function removeCampaignAssignment(campaignName){
+  delete state.campaignAssignments[campaignName];
+  try {
+    await db.collection('crm_settings').doc('campaign_assignments').set({ assignments: state.campaignAssignments }, { merge: true });
+  } catch(e){ console.warn('Failed to save:', e); }
+  fetchAcquisitionCampaigns();
+  render();
+}
+
 function renderLeadHeroSettings(){
   const totalDeals=state.deals.length;
   const linkedDeals=state.deals.filter(d=>d.leadHeroId&&String(d.leadHeroId).trim()!=='').length;
@@ -6506,6 +6701,11 @@ async function initApp(){
   if(isClient()){
     await loadClientPortalStages();
     await loadClientArchive();
+  }
+  // Load campaign assignments and start real-time listener
+  if(isAdmin()||isEmployee()){
+    await loadCampaignAssignments();
+    listenCampaignAssignments();
   }
   render();
   syncFromSheet();
