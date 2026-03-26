@@ -671,7 +671,17 @@ async function deleteFirebaseUser(uid){
 }
 
 // ─── Campaign Assignments (Firestore) ───
-const OWNER_COLORS = { 'Aidan': { cls: 'owner-tag-blue', label: 'Aidan' }, 'Lars': { cls: 'owner-tag-yellow', label: 'Lars' } };
+const OWNER_COLORS_MAP = { 'aidan': { cls: 'owner-tag-blue', label: 'Aidan' }, 'lars': { cls: 'owner-tag-yellow', label: 'Lars' } };
+function getOwnerColor(name){
+  if(!name) return null;
+  const lower = name.toLowerCase();
+  // Exact match first, then first-name match
+  if(OWNER_COLORS_MAP[lower]) return { ...OWNER_COLORS_MAP[lower], label: name };
+  const first = lower.split(/\s+/)[0];
+  if(OWNER_COLORS_MAP[first]) return { ...OWNER_COLORS_MAP[first], label: name };
+  // Fallback: alternate color so unknowns don't all look the same
+  return { cls: 'owner-tag-blue', label: name };
+}
 async function loadCampaignAssignments(){
   try {
     const doc = await db.collection('crm_settings').doc('campaign_assignments').get();
@@ -692,7 +702,7 @@ function getOwnerForDeal(deal){
   if(!deal.campaignName) return null;
   const owner = state.campaignAssignments[deal.campaignName];
   if(!owner) return null;
-  return OWNER_COLORS[owner] || { cls: 'owner-tag-blue', label: owner };
+  return getOwnerColor(owner);
 }
 // Listen for real-time changes so both users see updates instantly
 function listenCampaignAssignments(){
@@ -4544,7 +4554,7 @@ function render(){
         <span style="font-size:11px;font-weight:600;color:var(--text-muted)">Filter:</span>
         <button class="acq-filter-btn ${state.acquisitionFilter===''?'active':''}" onclick="state.acquisitionFilter='';render()">All</button>
         ${owners.map(o => {
-          const oc = OWNER_COLORS[o] || {};
+          const oc = getOwnerColor(o) || {};
           return `<button class="acq-filter-btn ${state.acquisitionFilter===o?'active':''}" onclick="state.acquisitionFilter='${esc(o)}';render()">${esc(o)}</button>`;
         }).join('')}
       </div>`;
@@ -6362,7 +6372,7 @@ async function fetchAcquisitionCampaigns(){
 
     for(const camp of _fetchedCampaigns){
       const assigned = assignments[camp.name] || '';
-      const ownerInfo = assigned ? (OWNER_COLORS[assigned] || { cls:'owner-tag-blue' }) : null;
+      const ownerInfo = assigned ? getOwnerColor(assigned) : null;
       h += `<div style="display:flex;align-items:center;gap:10px;padding:10px;margin-bottom:6px;background:#f9fafb;border:1px solid var(--border);border-radius:8px">
         <div style="flex:1;min-width:0">
           <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(camp.name)}</div>
