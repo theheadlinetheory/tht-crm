@@ -2849,6 +2849,21 @@ function buildCalendlyUrl(baseUrl, deal){
   return url.toString();
 }
 
+// ─── Acquisition Pipeline Calendly (Demo + Strategy) ───
+const ACQ_CALENDLY_URLS={
+  demo:'https://calendly.com/aidan-theheadlinetheory/demo-call-with-the-headline-theory',
+  strategy:'https://calendly.com/aidan-theheadlinetheory/strategy-call-with-the-headline-theory-clone'
+};
+function openAcqCalendly(dealId, type){
+  const deal=state.deals.find(d=>d.id===dealId);
+  if(!deal) return;
+  const name=(deal.contact||deal.company||'').trim();
+  const email=(deal.email||'').trim();
+  const baseUrl=ACQ_CALENDLY_URLS[type];
+  if(!baseUrl) return;
+  openCalendlyEmbed(dealId, baseUrl, null, name, email, '');
+}
+
 // ─── Timezone mapping for Calendly ───
 const TZ_TO_IANA={
   'EST':'America/New_York','EDT':'America/New_York',
@@ -4968,15 +4983,19 @@ function renderDealModal(deal){
     }
   }
 
-  // ACQUISITION PIPELINE — Book Discovery Call button
+  // ACQUISITION PIPELINE — Demo Call + Strategy Call buttons (Calendly popup widgets)
   if(deal.pipeline==='Acquisition'){
-    const discCalUrl=buildCalendlyUrl('https://calendly.com/aidan-theheadlinetheory/discovery-call-with-the-headline-theory-clone', deal);
-    h+=`<div style="margin:0 0 8px 0">
-      <a href="${esc(discCalUrl)}" target="_blank" rel="noopener" class="btn btn-primary"
-        style="width:100%;justify-content:center;gap:6px;font-size:13px;text-decoration:none;display:flex;background:#2563eb;border-color:#2563eb"
-        onclick="event.stopPropagation()">
-        📅 Book Discovery Call
-      </a>
+    h+=`<div style="margin:0 0 8px 0;display:flex;gap:6px">
+      <button class="btn btn-primary"
+        style="flex:1;justify-content:center;gap:6px;font-size:12px;display:flex;background:#2563eb;border-color:#2563eb"
+        onclick="event.stopPropagation();openAcqCalendly('${esc(deal.id)}','demo')">
+        📅 Demo Call
+      </button>
+      <button class="btn btn-primary"
+        style="flex:1;justify-content:center;gap:6px;font-size:12px;display:flex;background:#7c3aed;border-color:#7c3aed"
+        onclick="event.stopPropagation();openAcqCalendly('${esc(deal.id)}','strategy')">
+        📅 Strategy Call
+      </button>
     </div>`;
   }
 
