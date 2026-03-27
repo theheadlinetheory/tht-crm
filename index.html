@@ -4838,7 +4838,7 @@ function renderDealModal(deal){
             let extra='';
             if((k==='phone'||k==='mobilePhone') && deal[k] && deal.pipeline==='Acquisition'){
               const ph=String(deal[k]).replace(/[^0-9+]/g,'');
-              extra='<div style="margin-top:4px;display:flex;gap:6px">'
+              extra='<div id="phone-btns-'+k+'" style="margin-top:4px;display:flex;gap:6px">'
                 +'<a href="tel:'+esc(ph)+'" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px">📞 Call</a>'
                 +'<a href="sms:'+esc(ph)+'" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;color:#166534;border-color:#86efac">💬 Text</a>'
                 +'</div>';
@@ -5374,6 +5374,18 @@ function updateDealField(key,val){
   if(state.selectedDeal){
     if(key==="value") val=Number(val)||0;
     state.selectedDeal[key]=val;
+    // Update Call/Text button hrefs when phone fields change
+    if((key==='phone'||key==='mobilePhone') && state.selectedDeal.pipeline==='Acquisition'){
+      const btns=document.getElementById('phone-btns-'+key);
+      if(btns){
+        const ph=String(val||'').replace(/[^0-9+]/g,'');
+        if(ph){
+          btns.style.display='flex';
+          btns.innerHTML='<a href="tel:'+ph+'" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px">📞 Call</a>'
+            +'<a href="sms:'+ph+'" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;color:#166534;border-color:#86efac">💬 Text</a>';
+        } else { btns.style.display='none'; }
+      }
+    }
     // Refresh upcoming meetings display when booking date/time changes
     if(key==='bookedDate'||key==='bookedTime'){
       const deal=state.selectedDeal;
