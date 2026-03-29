@@ -726,6 +726,7 @@ const SYNC_INTERVAL = 30000;
 // ─── LeadHero Dialer Integration ───
 const LEADHERO_ORG = 'tht';
 const LEADHERO_APP = 'https://app.leadhero.io/organization/' + LEADHERO_ORG;
+const LEADHERO_IOANNIS_FOLDER = 'f0db5b57-3bcf-4e78-bfc9-764566fd13a9';
 // Restore deleted-ID sets from localStorage so deletions survive page refresh
 const deletedDealIds = new Set(JSON.parse(localStorage.getItem('tht_deletedDeals')||'[]'));
 const deletedActivityIds = new Set(JSON.parse(localStorage.getItem('tht_deletedActs')||'[]'));
@@ -1522,31 +1523,31 @@ function findClientForDeal(deal){
 
 // Forward deal to matched client via Apps Script (email + optional SMS)
 // ─── LeadHero Dialer Integration ───
-async function pushDealToLeadHero(dealId){
+// Per-rep folder approach: clears rep's folder, loads this one lead, rep clicks refresh in LeadHero
+async function pushDealToDialer(dealId){
   const btn=document.getElementById('leadhero-push-btn');
-  if(btn){btn.disabled=true;btn.textContent='Syncing to LeadHero...';}
+  if(btn){btn.disabled=true;btn.textContent='Loading into dialer...';}
   try{
-    const res=await apiPost('push_to_leadhero',{dealId});
+    const res=await apiPost('push_to_dialer_folder',{dealId});
     if(res.ok){
       const deal=state.deals.find(d=>d.id===dealId);
       if(deal && res.leadHeroId) deal.leadHeroId=res.leadHeroId;
-      // Open LeadHero immediately — search by phone so lead is front and center
-      const lhPhone = deal ? (deal.phone || deal.mobilePhone || '').replace(/[^\d+]/g,'') : '';
-      const lhUrl=LEADHERO_APP+'/leads' + (lhPhone ? '?search='+encodeURIComponent(lhPhone) : '');
-      window.open(lhUrl,'_blank');
+      // Open LeadHero to Ioannis's folder — lead is the only one there
+      const folderUrl=LEADHERO_APP+'/leads?leadFolders='+LEADHERO_IOANNIS_FOLDER;
+      window.open(folderUrl,'_blank');
       if(btn){
-        btn.outerHTML=`<a href="${esc(lhUrl)}" target="_blank" rel="noopener" class="btn"
+        btn.outerHTML=`<a href="${esc(folderUrl)}" target="_blank" rel="noopener" class="btn"
           style="width:100%;justify-content:center;gap:6px;font-size:13px;text-decoration:none;display:flex;background:#f97316;border-color:#f97316;color:#fff;font-weight:700"
           onclick="event.stopPropagation()">
           📞 Call in LeadHero
         </a>`;
       }
     } else {
-      alert('LeadHero sync failed: '+(res.error||'Unknown error'));
+      alert('Dialer sync failed: '+(res.error||'Unknown error'));
       if(btn){btn.disabled=false;btn.textContent='📞 Call in LeadHero';}
     }
   }catch(e){
-    alert('Error syncing to LeadHero: '+e.message);
+    alert('Error loading dialer: '+e.message);
     if(btn){btn.disabled=false;btn.textContent='📞 Call in LeadHero';}
   }
 }
@@ -5082,24 +5083,14 @@ function renderDealModal(deal){
     </div>`;
   }
 
-  // LeadHero Dialer — Call button (auto-syncs if not yet in LeadHero)
+  // LeadHero Dialer — loads lead into rep's folder, rep clicks refresh in LeadHero
   if((isAdmin() || isEmployee()) && (deal.phone || deal.mobilePhone)){
-    const hasLH = deal.leadHeroId && String(deal.leadHeroId).trim() !== '';
-    const lhPhone = (deal.phone || deal.mobilePhone || '').replace(/[^\d+]/g,'');
-    const lhUrl = LEADHERO_APP + '/leads?search=' + encodeURIComponent(lhPhone);
     h+=`<div style="margin:0 0 8px 0">
-      ${hasLH
-        ? `<a href="${esc(lhUrl)}" target="_blank" rel="noopener" class="btn"
-            style="width:100%;justify-content:center;gap:6px;font-size:13px;text-decoration:none;display:flex;background:#f97316;border-color:#f97316;color:#fff;font-weight:700"
-            onclick="event.stopPropagation()">
-            📞 Call in LeadHero
-          </a>`
-        : `<button class="btn" id="leadhero-push-btn"
-            style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#f97316;border-color:#f97316;color:#fff;font-weight:700"
-            onclick="pushDealToLeadHero('${esc(deal.id)}')">
-            📞 Call in LeadHero
-          </button>`
-      }
+      <button class="btn" id="leadhero-push-btn"
+        style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#f97316;border-color:#f97316;color:#fff;font-weight:700"
+        onclick="pushDealToDialer('${esc(deal.id)}')">
+        📞 Call in LeadHero
+      </button>
     </div>`;
   }
 
@@ -6446,7 +6437,7 @@ function renderLeadHeroSettings(){
   const unlinked=withPhone-linkedDeals;
   return `<div class="settings-section">
     <h4>📞 LeadHero Dialer Integration</h4>
-    <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Sync CRM deals to LeadHero for calling. New deals auto-sync when created.</p>
+    <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Click "Call in LeadHero" on any deal → lead loads into Ioannis's folder → hit refresh in LeadHero to call.</p>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
       <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;text-align:center">
         <div style="font-size:22px;font-weight:800;color:#059669">${linkedDeals}</div>
@@ -6466,10 +6457,11 @@ function renderLeadHeroSettings(){
     </button>`:`<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px;text-align:center;font-size:12px;color:#059669;font-weight:600;margin-bottom:12px">All deals with phone numbers are synced to LeadHero</div>`}
     <div style="font-size:11px;color:var(--text-muted);line-height:1.5">
       <strong>How it works:</strong><br>
-      • New deals auto-push to LeadHero when created (via Smartlead webhook or manual entry)<br>
-      • Click "Call in LeadHero" on any deal card to open the dialer<br>
+      • Click "Call in LeadHero" on a deal card → clears Ioannis's folder → loads just this lead<br>
+      • Ioannis clicks refresh in LeadHero → the lead is right there, ready to call<br>
+      • Only 1 lead at a time in the folder — no confusion about who to call<br>
       • Call outcomes sync back via webhook → logged as activities on the deal<br>
-      • LeadHero org: <a href="${LEADHERO_APP}" target="_blank" style="color:var(--purple)">app.leadhero.io/organization/${LEADHERO_ORG}</a>
+      • <a href="${LEADHERO_APP}/leads?leadFolders=${LEADHERO_IOANNIS_FOLDER}" target="_blank" style="color:var(--purple)">Open Ioannis's Folder</a> | <a href="${LEADHERO_APP}" target="_blank" style="color:var(--purple)">LeadHero Dashboard</a>
     </div>
   </div>`;
 }
