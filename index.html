@@ -6138,12 +6138,12 @@ function renderClientsSettings(){
         </label>
       </div>
 
-      ${isOn('enableForward')?`<div style="margin-bottom:8px">
-        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Notification Emails</label>
-        <input type="text" placeholder="email1@example.com, email2@example.com" value="${esc(str(c.notifyEmails))}" 
+      <div style="margin-bottom:8px">
+        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Client Email</label>
+        <input type="text" placeholder="client@example.com" value="${esc(str(c.notifyEmails))}"
           oninput="updateClientField('${esc(c.id)}','notifyEmails',this.value)"
           style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
-      </div>`:''}
+      </div>
 
       <div style="margin-bottom:8px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Lead Cost ($)</label>
