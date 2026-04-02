@@ -1576,7 +1576,7 @@ async function forwardDealToClient(dealId){
   showForwardPreview(deal, client);
 }
 
-async function showForwardPreview(deal, client){
+function showForwardPreview(deal, client){
   const overlay=document.createElement('div');
   overlay.id='fwd-preview-overlay';
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:20000;display:flex;align-items:center;justify-content:center';
@@ -1591,18 +1591,14 @@ async function showForwardPreview(deal, client){
   const leadLocation=deal.location||'';
   const smartleadUrl=deal.smartleadUrl||'';
 
-  // Get REAL recipients from backend — single source of truth
-  let recipientTo='Loading...';
-  let recipientCCs=[];
-  let recipientThread='';
-  try{
-    const preview=await apiPost('preview_email_recipients',{dealId:deal.id,clientName:client.name,emailAction:'forward_to_client'});
-    if(preview&&preview.ok){
-      recipientTo=preview.to||'NO EMAIL CONFIGURED';
-      recipientCCs=preview.cc||[];
-      recipientThread=preview.threadFound?('Thread: '+preview.threadSubject):'New email (no existing thread)';
-    }
-  }catch(e){ recipientTo='Error loading recipients'; }
+  // Resolve recipients instantly from local data — no backend round-trip
+  const info=lookupClientInfo(client.name)||{};
+  const rawNotify=str(client.notifyEmails).trim();
+  const isEmail=rawNotify && rawNotify.includes('@') && !rawNotify.startsWith('http');
+  const recipientTo=info.forwardEmail || (isEmail ? rawNotify : '') || 'NO EMAIL CONFIGURED';
+  const recipientCCs=['aidan@theheadlinetheory.com','lars@theheadlinetheory.com'];
+  const threadId=getClientThreadId(client.name);
+  const recipientThread=threadId ? 'Lead Delivery Thread' : 'New email (no existing thread)';
 
 
   const leadEmail2=deal.email2||'';
