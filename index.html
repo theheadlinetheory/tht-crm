@@ -5444,7 +5444,7 @@ function renderActivateClientModal(){
 
   return`<div class="modal-overlay" onmousedown="this._mdownTarget=event.target" onclick="if(event.target===this&&this._mdownTarget===this&&!state.activateClientLoading){state.showActivateClient=false;render()}">
     <div class="modal" style="width:440px;max-height:90vh;overflow-y:auto" onclick="event.stopPropagation()">
-      <div style="padding:20px">
+      <div id="activate-modal-inner" style="padding:20px">
         <h3 style="margin:0 0 4px;font-size:16px;font-weight:800">⚡ Activate Client</h3>
         <p style="font-size:11px;color:#9ca3af;margin:0 0 16px">Pick a client from the Client Info sheet. Everything is pulled automatically.</p>
 
@@ -5454,7 +5454,7 @@ function renderActivateClientModal(){
           <div style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto">
             ${clients.map((c,idx)=>{
               const isSelected=sel&&sel.row===c.row;
-              return`<div onclick="state.activateSelectedClient=state.unactivatedClients[${idx}];render()" style="padding:10px 12px;border:2px solid ${isSelected?'var(--purple)':'var(--border)'};border-radius:8px;cursor:pointer;background:${isSelected?'#f5f3ff':'var(--card)'};transition:all .15s">
+              return`<div onclick="state.activateSelectedClient=state.unactivatedClients[${idx}];refreshActivateModal()" style="padding:10px 12px;border:2px solid ${isSelected?'var(--purple)':'var(--border)'};border-radius:8px;cursor:pointer;background:${isSelected?'#f5f3ff':'var(--card)'};transition:all .15s">
                 <div style="font-weight:600;font-size:13px">${esc(c.name)}</div>
                 <div style="font-size:11px;color:#6b7280;margin-top:2px">${esc(c.contact||'')}${c.email?' · '+esc(c.email):''}${c.location?' · '+esc(c.location):''}</div>
                 ${c.calendlyUrl?'<div style="font-size:10px;color:#22c55e;margin-top:2px">✓ Calendly</div>':''}
@@ -5473,6 +5473,16 @@ function renderActivateClientModal(){
         </div>
       </div>
     </div></div>`;
+}
+
+function refreshActivateModal(){
+  const el=document.getElementById('activate-modal-inner');
+  if(!el) return render();
+  const fresh=renderActivateClientModal();
+  const tmp=document.createElement('div');
+  tmp.innerHTML=fresh;
+  const newInner=tmp.querySelector('#activate-modal-inner');
+  if(newInner) el.innerHTML=newInner.innerHTML;
 }
 
 async function openActivateClient(){
