@@ -4054,7 +4054,7 @@ async function pushToClientInfo(dealId){
   const row=[company,contact,email,'',location,timezone,'',phone,'','','',website,'','','','','',address];
   try{
     await apiPost('push_lead_tracker',{sheetId:CLIENT_INFO_SHEET_ID,sheetName:'Client Tracker',row});
-    // Also add client to Lead Entry + Lead Tracker dropdowns
+    // Add client to Lead Entry + Lead Tracker dropdowns with color coding
     await apiPost('add_client_to_dropdowns',{clientName:company});
   }catch(e){
     alert('Failed to push to Client Info: '+e.message);
