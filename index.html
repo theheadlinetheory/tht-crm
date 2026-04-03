@@ -4003,6 +4003,41 @@ async function pushToLeadTracker(dealId){
 // PUSH TO CLIENT INFO SHEET (Acquisition → Closed Won)
 // ═══════════════════════════════════════════════════════════
 
+function deriveTimezone(location){
+  if(!location) return '';
+  // Extract state abbreviation using word boundary — match ", OH" or " OH" at end or before zip
+  const stMatch=location.match(/\b([A-Z]{2})\b/);
+  const st=stMatch?stMatch[1].toUpperCase():'';
+  const loc=location.toLowerCase();
+  // State abbreviation → timezone map
+  const tzByState={
+    // Eastern
+    CT:'EST',DE:'EST',FL:'EST',GA:'EST',IN:'EST',KY:'EST',MA:'EST',MD:'EST',ME:'EST',
+    MI:'EST',NC:'EST',NH:'EST',NJ:'EST',NY:'EST',OH:'EST',PA:'EST',RI:'EST',SC:'EST',
+    TN:'EST',VA:'EST',VT:'EST',WV:'EST',DC:'EST',AL:'EST',MS:'EST',
+    // Central
+    AR:'CST',IA:'CST',IL:'CST',KS:'CST',LA:'CST',MN:'CST',MO:'CST',ND:'CST',
+    NE:'CST',OK:'CST',SD:'CST',TX:'CST',WI:'CST',
+    // Mountain
+    AZ:'MST',CO:'MST',ID:'MST',MT:'MST',NM:'MST',UT:'MST',WY:'MST',
+    // Pacific
+    CA:'PST',NV:'PST',OR:'PST',WA:'PST',
+    // Canadian
+    ON:'EST',QC:'EST',BC:'PST',AB:'MST',MB:'CST',SK:'CST'
+  };
+  if(st && tzByState[st]) return tzByState[st];
+  // Fallback: check full state/city names
+  const cityTz={
+    'toronto':'EST','montreal':'EST','vancouver':'PST','calgary':'MST',
+    'chicago':'CST','dallas':'CST','houston':'CST','austin':'CST',
+    'phoenix':'MST','denver':'MST','salt lake':'MST','boise':'MST',
+    'los angeles':'PST','san francisco':'PST','seattle':'PST','portland':'PST','las vegas':'PST',
+    'miami':'EST','atlanta':'EST','boston':'EST','detroit':'EST','philadelphia':'EST','charlotte':'EST','orlando':'EST','nashville':'EST'
+  };
+  for(const[city,tz] of Object.entries(cityTz)) if(loc.includes(city)) return tz;
+  return '';
+}
+
 async function pushToClientInfo(dealId){
   const deal=state.deals.find(d=>d.id===dealId);
   if(!deal) return;
@@ -4011,11 +4046,12 @@ async function pushToClientInfo(dealId){
   const email=deal.email||'';
   const location=deal.location||'';
   const address=deal.address||'';
+  const timezone=deriveTimezone(location||address);
   const phone=deal.phone||deal.mobilePhone||'';
   const website=deal.website||'';
 
-  // Columns: A=Client, B=Primary Contact, C=Primary Contact Email, D=Other Contacts, E=Location, F=Time Zone (blank), G=Service Area, H=Phone Number, I=Calendly Link, J=Email for Lead Forwarding, K=Name for Lead Forwarding, L=Website, M=Services Offered, N=Pricing Model, O=Cost, P=Payment Period, Q=Gmail Thread ID, R=Address
-  const row=[company,contact,email,'',location,'','',phone,'','','',website,'','','','','',address];
+  // Columns: A=Client, B=Primary Contact, C=Primary Contact Email, D=Other Contacts, E=Location, F=Time Zone, G=Service Area, H=Phone Number, I=Calendly Link, J=Email for Lead Forwarding, K=Name for Lead Forwarding, L=Website, M=Services Offered, N=Pricing Model, O=Cost, P=Payment Period, Q=Gmail Thread ID, R=Address
+  const row=[company,contact,email,'',location,timezone,'',phone,'','','',website,'','','','','',address];
   try{
     await apiPost('push_lead_tracker',{sheetId:CLIENT_INFO_SHEET_ID,sheetName:'Client Tracker',row});
   }catch(e){
