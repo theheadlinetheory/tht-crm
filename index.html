@@ -3458,6 +3458,12 @@ function lookupClientInfo(name){
     const kNoSpace=k.replace(/\s+/g,'');
     if(n.includes(k)||k.includes(n)||nNoSpace.includes(kNoSpace)||kNoSpace.includes(nNoSpace)) return CLIENT_INFO[key];
   }
+  // Fallback: build info from synced client data (state.clients has timeZone from Clients sheet)
+  const sc=state.clients.find(c=>{
+    const cn=c.name.toLowerCase().trim();
+    return cn===n||n.includes(cn)||cn.includes(n);
+  });
+  if(sc && sc.timeZone) return { timeZone:sc.timeZone, location:'', primaryContact:sc.contactFirstName||'', primaryEmail:sc.notifyEmail||'', calendlyUrl:sc.calendlyUrl||'' };
   return null;
 }
 
