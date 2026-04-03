@@ -4049,11 +4049,21 @@ async function pushToClientInfo(dealId){
   const company=deal.company||'';
   const contact=deal.contact||'';
   const email=deal.email||'';
-  const location=deal.location||'';
-  const address=deal.address||'';
-  const timezone=deriveTimezone(location||address);
+  const rawLocation=deal.location||'';
+  const rawAddress=deal.address||'';
   const phone=deal.phone||deal.mobilePhone||'';
   const website=deal.website||'';
+
+  // Separate location (general: "Cleveland, OH") from address (full street address)
+  // If location looks like a full address (starts with a number), move it to address and clear location
+  let location=rawLocation;
+  let address=rawAddress;
+  if(!address && /^\d/.test(rawLocation)){
+    address=rawLocation;
+    location=''; // Leave blank — general metro area should be filled manually
+  }
+
+  const timezone=deriveTimezone(location||address);
 
   // Columns: A=Client, B=Primary Contact, C=Primary Contact Email, D=Other Contacts, E=Location, F=Time Zone, G=Service Area, H=Phone Number, I=Calendly Link, J=Email for Lead Forwarding, K=Name for Lead Forwarding, L=Website, M=Services Offered, N=Pricing Model, O=Cost, P=Payment Period, Q=Gmail Thread ID, R=Address
   const row=[company,contact,email,'',location,timezone,'',phone,'','','',website,'','','','','',address];
