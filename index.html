@@ -4623,8 +4623,6 @@ function render(){
       ${isAdmin()||isEmployee()?`<button class="btn btn-ghost" onclick="syncFromSheet()">↻ Sync</button>`:''}
       ${isAdmin()||isEmployee()?`<button class="btn btn-ghost" onclick="toggleViewMode()" title="Toggle board/list view">${state.viewMode==='board'?'☰ List':'▦ Board'}</button>`:''}
       ${isAdmin()||isEmployee()?`<button class="btn ${state.bulkMode?'btn-primary':'btn-ghost'}" onclick="toggleBulkMode()" title="Bulk select">${state.bulkMode?'✓ Bulk Mode':'☐ Bulk'}</button>`:''}
-      ${isAdmin()&&state.pipeline==='client_leads'?'<button class="btn btn-ghost" onclick="openAddClient()">+ Client</button>':''}
-      ${isAdmin()&&state.pipeline==='client_leads'?'<button class="btn btn-ghost" onclick="openActivateClient()" title="Activate client from Client Info sheet">⚡ Activate</button>':''}
       <button class="btn btn-primary" onclick="openNewDeal()">+ ${isClient()?'Lead':'Deal'}</button>
       ${isClient()?`<button class="btn btn-ghost" onclick="openClientArchive()" title="View archived leads">📦 Archive${clientArchivedDeals.length?' ('+clientArchivedDeals.length+')':''}</button>`:''}
       ${isEmployee()||isAdmin()?`<button class="btn ${state.showEmployeeArchive?'btn-primary':'btn-ghost'}" onclick="state.showEmployeeArchive=!state.showEmployeeArchive;render()" title="View archived leads">📦 Archive</button>`:''}
@@ -5477,12 +5475,33 @@ function renderActivateClientModal(){
 
 function refreshActivateModal(){
   const el=document.getElementById('activate-modal-inner');
-  if(!el) return render();
-  const fresh=renderActivateClientModal();
-  const tmp=document.createElement('div');
-  tmp.innerHTML=fresh;
-  const newInner=tmp.querySelector('#activate-modal-inner');
-  if(newInner) el.innerHTML=newInner.innerHTML;
+  if(!el) return;
+  const loading=state.activateClientLoading;
+  const clients=state.unactivatedClients||[];
+  const sel=state.activateSelectedClient;
+  const loadingList=state.activateClientsLoading;
+  let h=`<h3 style="margin:0 0 4px;font-size:16px;font-weight:800">⚡ Activate Client</h3>
+    <p style="font-size:11px;color:#9ca3af;margin:0 0 16px">Pick a client from the Client Info sheet. Everything is pulled automatically.</p>
+    ${loadingList?'<p style="font-size:12px;color:var(--purple)">Loading clients from Client Info sheet...</p>':''}
+    ${!loadingList&&clients.length===0?'<p style="font-size:12px;color:#9ca3af">No unactivated clients found. Add a client to the Client Info sheet first.</p>':''}
+    ${!loadingList&&clients.length>0?`<div style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto">
+      ${clients.map((c,idx)=>{
+        const isSelected=sel&&sel.row===c.row;
+        return`<div onclick="state.activateSelectedClient=state.unactivatedClients[${idx}];refreshActivateModal()" style="padding:10px 12px;border:2px solid ${isSelected?'var(--purple)':'var(--border)'};border-radius:8px;cursor:pointer;background:${isSelected?'#f5f3ff':'var(--card)'};transition:all .15s">
+          <div style="font-weight:600;font-size:13px">${esc(c.name)}</div>
+          <div style="font-size:11px;color:#6b7280;margin-top:2px">${esc(c.contact||'')}${c.email?' · '+esc(c.email):''}${c.location?' · '+esc(c.location):''}</div>
+          ${c.calendlyUrl?'<div style="font-size:10px;color:#22c55e;margin-top:2px">✓ Calendly</div>':''}
+          ${c.onboardingDocUrl?'<div style="font-size:10px;color:#22c55e;margin-top:1px">✓ Onboarding Doc</div>':'<div style="font-size:10px;color:#f59e0b;margin-top:1px">No onboarding doc linked</div>'}
+          ${c.leadCost?'<div style="font-size:10px;color:#22c55e;margin-top:1px">✓ Lead cost: '+esc(c.leadCost)+'</div>':''}
+        </div>`;
+      }).join('')}
+    </div>`:''}
+    <div id="activate-result" style="margin-top:12px"></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+      <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="state.showActivateClient=false;state.activateSelectedClient=null;render()" ${loading?'disabled':''}>Cancel</button>
+      <button class="btn btn-primary" onclick="doActivateClient()" ${loading||!sel?'disabled':''}>${loading?'Activating...':'⚡ Activate'}</button>
+    </div>`;
+  el.innerHTML=h;
 }
 
 async function openActivateClient(){
@@ -6318,7 +6337,13 @@ function applySettings(s, skipCache){
 
 function renderClientsSettings(){
   let h=`<div style="padding:16px 0">
-    <h4 style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">Client Configuration</h4>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <h4 style="font-size:13px;font-weight:700;color:var(--text);margin:0">Client Configuration</h4>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-ghost" style="font-size:11px;padding:5px 12px" onclick="closeSettings();openAddClient()">+ Add Client</button>
+        <button class="btn btn-primary" style="font-size:11px;padding:5px 12px" onclick="closeSettings();openActivateClient()">⚡ Activate Client</button>
+      </div>
+    </div>
     <p style="font-size:11px;color:var(--text-muted);margin-bottom:16px">Set up how each client's leads are handled. Toggle actions on/off and fill in the details.</p>`;
 
   if(state.clients.length===0){
