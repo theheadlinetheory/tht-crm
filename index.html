@@ -82,10 +82,13 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .owner-tag { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 8px; letter-spacing: .3px; }
 .owner-tag-blue { background: #dbeafe; color: #1d4ed8; }
 .owner-tag-yellow { background: #fef3c7; color: #92400e; }
-.acq-filter-bar { display: flex; align-items: center; gap: 6px; padding: 0 14px; margin-top: -4px; margin-bottom: 4px; }
-.acq-filter-btn { padding: 4px 12px; border-radius: 6px; border: 1px solid var(--border); font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font); background: #fff; color: var(--text-secondary); transition: all .12s; }
-.acq-filter-btn.active { background: var(--purple); color: #fff; border-color: var(--purple); }
-.acq-filter-btn:hover:not(.active) { background: #f0fdf4; border-color: #86efac; }
+.acq-filter-wrap { position:relative; display:inline-block; }
+.acq-filter-toggle { padding:4px 10px; border-radius:6px; border:1px solid var(--border); font-size:11px; font-weight:600; cursor:pointer; font-family:var(--font); background:#fff; color:var(--text-secondary); transition:all .12s; display:flex; align-items:center; gap:4px; }
+.acq-filter-toggle.has-filter { border-color:var(--purple); color:var(--purple); background:#f5f3ff; }
+.acq-filter-dropdown { position:absolute; top:100%; left:0; margin-top:4px; background:#fff; border:1px solid var(--border); border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,.1); z-index:100; min-width:180px; padding:4px 0; }
+.acq-filter-option { padding:6px 12px; font-size:12px; cursor:pointer; display:flex; align-items:center; gap:8px; font-family:var(--font); }
+.acq-filter-option:hover { background:#f9fafb; }
+.acq-filter-option.selected { color:var(--purple); font-weight:600; }
 .book-discovery-btn { display:block;text-align:center;background:#2563eb;color:#fff;font-size:11px;font-weight:600;padding:5px 8px;border-radius:6px;text-decoration:none;margin:6px 0 2px; }
 .book-discovery-btn:hover { background:#1d4ed8; }
 
@@ -223,8 +226,8 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .sop-act-item { display:flex; align-items:center; gap:6px; padding:3px 0; font-size:11.5px; }
 .sop-act-item select { padding:3px 6px; border:1px solid #a7f3d0; border-radius:4px; font-size:11px; font-family:var(--font); }
 .sop-act-item input { flex:1; padding:3px 6px; border:1px solid #a7f3d0; border-radius:4px; font-size:11px; font-family:var(--font); }
-.settings-tab-bar { display:flex; border-bottom:1px solid var(--border); padding:0 20px; flex-shrink:0; }
-.settings-tab { padding:8px 14px; font-size:12px; font-weight:600; color:var(--text-muted); cursor:pointer; border-bottom:2px solid transparent; font-family:var(--font); background:none; border-top:none; border-left:none; border-right:none; }
+.settings-tab-bar { display:flex; border-bottom:1px solid var(--border); padding:0 12px; flex-shrink:0; overflow-x:auto; gap:0; }
+.settings-tab { padding:8px 10px; font-size:11px; font-weight:600; color:var(--text-muted); cursor:pointer; border-bottom:2px solid transparent; font-family:var(--font); background:none; border-top:none; border-left:none; border-right:none; white-space:nowrap; flex-shrink:0; }
 .settings-tab.active { color:var(--purple); border-bottom-color:var(--purple); }
 /* Login Screen */
 .login-wrapper { min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--bg); padding:20px; }
@@ -576,7 +579,7 @@ function toggleUserMenu(e){
 }
 
 // Close user menu on outside click
-document.addEventListener('click', ()=>{ const m=document.getElementById('user-menu-dropdown'); if(m) m.style.display='none'; });
+document.addEventListener('click', ()=>{ const m=document.getElementById('user-menu-dropdown'); if(m) m.style.display='none'; if(state.showAcqFilterDropdown){state.showAcqFilterDropdown=false;render();} });
 
 function renderUserMenu(){
   if(!currentUser) return '';
@@ -1790,6 +1793,7 @@ let state = {
   // Campaign assignment (acquisition owner split)
   campaignAssignments: {}, // { campaignName: userName }
   acquisitionFilter: '', // '' = all, or userName to filter
+  showAcqFilterDropdown: false,
 };
 
 // ─── API ───
@@ -4639,17 +4643,26 @@ function render(){
   ${renderOverdueBanner()}
   ${renderBookedMeetingsBanner()}`;
 
-  // ─── Acquisition Owner Filter Bar ───
+  // ─── Acquisition Owner Filter Dropdown ───
   if(state.pipeline==='acquisition' && (isAdmin()||isEmployee())){
     const owners = [...new Set(Object.values(state.campaignAssignments))].filter(Boolean);
     if(owners.length > 0){
-      html+=`<div class="acq-filter-bar">
-        <span style="font-size:11px;font-weight:600;color:var(--text-muted)">Filter:</span>
-        <button class="acq-filter-btn ${state.acquisitionFilter===''?'active':''}" onclick="state.acquisitionFilter='';render()">All</button>
-        ${owners.map(o => {
-          const oc = getOwnerColor(o) || {};
-          return `<button class="acq-filter-btn ${state.acquisitionFilter===o?'active':''}" onclick="state.acquisitionFilter='${esc(o)}';render()">${esc(o)}</button>`;
-        }).join('')}
+      const hasFilter = state.acquisitionFilter !== '';
+      const filterLabel = hasFilter ? state.acquisitionFilter : 'All';
+      html+=`<div style="padding:0 20px;margin-bottom:4px">
+        <div class="acq-filter-wrap">
+          <button class="acq-filter-toggle ${hasFilter?'has-filter':''}" onclick="event.stopPropagation();state.showAcqFilterDropdown=!state.showAcqFilterDropdown;render()">
+            Filter: ${esc(filterLabel)} ▾
+          </button>
+          ${state.showAcqFilterDropdown?`<div class="acq-filter-dropdown" onclick="event.stopPropagation()">
+            <div class="acq-filter-option ${!hasFilter?'selected':''}" onclick="state.acquisitionFilter='';state.showAcqFilterDropdown=false;render()">
+              ${!hasFilter?'✓':'\u2003'} All
+            </div>
+            ${owners.map(o => `<div class="acq-filter-option ${state.acquisitionFilter===o?'selected':''}" onclick="state.acquisitionFilter='${esc(o)}';state.showAcqFilterDropdown=false;render()">
+              ${state.acquisitionFilter===o?'✓':'\u2003'} ${esc(o)}
+            </div>`).join('')}
+          </div>`:''}
+        </div>
       </div>`;
     }
   }
@@ -6337,14 +6350,12 @@ function applySettings(s, skipCache){
 
 function renderClientsSettings(){
   let h=`<div style="padding:16px 0">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-      <h4 style="font-size:13px;font-weight:700;color:var(--text);margin:0">Client Configuration</h4>
-      <div style="display:flex;gap:6px">
-        <button class="btn btn-ghost" style="font-size:11px;padding:5px 12px" onclick="closeSettings();openAddClient()">+ Add Client</button>
-        <button class="btn btn-primary" style="font-size:11px;padding:5px 12px" onclick="closeSettings();openActivateClient()">⚡ Activate Client</button>
-      </div>
-    </div>
-    <p style="font-size:11px;color:var(--text-muted);margin-bottom:16px">Set up how each client's leads are handled. Toggle actions on/off and fill in the details.</p>`;
+    <h4 style="font-size:13px;font-weight:700;color:var(--text);margin:0 0 4px">Client Configuration</h4>
+    <p style="font-size:11px;color:var(--text-muted);margin:0 0 12px">Set up how each client's leads are handled. Toggle actions on/off and fill in the details.</p>
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <button class="btn btn-ghost" style="font-size:12px;padding:7px 16px;flex:1" onclick="closeSettings();openAddClient()">+ Add Client</button>
+      <button class="btn btn-primary" style="font-size:12px;padding:7px 16px;flex:1" onclick="closeSettings();openActivateClient()">⚡ Activate Client</button>
+    </div>`;
 
   if(state.clients.length===0){
     h+=`<p style="font-size:12px;color:var(--text-muted);text-align:center;padding:20px">No clients added yet.</p></div>`;
