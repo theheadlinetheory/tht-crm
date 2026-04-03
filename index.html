@@ -804,85 +804,117 @@ function renderDashboard(){
 }
 
 function renderClientDashboard(thisMonth){
+  const selMonth=state.dashboardMonth||thisMonth;
   const clientDeals=state.deals.filter(d=>d.pipeline==='Client');
-  const thisMonthClient=clientDeals.filter(d=>(d.createdDate||'').slice(0,7)===thisMonth);
-  const meetingsBooked=clientDeals.filter(d=>d.bookedDate).length;
-  const forwarded=clientDeals.filter(d=>d.forwardedAt&&str(d.forwardedAt).trim()).length;
-  const pushed=clientDeals.filter(d=>d.pushedToTracker&&str(d.pushedToTracker).trim()).length;
+
+  // Build list of all months that have data
+  const monthSet=new Set();
+  clientDeals.forEach(d=>{
+    const cm=(d.createdDate||'').slice(0,7);
+    if(cm) monthSet.add(cm);
+    const pm=(d.pushedToTracker||'').slice(0,7);
+    if(pm) monthSet.add(pm);
+  });
+  monthSet.add(thisMonth);
+  const allMonths=[...monthSet].sort().reverse();
+
+  // Previous month for trend
+  const [sy,sm]=selMonth.split('-').map(Number);
+  const prevDate=new Date(sy,sm-2,1);
+  const prevMonth=prevDate.toISOString().slice(0,7);
+
+  // Stats for selected month
+  const monthDeals=clientDeals.filter(d=>(d.createdDate||'').slice(0,7)===selMonth);
+  const delivered=clientDeals.filter(d=>d.pushedToTracker&&(d.pushedToTracker||'').slice(0,7)===selMonth).length;
+  const prevDelivered=clientDeals.filter(d=>d.pushedToTracker&&(d.pushedToTracker||'').slice(0,7)===prevMonth).length;
+  const prevNewLeads=clientDeals.filter(d=>(d.createdDate||'').slice(0,7)===prevMonth).length;
   const undistributed=clientDeals.filter(d=>d.stage==='Client Not Distributed').length;
   const overdueActs=getOverdueActivities().filter(a=>{
     const deal=state.deals.find(d=>d.id===a.dealId);
     return deal && deal.pipeline==='Client';
   });
 
-  // Per-client breakdown
+  // Trend arrows
+  const trend=(cur,prev)=>{
+    if(prev===0&&cur===0) return '';
+    if(cur>prev) return `<span style="font-size:10px;color:#22c55e;margin-left:4px">+${cur-prev} vs last mo</span>`;
+    if(cur<prev) return `<span style="font-size:10px;color:#ef4444;margin-left:4px">${cur-prev} vs last mo</span>`;
+    return `<span style="font-size:10px;color:var(--text-muted);margin-left:4px">same as last mo</span>`;
+  };
+
+  // Per-client breakdown for selected month
   const clientCounts={};
-  state.clients.forEach(c=>{clientCounts[c.name]={total:0,month:0,booked:0,forwarded:0,pushed:0};});
+  state.clients.forEach(c=>{clientCounts[c.name]={total:0,month:0,delivered:0};});
   clientDeals.forEach(d=>{
     const cn=d.stage;
-    if(!clientCounts[cn]) clientCounts[cn]={total:0,month:0,booked:0,forwarded:0,pushed:0};
+    if(!clientCounts[cn]) clientCounts[cn]={total:0,month:0,delivered:0};
     clientCounts[cn].total++;
-    if((d.createdDate||'').slice(0,7)===thisMonth) clientCounts[cn].month++;
-    if(d.bookedDate) clientCounts[cn].booked++;
-    if(d.forwardedAt&&str(d.forwardedAt).trim()) clientCounts[cn].forwarded++;
-    if(d.pushedToTracker&&str(d.pushedToTracker).trim()) clientCounts[cn].pushed++;
+    if((d.createdDate||'').slice(0,7)===selMonth) clientCounts[cn].month++;
+    if(d.pushedToTracker&&(d.pushedToTracker||'').slice(0,7)===selMonth) clientCounts[cn].delivered++;
   });
+
+  // Month label
+  const monthNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const monthLabel=monthNames[sm-1]+' '+sy;
 
   const cardStyle='background:#fff;border-radius:10px;padding:16px;border:1px solid var(--border)';
   const labelStyle='font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600';
   const numStyle='font-size:28px;font-weight:800';
 
   return `<div style="padding:24px;max-width:960px;margin:0 auto">
-    <h2 style="font-size:18px;font-weight:800;margin-bottom:4px">Client Fulfillment</h2>
-    <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Lead distribution, meetings, and delivery for active clients</p>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:24px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <h2 style="font-size:18px;font-weight:800;margin:0 0 4px">Client Fulfillment</h2>
+        <p style="font-size:12px;color:var(--text-muted);margin:0">Lead delivery and fulfillment tracking</p>
+      </div>
+      <select onchange="state.dashboardMonth=this.value;render()" style="padding:6px 12px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;font-family:var(--font);background:#fff;cursor:pointer">
+        ${allMonths.map(m=>{
+          const [y2,m2]=m.split('-').map(Number);
+          return `<option value="${m}" ${m===selMonth?'selected':''}>${monthNames[m2-1]} ${y2}</option>`;
+        }).join('')}
+      </select>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px">
       <div style="${cardStyle}">
-        <div style="${labelStyle}">Total Client Leads</div>
-        <div style="${numStyle};color:var(--purple)">${clientDeals.length}</div>
+        <div style="${labelStyle}">New Leads (${monthLabel})</div>
+        <div style="${numStyle};color:#2563eb">${monthDeals.length}</div>
+        ${trend(monthDeals.length,prevNewLeads)}
       </div>
       <div style="${cardStyle}">
-        <div style="${labelStyle}">New This Month</div>
-        <div style="${numStyle};color:#2563eb">${thisMonthClient.length}</div>
+        <div style="${labelStyle}">Delivered to Clients</div>
+        <div style="${numStyle};color:#22c55e">${delivered}</div>
+        ${trend(delivered,prevDelivered)}
       </div>
       <div style="${cardStyle}">
         <div style="${labelStyle}">Undistributed</div>
         <div style="${numStyle};color:${undistributed?'#f59e0b':'#22c55e'}">${undistributed}</div>
       </div>
       <div style="${cardStyle}">
-        <div style="${labelStyle}">Meetings Booked</div>
-        <div style="${numStyle};color:#818cf8">${meetingsBooked}</div>
-      </div>
-      <div style="${cardStyle}">
-        <div style="${labelStyle}">Forwarded</div>
-        <div style="${numStyle};color:#059669">${forwarded}</div>
-      </div>
-      <div style="${cardStyle}">
-        <div style="${labelStyle}">Pushed to Tracker</div>
-        <div style="${numStyle};color:#f59e0b">${pushed}</div>
+        <div style="${labelStyle}">Total Client Leads</div>
+        <div style="${numStyle};color:var(--purple)">${clientDeals.length}</div>
       </div>
       <div style="${cardStyle}">
         <div style="${labelStyle}">Overdue Tasks</div>
         <div style="${numStyle};color:${overdueActs.length?'#ef4444':'#22c55e'}">${overdueActs.length}</div>
       </div>
     </div>
-    <h3 style="font-size:14px;font-weight:700;margin-bottom:10px">Leads by Client</h3>
+    <h3 style="font-size:14px;font-weight:700;margin-bottom:10px">Leads by Client — ${monthLabel}</h3>
     <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;border:1px solid var(--border)">
       <thead><tr style="background:#f9fafb">
         <th style="text-align:left;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)">Client</th>
         <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)">Total</th>
-        <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)">This Month</th>
-        <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)">Booked</th>
-        <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)">Forwarded</th>
-        <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)">Tracked</th>
+        <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)">New (${monthLabel})</th>
+        <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)">Delivered</th>
       </tr></thead>
-      <tbody>${Object.entries(clientCounts).filter(([n,c])=>c.total>0).sort((a,b)=>b[1].total-a[1].total).map(([name,c])=>`<tr style="border-top:1px solid #f3f4f6">
-        <td style="padding:8px 12px;font-size:12px;font-weight:600">${esc(name)}</td>
+      <tbody>${Object.entries(clientCounts).filter(([n,c])=>c.total>0).sort((a,b)=>b[1].total-a[1].total).map(([name,c])=>{
+        const client=state.clients.find(x=>x.name===name);
+        const dot=client?`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${client.color||'#818cf8'};margin-right:6px"></span>`:'';
+        return `<tr style="border-top:1px solid #f3f4f6">
+        <td style="padding:8px 12px;font-size:12px;font-weight:600">${dot}${esc(name)}</td>
         <td style="text-align:center;padding:8px 12px;font-size:12px">${c.total}</td>
         <td style="text-align:center;padding:8px 12px;font-size:12px">${c.month}</td>
-        <td style="text-align:center;padding:8px 12px;font-size:12px">${c.booked}</td>
-        <td style="text-align:center;padding:8px 12px;font-size:12px">${c.forwarded}</td>
-        <td style="text-align:center;padding:8px 12px;font-size:12px">${c.pushed}</td>
-      </tr>`).join('')}</tbody>
+        <td style="text-align:center;padding:8px 12px;font-size:12px;color:${c.delivered?'#22c55e':'var(--text-muted)'};font-weight:${c.delivered?'700':'400'}">${c.delivered}</td>
+      </tr>`;}).join('')}</tbody>
     </table>
   </div>`;
 }
@@ -1774,6 +1806,7 @@ let state = {
   // Re-Run Queue state
   nurtureSubTab: 'board',
   dashboardTab: 'client_leads',
+  dashboardMonth: new Date().toISOString().slice(0,7), // YYYY-MM
   rerunQueue: [],
   rerunMarketSettings: [],
   rerunLoading: false,
