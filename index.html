@@ -5544,7 +5544,6 @@ function renderActivateClientModal(){
                 <div style="font-weight:600;font-size:13px">${esc(c.name)}</div>
                 <div style="font-size:11px;color:#6b7280;margin-top:2px">${esc(c.contact||'')}${c.email?' · '+esc(c.email):''}${c.location?' · '+esc(c.location):''}</div>
                 ${c.calendlyUrl?'<div style="font-size:10px;color:#22c55e;margin-top:2px">✓ Calendly</div>':''}
-                ${c.onboardingDocUrl?'<div style="font-size:10px;color:#22c55e;margin-top:1px">✓ Onboarding Doc</div>':'<div style="font-size:10px;color:#f59e0b;margin-top:1px">No onboarding doc linked</div>'}
                 ${c.leadCost?'<div style="font-size:10px;color:#22c55e;margin-top:1px">✓ Lead cost: '+esc(c.leadCost)+'</div>':''}
               </div>`;
             }).join('')}
@@ -5580,7 +5579,6 @@ function refreshActivateModal(){
           <div style="font-weight:600;font-size:13px">${esc(c.name)}</div>
           <div style="font-size:11px;color:#6b7280;margin-top:2px">${esc(c.contact||'')}${c.email?' · '+esc(c.email):''}${c.location?' · '+esc(c.location):''}</div>
           ${c.calendlyUrl?'<div style="font-size:10px;color:#22c55e;margin-top:2px">✓ Calendly</div>':''}
-          ${c.onboardingDocUrl?'<div style="font-size:10px;color:#22c55e;margin-top:1px">✓ Onboarding Doc</div>':'<div style="font-size:10px;color:#f59e0b;margin-top:1px">No onboarding doc linked</div>'}
           ${c.leadCost?'<div style="font-size:10px;color:#22c55e;margin-top:1px">✓ Lead cost: '+esc(c.leadCost)+'</div>':''}
         </div>`;
       }).join('')}
@@ -5625,7 +5623,6 @@ async function doActivateClient(){
   try{
     const resp=await apiPost('activate_client',{
       clientInfoRow:sel.row,
-      onboardingDocUrl:sel.onboardingDocUrl||'',
       calendlyUrl:sel.calendlyUrl||'',
       leadCost:sel.leadCost||''
     });
@@ -5640,11 +5637,8 @@ async function doActivateClient(){
       msg.push('✓ Client "'+resp.clientName+'" activated!');
       if(resp.crmClientCreated) msg.push('✓ CRM client created with pipeline stage.');
       if(resp.dropdownsAdded) msg.push('✓ Added to Lead Entry + Lead Tracker dropdowns.');
-      if(resp.servicesFound>0) msg.push('Extracted '+resp.servicesFound+' services from onboarding doc.');
-      if(resp.serviceArea) msg.push('Service area info captured.');
       if(resp.smartlead&&resp.smartlead.ok) msg.push('✓ SmartLead client created.');
       else if(resp.smartlead&&resp.smartlead.error) msg.push('⚠ SmartLead: '+resp.smartlead.error);
-      if(resp.docParseError) msg.push('⚠ Onboarding doc: '+resp.docParseError+' (you can parse it later)');
       state.activateResult={ok:true,html:msg.join('<br>')};
     }else{
       state.activateResult={ok:false,html:'Error: '+(resp.error||JSON.stringify(resp))};
