@@ -508,6 +508,8 @@ function resetAppState(){
   state.selectedDeal = null;
   state.showNew = false;
   state.showAddClient = false;
+  state.showActivateClient = false;
+  state.activateClientLoading = false;
   state.showEmployeeArchive = false;
   state.archiveSearch = '';
   state.archiveLoaded = false;
@@ -1749,6 +1751,8 @@ let state = {
   selectedDeal: null,
   showNew: false,
   showAddClient: false,
+  showActivateClient: false,
+  activateClientLoading: false,
   showSop: false,
   dragId: null,
   overCol: null,
@@ -1817,6 +1821,7 @@ async function syncFromSheet(){
   if(state.selectedDeal) return; // Don't sync while editing
   if(state.showNew) return; // Don't sync while creating new deal
   if(state.showAddClient) return; // Don't sync while adding client
+  if(state.activateClientLoading) return; // Don't sync while activating client
   if(pendingWrites > 0) return; // Don't sync while writes are in-flight
   state.syncing=true; render();
   const data=await apiGet("get_all");
@@ -4603,6 +4608,7 @@ function render(){
       ${isAdmin()||isEmployee()?`<button class="btn btn-ghost" onclick="toggleViewMode()" title="Toggle board/list view">${state.viewMode==='board'?'☰ List':'▦ Board'}</button>`:''}
       ${isAdmin()||isEmployee()?`<button class="btn ${state.bulkMode?'btn-primary':'btn-ghost'}" onclick="toggleBulkMode()" title="Bulk select">${state.bulkMode?'✓ Bulk Mode':'☐ Bulk'}</button>`:''}
       ${isAdmin()&&state.pipeline==='client_leads'?'<button class="btn btn-ghost" onclick="openAddClient()">+ Client</button>':''}
+      ${isAdmin()&&state.pipeline==='client_leads'?'<button class="btn btn-ghost" onclick="openActivateClient()" title="Activate client from Client Info sheet">⚡ Activate</button>':''}
       <button class="btn btn-primary" onclick="openNewDeal()">+ ${isClient()?'Lead':'Deal'}</button>
       ${isClient()?`<button class="btn btn-ghost" onclick="openClientArchive()" title="View archived leads">📦 Archive${clientArchivedDeals.length?' ('+clientArchivedDeals.length+')':''}</button>`:''}
       ${isEmployee()||isAdmin()?`<button class="btn ${state.showEmployeeArchive?'btn-primary':'btn-ghost'}" onclick="state.showEmployeeArchive=!state.showEmployeeArchive;render()" title="View archived leads">📦 Archive</button>`:''}
@@ -4856,6 +4862,7 @@ function render(){
   if(state.selectedDeal) html+=renderDealModal(state.selectedDeal);
   if(state.showNew) html+=renderNewDealModal(stages);
   if(state.showAddClient) html+=renderAddClientModal();
+  if(state.showActivateClient) html+=renderActivateClientModal();
 
   app.innerHTML=html;
   // Restore scroll position
@@ -5411,6 +5418,85 @@ function renderAddClientModal(){
         </div>
       </div>
     </div></div>`;
+}
+
+function renderActivateClientModal(){
+  const fS=`width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:var(--font);outline:none;margin-top:3px`;
+  const lS=`font-size:10px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;display:block;margin-top:10px`;
+  const loading=state.activateClientLoading;
+  return`<div class="modal-overlay" onmousedown="this._mdownTarget=event.target" onclick="if(event.target===this&&this._mdownTarget===this&&!state.activateClientLoading){state.showActivateClient=false;render()}">
+    <div class="modal" style="width:480px;max-height:90vh;overflow-y:auto" onclick="event.stopPropagation()">
+      <div style="padding:20px">
+        <h3 style="margin:0 0 4px;font-size:16px;font-weight:800">⚡ Activate Client</h3>
+        <p style="font-size:11px;color:#9ca3af;margin:0 0 16px">Creates a full CRM client from a Client Info sheet row. Parses the onboarding doc to auto-fill services, and sets up dropdowns.</p>
+
+        <label style="${lS}">Client Info Sheet Row # *</label>
+        <input id="activate-row" type="number" min="2" placeholder="Row number (e.g. 7 for Lightning)" style="${fS};width:120px" ${loading?'disabled':''}>
+        <p style="font-size:10px;color:#9ca3af;margin:2px 0 0">The row number in the Client Info / Client Tracker sheet. Row 1 is headers, so the first client is row 7.</p>
+
+        <label style="${lS}">Onboarding Doc URL</label>
+        <input id="activate-doc-url" placeholder="https://docs.google.com/document/d/..." style="${fS}" ${loading?'disabled':''}>
+        <p style="font-size:10px;color:#9ca3af;margin:2px 0 0">Google Doc link. Services and service area will be auto-extracted.</p>
+
+        <label style="${lS}">Calendly URL</label>
+        <input id="activate-calendly" placeholder="https://calendly.com/..." style="${fS}" ${loading?'disabled':''}>
+
+        <label style="${lS}">Lead Cost</label>
+        <input id="activate-lead-cost" placeholder="e.g. $250 or 250" style="${fS};width:140px" ${loading?'disabled':''}>
+
+        <div id="activate-result" style="margin-top:12px"></div>
+
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+          <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="state.showActivateClient=false;render()" ${loading?'disabled':''}>Cancel</button>
+          <button class="btn btn-primary" onclick="doActivateClient()" ${loading?'disabled':''}>${loading?'Activating...':'⚡ Activate Client'}</button>
+        </div>
+      </div>
+    </div></div>`;
+}
+
+function openActivateClient(){ state.showActivateClient=true; render(); }
+
+async function doActivateClient(){
+  const rowNum=document.getElementById('activate-row')?.value;
+  if(!rowNum||parseInt(rowNum)<2){alert('Please enter a valid row number (2 or higher)');return;}
+  const docUrl=(document.getElementById('activate-doc-url')?.value||'').trim();
+  const calendlyUrl=(document.getElementById('activate-calendly')?.value||'').trim();
+  const leadCost=(document.getElementById('activate-lead-cost')?.value||'').trim();
+
+  state.activateClientLoading=true;
+  render();
+
+  const resultDiv=document.getElementById('activate-result');
+  if(resultDiv) resultDiv.innerHTML='<p style="font-size:12px;color:var(--purple)">Activating client... This may take a moment if parsing an onboarding doc.</p>';
+
+  try{
+    const resp=await apiPost('activate_client',{
+      clientInfoRow:parseInt(rowNum),
+      onboardingDocUrl:docUrl,
+      calendlyUrl:calendlyUrl,
+      leadCost:leadCost
+    });
+
+    state.activateClientLoading=false;
+
+    if(resp.ok){
+      // Refresh clients list
+      syncFromSheet();
+      const msg=[];
+      msg.push('✓ Client "'+resp.clientName+'" activated successfully!');
+      if(resp.servicesFound>0) msg.push('Extracted '+resp.servicesFound+' services from onboarding doc.');
+      if(resp.serviceArea) msg.push('Service area: '+resp.serviceArea.substring(0,100)+(resp.serviceArea.length>100?'...':''));
+      msg.push('Client ID: '+resp.clientId);
+      if(resultDiv) resultDiv.innerHTML='<div style="padding:10px;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;font-size:12px;color:#166534">'+msg.join('<br>')+'</div>';
+      // Don't close modal — let them see the result
+    }else{
+      if(resultDiv) resultDiv.innerHTML='<div style="padding:10px;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;font-size:12px;color:#991b1b">Error: '+(resp.error||'Unknown error')+'</div>';
+    }
+  }catch(e){
+    state.activateClientLoading=false;
+    if(resultDiv) resultDiv.innerHTML='<div style="padding:10px;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;font-size:12px;color:#991b1b">Failed: '+e.message+'</div>';
+  }
+  render();
 }
 
 // ─── Event Handlers ───
