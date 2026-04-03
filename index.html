@@ -4655,7 +4655,7 @@ function render(){
         <span style="font-size:14px;font-weight:600">${state.pipeline==='acquisition'?'Archived Acquisition Deals':'Archived Client Leads'}</span>
         <span style="font-size:12px;color:var(--text-muted)">${empArchive.length} result${empArchive.length!==1?'s':''}</span>
         <button class="btn btn-ghost" onclick="state.archiveLoaded=false;loadArchive()" style="font-size:11px;padding:3px 10px">↻ Refresh</button>
-        <input type="text" placeholder="Search by company, contact, or email..." value="${esc(state.archiveSearch||'')}" oninput="state.archiveSearch=this.value;render()" style="margin-left:auto;padding:6px 12px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);width:260px;background:var(--card)">
+        <input type="text" id="archive-search-input" placeholder="Search by company, contact, or email..." value="${esc(state.archiveSearch||'')}" oninput="state.archiveSearch=this.value;render()" style="margin-left:auto;padding:6px 12px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);width:260px;background:var(--card)">
       </div>
       <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;background:var(--card)">
         <table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -4880,6 +4880,10 @@ function render(){
   if(state.searchQuery){
     const si=document.getElementById('search-input');
     if(si){si.focus();si.setSelectionRange(si.value.length,si.value.length);}
+  }
+  if(state.archiveSearch){
+    const ai=document.getElementById('archive-search-input');
+    if(ai){ai.focus();ai.setSelectionRange(ai.value.length,ai.value.length);}
   }
   }catch(err){console.error('Render error:',err,err.stack);}
 }
