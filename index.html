@@ -5602,6 +5602,7 @@ async function doActivateClient(){
       if(resp.serviceArea) msg.push('Service area info captured.');
       if(resp.smartlead&&resp.smartlead.ok) msg.push('✓ SmartLead client created.');
       else if(resp.smartlead&&resp.smartlead.error) msg.push('⚠ SmartLead: '+resp.smartlead.error);
+      if(resp.docParseError) msg.push('⚠ Onboarding doc: '+resp.docParseError+' (you can parse it later)');
       state.activateResult={ok:true,html:msg.join('<br>')};
     }else{
       state.activateResult={ok:false,html:'Error: '+(resp.error||JSON.stringify(resp))};
