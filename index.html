@@ -510,6 +510,9 @@ function resetAppState(){
   state.showAddClient = false;
   state.showActivateClient = false;
   state.activateClientLoading = false;
+  state.unactivatedClients = [];
+  state.activateClientsLoading = false;
+  state.activateSelectedClient = null;
   state.showEmployeeArchive = false;
   state.archiveSearch = '';
   state.archiveLoaded = false;
@@ -1753,6 +1756,9 @@ let state = {
   showAddClient: false,
   showActivateClient: false,
   activateClientLoading: false,
+  unactivatedClients: [],
+  activateClientsLoading: false,
+  activateSelectedClient: null,
   showSop: false,
   dragId: null,
   overCol: null,
@@ -5431,76 +5437,93 @@ function renderAddClientModal(){
 }
 
 function renderActivateClientModal(){
-  const fS=`width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:var(--font);outline:none;margin-top:3px`;
-  const lS=`font-size:10px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;display:block;margin-top:10px`;
   const loading=state.activateClientLoading;
+  const clients=state.unactivatedClients||[];
+  const sel=state.activateSelectedClient;
+  const loadingList=state.activateClientsLoading;
+
   return`<div class="modal-overlay" onmousedown="this._mdownTarget=event.target" onclick="if(event.target===this&&this._mdownTarget===this&&!state.activateClientLoading){state.showActivateClient=false;render()}">
-    <div class="modal" style="width:480px;max-height:90vh;overflow-y:auto" onclick="event.stopPropagation()">
+    <div class="modal" style="width:440px;max-height:90vh;overflow-y:auto" onclick="event.stopPropagation()">
       <div style="padding:20px">
         <h3 style="margin:0 0 4px;font-size:16px;font-weight:800">⚡ Activate Client</h3>
-        <p style="font-size:11px;color:#9ca3af;margin:0 0 16px">Creates a full CRM client from a Client Info sheet row. Parses the onboarding doc to auto-fill services, and sets up dropdowns.</p>
+        <p style="font-size:11px;color:#9ca3af;margin:0 0 16px">Pick a client from the Client Info sheet. Everything is pulled automatically.</p>
 
-        <label style="${lS}">Client Info Sheet Row # *</label>
-        <input id="activate-row" type="number" min="2" placeholder="Row number (e.g. 7 for Lightning)" style="${fS};width:120px" ${loading?'disabled':''}>
-        <p style="font-size:10px;color:#9ca3af;margin:2px 0 0">The row number in the Client Info / Client Tracker sheet. Row 1 is headers, so the first client is row 7.</p>
-
-        <label style="${lS}">Onboarding Doc URL</label>
-        <input id="activate-doc-url" placeholder="https://docs.google.com/document/d/..." style="${fS}" ${loading?'disabled':''}>
-        <p style="font-size:10px;color:#9ca3af;margin:2px 0 0">Google Doc link. Services and service area will be auto-extracted.</p>
-
-        <label style="${lS}">Calendly URL</label>
-        <input id="activate-calendly" placeholder="https://calendly.com/..." style="${fS}" ${loading?'disabled':''}>
-
-        <label style="${lS}">Lead Cost</label>
-        <input id="activate-lead-cost" placeholder="e.g. $250 or 250" style="${fS};width:140px" ${loading?'disabled':''}>
+        ${loadingList?'<p style="font-size:12px;color:var(--purple)">Loading clients from Client Info sheet...</p>':''}
+        ${!loadingList&&clients.length===0?'<p style="font-size:12px;color:#9ca3af">No unactivated clients found. Add a client to the Client Info sheet first.</p>':''}
+        ${!loadingList&&clients.length>0?`
+          <div style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto">
+            ${clients.map((c,idx)=>{
+              const isSelected=sel&&sel.row===c.row;
+              return`<div onclick="state.activateSelectedClient=state.unactivatedClients[${idx}];render()" style="padding:10px 12px;border:2px solid ${isSelected?'var(--purple)':'var(--border)'};border-radius:8px;cursor:pointer;background:${isSelected?'#f5f3ff':'var(--card)'};transition:all .15s">
+                <div style="font-weight:600;font-size:13px">${esc(c.name)}</div>
+                <div style="font-size:11px;color:#6b7280;margin-top:2px">${esc(c.contact||'')}${c.email?' · '+esc(c.email):''}${c.location?' · '+esc(c.location):''}</div>
+                ${c.calendlyUrl?'<div style="font-size:10px;color:#22c55e;margin-top:2px">✓ Calendly</div>':''}
+                ${c.onboardingDocUrl?'<div style="font-size:10px;color:#22c55e;margin-top:1px">✓ Onboarding Doc</div>':'<div style="font-size:10px;color:#f59e0b;margin-top:1px">No onboarding doc linked</div>'}
+                ${c.leadCost?'<div style="font-size:10px;color:#22c55e;margin-top:1px">✓ Lead cost: '+esc(c.leadCost)+'</div>':''}
+              </div>`;
+            }).join('')}
+          </div>
+        `:''}
 
         <div id="activate-result" style="margin-top:12px"></div>
 
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
-          <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="state.showActivateClient=false;render()" ${loading?'disabled':''}>Cancel</button>
-          <button class="btn btn-primary" onclick="doActivateClient()" ${loading?'disabled':''}>${loading?'Activating...':'⚡ Activate Client'}</button>
+          <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="state.showActivateClient=false;state.activateSelectedClient=null;render()" ${loading?'disabled':''}>Cancel</button>
+          <button class="btn btn-primary" onclick="doActivateClient()" ${loading||!sel?'disabled':''}>${loading?'Activating...':'⚡ Activate'}</button>
         </div>
       </div>
     </div></div>`;
 }
 
-function openActivateClient(){ state.showActivateClient=true; render(); }
+async function openActivateClient(){
+  state.showActivateClient=true;
+  state.activateSelectedClient=null;
+  state.unactivatedClients=[];
+  state.activateClientsLoading=true;
+  render();
+  try{
+    const resp=await fetch(API_URL+'?action=get_unactivated_clients');
+    const clients=await resp.json();
+    state.unactivatedClients=Array.isArray(clients)?clients:[];
+  }catch(e){
+    state.unactivatedClients=[];
+  }
+  state.activateClientsLoading=false;
+  render();
+}
 
 async function doActivateClient(){
-  const rowNum=document.getElementById('activate-row')?.value;
-  if(!rowNum||parseInt(rowNum)<2){alert('Please enter a valid row number (2 or higher)');return;}
-  const docUrl=(document.getElementById('activate-doc-url')?.value||'').trim();
-  const calendlyUrl=(document.getElementById('activate-calendly')?.value||'').trim();
-  const leadCost=(document.getElementById('activate-lead-cost')?.value||'').trim();
+  const sel=state.activateSelectedClient;
+  if(!sel) return;
 
   state.activateClientLoading=true;
   render();
 
   const resultDiv=document.getElementById('activate-result');
-  if(resultDiv) resultDiv.innerHTML='<p style="font-size:12px;color:var(--purple)">Activating client... This may take a moment if parsing an onboarding doc.</p>';
+  if(resultDiv) resultDiv.innerHTML='<p style="font-size:12px;color:var(--purple)">Activating "'+esc(sel.name)+'"... This may take a moment.</p>';
 
   try{
     const resp=await apiPost('activate_client',{
-      clientInfoRow:parseInt(rowNum),
-      onboardingDocUrl:docUrl,
-      calendlyUrl:calendlyUrl,
-      leadCost:leadCost
+      clientInfoRow:sel.row,
+      onboardingDocUrl:sel.onboardingDocUrl||'',
+      calendlyUrl:sel.calendlyUrl||'',
+      leadCost:sel.leadCost||''
     });
 
     state.activateClientLoading=false;
 
     if(resp.ok){
-      // Refresh clients list
       syncFromSheet();
+      // Remove from unactivated list
+      state.unactivatedClients=(state.unactivatedClients||[]).filter(c=>c.row!==sel.row);
+      state.activateSelectedClient=null;
       const msg=[];
-      msg.push('✓ Client "'+resp.clientName+'" activated successfully!');
+      msg.push('✓ Client "'+resp.clientName+'" activated!');
       if(resp.servicesFound>0) msg.push('Extracted '+resp.servicesFound+' services from onboarding doc.');
-      if(resp.serviceArea) msg.push('Service area: '+resp.serviceArea.substring(0,100)+(resp.serviceArea.length>100?'...':''));
+      if(resp.serviceArea) msg.push('Service area info captured.');
       if(resp.smartlead&&resp.smartlead.ok) msg.push('✓ SmartLead client created.');
       else if(resp.smartlead&&resp.smartlead.error) msg.push('⚠ SmartLead: '+resp.smartlead.error);
-      msg.push('Client ID: '+resp.clientId);
       if(resultDiv) resultDiv.innerHTML='<div style="padding:10px;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;font-size:12px;color:#166534">'+msg.join('<br>')+'</div>';
-      // Don't close modal — let them see the result
     }else{
       if(resultDiv) resultDiv.innerHTML='<div style="padding:10px;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;font-size:12px;color:#991b1b">Error: '+(resp.error||'Unknown error')+'</div>';
     }
