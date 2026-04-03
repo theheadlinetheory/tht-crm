@@ -509,6 +509,7 @@ function resetAppState(){
   state.showNew = false;
   state.showAddClient = false;
   state.showEmployeeArchive = false;
+  state.archiveSearch = '';
   state.archiveLoaded = false;
   state.archiveData = [];
   state.nurtureSubTab = 'rerun';
@@ -4623,13 +4624,23 @@ function render(){
     // Filter archive by current pipeline tab
     const archivePipeline = state.pipeline === 'acquisition' ? 'acquisition' : 'client';
     let empArchive = state.archiveData.filter(d => (d.pipeline||'').toLowerCase() === archivePipeline);
+    // Apply archive search filter
+    const archQ = (state.archiveSearch||'').toLowerCase().trim();
+    if(archQ){
+      empArchive = empArchive.filter(d =>
+        (d.company||'').toLowerCase().includes(archQ) ||
+        (d.contact||'').toLowerCase().includes(archQ) ||
+        (d.email||'').toLowerCase().includes(archQ)
+      );
+    }
     empArchive.sort((a,b)=>(b.archivedAt||'').localeCompare(a.archivedAt||''));
     html+=`<div style="padding:16px 20px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-        <button class="btn btn-ghost" onclick="state.showEmployeeArchive=false;render()" style="font-size:13px;padding:5px 12px;display:flex;align-items:center;gap:4px">← Back to Board</button>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+        <button class="btn btn-ghost" onclick="state.showEmployeeArchive=false;state.archiveSearch='';render()" style="font-size:13px;padding:5px 12px;display:flex;align-items:center;gap:4px">← Back to Board</button>
         <span style="font-size:14px;font-weight:600">${state.pipeline==='acquisition'?'Archived Acquisition Deals':'Archived Client Leads'}</span>
         <span style="font-size:12px;color:var(--text-muted)">${empArchive.length} result${empArchive.length!==1?'s':''}</span>
         <button class="btn btn-ghost" onclick="state.archiveLoaded=false;loadArchive()" style="font-size:11px;padding:3px 10px">↻ Refresh</button>
+        <input type="text" placeholder="Search by company, contact, or email..." value="${esc(state.archiveSearch||'')}" oninput="state.archiveSearch=this.value;render()" style="margin-left:auto;padding:6px 12px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);width:260px;background:var(--card)">
       </div>
       <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;background:var(--card)">
         <table style="width:100%;border-collapse:collapse;font-size:12px">
