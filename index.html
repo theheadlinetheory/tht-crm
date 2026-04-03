@@ -5509,10 +5509,11 @@ function renderActivateClientModal(){
           </div>
         `:''}
 
-        <div id="activate-result" style="margin-top:12px"></div>
+        ${loading?'<p style="font-size:12px;color:var(--purple);margin-top:12px">Activating... This may take a moment.</p>':''}
+        ${state.activateResult?`<div style="margin-top:12px;padding:10px;background:${state.activateResult.ok?'#f0fdf4':'#fef2f2'};border:1px solid ${state.activateResult.ok?'#86efac':'#fca5a5'};border-radius:6px;font-size:12px;color:${state.activateResult.ok?'#166534':'#991b1b'}">${state.activateResult.html}</div>`:''}
 
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
-          <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="state.showActivateClient=false;state.activateSelectedClient=null;render()" ${loading?'disabled':''}>Cancel</button>
+          <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="state.showActivateClient=false;state.activateSelectedClient=null;state.activateResult=null;render()" ${loading?'disabled':''}>Cancel</button>
           <button class="btn btn-primary" onclick="doActivateClient()" ${loading||!sel?'disabled':''}>${loading?'Activating...':'⚡ Activate'}</button>
         </div>
       </div>
@@ -5542,9 +5543,10 @@ function refreshActivateModal(){
         </div>`;
       }).join('')}
     </div>`:''}
-    <div id="activate-result" style="margin-top:12px"></div>
+    ${loading?'<p style="font-size:12px;color:var(--purple);margin-top:12px">Activating... This may take a moment.</p>':''}
+    ${state.activateResult?`<div style="margin-top:12px;padding:10px;background:${state.activateResult.ok?'#f0fdf4':'#fef2f2'};border:1px solid ${state.activateResult.ok?'#86efac':'#fca5a5'};border-radius:6px;font-size:12px;color:${state.activateResult.ok?'#166534':'#991b1b'}">${state.activateResult.html}</div>`:''}
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
-      <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="state.showActivateClient=false;state.activateSelectedClient=null;render()" ${loading?'disabled':''}>Cancel</button>
+      <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="state.showActivateClient=false;state.activateSelectedClient=null;state.activateResult=null;render()" ${loading?'disabled':''}>Cancel</button>
       <button class="btn btn-primary" onclick="doActivateClient()" ${loading||!sel?'disabled':''}>${loading?'Activating...':'⚡ Activate'}</button>
     </div>`;
   el.innerHTML=h;
@@ -5553,6 +5555,7 @@ function refreshActivateModal(){
 async function openActivateClient(){
   state.showActivateClient=true;
   state.activateSelectedClient=null;
+  state.activateResult=null;
   state.unactivatedClients=[];
   state.activateClientsLoading=true;
   render();
@@ -5574,10 +5577,8 @@ async function doActivateClient(){
   if(!sel) return;
 
   state.activateClientLoading=true;
-  render();
-
-  const resultDiv=document.getElementById('activate-result');
-  if(resultDiv) resultDiv.innerHTML='<p style="font-size:12px;color:var(--purple)">Activating "'+esc(sel.name)+'"... This may take a moment.</p>';
+  state.activateResult=null;
+  refreshActivateModal();
 
   try{
     const resp=await apiPost('activate_client',{
@@ -5591,24 +5592,25 @@ async function doActivateClient(){
 
     if(resp.ok){
       syncFromSheet();
-      // Remove from unactivated list
       state.unactivatedClients=(state.unactivatedClients||[]).filter(c=>c.row!==sel.row);
       state.activateSelectedClient=null;
       const msg=[];
       msg.push('✓ Client "'+resp.clientName+'" activated!');
+      if(resp.crmClientCreated) msg.push('✓ CRM client created with pipeline stage.');
+      if(resp.dropdownsAdded) msg.push('✓ Added to Lead Entry + Lead Tracker dropdowns.');
       if(resp.servicesFound>0) msg.push('Extracted '+resp.servicesFound+' services from onboarding doc.');
       if(resp.serviceArea) msg.push('Service area info captured.');
       if(resp.smartlead&&resp.smartlead.ok) msg.push('✓ SmartLead client created.');
       else if(resp.smartlead&&resp.smartlead.error) msg.push('⚠ SmartLead: '+resp.smartlead.error);
-      if(resultDiv) resultDiv.innerHTML='<div style="padding:10px;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;font-size:12px;color:#166534">'+msg.join('<br>')+'</div>';
+      state.activateResult={ok:true,html:msg.join('<br>')};
     }else{
-      if(resultDiv) resultDiv.innerHTML='<div style="padding:10px;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;font-size:12px;color:#991b1b">Error: '+(resp.error||'Unknown error')+'</div>';
+      state.activateResult={ok:false,html:'Error: '+(resp.error||JSON.stringify(resp))};
     }
   }catch(e){
     state.activateClientLoading=false;
-    if(resultDiv) resultDiv.innerHTML='<div style="padding:10px;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;font-size:12px;color:#991b1b">Failed: '+e.message+'</div>';
+    state.activateResult={ok:false,html:'Failed: '+e.message};
   }
-  render();
+  refreshActivateModal();
 }
 
 // ─── Event Handlers ───
