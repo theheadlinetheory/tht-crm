@@ -4003,27 +4003,6 @@ async function pushToLeadTracker(dealId){
 // PUSH TO CLIENT INFO SHEET (Acquisition → Closed Won)
 // ═══════════════════════════════════════════════════════════
 
-function deriveTimezone(location){
-  if(!location) return '';
-  const loc=location.toLowerCase();
-  const eastern=['fl','ny','pa','nj','ct','ma','va','nc','sc','ga','md','de','me','nh','vt','ri','wv','oh','mi','in','ky','tn','al','ms','dc',
-    'florida','new york','pennsylvania','new jersey','connecticut','massachusetts','virginia','north carolina','south carolina','georgia','maryland','delaware','maine','new hampshire','vermont','rhode island','west virginia','ohio','michigan','indiana','kentucky','tennessee','alabama','mississippi','philadelphia','orlando','miami','atlanta','charlotte','boston','detroit'];
-  const central=['il','tx','wi','mn','ia','mo','ar','la','ok','ks','ne','sd','nd',
-    'illinois','texas','wisconsin','minnesota','iowa','missouri','arkansas','louisiana','oklahoma','kansas','nebraska','south dakota','north dakota','chicago','dallas','houston','minneapolis','san antonio','austin'];
-  const mountain=['az','co','nm','ut','mt','wy','id',
-    'arizona','colorado','new mexico','utah','montana','wyoming','idaho','phoenix','denver','salt lake','boise'];
-  const pacific=['ca','wa','or','nv',
-    'california','washington','oregon','nevada','los angeles','san francisco','seattle','portland','las vegas','san diego','vancouver'];
-  for(const s of pacific) if(loc.includes(s)) return 'PST';
-  for(const s of mountain) if(loc.includes(s)) return 'MST';
-  for(const s of central) if(loc.includes(s)) return 'CST';
-  for(const s of eastern) if(loc.includes(s)) return 'EST';
-  // Canadian timezones
-  if(loc.includes('toronto')||loc.includes(', on')) return 'EST';
-  if(loc.includes('vancouver')||loc.includes(', bc')) return 'PST';
-  return '';
-}
-
 async function pushToClientInfo(dealId){
   const deal=state.deals.find(d=>d.id===dealId);
   if(!deal) return;
@@ -4031,12 +4010,12 @@ async function pushToClientInfo(dealId){
   const contact=deal.contact||'';
   const email=deal.email||'';
   const location=deal.location||'';
-  const timezone=deriveTimezone(location);
+  const address=deal.address||'';
   const phone=deal.phone||deal.mobilePhone||'';
   const website=deal.website||'';
 
-  // Columns: A=Client, B=Primary Contact, C=Primary Contact Email, D=Other Contacts, E=Location, F=Time Zone, G=Service Area, H=Phone Number, I=Calendly Link, J=Email for Lead Forwarding, K=Name for Lead Forwarding, L=Website
-  const row=[company,contact,email,'',location,timezone,'',phone,'','','',website];
+  // Columns: A=Client, B=Primary Contact, C=Primary Contact Email, D=Other Contacts, E=Location, F=Time Zone (blank), G=Service Area, H=Phone Number, I=Calendly Link, J=Email for Lead Forwarding, K=Name for Lead Forwarding, L=Website, M=Services Offered, N=Pricing Model, O=Cost, P=Payment Period, Q=Gmail Thread ID, R=Address
+  const row=[company,contact,email,'',location,'','',phone,'','','',website,'','','','','',address];
   try{
     await apiPost('push_lead_tracker',{sheetId:CLIENT_INFO_SHEET_ID,sheetName:'Client Tracker',row});
   }catch(e){
