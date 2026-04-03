@@ -4814,7 +4814,7 @@ function render(){
     <div class="delete-zone-half delete-zone-won"
       ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';this.classList.add('drag-hover')"
       ondragleave="this.classList.remove('drag-hover')"
-      ondrop="doWonDrop()">✅ ${isClient()?'Won / Closed':'Won → Push to Tracker'}</div>
+      ondrop="doWonDrop()">✅ ${isClient()?'Won / Closed':state.pipeline==='acquisition'?'Won → Upload to Database':'Won → Push to Tracker'}</div>
   </div>`;
   } // end board view
 
@@ -5684,7 +5684,7 @@ async function doWonDrop(){
 
   // Acquisition pipeline: push to Client Info sheet, then archive as Closed Won
   if(deal.pipeline==='Acquisition'){
-    if(!confirm('Mark "'+name+'" as Closed Won, push to Client Info, and archive?')) return;
+    if(!confirm('Mark "'+name+'" as Closed Won, upload to database, and archive?')) return;
     try{
       await pushToClientInfo(dragId);
       deleteDeal(dragId, 'Closed Won');
