@@ -5483,8 +5483,10 @@ async function openActivateClient(){
   render();
   try{
     const resp=await fetch(API_URL+'?action=get_unactivated_clients');
-    const clients=await resp.json();
+    const result=await resp.json();
+    const clients=result.clients||result;
     state.unactivatedClients=Array.isArray(clients)?clients:[];
+    if(result.headers) console.log('Client Info headers:',result.headers);
   }catch(e){
     state.unactivatedClients=[];
   }
