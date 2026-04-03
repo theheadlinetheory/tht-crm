@@ -739,6 +739,8 @@ const LEADHERO_IOANNIS_FOLDER = 'f0db5b57-3bcf-4e78-bfc9-764566fd13a9';
 // Restore deleted-ID sets from localStorage so deletions survive page refresh
 const deletedDealIds = new Set(JSON.parse(localStorage.getItem('tht_deletedDeals')||'[]'));
 const deletedActivityIds = new Set(JSON.parse(localStorage.getItem('tht_deletedActs')||'[]'));
+// Guard for completed activities — prevents sync from reverting done=true if API call was slow/failed
+const completedActivityIds = new Set(JSON.parse(localStorage.getItem('tht_completedActs')||'[]'));
 let pendingWrites = 0; // Prevent sync from overwriting during active writes
 
 // Warn user before closing if writes are still in flight
@@ -1893,6 +1895,11 @@ async function syncFromSheet(){
           if(k==='done'){ a[k]=(a[k]===true||a[k]==='true'||a[k]==='TRUE'); return; }
           if(a[k]!=null && typeof a[k]!=='string') a[k]=String(a[k]);
         });
+        // Guard: if we locally marked this activity as completed, don't let sync revert it
+        if(completedActivityIds.has(String(a.id)) && !a.done){
+          a.done=true;
+          if(!a.completedAt) a.completedAt=new Date().toISOString();
+        }
       });
     }
     if(data.clients && Array.isArray(data.clients) && data.clients.length>0){
@@ -1951,6 +1958,18 @@ async function syncFromSheet(){
       const serverActIds=new Set(data.activities.map(a=>String(a.id)));
       for(const id of deletedActivityIds){ if(!serverActIds.has(id)) deletedActivityIds.delete(id); }
       localStorage.setItem('tht_deletedActs',JSON.stringify([...deletedActivityIds]));
+    }
+    // Prune completed guard: once server confirms done=true, remove from guard
+    if(data.activities && completedActivityIds.size){
+      for(const id of completedActivityIds){
+        const serverAct=data.activities.find(a=>String(a.id)===id);
+        if(serverAct && (serverAct.done===true||serverAct.done==='true'||serverAct.done==='TRUE')){
+          completedActivityIds.delete(id);
+        }
+        // Also prune if activity was deleted from server
+        if(!serverAct) completedActivityIds.delete(id);
+      }
+      localStorage.setItem('tht_completedActs',JSON.stringify([...completedActivityIds]));
     }
     if(data.clients && deletedClientIds.size){
       const serverClientIds=new Set(data.clients.map(c=>String(c.id)));
@@ -2574,19 +2593,36 @@ function toggleActivity(actId){
   if(!a) return;
   a.done=!a.done;
   a.completedAt=a.done?new Date().toISOString():"";
+  // Guard: track completed activities so sync can't revert them
+  if(a.done){ completedActivityIds.add(sid); } else { completedActivityIds.delete(sid); }
+  localStorage.setItem('tht_completedActs',JSON.stringify([...completedActivityIds]));
   refreshModal();
   pendingWrites++;
-  apiPost("update_activity",{id:sid,done:a.done,completedAt:a.completedAt}).finally(()=>{ pendingWrites--; });
+  apiPost("update_activity",{id:sid,done:a.done,completedAt:a.completedAt}).then(res=>{
+    if(!res||res.error){
+      // Retry once on failure
+      console.warn('Activity toggle failed, retrying:',res);
+      return apiPost("update_activity",{id:sid,done:a.done,completedAt:a.completedAt});
+    }
+  }).finally(()=>{ pendingWrites--; });
 }
 
 function deleteActivity(actId){
   const sid=String(actId);
   deletedActivityIds.add(sid);
   localStorage.setItem('tht_deletedActs',JSON.stringify([...deletedActivityIds]));
+  // Also clean from completed guard
+  completedActivityIds.delete(sid);
+  localStorage.setItem('tht_completedActs',JSON.stringify([...completedActivityIds]));
   state.activities=state.activities.filter(a=>String(a.id)!==sid);
   refreshModal();
   pendingWrites++;
-  apiPost("delete_activity",{id:sid}).finally(()=>{ pendingWrites--; });
+  apiPost("delete_activity",{id:sid}).then(res=>{
+    if(!res||res.error){
+      console.warn('Activity delete failed, retrying:',res);
+      return apiPost("delete_activity",{id:sid});
+    }
+  }).finally(()=>{ pendingWrites--; });
 }
 
 function assignSequence(dealId,dayLabel,acts,targetDate){
