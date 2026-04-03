@@ -3222,6 +3222,7 @@ function removeClient(name){
 
 const LEAD_TRACKER_SHEET_ID='1zEfZQOuzbrE9s01gfTOoVvEJ-DgtOxkPIWNiZHaxaZ4';
 const LEAD_ENTRY_SHEET_ID='1RAa689xwLM2fQjO0K8cpOyBCPt8bEorTErKDbdFL_fY';
+const CLIENT_INFO_SHEET_ID='1y8AoGopplKltre5ZOP2v0tJPy6Jp0c6C8rqUBO30xFg';
 // Clients that push to Lead Tracker at $0 (no cost)
 const TRACKER_ZERO_COST_CLIENTS=['abc','deeter'];
 
@@ -3998,6 +3999,52 @@ async function pushToLeadTracker(dealId){
 }
 
 // ═══════════════════════════════════════════════════════════
+// PUSH TO CLIENT INFO SHEET (Acquisition → Closed Won)
+// ═══════════════════════════════════════════════════════════
+
+function deriveTimezone(location){
+  if(!location) return '';
+  const loc=location.toLowerCase();
+  const eastern=['fl','ny','pa','nj','ct','ma','va','nc','sc','ga','md','de','me','nh','vt','ri','wv','oh','mi','in','ky','tn','al','ms','dc',
+    'florida','new york','pennsylvania','new jersey','connecticut','massachusetts','virginia','north carolina','south carolina','georgia','maryland','delaware','maine','new hampshire','vermont','rhode island','west virginia','ohio','michigan','indiana','kentucky','tennessee','alabama','mississippi','philadelphia','orlando','miami','atlanta','charlotte','boston','detroit'];
+  const central=['il','tx','wi','mn','ia','mo','ar','la','ok','ks','ne','sd','nd',
+    'illinois','texas','wisconsin','minnesota','iowa','missouri','arkansas','louisiana','oklahoma','kansas','nebraska','south dakota','north dakota','chicago','dallas','houston','minneapolis','san antonio','austin'];
+  const mountain=['az','co','nm','ut','mt','wy','id',
+    'arizona','colorado','new mexico','utah','montana','wyoming','idaho','phoenix','denver','salt lake','boise'];
+  const pacific=['ca','wa','or','nv',
+    'california','washington','oregon','nevada','los angeles','san francisco','seattle','portland','las vegas','san diego','vancouver'];
+  for(const s of pacific) if(loc.includes(s)) return 'PST';
+  for(const s of mountain) if(loc.includes(s)) return 'MST';
+  for(const s of central) if(loc.includes(s)) return 'CST';
+  for(const s of eastern) if(loc.includes(s)) return 'EST';
+  // Canadian timezones
+  if(loc.includes('toronto')||loc.includes(', on')) return 'EST';
+  if(loc.includes('vancouver')||loc.includes(', bc')) return 'PST';
+  return '';
+}
+
+async function pushToClientInfo(dealId){
+  const deal=state.deals.find(d=>d.id===dealId);
+  if(!deal) return;
+  const company=deal.company||'';
+  const contact=deal.contact||'';
+  const email=deal.email||'';
+  const location=deal.location||'';
+  const timezone=deriveTimezone(location);
+  const phone=deal.phone||deal.mobilePhone||'';
+  const website=deal.website||'';
+
+  // Columns: A=Client, B=Primary Contact, C=Primary Contact Email, D=Other Contacts, E=Location, F=Time Zone, G=Service Area, H=Phone Number, I=Calendly Link, J=Email for Lead Forwarding, K=Name for Lead Forwarding, L=Website
+  const row=[company,contact,email,'',location,timezone,'',phone,'','','',website];
+  try{
+    await apiPost('push_lead_tracker',{sheetId:CLIENT_INFO_SHEET_ID,sheetName:'Client Tracker',row});
+  }catch(e){
+    alert('Failed to push to Client Info: '+e.message);
+    throw e;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
 // RE-RUN QUEUE
 // ═══════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════
@@ -4573,13 +4620,14 @@ function render(){
   if((isEmployee()||isAdmin()) && state.showEmployeeArchive){
     // If archive not loaded yet (edge case), trigger background load and show what we have
     if(!state.archiveLoaded){ loadArchive(); }
-    // Filter to Client pipeline only
-    let empArchive = state.archiveData.filter(d => (d.pipeline||'').toLowerCase() === 'client');
+    // Filter archive by current pipeline tab
+    const archivePipeline = state.pipeline === 'acquisition' ? 'acquisition' : 'client';
+    let empArchive = state.archiveData.filter(d => (d.pipeline||'').toLowerCase() === archivePipeline);
     empArchive.sort((a,b)=>(b.archivedAt||'').localeCompare(a.archivedAt||''));
     html+=`<div style="padding:16px 20px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
         <button class="btn btn-ghost" onclick="state.showEmployeeArchive=false;render()" style="font-size:13px;padding:5px 12px;display:flex;align-items:center;gap:4px">← Back to Board</button>
-        <span style="font-size:14px;font-weight:600">Archived Client Leads</span>
+        <span style="font-size:14px;font-weight:600">${state.pipeline==='acquisition'?'Archived Acquisition Deals':'Archived Client Leads'}</span>
         <span style="font-size:12px;color:var(--text-muted)">${empArchive.length} result${empArchive.length!==1?'s':''}</span>
         <button class="btn btn-ghost" onclick="state.archiveLoaded=false;loadArchive()" style="font-size:11px;padding:3px 10px">↻ Refresh</button>
       </div>
@@ -4589,7 +4637,7 @@ function render(){
             <th style="padding:8px 10px;text-align:left;font-weight:600">Company</th>
             <th style="padding:8px 10px;text-align:left;font-weight:600">Contact</th>
             <th style="padding:8px 10px;text-align:left;font-weight:600">Email</th>
-            <th style="padding:8px 10px;text-align:left;font-weight:600">Client</th>
+            <th style="padding:8px 10px;text-align:left;font-weight:600">${state.pipeline==='acquisition'?'Stage':'Client'}</th>
             <th style="padding:8px 10px;text-align:left;font-weight:600">Status</th>
             <th style="padding:8px 10px;text-align:left;font-weight:600">Archived</th>
             <th style="padding:8px 10px;text-align:left;font-weight:600"></th>
@@ -5623,7 +5671,19 @@ async function doWonDrop(){
     return;
   }
 
-  // Non-Client pipeline deals: just archive as Closed Won (no tracker push)
+  // Acquisition pipeline: push to Client Info sheet, then archive as Closed Won
+  if(deal.pipeline==='Acquisition'){
+    if(!confirm('Mark "'+name+'" as Closed Won, push to Client Info, and archive?')) return;
+    try{
+      await pushToClientInfo(dragId);
+      deleteDeal(dragId, 'Closed Won');
+    }catch(e){
+      alert('\u274c Failed to push to Client Info: '+e.message);
+    }
+    return;
+  }
+
+  // Other non-Client pipeline deals: just archive as Closed Won
   if(deal.pipeline!=='Client'){
     if(confirm('Mark "'+name+'" as Closed Won and archive?')){
       deleteDeal(dragId, 'Closed Won');
