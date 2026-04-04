@@ -5133,7 +5133,7 @@ function renderDealModal(deal){
 
   // SmartLead Email Thread — on-demand viewer (admin + employee only)
   if((isAdmin()||isEmployee()) && str(deal.slLeadId).trim() && str(deal.slCampaignId).trim()){
-    h+=`<button id="sl-thread-btn-${esc(deal.id)}" class="sl-thread-btn" onclick="event.stopPropagation();this.disabled=true;this.innerHTML='Loading...';loadSmartleadThread('${esc(deal.id)}')">
+    h+=`<button id="sl-thread-btn-${esc(deal.id)}" class="sl-thread-btn" onclick="event.stopPropagation();var _b=this;_b.disabled=true;_b.innerHTML='Loading...';loadSmartleadThread('${esc(deal.id)}').then(function(){_b.style.display='none'})">
       📧 View Email Thread
     </button>
     <div id="sl-thread-${esc(deal.id)}"></div>`;
@@ -5769,10 +5769,15 @@ function renderThreadMessage(msg, isLatest) {
   var body = msg.email_body || msg.body || msg.text || msg.content || '';
 
   var safeBody = body
+    .replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '')
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<!--\[if[\s\S]*?<!\[endif\]-->/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<[^>]+>/g, '')
+    .replace(/[a-zA-Z.*#\[][^{}]*\{[^}]*\}/g, '')
     .replace(/&nbsp;/gi, ' ')
+    .replace(/&[a-z]+;/gi, ' ')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 
