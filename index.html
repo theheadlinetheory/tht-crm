@@ -5133,7 +5133,7 @@ function renderDealModal(deal){
 
   // SmartLead Email Thread — on-demand viewer (admin + employee only)
   if((isAdmin()||isEmployee()) && str(deal.slLeadId).trim() && str(deal.slCampaignId).trim()){
-    h+=`<button class="sl-thread-btn" onclick="event.stopPropagation();this.disabled=true;this.innerHTML='Loading...';loadSmartleadThread('${esc(deal.id)}')">
+    h+=`<button id="sl-thread-btn-${esc(deal.id)}" class="sl-thread-btn" onclick="event.stopPropagation();this.disabled=true;this.innerHTML='Loading...';loadSmartleadThread('${esc(deal.id)}')">
       📧 View Email Thread
     </button>
     <div id="sl-thread-${esc(deal.id)}"></div>`;
@@ -5699,6 +5699,7 @@ async function loadSmartleadThread(dealId) {
   var cacheKey = deal.slCampaignId + '-' + deal.slLeadId;
 
   var container = document.getElementById('sl-thread-' + dealId);
+  var btn = document.getElementById('sl-thread-btn-' + dealId);
   if (!container) return;
   container.innerHTML = '<div class="sl-thread-loading">Loading email thread...</div>';
 
@@ -5708,12 +5709,14 @@ async function loadSmartleadThread(dealId) {
   });
 
   if (!result || result.error) {
+    if (btn) { btn.disabled = false; btn.innerHTML = '📧 View Email Thread'; }
     container.innerHTML = '<div class="sl-thread-error"><span>Couldn\'t load thread' +
       (result && result.error ? ': ' + esc(result.error) : '') + '</span>' +
       '<button onclick="loadSmartleadThread(\'' + esc(dealId) + '\')">Retry</button></div>';
     return;
   }
 
+  if (btn) btn.style.display = 'none';
   slThreadCache[cacheKey] = result.messages;
   renderSmartleadThread(dealId, result.messages);
 }
@@ -5765,7 +5768,13 @@ function renderThreadMessage(msg, isLatest) {
   var time = msg.time || msg.sent_time || msg.created_at || '';
   var body = msg.email_body || msg.body || msg.text || msg.content || '';
 
-  var safeBody = body.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim();
+  var safeBody = body
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 
   var timeStr = '';
   if (time) {
