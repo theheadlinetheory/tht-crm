@@ -147,6 +147,23 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .reply-preview-title { font-weight:700; color:#15803d; margin-bottom:6px; font-size:11px; display:flex; align-items:center; gap:5px; }
 .reply-preview-body { color:#374151; white-space:pre-wrap; word-break:break-word; max-height:120px; overflow-y:auto; line-height:1.5; }
 .reply-preview-category { display:inline-block; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:600; margin-left:6px; }
+.sl-thread-btn { display:inline-flex;align-items:center;gap:5px;padding:6px 12px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:var(--radius);font-size:11px;font-weight:600;color:#15803d;cursor:pointer;transition:background .15s;margin-bottom:12px;width:100%;justify-content:center }
+.sl-thread-btn:hover { background:#d1fae5 }
+.sl-thread-btn:disabled { opacity:0.6;cursor:default }
+.sl-thread-container { margin-bottom:16px }
+.sl-thread-loading { text-align:center;padding:16px;font-size:12px;color:#6b7280 }
+.sl-thread-error { background:#fef2f2;border:1px solid #fecaca;border-radius:var(--radius);padding:10px 12px;font-size:12px;color:#991b1b;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between }
+.sl-thread-error button { background:#fee2e2;border:1px solid #fecaca;border-radius:4px;padding:3px 10px;font-size:11px;color:#991b1b;cursor:pointer;font-weight:600 }
+.sl-thread-msg { border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;font-size:12px;background:var(--card) }
+.sl-thread-msg.sent { border-left:3px solid #818cf8 }
+.sl-thread-msg.received { border-left:3px solid #34d399 }
+.sl-thread-msg-header { display:flex;justify-content:space-between;align-items:center;margin-bottom:6px }
+.sl-thread-msg-from { font-weight:700;font-size:11px;color:var(--text) }
+.sl-thread-msg-time { font-size:10px;color:#9ca3af }
+.sl-thread-msg-body { color:#374151;white-space:pre-wrap;word-break:break-word;line-height:1.5;max-height:200px;overflow-y:auto }
+.sl-thread-msg-body img { max-width:100%;height:auto }
+.sl-thread-toggle { background:none;border:1px solid var(--border);border-radius:var(--radius);padding:6px 12px;font-size:11px;color:#6b7280;cursor:pointer;width:100%;text-align:center;margin-bottom:8px }
+.sl-thread-toggle:hover { background:#f9fafb }
 .cat-interested { background:#dcfce7; color:#166534; }
 .cat-meeting { background:#dbeafe; color:#1e40af; }
 .cat-info { background:#fef3c7; color:#92400e; }
@@ -5114,6 +5131,14 @@ function renderDealModal(deal){
     </div>`;
   }
 
+  // SmartLead Email Thread — on-demand viewer (admin + employee only)
+  if((isAdmin()||isEmployee()) && str(deal.slLeadId).trim() && str(deal.slCampaignId).trim()){
+    h+=`<button class="sl-thread-btn" onclick="event.stopPropagation();this.disabled=true;this.innerHTML='Loading...';loadSmartleadThread('${esc(deal.id)}')">
+      📧 View Email Thread
+    </button>
+    <div id="sl-thread-${esc(deal.id)}"></div>`;
+  }
+
   // Client Action Buttons — CLIENT PIPELINE ONLY
   if(deal.pipeline==='Client'){
     // Find matched client for this deal (by campaign keyword OR by stage name)
@@ -5663,6 +5688,111 @@ function closeDealModal(){
   state.selectedDeal=null;
   state.showSop=false;
   render();
+}
+
+// ---- SmartLead Thread Viewer ----
+var slThreadCache = {};
+
+async function loadSmartleadThread(dealId) {
+  var deal = state.deals.find(function(d) { return String(d.id) === String(dealId); });
+  if (!deal || !deal.slLeadId || !deal.slCampaignId) return;
+  var cacheKey = deal.slCampaignId + '-' + deal.slLeadId;
+
+  var container = document.getElementById('sl-thread-' + dealId);
+  if (!container) return;
+  container.innerHTML = '<div class="sl-thread-loading">Loading email thread...</div>';
+
+  var result = await apiPost('get_smartlead_thread', {
+    slLeadId: deal.slLeadId,
+    slCampaignId: deal.slCampaignId
+  });
+
+  if (!result || result.error) {
+    container.innerHTML = '<div class="sl-thread-error"><span>Couldn\'t load thread' +
+      (result && result.error ? ': ' + esc(result.error) : '') + '</span>' +
+      '<button onclick="loadSmartleadThread(\'' + esc(dealId) + '\')">Retry</button></div>';
+    return;
+  }
+
+  slThreadCache[cacheKey] = result.messages;
+  renderSmartleadThread(dealId, result.messages);
+}
+
+function renderSmartleadThread(dealId, messages) {
+  var container = document.getElementById('sl-thread-' + dealId);
+  if (!container || !messages || !messages.length) {
+    if (container) container.innerHTML = '<div class="sl-thread-loading" style="color:#9ca3af">No messages found for this lead.</div>';
+    return;
+  }
+
+  var sorted = messages.slice().sort(function(a, b) {
+    return new Date(a.time || a.sent_time || a.created_at || 0) - new Date(b.time || b.sent_time || b.created_at || 0);
+  });
+
+  var latestReply = null;
+  for (var i = sorted.length - 1; i >= 0; i--) {
+    var m = sorted[i];
+    if (m.type === 'RECEIVED' || m.message_type === 'RECEIVED' || m.direction === 'received' || m.is_reply === true) {
+      latestReply = m;
+      break;
+    }
+  }
+  if (!latestReply) latestReply = sorted[sorted.length - 1];
+
+  var html = '<div class="sl-thread-container">';
+  html += renderThreadMessage(latestReply, true);
+
+  if (sorted.length > 1) {
+    html += '<button class="sl-thread-toggle" onclick="toggleFullThread(\'' + esc(dealId) + '\')" id="sl-thread-toggle-' + dealId + '">' +
+      'Show full thread (' + sorted.length + ' messages)</button>';
+    html += '<div id="sl-thread-full-' + dealId + '" style="display:none">';
+    for (var j = 0; j < sorted.length; j++) {
+      if (sorted[j] !== latestReply) {
+        html += renderThreadMessage(sorted[j], false);
+      }
+    }
+    html += '</div>';
+  }
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function renderThreadMessage(msg, isLatest) {
+  var isReceived = msg.type === 'RECEIVED' || msg.message_type === 'RECEIVED' || msg.direction === 'received' || msg.is_reply === true;
+  var dirClass = isReceived ? 'received' : 'sent';
+  var from = msg.from_name || msg.sender_name || msg.from || msg.from_email || (isReceived ? 'Lead' : 'You');
+  var time = msg.time || msg.sent_time || msg.created_at || '';
+  var body = msg.email_body || msg.body || msg.text || msg.content || '';
+
+  var safeBody = body.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim();
+
+  var timeStr = '';
+  if (time) {
+    try { timeStr = fmtTimestamp(time); } catch(e) { timeStr = String(time).slice(0, 16); }
+  }
+
+  return '<div class="sl-thread-msg ' + dirClass + '">' +
+    '<div class="sl-thread-msg-header">' +
+      '<span class="sl-thread-msg-from">' + (isReceived ? '📩 ' : '📤 ') + esc(String(from)) + '</span>' +
+      '<span class="sl-thread-msg-time">' + esc(timeStr) + '</span>' +
+    '</div>' +
+    '<div class="sl-thread-msg-body">' + esc(safeBody) + '</div>' +
+  '</div>';
+}
+
+function toggleFullThread(dealId) {
+  var el = document.getElementById('sl-thread-full-' + dealId);
+  var btn = document.getElementById('sl-thread-toggle-' + dealId);
+  if (!el || !btn) return;
+  if (el.style.display === 'none') {
+    el.style.display = 'block';
+    btn.textContent = 'Hide full thread';
+  } else {
+    el.style.display = 'none';
+    var count = el.querySelectorAll('.sl-thread-msg').length + 1;
+    btn.textContent = 'Show full thread (' + count + ' messages)';
+  }
 }
 
 function openNewDeal(){ state.showNew=true; render(); }
