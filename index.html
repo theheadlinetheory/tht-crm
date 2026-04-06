@@ -3534,9 +3534,9 @@ function getWarmCallQA(clientName){
   const info=lookupClientInfo(clientName);
   if(!info) return [];
   const qa=[];
-  qa.push({q:'Where are you guys located?',a:'We\'re based out of '+info.location+'.'});
-  qa.push({q:'What areas do you service?',a:'We service '+info.serviceAreaCities+'.'});
-  qa.push({q:'What services do you offer?',a:info.services.join(', ')+'.'});
+  qa.push({q:'Where are you guys located?',a:'We\'re based out of '+(info.location||'the area')+'.'});
+  qa.push({q:'What areas do you service?',a:'We service '+(info.serviceAreaCities||'the surrounding area')+'.'});
+  qa.push({q:'What services do you offer?',a:(info.services||[]).join(', ')||'We offer a full range of services — happy to go over the details on a call.'});
   qa.push({q:'Can I get a quote?',a:'Absolutely! We can schedule a quick call to go over your property and get you a quote. What day works best for you?'});
   qa.push({q:'Do you do residential or commercial?',a:'We specialize in commercial properties — HOAs, apartment complexes, retail centers, office parks, and more.'});
   return qa;
