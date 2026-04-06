@@ -3511,13 +3511,47 @@ function lookupClientInfo(name){
     const kNoSpace=k.replace(/\s+/g,'');
     if(n.includes(k)||k.includes(n)||nNoSpace.includes(kNoSpace)||kNoSpace.includes(nNoSpace)) return CLIENT_INFO[key];
   }
-  // Fallback: build info from synced client data (state.clients has timeZone from Clients sheet)
+  // Fallback: build info from synced client data (state.clients + clientNotes parsed)
   const sc=state.clients.find(c=>{
     const cn=c.name.toLowerCase().trim();
     return cn===n||n.includes(cn)||cn.includes(n);
   });
-  if(sc && sc.timeZone) return { timeZone:sc.timeZone, location:'', primaryContact:sc.contactFirstName||'', primaryEmail:sc.notifyEmail||'', calendlyUrl:sc.calendlyUrl||'' };
-  return null;
+  if(!sc) return null;
+  // Parse clientNotes (synced from Client Info sheet) to extract structured data
+  const notes=str(sc.clientNotes);
+  let parsedLocation='',parsedServices=[],parsedServiceArea='',parsedPricing='';
+  if(notes){
+    const sections=notes.split('\n\n');
+    for(const sec of sections){
+      const lines=sec.split('\n').map(l=>l.trim()).filter(Boolean);
+      if(!lines.length) continue;
+      const header=lines[0].toLowerCase();
+      if(header==='services'&&lines.length>1){
+        parsedServices=lines.slice(1).map(l=>l.replace(/^[\u2022\-\*]\s*/,'').trim()).filter(Boolean);
+      } else if(header==='service area'&&lines.length>1){
+        parsedServiceArea=lines.slice(1).join(', ');
+      } else if(header==='pricing'&&lines.length>1){
+        parsedPricing=lines.slice(1).join(' | ');
+      } else if(header==='contact'&&lines.length>1){
+        // Second line often has "Location (TZ)" format
+        const locLine=lines.find(l=>/\(EST\)|\(CST\)|\(MST\)|\(PST\)/i.test(l));
+        if(locLine) parsedLocation=locLine.replace(/\s*\([A-Z]{2,4}\)\s*$/,'').trim();
+      }
+    }
+  }
+  return {
+    timeZone:sc.timeZone||'',
+    location:parsedLocation||str(sc.location).trim()||'',
+    primaryContact:str(sc.contactFirstName).trim()||'',
+    primaryEmail:str(sc.notifyEmail).trim()||'',
+    forwardEmail:str(sc.notifyEmail).trim()||'',
+    calendlyUrl:str(sc.calendlyUrl).trim()||'',
+    website:str(sc.website).trim()||'',
+    services:parsedServices.length?parsedServices:undefined,
+    serviceAreaCities:parsedServiceArea||'',
+    pricingModel:parsedPricing||'',
+    warmCallNotes:[]
+  };
 }
 
 // Check if a deal's client is a retainer client
