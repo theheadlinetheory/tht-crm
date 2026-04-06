@@ -2825,7 +2825,7 @@ function addManualAppointment(clientName){
     +'<div style="margin-bottom:8px"><label style="font-size:11px;font-weight:600;color:var(--text-muted,#6b7280)">Lead / Business Name</label><input id="appt-lead" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;font-family:var(--font);margin-top:2px" placeholder="e.g. Jet City"></div>'
     +'<div style="margin-bottom:8px"><label style="font-size:11px;font-weight:600;color:var(--text-muted,#6b7280)">Address</label><input id="appt-address" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;font-family:var(--font);margin-top:2px" placeholder="e.g. 123 Main St, Orlando, FL"></div>'
     +'<div style="display:flex;gap:8px;margin-bottom:12px"><div style="flex:1"><label style="font-size:11px;font-weight:600;color:var(--text-muted,#6b7280)">Date</label><input type="date" id="appt-date" value="'+todayStr+'" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;font-family:var(--font);margin-top:2px"></div><div style="flex:1"><label style="font-size:11px;font-weight:600;color:var(--text-muted,#6b7280)">Time</label><input type="time" id="appt-time" value="09:00" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;font-family:var(--font);margin-top:2px"></div></div>'
-    +'<button onclick="doSaveManualAppt(\''+esc(clientName)+'\')" style="width:100%;padding:10px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font)">Save Appointment</button>'
+    +'<button onclick="doSaveManualAppt(atob(\''+btoa(unescape(encodeURIComponent(clientName)))+'\'))" style="width:100%;padding:10px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font)">Save Appointment</button>'
     +'</div>';
   overlay.onmousedown=function(e){ overlay._clickStartedOnBackdrop=(e.target===overlay); };
   overlay.onclick=function(e){ if(e.target===overlay && overlay._clickStartedOnBackdrop) overlay.remove(); };
@@ -2945,7 +2945,7 @@ async function openSendToClientPreview(dealId, clientName){
       <textarea id="send-preview-body" rows="14" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;font-family:var(--font);line-height:1.6;resize:vertical;color:#1f2937">${esc(message)}</textarea>
     </div>
     <div style="padding:12px 20px 20px;display:flex;gap:8px">
-      <button id="send-to-thread-btn" onclick="doSendToClientThread('${esc(dealId)}','${esc(clientName)}','${esc(threadId)}')" style="flex:1;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--font)">Send to ${esc(clientName)}</button>
+      <button id="send-to-thread-btn" onclick="doSendToClientThread('${esc(dealId)}',atob('${btoa(unescape(encodeURIComponent(clientName)))}'),'${esc(threadId)}')" style="flex:1;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--font)">Send to ${esc(clientName)}</button>
       <button onclick="document.getElementById('send-preview-overlay').remove()" style="padding:12px 20px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font)">Cancel</button>
     </div>
   </div>`;
@@ -4844,7 +4844,7 @@ function render(){
           <div class="col-meta">${sd.length} lead${sd.length!==1?'s':''}${(()=>{if(state.pipeline!=='client_leads') return '';const _cl=state.clients.find(c=>c.name===stage.label);if(!_cl) return '';const st=str(_cl.clientStanding).toLowerCase()||'neutral';const standingMap={happy:{color:'#22c55e',bg:'#f0fdf4',label:'Happy',rule:'Pass all tiers'},neutral:{color:'#eab308',bg:'#fefce8',label:'Neutral',rule:'A & B freely, limit C\'s'},unhappy:{color:'#ef4444',bg:'#fef2f2',label:'Unhappy',rule:'A & B only, hold C\'s'}};const s=standingMap[st];if(!s) return '';return ` <span title="${s.rule}" style="font-size:9px;font-weight:700;color:${s.color};background:${s.bg};padding:1px 6px;border-radius:8px;letter-spacing:.3px;vertical-align:middle;cursor:help;border:1px solid ${s.color}33">${s.label}</span>`;})()}</div>
         </div>
         ${(isAdmin()||isEmployee())&&state.pipeline==='client_leads'?`<div style="display:flex;gap:6px;align-items:center">
-          ${(()=>{const cl=state.clients.find(c=>c.name===stage.label);return cl&&cl.calendlyUrl?'<button title="Open Calendly for '+esc(stage.label)+'" style="background:none;border:none;color:#818cf8;font-size:14px;cursor:pointer" onclick="event.stopPropagation();openCalendlyEmbed(null,\''+esc(cl.calendlyUrl)+'\',\''+esc(stage.label)+'\')">📅</button>':'';})()}
+          ${(()=>{const cl=state.clients.find(c=>c.name===stage.label);return cl&&cl.calendlyUrl?'<button title="Open Calendly for '+esc(stage.label)+'" style="background:none;border:none;color:#818cf8;font-size:14px;cursor:pointer" onclick="event.stopPropagation();openCalendlyEmbed(null,atob(\''+btoa(unescape(encodeURIComponent(cl.calendlyUrl||'')))+'\'),atob(\''+btoa(unescape(encodeURIComponent(stage.label)))+'\'))">📅</button>':'';})()}
           ${isAdmin()?`<button style="background:none;border:none;color:#d1d5db;font-size:14px;cursor:pointer" onclick="if(confirm('Remove this client?'))removeClient(atob('${btoa(unescape(encodeURIComponent(stage.label)))}'))">×</button>`:''}
         </div>`:''}
       </div>
@@ -4889,7 +4889,7 @@ function render(){
               +'</div>';
           }).join('');
         }
-        ah+='<button onclick="event.stopPropagation();addManualAppointment(\''+esc(cn)+'\')" style="width:100%;font-size:10px;color:#9ca3af;background:none;border:1px dashed #d1d5db;border-radius:4px;padding:3px;cursor:pointer;margin-top:3px;font-family:var(--font)">+ Add Appointment</button>';
+        ah+='<button onclick="event.stopPropagation();addManualAppointment(atob(\''+btoa(unescape(encodeURIComponent(cn)))+'\'))" style="width:100%;font-size:10px;color:#9ca3af;background:none;border:1px dashed #d1d5db;border-radius:4px;padding:3px;cursor:pointer;margin-top:3px;font-family:var(--font)">+ Add Appointment</button>';
         ah+='</div>';
         return ah;
       })()}
