@@ -5229,7 +5229,7 @@ function renderDealModal(deal){
               style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px;resize:vertical">${esc(deal.calNotes!=null?deal.calNotes:prefillLines.join('\n'))}</textarea>
           </div>
           <button class="btn btn-primary" style="width:100%;justify-content:center;font-size:13px;background:#818cf8;border-color:#818cf8"
-            onclick="openCalendlyEmbed('${esc(deal.id)}','${esc(matchedClient.calendlyUrl)}','${esc(matchedClient.name)}')">
+            onclick="openCalendlyEmbed('${esc(deal.id)}','${esc(matchedClient.calendlyUrl)}',atob('${btoa(unescape(encodeURIComponent(matchedClient.name)))}'))">
             Open Calendar & Book
           </button>
         </div>`;
@@ -5243,7 +5243,7 @@ function renderDealModal(deal){
         const forwarded=deal.forwardedAt && str(deal.forwardedAt).trim()!=='';
         h+=`<div style="margin:0 0 8px 0">
           <button class="btn ${forwarded?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px;${forwarded?'':'background:#2563eb;border-color:#2563eb'}"
-            onclick="openSendToClientPreview('${esc(deal.id)}','${esc(matchedClient.name)}')" ${forwarded?'':''}>
+            onclick="openSendToClientPreview('${esc(deal.id)}',atob('${btoa(unescape(encodeURIComponent(matchedClient.name)))}'))" ${forwarded?'':''}>
             ${forwarded?'✅ Sent to '+esc(matchedClient.name)+' — Send Again?':'📨 Send Lead Info to '+esc(matchedClient.name)}
           </button>
         </div>
