@@ -3772,7 +3772,8 @@ function openWarmCallSheet(dealId){
 
           ${(()=>{
             const calUrl=str(mc.calendlyUrl).trim();
-            if(!calUrl) return '';
+            if(!calUrl||!/^https?:\/\/.+/.test(calUrl.includes('://')?calUrl:'https://'+calUrl)) return '';
+            let _cu;try{_cu=new URL(calUrl.includes('://')?calUrl:'https://'+calUrl);}catch(e){return '';}
             const wcPrefillLines=[];
             if(deal.company) wcPrefillLines.push('Business: '+deal.company);
             if(deal.website) wcPrefillLines.push('Website: '+deal.website);
@@ -3787,8 +3788,6 @@ function openWarmCallSheet(dealId){
             const wcNameVal=deal.calName!=null?deal.calName:(deal.contact||deal.company||'');
             const wcEmailVal=deal.calEmail!=null?deal.calEmail:(deal.email||'');
             const wcNotesVal=deal.calNotes!=null?deal.calNotes:wcPrefillLines.join('\n');
-            // Build Calendly inline URL with prefill baked in
-            const _cu=new URL(calUrl.includes('://')?calUrl:'https://'+calUrl);
             if(wcNameVal) _cu.searchParams.set('name',wcNameVal);
             if(wcEmailVal) _cu.searchParams.set('email',wcEmailVal);
             if(wcNotesVal) _cu.searchParams.set('a1',wcNotesVal);
