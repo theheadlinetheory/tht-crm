@@ -3598,10 +3598,11 @@ function getWarmCallQA(clientName){
 
 // ─── Warm Call Sheet (full-screen overlay) ───
 function openWarmCallSheet(dealId){
+  try{
   const deal=state.deals.find(d=>d.id===dealId);
-  if(!deal) return;
+  if(!deal){console.error('openWarmCallSheet: deal not found',dealId);return;}
   const mc=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
-  if(!mc) return;
+  if(!mc){console.error('openWarmCallSheet: client not found for deal',deal.stage);return;}
   const info=lookupClientInfo(mc.name)||{};
 
   // Get upcoming meetings for this client from BOTH deals and appointments
@@ -4084,6 +4085,7 @@ function openWarmCallSheet(dealId){
     const _dealId=calInlineEl.dataset.dealId;
     initWcCalendlyInline(_baseUrl, _clientName, _dealId);
   }
+  }catch(err){console.error('openWarmCallSheet error:',err);}
 }
 
 function initWcCalendlyInline(baseUrl, clientName, dealId){
