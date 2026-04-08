@@ -728,10 +728,17 @@ async function saveCampaignAssignment(campaignName, userName){
   } catch(e){ console.warn('Failed to save campaign assignment:', e); }
 }
 function getOwnerForDeal(deal){
+  // Deal-level override takes priority over campaign assignment
+  if(deal.ownerOverride) return getOwnerColor(deal.ownerOverride);
   if(!deal.campaignName) return null;
   const owner = state.campaignAssignments[deal.campaignName];
   if(!owner) return null;
   return getOwnerColor(owner);
+}
+function getOwnerNameForDeal(deal){
+  if(deal.ownerOverride) return deal.ownerOverride;
+  if(!deal.campaignName) return '';
+  return state.campaignAssignments[deal.campaignName] || '';
 }
 // Listen for real-time changes so both users see updates instantly
 function listenCampaignAssignments(){
@@ -5191,6 +5198,13 @@ function renderDealModal(deal){
               ${stages.map(s=>`<option value="${esc(s.id)}" ${deal.stage===s.id?'selected':''}>${esc(s.label)}</option>`).join("")}
             </select>
           </div>
+          ${deal.pipeline==='Acquisition'&&(isAdmin()||isEmployee())?`<div class="form-group">
+            <label>Owner</label>
+            <select id="deal-owner" onchange="changeDealOwner(this.value)">
+              <option value="" ${!deal.ownerOverride?'selected':''}>Campaign Default${(()=>{const o=state.campaignAssignments[deal.campaignName];return o?' ('+o+')':'';})()}</option>
+              ${[...new Set(Object.values(state.campaignAssignments))].filter(Boolean).sort().map(o=>`<option value="${esc(o)}" ${deal.ownerOverride===o?'selected':''}>${esc(o)}</option>`).join('')}
+            </select>
+          </div>`:''}
         </div>
         <div class="form-group form-span2" style="margin-bottom:16px">
           <label>Notes</label>
@@ -5932,6 +5946,14 @@ function changeDealPipeline(newPipeline){
   }
 }
 
+function changeDealOwner(val){
+  if(!state.selectedDeal) return;
+  state.selectedDeal.ownerOverride = val || '';
+  pendingWrites++;
+  apiPost('update_deal',{id:state.selectedDeal.id, ownerOverride: val || ''}).finally(()=>{pendingWrites--;});
+  render();
+  refreshModal();
+}
 function updateDealField(key,val){
   if(state.selectedDeal){
     if(key==="value") val=Number(val)||0;
