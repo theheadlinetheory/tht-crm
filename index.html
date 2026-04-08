@@ -3694,6 +3694,130 @@ function getWarmCallQA(clientName){
   return qa;
 }
 
+// ─── Client Info Panel (opened from column header click) ───
+function openClientInfoPanel(clientName){
+  const cl=state.clients.find(c=>c.name===clientName);
+  if(!cl) return;
+  const info=lookupClientInfo(clientName)||{};
+  const warmNotes=(info.warmCallNotes||[]);
+  const sheetWarmNotes=str(cl.warmCallNotesText).trim();
+  const warmLines=sheetWarmNotes?sheetWarmNotes.split('\n').filter(Boolean):warmNotes;
+  const svcs=info.services||[];
+  const qa=getWarmCallQA(clientName);
+
+  // Upcoming meetings for this client
+  const now=new Date();
+  const todayStr=getToday();
+  const oneWeekAgo=new Date(now.getTime()-7*24*60*60*1000);
+  const scheduled=state.deals.filter(d=>{
+    if(!isValidDate(d.bookedDate)) return false;
+    const dt=new Date(d.bookedDate+'T'+(d.bookedTime||'23:59'));
+    return dt>oneWeekAgo && d.stage===clientName;
+  }).sort((a,b)=>{
+    const da=new Date(a.bookedDate+'T'+(a.bookedTime||'00:00'));
+    const db=new Date(b.bookedDate+'T'+(b.bookedTime||'00:00'));
+    return da-db;
+  });
+  const appts=(state.appointments||[]).filter(a=>a.clientName===clientName&&a.apptDate>=todayStr)
+    .sort((a,b)=>(a.apptDate+(a.apptTime||'')).localeCompare(b.apptDate+(b.apptTime||'')));
+
+  let h=`<div id="client-info-overlay" style="position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.45);display:flex;justify-content:center;align-items:start;padding:40px 20px;overflow-y:auto" onclick="if(event.target===this)this.remove()">
+    <div style="background:#fff;border-radius:12px;max-width:640px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.2);animation:fadeIn .15s ease" onclick="event.stopPropagation()">
+      <div style="padding:20px 24px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <h2 style="margin:0;font-size:18px;color:#1e293b">${esc(clientName)}</h2>
+          <div style="font-size:12px;color:#64748b;margin-top:2px">${info.location?esc(info.location):''}${info.timeZone?' ('+esc(info.timeZone)+')':''}</div>
+        </div>
+        <button onclick="this.closest('#client-info-overlay').remove()" style="background:none;border:none;font-size:20px;color:#94a3b8;cursor:pointer">&times;</button>
+      </div>
+      <div style="padding:20px 24px;max-height:70vh;overflow-y:auto">`;
+
+  // Contact info
+  if(info.primaryContact||info.primaryEmail||info.phone){
+    h+=`<div style="margin-bottom:16px;padding:12px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
+      <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Contact</div>`;
+    if(info.primaryContact) h+=`<div style="font-size:13px;color:#1e293b;margin-bottom:4px">${esc(info.primaryContact)}</div>`;
+    if(info.primaryEmail) h+=`<div style="font-size:13px;color:#1e293b;margin-bottom:4px"><a href="mailto:${esc(info.primaryEmail)}" style="color:#2563eb">${esc(info.primaryEmail)}</a></div>`;
+    if(info.phone) h+=`<div style="font-size:13px;color:#1e293b"><a href="tel:${esc(info.phone)}" style="color:#2563eb">${esc(info.phone)}</a></div>`;
+    h+=`</div>`;
+  }
+
+  // Services
+  if(svcs.length){
+    h+=`<div style="margin-bottom:16px">
+      <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Services</div>
+      <div style="font-size:13px;color:#334155;line-height:1.6">${svcs.map(s=>'• '+esc(s)).join('<br>')}</div>
+    </div>`;
+  }
+
+  // Warm Call / SDR Notes
+  if(warmLines.length){
+    h+=`<div style="margin-bottom:16px;padding:12px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0">
+      <div style="font-size:11px;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">SDR Quick Reference / Warm Call Notes</div>
+      <ul style="margin:0;padding-left:18px;font-size:13px;color:#334155;line-height:1.7">
+        ${warmLines.map(n=>'<li>'+esc(n)+'</li>').join('')}
+      </ul>
+    </div>`;
+  }
+
+  // Common Q&A
+  if(qa.length){
+    h+=`<div style="margin-bottom:16px">
+      <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Common Questions</div>`;
+    for(const item of qa){
+      h+=`<div style="margin-bottom:8px;padding:8px 10px;background:#fefce8;border-radius:6px;border:1px solid #fde68a">
+        <div style="font-size:12px;font-weight:600;color:#92400e">${esc(item.q)}</div>
+        <div style="font-size:12px;color:#78350f;margin-top:3px">${esc(item.a)}</div>
+      </div>`;
+    }
+    h+=`</div>`;
+  }
+
+  // Calendly
+  if(cl.calendlyUrl){
+    h+=`<div style="margin-bottom:16px">
+      <button class="btn btn-primary" style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#818cf8;border-color:#818cf8"
+        onclick="this.closest('#client-info-overlay').remove();openCalendlyEmbed(null,atob('${btoa(unescape(encodeURIComponent(cl.calendlyUrl)))}'),atob('${btoa(unescape(encodeURIComponent(clientName)))}'))">
+        📅 Open ${esc(clientName)}'s Calendly
+      </button>
+    </div>`;
+  }
+
+  // Upcoming meetings
+  if(scheduled.length||appts.length){
+    h+=`<div style="margin-bottom:16px;padding:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px">
+      <div style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:8px">📅 Scheduled Meetings (${scheduled.length+appts.length})</div>`;
+    for(const m of scheduled){
+      const d=new Date(m.bookedDate+'T'+(m.bookedTime||'00:00'));
+      const isPast=d<now;
+      const dateStr=d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+      const timeStr=m.bookedTime?d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
+      h+=`<div style="font-size:12px;color:${isPast?'#9ca3af':'#78350f'};padding:3px 0;display:flex;justify-content:space-between">
+        <span>${esc(m.company||m.contact||'Unknown')}${isPast?' <span style="font-size:9px">(past)</span>':''}</span>
+        <span style="font-weight:600">${dateStr}${timeStr?' @ '+timeStr:''}</span>
+      </div>`;
+    }
+    for(const a of appts){
+      const d=new Date(a.apptDate+'T'+(a.apptTime||'00:00'));
+      const dateStr=d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+      const timeStr=a.apptTime?d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
+      h+=`<div style="font-size:12px;color:#78350f;padding:3px 0;display:flex;justify-content:space-between">
+        <span>${esc(a.leadName||'Unknown')}</span>
+        <span style="font-weight:600">${dateStr}${timeStr?' @ '+timeStr:''}</span>
+      </div>`;
+    }
+    h+=`</div>`;
+  }
+
+  // Pricing model
+  if(info.pricingModel){
+    h+=`<div style="margin-bottom:16px;font-size:12px;color:#64748b"><strong>Pricing:</strong> ${esc(info.pricingModel)}</div>`;
+  }
+
+  h+=`</div></div></div>`;
+  document.body.insertAdjacentHTML('beforeend',h);
+}
+
 // ─── Warm Call Sheet (full-screen overlay) ───
 function openWarmCallSheet(dealId){
   try{
@@ -5028,14 +5152,14 @@ function render(){
       ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';doDragOver(this)"
       ondragleave="doDragLeave(event,this)"
       ondrop="doDrop('${stageKey}')">
-      <div class="col-header" style="border-top-color:${stage.color}">
+      <div class="col-header" style="border-top-color:${stage.color}${state.pipeline==='client_leads'&&state.clients.some(c=>c.name===stage.label)?';cursor:pointer':''}" ${state.pipeline==='client_leads'&&state.clients.some(c=>c.name===stage.label)?`onclick="openClientInfoPanel(atob('${btoa(unescape(encodeURIComponent(stage.label)))}'))"`:''}>
         <div>
           <div class="col-title">${esc(stage.label)}${(()=>{if(state.pipeline!=='client_leads') return '';const ci=lookupClientInfo(stage.label);return ci&&ci.timeZone?` <span style="font-size:10px;font-weight:600;color:#94a3b8;background:#f1f5f9;padding:1px 6px;border-radius:8px;letter-spacing:.3px;vertical-align:middle">${esc(ci.timeZone)}</span>`:''})()}</div>
           <div class="col-meta">${sd.length} lead${sd.length!==1?'s':''}${(()=>{if(state.pipeline!=='client_leads') return '';const _cl=state.clients.find(c=>c.name===stage.label);if(!_cl) return '';const st=str(_cl.clientStanding).toLowerCase()||'neutral';const standingMap={happy:{color:'#22c55e',bg:'#f0fdf4',label:'Happy',rule:'Pass all tiers'},neutral:{color:'#eab308',bg:'#fefce8',label:'Neutral',rule:'A & B freely, limit C\'s'},unhappy:{color:'#ef4444',bg:'#fef2f2',label:'Unhappy',rule:'A & B only, hold C\'s'}};const s=standingMap[st];if(!s) return '';return ` <span title="${s.rule}" style="font-size:9px;font-weight:700;color:${s.color};background:${s.bg};padding:1px 6px;border-radius:8px;letter-spacing:.3px;vertical-align:middle;cursor:help;border:1px solid ${s.color}33">${s.label}</span>`;})()}</div>
         </div>
         ${(isAdmin()||isEmployee())&&state.pipeline==='client_leads'?`<div style="display:flex;gap:6px;align-items:center">
           ${(()=>{const cl=state.clients.find(c=>c.name===stage.label);return cl&&cl.calendlyUrl?'<button title="Open Calendly for '+esc(stage.label)+'" style="background:none;border:none;color:#818cf8;font-size:14px;cursor:pointer" onclick="event.stopPropagation();openCalendlyEmbed(null,atob(\''+btoa(unescape(encodeURIComponent(cl.calendlyUrl||'')))+'\'),atob(\''+btoa(unescape(encodeURIComponent(stage.label)))+'\'))">📅</button>':'';})()}
-          ${isAdmin()?`<button style="background:none;border:none;color:#d1d5db;font-size:14px;cursor:pointer" onclick="if(confirm('Remove this client?'))removeClient(atob('${btoa(unescape(encodeURIComponent(stage.label)))}'))">×</button>`:''}
+          ${isAdmin()?`<button style="background:none;border:none;color:#d1d5db;font-size:14px;cursor:pointer" onclick="event.stopPropagation();if(confirm('Remove this client?'))removeClient(atob('${btoa(unescape(encodeURIComponent(stage.label)))}'))">×</button>`:''}
         </div>`:''}
       </div>
       ${(()=>{
