@@ -2276,10 +2276,7 @@ function getPipelineDeals(){
     let acqDeals = state.deals.filter(d=>ACQUISITION_STAGES.some(s=>s.id===d.stage));
     // Filter by owner if acquisition filter is active
     if(state.acquisitionFilter){
-      acqDeals = acqDeals.filter(d => {
-        const owner = state.campaignAssignments[d.campaignName];
-        return owner === state.acquisitionFilter;
-      });
+      acqDeals = acqDeals.filter(d => getOwnerNameForDeal(d) === state.acquisitionFilter);
     }
     return acqDeals;
   }
