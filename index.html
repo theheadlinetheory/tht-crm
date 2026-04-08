@@ -1837,6 +1837,8 @@ let state = {
   archiveLoaded: false,
   archiveFilterPipeline: '',
   archiveFilterStatus: '',
+  archiveFilterClient: '',
+  archiveSortDir: 'newest',
   // Bulk select
   bulkMode: false,
   bulkSelected: new Set(),
@@ -4258,10 +4260,16 @@ function renderArchiveTab(){
   let filtered=state.archiveData.slice();
   if(state.archiveFilterPipeline) filtered=filtered.filter(d=>(d.pipeline||'').toLowerCase()===state.archiveFilterPipeline.toLowerCase());
   if(state.archiveFilterStatus) filtered=filtered.filter(d=>(d.archiveStatus||'')=== state.archiveFilterStatus);
-  // Sort newest first
-  filtered.sort((a,b)=>(b.archivedAt||'').localeCompare(a.archivedAt||''));
+  if(state.archiveFilterClient) filtered=filtered.filter(d=>(d.clientName||d.stage||'').toLowerCase()===state.archiveFilterClient.toLowerCase());
+  const archQ=(state.archiveSearch||'').toLowerCase().trim();
+  if(archQ) filtered=filtered.filter(d=>(d.company||'').toLowerCase().includes(archQ)||(d.contact||'').toLowerCase().includes(archQ)||(d.email||'').toLowerCase().includes(archQ));
+  // Sort by archive date
+  if(state.archiveSortDir==='oldest') filtered.sort((a,b)=>(a.archivedAt||'').localeCompare(b.archivedAt||''));
+  else filtered.sort((a,b)=>(b.archivedAt||'').localeCompare(a.archivedAt||''));
   const bulkArchiveIds=filtered.map(d=>d.id);
   const allChecked=state.bulkMode && bulkArchiveIds.length>0 && bulkArchiveIds.every(id=>state.bulkSelected.has(id));
+  // Build unique client list for filter
+  const archiveClients=[...new Set(state.archiveData.map(d=>d.clientName||d.stage||'').filter(Boolean))].sort();
 
   let h=`<div style="padding:16px 20px">
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
@@ -4270,14 +4278,23 @@ function renderArchiveTab(){
         <option value="Acquisition" ${state.archiveFilterPipeline==='Acquisition'?'selected':''}>Acquisition</option>
         <option value="Client" ${state.archiveFilterPipeline==='Client'?'selected':''}>Client Leads</option>
       </select>
+      <select onchange="state.archiveFilterClient=this.value;render()" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+        <option value="">All Clients</option>
+        ${archiveClients.map(c=>`<option value="${esc(c)}" ${state.archiveFilterClient===c?'selected':''}>${esc(c)}</option>`).join('')}
+      </select>
       <select onchange="state.archiveFilterStatus=this.value;render()" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
         <option value="">All Statuses</option>
         <option value="Deleted/Lost" ${state.archiveFilterStatus==='Deleted/Lost'?'selected':''}>Deleted / Lost</option>
         <option value="Closed Won" ${state.archiveFilterStatus==='Closed Won'?'selected':''}>Closed Won</option>
         <option value="Passed Off" ${state.archiveFilterStatus==='Passed Off'?'selected':''}>Passed Off</option>
       </select>
+      <select onchange="state.archiveSortDir=this.value;render()" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+        <option value="newest" ${state.archiveSortDir==='newest'?'selected':''}>Newest First</option>
+        <option value="oldest" ${state.archiveSortDir==='oldest'?'selected':''}>Oldest First</option>
+      </select>
       <span style="font-size:12px;color:var(--text-muted)">${filtered.length} result${filtered.length!==1?'s':''}</span>
       ${state.bulkMode && state.bulkSelected.size>0?`<button class="btn btn-primary" style="font-size:11px;padding:4px 12px" onclick="bulkRestoreFromArchive()">↩ Restore ${state.bulkSelected.size} Selected</button>`:''}
+      <input type="text" placeholder="Search..." value="${esc(state.archiveSearch||'')}" oninput="state.archiveSearch=this.value;render()" style="margin-left:auto;padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);width:200px;background:var(--card)">
     </div>
     <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;background:var(--card)">
       <table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -4821,7 +4838,9 @@ function render(){
     // Filter archive by current pipeline tab
     const archivePipeline = state.pipeline === 'acquisition' ? 'acquisition' : 'client';
     let empArchive = state.archiveData.filter(d => (d.pipeline||'').toLowerCase() === archivePipeline);
-    // Apply archive search filter
+    // Apply filters
+    if(state.archiveFilterClient) empArchive=empArchive.filter(d=>(d.clientName||d.stage||'').toLowerCase()===state.archiveFilterClient.toLowerCase());
+    if(state.archiveFilterStatus) empArchive=empArchive.filter(d=>(d.archiveStatus||'')===state.archiveFilterStatus);
     const archQ = (state.archiveSearch||'').toLowerCase().trim();
     if(archQ){
       empArchive = empArchive.filter(d =>
@@ -4830,14 +4849,33 @@ function render(){
         (d.email||'').toLowerCase().includes(archQ)
       );
     }
-    empArchive.sort((a,b)=>(b.archivedAt||'').localeCompare(a.archivedAt||''));
+    if(state.archiveSortDir==='oldest') empArchive.sort((a,b)=>(a.archivedAt||'').localeCompare(b.archivedAt||''));
+    else empArchive.sort((a,b)=>(b.archivedAt||'').localeCompare(a.archivedAt||''));
+    // Build client list for this pipeline's archive
+    const empArchiveClients=[...new Set(state.archiveData.filter(d=>(d.pipeline||'').toLowerCase()===archivePipeline).map(d=>d.clientName||d.stage||'').filter(Boolean))].sort();
     html+=`<div style="padding:16px 20px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
-        <button class="btn btn-ghost" onclick="state.showEmployeeArchive=false;state.archiveSearch='';render()" style="font-size:13px;padding:5px 12px;display:flex;align-items:center;gap:4px">← Back to Board</button>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+        <button class="btn btn-ghost" onclick="state.showEmployeeArchive=false;state.archiveSearch='';state.archiveFilterClient='';state.archiveFilterStatus='';render()" style="font-size:13px;padding:5px 12px;display:flex;align-items:center;gap:4px">← Back to Board</button>
         <span style="font-size:14px;font-weight:600">${state.pipeline==='acquisition'?'Archived Acquisition Deals':'Archived Client Leads'}</span>
         <span style="font-size:12px;color:var(--text-muted)">${empArchive.length} result${empArchive.length!==1?'s':''}</span>
         <button class="btn btn-ghost" onclick="state.archiveLoaded=false;loadArchive()" style="font-size:11px;padding:3px 10px">↻ Refresh</button>
-        <input type="text" id="archive-search-input" placeholder="Search by company, contact, or email..." value="${esc(state.archiveSearch||'')}" oninput="state.archiveSearch=this.value;render()" style="margin-left:auto;padding:6px 12px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);width:260px;background:var(--card)">
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+        ${archivePipeline==='client'?`<select onchange="state.archiveFilterClient=this.value;render()" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+          <option value="">All Clients</option>
+          ${empArchiveClients.map(c=>`<option value="${esc(c)}" ${state.archiveFilterClient===c?'selected':''}>${esc(c)}</option>`).join('')}
+        </select>`:''}
+        <select onchange="state.archiveFilterStatus=this.value;render()" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+          <option value="">All Statuses</option>
+          <option value="Deleted/Lost" ${state.archiveFilterStatus==='Deleted/Lost'?'selected':''}>Deleted / Lost</option>
+          <option value="Closed Won" ${state.archiveFilterStatus==='Closed Won'?'selected':''}>Closed Won</option>
+          <option value="Passed Off" ${state.archiveFilterStatus==='Passed Off'?'selected':''}>Passed Off</option>
+        </select>
+        <select onchange="state.archiveSortDir=this.value;render()" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+          <option value="newest" ${state.archiveSortDir==='newest'?'selected':''}>Newest First</option>
+          <option value="oldest" ${state.archiveSortDir==='oldest'?'selected':''}>Oldest First</option>
+        </select>
+        <input type="text" id="archive-search-input" placeholder="Search..." value="${esc(state.archiveSearch||'')}" oninput="state.archiveSearch=this.value;render()" style="margin-left:auto;padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);width:200px;background:var(--card)">
       </div>
       <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;background:var(--card)">
         <table style="width:100%;border-collapse:collapse;font-size:12px">
