@@ -60,6 +60,9 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 
 /* Deal Card */
 .deal-card { background: var(--card); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 6px; border: 1px solid var(--border); cursor: pointer; transition: box-shadow .15s, transform .1s; position: relative; z-index: 1; box-shadow: 0 1px 3px rgba(0,0,0,.04); overflow: hidden; }
+.deal-card.has-reply { border-left: 3px solid #3b82f6; background: linear-gradient(90deg, #eff6ff 0%, var(--card) 12%); }
+.reply-indicator { display:inline-block; margin-right:5px; font-size:12px; animation: replyPulse 2s ease-in-out infinite; }
+@keyframes replyPulse { 0%,100%{opacity:1} 50%{opacity:.5} }
 .deal-card div, .deal-card span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .deal-card.badge-open { z-index: 100; }
 .deal-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.1); transform: translateY(-1px); }
@@ -4995,7 +4998,7 @@ function render(){
       for(const deal of sd){
         const badge=getActivityBadge(deal.id);
         const isBulkSel=state.bulkMode&&state.bulkSelected.has(deal.id);
-        html+=`<div class="deal-card${isBulkSel?' bulk-selected':''}" draggable="${state.bulkMode?'false':'true'}"
+        html+=`<div class="deal-card${isBulkSel?' bulk-selected':''}${deal.hasNewReply?' has-reply':''}" draggable="${state.bulkMode?'false':'true'}"
           ondragstart="event.dataTransfer.effectAllowed='move';state.dragId='${deal.id}';showDeleteZone()"
           ondragend="clearAllDragOver();hideDeleteZone()"
           ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';doDragOver(this.closest('.column'))"
@@ -5004,7 +5007,7 @@ function render(){
           onclick="${state.bulkMode?`event.preventDefault();event.stopPropagation();toggleBulkSelect('${deal.id}')`:`openDeal('${deal.id}')`}">
           ${state.bulkMode?`<div class="bulk-check">${isBulkSel?'✓':''}</div>`:''}
           <div class="deal-card-top">
-            <div class="deal-company">${esc(deal.company||deal.contact||deal.email||"New Deal")}${isRetainerClient(deal)?'<span style="display:inline-block;margin-left:6px;font-size:9px;font-weight:700;background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:3px;vertical-align:middle;white-space:nowrap;letter-spacing:.3px">RETAINER</span>':''}</div>
+            <div class="deal-company">${deal.hasNewReply?'<span class="reply-indicator" title="New reply received">💬</span>':''}${esc(deal.company||deal.contact||deal.email||"New Deal")}${isRetainerClient(deal)?'<span style="display:inline-block;margin-left:6px;font-size:9px;font-weight:700;background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:3px;vertical-align:middle;white-space:nowrap;letter-spacing:.3px">RETAINER</span>':''}</div>
             ${isClient()?'':`<div class="status-indicator" onclick="event.stopPropagation();toggleBadgeDropdown('${deal.id}')">
               <div class="status-dot" style="background:${badge?badge.color:'#d1d5db'}"></div>
               ${badge?`<span class="status-count" style="color:${badge.color}">${badge.count}</span>`:''}
@@ -5774,6 +5777,12 @@ function openDeal(id){
   const sid=String(id);
   state.selectedDeal=state.deals.find(d=>String(d.id)===sid);
   state.showSop=false;
+  // Clear reply indicator when deal is opened
+  if(state.selectedDeal && state.selectedDeal.hasNewReply){
+    state.selectedDeal.hasNewReply='';
+    pendingWrites++;
+    apiPost('update_deal',{id:sid,hasNewReply:''}).finally(()=>{pendingWrites--;});
+  }
   render();
 }
 
