@@ -758,6 +758,8 @@ function listenCampaignAssignments(){
 // CHANGE THIS to your deployed Apps Script URL:
 const API_URL = "https://script.google.com/macros/s/AKfycbwd4j6VLMVeLGJepqvSKp6Uh6UYNgma50tAx_-ILxL2jzlJWRBJoaJA57f7R_GXrlH_/exec";
 const SYNC_INTERVAL = 30000;
+const REPLY_CHECK_INTERVAL = 15000;
+const REPLY_BACKEND_POLL_INTERVAL = 300000; // 5 min — trigger backend SmartLead API poll
 
 // ─── LeadHero Dialer Integration ───
 const LEADHERO_ORG = 'tht';
@@ -2067,6 +2069,30 @@ async function syncFromSheet(){
   } else {
     render();
   }
+}
+
+// ─── Reply Polling ───
+async function pollReplyStatus(){
+  if(pendingWrites>0) return;
+  try{
+    const replies=await apiGet('get_reply_status');
+    if(!Array.isArray(replies)) return;
+    let changed=false;
+    for(const r of replies){
+      const deal=state.deals.find(d=>String(d.id)===String(r.id));
+      if(deal && !deal.hasNewReply){
+        deal.hasNewReply=r.hasNewReply;
+        changed=true;
+      }
+    }
+    if(changed){
+      if(state.selectedDeal) refreshModal();
+      else render();
+    }
+  }catch(e){}
+}
+async function triggerBackendReplyCheck(){
+  try{ await apiGet('run_admin&fn=checkReplies'); }catch(e){}
 }
 
 // ─── Global Search ───
@@ -7428,6 +7454,12 @@ async function initApp(){
   render();
   syncFromSheet();
   setInterval(syncFromSheet, SYNC_INTERVAL);
+  // Reply polling — fast lightweight check every 15s, backend SmartLead poll every 5min
+  if(isAdmin()||isEmployee()){
+    setInterval(pollReplyStatus, REPLY_CHECK_INTERVAL);
+    triggerBackendReplyCheck(); // Run immediately on load
+    setInterval(triggerBackendReplyCheck, REPLY_BACKEND_POLL_INTERVAL);
+  }
   // Load rerun data if starting on that tab
   if(state.pipeline==='nurture' && state.nurtureSubTab==='rerun') loadRerunData();
 }
