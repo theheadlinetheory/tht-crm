@@ -769,10 +769,14 @@ const deletedActivityIds = new Set(JSON.parse(localStorage.getItem('tht_deletedA
 // Guard for completed activities — prevents sync from reverting done=true if API call was slow/failed
 const completedActivityIds = new Set(JSON.parse(localStorage.getItem('tht_completedActs')||'[]'));
 let pendingWrites = 0; // Prevent sync from overwriting during active writes
+// Retry queue for failed writes — retried on each sync cycle
+const failedWriteQueue = [];
+// Track pending deal field changes so sync can't overwrite them
+const pendingDealFields = {}; // { dealId: { field: value, ... } }
 
 // Warn user before closing if writes are still in flight
 window.addEventListener('beforeunload', e => {
-  if(pendingWrites > 0){ e.preventDefault(); e.returnValue=''; }
+  if(pendingWrites > 0 || failedWriteQueue.length > 0){ e.preventDefault(); e.returnValue=''; }
 });
 let savedScrollLeft = 0; // Preserve horizontal scroll across renders
 let settingsOpen = false;
@@ -1891,12 +1895,42 @@ async function apiPost(action,data,retries=2){
   }
 }
 
+function showSaveError(msg){
+  let el=document.getElementById('save-error-toast');
+  if(!el){
+    el=document.createElement('div');
+    el.id='save-error-toast';
+    el.style.cssText='position:fixed;bottom:20px;right:20px;background:#dc2626;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,.3);transition:opacity .3s';
+    document.body.appendChild(el);
+  }
+  el.textContent=msg;
+  el.style.opacity='1';
+  clearTimeout(el._fadeTimer);
+  el._fadeTimer=setTimeout(()=>{el.style.opacity='0';setTimeout(()=>el.remove(),400);},5000);
+}
+async function retryFailedWrites(){
+  if(failedWriteQueue.length===0) return;
+  const batch=[...failedWriteQueue];
+  failedWriteQueue.length=0;
+  for(const item of batch){
+    try {
+      const res=await apiPost(item.action,item.data);
+      if(!res||res.error){
+        // Still failing — re-queue if less than 5 minutes old
+        if(Date.now()-item.ts < 300000) failedWriteQueue.push(item);
+        else console.error('Dropping failed write after 5min:',item);
+      }
+    } catch(e){ if(Date.now()-item.ts < 300000) failedWriteQueue.push(item); }
+  }
+}
 async function syncFromSheet(){
   if(state.selectedDeal) return; // Don't sync while editing
   if(state.showNew) return; // Don't sync while creating new deal
   if(state.showAddClient) return; // Don't sync while adding client
   if(state.activateClientLoading) return; // Don't sync while activating client
   if(pendingWrites > 0) return; // Don't sync while writes are in-flight
+  // Retry any failed writes before syncing fresh data
+  await retryFailedWrites();
   state.syncing=true; render();
   const data=await apiGet("get_all");
   if(data && !data.error){
@@ -1914,6 +1948,9 @@ async function syncFromSheet(){
         if(d.value==='0') d.value='';
         // Clean invalid bookedDate values (Sheets may return "0" or timestamps)
         if(d.bookedDate && !/^\d{4}-\d{2}-\d{2}$/.test(d.bookedDate)) d.bookedDate='';
+        // Guard: re-apply any pending deal field changes that haven't been saved yet
+        const pending=pendingDealFields[String(d.id)];
+        if(pending) Object.assign(d, pending);
       });
     }
     if(data.activities && Array.isArray(data.activities)) {
@@ -1988,15 +2025,16 @@ async function syncFromSheet(){
       for(const id of deletedActivityIds){ if(!serverActIds.has(id)) deletedActivityIds.delete(id); }
       localStorage.setItem('tht_deletedActs',JSON.stringify([...deletedActivityIds]));
     }
-    // Prune completed guard: once server confirms done=true, remove from guard
+    // Prune completed guard: ONLY remove when server confirms done=true
+    // Never prune just because the activity is missing — could be truncated data
     if(data.activities && completedActivityIds.size){
       for(const id of completedActivityIds){
         const serverAct=data.activities.find(a=>String(a.id)===id);
         if(serverAct && (serverAct.done===true||serverAct.done==='true'||serverAct.done==='TRUE')){
           completedActivityIds.delete(id);
         }
-        // Also prune if activity was deleted from server
-        if(!serverAct) completedActivityIds.delete(id);
+        // Only prune missing activities if they're also in deletedActivityIds (intentionally deleted)
+        if(!serverAct && deletedActivityIds.has(id)) completedActivityIds.delete(id);
       }
       localStorage.setItem('tht_completedActs',JSON.stringify([...completedActivityIds]));
     }
@@ -2616,42 +2654,67 @@ function updateActivityDate(actId, newDate){
   apiPost("update_activity",{id:sid,dueDate:newDate}).finally(()=>{ pendingWrites--; });
 }
 
-function toggleActivity(actId){
+async function toggleActivity(actId){
   const sid=String(actId);
   const a=state.activities.find(x=>String(x.id)===sid);
   if(!a) return;
   a.done=!a.done;
   a.completedAt=a.done?new Date().toISOString():"";
-  // Guard: track completed activities so sync can't revert them
+  // Guard: track completed/uncompleted activities so sync can't revert them
   if(a.done){ completedActivityIds.add(sid); } else { completedActivityIds.delete(sid); }
   localStorage.setItem('tht_completedActs',JSON.stringify([...completedActivityIds]));
   refreshModal();
+  const payload={id:sid,done:a.done,completedAt:a.completedAt};
   pendingWrites++;
-  apiPost("update_activity",{id:sid,done:a.done,completedAt:a.completedAt}).then(res=>{
+  try {
+    const res = await apiPost("update_activity",payload);
     if(!res||res.error){
-      // Retry once on failure
-      console.warn('Activity toggle failed, retrying:',res);
-      return apiPost("update_activity",{id:sid,done:a.done,completedAt:a.completedAt});
+      // First attempt failed — retry with backoff
+      console.warn('Activity toggle attempt 1 failed:',res);
+      await new Promise(ok=>setTimeout(ok,500));
+      const res2 = await apiPost("update_activity",payload);
+      if(!res2||res2.error){
+        console.warn('Activity toggle attempt 2 failed:',res2);
+        await new Promise(ok=>setTimeout(ok,1000));
+        const res3 = await apiPost("update_activity",payload);
+        if(!res3||res3.error){
+          // All 3 attempts failed — queue for retry on next sync
+          console.error('Activity toggle FAILED after 3 attempts, queuing for retry');
+          failedWriteQueue.push({action:'update_activity',data:payload,ts:Date.now()});
+          showSaveError('Activity update failed — will retry automatically');
+        }
+      }
     }
-  }).finally(()=>{ pendingWrites--; });
+  } catch(e){
+    console.error('Activity toggle error:',e);
+    failedWriteQueue.push({action:'update_activity',data:payload,ts:Date.now()});
+    showSaveError('Activity update failed — will retry automatically');
+  } finally { pendingWrites--; }
 }
 
-function deleteActivity(actId){
+async function deleteActivity(actId){
   const sid=String(actId);
   deletedActivityIds.add(sid);
   localStorage.setItem('tht_deletedActs',JSON.stringify([...deletedActivityIds]));
-  // Also clean from completed guard
   completedActivityIds.delete(sid);
   localStorage.setItem('tht_completedActs',JSON.stringify([...completedActivityIds]));
   state.activities=state.activities.filter(a=>String(a.id)!==sid);
   refreshModal();
   pendingWrites++;
-  apiPost("delete_activity",{id:sid}).then(res=>{
+  try {
+    const res = await apiPost("delete_activity",{id:sid});
     if(!res||res.error){
-      console.warn('Activity delete failed, retrying:',res);
-      return apiPost("delete_activity",{id:sid});
+      console.warn('Activity delete attempt 1 failed:',res);
+      await new Promise(ok=>setTimeout(ok,500));
+      const res2 = await apiPost("delete_activity",{id:sid});
+      if(!res2||res2.error){
+        failedWriteQueue.push({action:'delete_activity',data:{id:sid},ts:Date.now()});
+        showSaveError('Activity delete failed — will retry automatically');
+      }
     }
-  }).finally(()=>{ pendingWrites--; });
+  } catch(e){
+    failedWriteQueue.push({action:'delete_activity',data:{id:sid},ts:Date.now()});
+  } finally { pendingWrites--; }
 }
 
 function assignSequence(dealId,dayLabel,acts,targetDate){
@@ -5954,10 +6017,38 @@ function changeDealOwner(val){
   render();
   refreshModal();
 }
+let _dealFieldSaveTimer=null;
+function debouncedDealFieldSave(){
+  clearTimeout(_dealFieldSaveTimer);
+  _dealFieldSaveTimer=setTimeout(()=>{
+    const deal=state.selectedDeal;
+    if(!deal) return;
+    const id=deal.id;
+    const fields=pendingDealFields[id];
+    if(!fields||Object.keys(fields).length===0) return;
+    const payload={id,...fields};
+    delete pendingDealFields[id];
+    pendingWrites++;
+    apiPost("update_deal",payload).then(res=>{
+      if(!res||res.error){
+        console.warn('Deal field auto-save failed, retrying:',res);
+        return apiPost("update_deal",payload);
+      }
+    }).then(res=>{
+      if(!res||res.error){
+        failedWriteQueue.push({action:'update_deal',data:payload,ts:Date.now()});
+        showSaveError('Deal save failed — will retry');
+      }
+    }).finally(()=>{pendingWrites--;});
+  },1500);
+}
 function updateDealField(key,val){
   if(state.selectedDeal){
     if(key==="value") val=Number(val)||0;
     state.selectedDeal[key]=val;
+    // Track pending field changes and auto-save with debounce
+    if(!pendingDealFields[state.selectedDeal.id]) pendingDealFields[state.selectedDeal.id]={};
+    pendingDealFields[state.selectedDeal.id][key]=val;
     // Update Call/Text button hrefs when phone fields change
     if((key==='phone'||key==='mobilePhone') && state.selectedDeal.pipeline==='Acquisition'){
       const btns=document.getElementById('phone-btns-'+key);
@@ -5999,6 +6090,7 @@ function updateDealField(key,val){
         }
       }
     }
+    debouncedDealFieldSave();
   }
 }
 
@@ -6018,7 +6110,7 @@ function refreshPushButton(){
 function doSaveDeal(id){
   const deal=state.selectedDeal;
   if(!deal)return;
-  // Grab latest values from form inputs
+  // Grab latest values from form inputs and update local state
   ["company","contact","email","phone","website","location","notes","bookedFor","bookedDate","bookedTime"].forEach(k=>{
     const el=document.getElementById("deal-"+k);
     if(el) deal[k]=el.value;
@@ -6029,6 +6121,9 @@ function doSaveDeal(id){
   if(stageEl) deal.stage=stageEl.value;
   const pipEl=document.getElementById("deal-pipeline");
   if(pipEl) deal.pipeline=pipEl.value;
+  // Flush any pending debounced save immediately
+  clearTimeout(_dealFieldSaveTimer);
+  delete pendingDealFields[deal.id];
   saveDeal(deal);
 }
 
