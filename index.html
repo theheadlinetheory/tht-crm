@@ -761,10 +761,8 @@ const SYNC_INTERVAL = 30000;
 const REPLY_CHECK_INTERVAL = 15000;
 const REPLY_BACKEND_POLL_INTERVAL = 300000; // 5 min — trigger backend SmartLead API poll
 
-// ─── LeadHero Dialer Integration ───
-const LEADHERO_ORG = 'tht';
-const LEADHERO_APP = 'https://app.leadhero.io/organization/' + LEADHERO_ORG;
-const LEADHERO_IOANNIS_FOLDER = 'f0db5b57-3bcf-4e78-bfc9-764566fd13a9';
+// ─── JustCall Dialer Integration ───
+const JUSTCALL_DIALER_URL = 'https://app.justcall.io/app/macrodialer';
 // Restore deleted-ID sets from localStorage so deletions survive page refresh
 const deletedDealIds = new Set(JSON.parse(localStorage.getItem('tht_deletedDeals')||'[]'));
 const deletedActivityIds = new Set(JSON.parse(localStorage.getItem('tht_deletedActs')||'[]'));
@@ -1597,48 +1595,17 @@ function findClientForDeal(deal){
 }
 
 // Forward deal to matched client via Apps Script (email + optional SMS)
-// ─── LeadHero Dialer Integration ───
-// Per-rep folder approach: clears rep's folder, loads this one lead, rep clicks refresh in LeadHero
-async function pushDealToDialer(dealId){
-  const btn=document.getElementById('leadhero-push-btn');
-  if(btn){btn.disabled=true;btn.textContent='Loading into dialer...';}
-  try{
-    const res=await apiPost('push_to_dialer_folder',{dealId});
-    if(res.ok){
-      const deal=state.deals.find(d=>d.id===dealId);
-      if(deal && res.leadHeroId) deal.leadHeroId=res.leadHeroId;
-      // Open LeadHero to Ioannis's folder — lead is the only one there
-      const folderUrl=LEADHERO_APP+'/leads?leadFolders='+LEADHERO_IOANNIS_FOLDER;
-      window.open(folderUrl,'_blank');
-      if(btn){
-        btn.outerHTML=`<a href="${esc(folderUrl)}" target="_blank" rel="noopener" class="btn"
-          style="width:100%;justify-content:center;gap:6px;font-size:13px;text-decoration:none;display:flex;background:#f97316;border-color:#f97316;color:#fff;font-weight:700"
-          onclick="event.stopPropagation()">
-          📞 Call in LeadHero
-        </a>`;
-      }
-    } else {
-      alert('Dialer sync failed: '+(res.error||'Unknown error'));
-      if(btn){btn.disabled=false;btn.textContent='📞 Call in LeadHero';}
-    }
-  }catch(e){
-    alert('Error loading dialer: '+e.message);
-    if(btn){btn.disabled=false;btn.textContent='📞 Call in LeadHero';}
-  }
-}
-
-async function syncAllToLeadHero(){
-  if(!confirm('Sync all existing deals to LeadHero? This may take a minute.')) return;
-  const btn=document.getElementById('lh-sync-all-btn');
-  if(btn){btn.disabled=true;btn.textContent='Syncing...';}
-  try{
-    const res=await apiPost('sync_all_leadhero',{});
-    alert('LeadHero sync complete: '+res.synced+' synced, '+res.skipped+' skipped, '+res.errors+' errors');
-    if(btn){btn.disabled=false;btn.textContent='Sync All Deals to LeadHero';}
-  }catch(e){
-    alert('Sync error: '+e.message);
-    if(btn){btn.disabled=false;btn.textContent='Sync All Deals to LeadHero';}
-  }
+// ─── JustCall Dialer Integration ───
+function callInJustCall(dealId){
+  const deal=state.deals.find(d=>d.id===dealId);
+  if(!deal) return;
+  const phone=str(deal.phone)||str(deal.mobilePhone);
+  if(!phone){alert('No phone number on this deal.');return;}
+  // Clean phone to digits, ensure +1 prefix for US numbers
+  const digits=phone.replace(/\D/g,'');
+  const formatted=digits.length===10?'+1'+digits:digits.length===11&&digits[0]==='1'?'+'+digits:'+'+digits;
+  const dialerUrl=JUSTCALL_DIALER_URL+'?numbers='+encodeURIComponent(formatted);
+  window.open(dialerUrl,'justcall_dialer','width=400,height=600');
 }
 
 async function forwardDealToClient(dealId){
@@ -5625,13 +5592,13 @@ function renderDealModal(deal){
     </div>`;
   }
 
-  // LeadHero Dialer — loads lead into rep's folder, rep clicks refresh in LeadHero
-  if((isAdmin() || isEmployee()) && (deal.phone || deal.mobilePhone)){
+  // JustCall Dialer — acquisition pipeline, admin-only during trial
+  if(isAdmin() && deal.pipeline==='Acquisition' && (deal.phone || deal.mobilePhone)){
     h+=`<div style="margin:0 0 8px 0">
-      <button class="btn" id="leadhero-push-btn"
+      <button class="btn"
         style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#f97316;border-color:#f97316;color:#fff;font-weight:700"
-        onclick="pushDealToDialer('${esc(deal.id)}')">
-        📞 Call in LeadHero
+        onclick="callInJustCall('${esc(deal.id)}')">
+        📞 Call in JustCall
       </button>
     </div>`;
   }
@@ -6596,7 +6563,7 @@ function renderSettingsPanel(){
     <button class="settings-tab ${settingsTab==='clients'?'active':''}" onclick="settingsTab='clients';refreshSettingsBody()">Clients</button>
     <button class="settings-tab ${settingsTab==='users'?'active':''}" onclick="settingsTab='users';refreshSettingsBody()">Users</button>
     <button class="settings-tab ${settingsTab==='campaigns'?'active':''}" onclick="settingsTab='campaigns';refreshSettingsBody()">Campaigns</button>
-    <button class="settings-tab ${settingsTab==='leadhero'?'active':''}" onclick="settingsTab='leadhero';refreshSettingsBody()">LeadHero</button>
+    <button class="settings-tab ${settingsTab==='dialer'?'active':''}" onclick="settingsTab='dialer';refreshSettingsBody()">Dialer</button>
   </div>
   <div class="settings-body">`;
 
@@ -6606,7 +6573,7 @@ function renderSettingsPanel(){
   else if(settingsTab==='clients') h+=renderClientsSettings();
   else if(settingsTab==='users') h+=renderUsersSettings();
   else if(settingsTab==='campaigns') h+=renderCampaignAssignSettings();
-  else if(settingsTab==='leadhero') h+=renderLeadHeroSettings();
+  else if(settingsTab==='dialer') h+=renderDialerSettings();
 
   h+=`</div>
   <div class="settings-footer">
@@ -6640,7 +6607,7 @@ function refreshSettingsBody(){
   // Update tab active states
   panel.querySelectorAll('.settings-tab').forEach(btn=>{
     const tab=btn.textContent.trim().toLowerCase();
-    const map={'pipeline stages':'stages','activity types':'activities','sop sequences':'sop','clients':'clients','users':'users','campaigns':'campaigns','leadhero':'leadhero'};
+    const map={'pipeline stages':'stages','activity types':'activities','sop sequences':'sop','clients':'clients','users':'users','campaigns':'campaigns','dialer':'dialer'};
     btn.classList.toggle('active', map[tab]===settingsTab);
   });
   // Replace only the body content
@@ -6653,7 +6620,7 @@ function refreshSettingsBody(){
   else if(settingsTab==='clients') h=renderClientsSettings();
   else if(settingsTab==='users') h=renderUsersSettings();
   else if(settingsTab==='campaigns') h=renderCampaignAssignSettings();
-  else if(settingsTab==='leadhero') h=renderLeadHeroSettings();
+  else if(settingsTab==='dialer') h=renderDialerSettings();
   body.innerHTML=h;
   body.scrollTop=0;
   setupSettingsDrag();
@@ -7281,38 +7248,29 @@ async function removeCampaignAssignment(campaignName){
   render();
 }
 
-function renderLeadHeroSettings(){
-  const totalDeals=state.deals.length;
-  const linkedDeals=state.deals.filter(d=>d.leadHeroId&&String(d.leadHeroId).trim()!=='').length;
-  const withPhone=state.deals.filter(d=>d.phone||d.mobilePhone).length;
-  const unlinked=withPhone-linkedDeals;
+function renderDialerSettings(){
+  const acqDeals=state.deals.filter(d=>d.pipeline==='Acquisition');
+  const withPhone=acqDeals.filter(d=>d.phone||d.mobilePhone).length;
   return `<div class="settings-section">
-    <h4>📞 LeadHero Dialer Integration</h4>
-    <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Click "Call in LeadHero" on any deal → lead loads into Ioannis's folder → hit refresh in LeadHero to call.</p>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
+    <h4>📞 JustCall Dialer</h4>
+    <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Click "Call in JustCall" on any acquisition deal → JustCall dialer opens → call starts immediately.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
       <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;text-align:center">
-        <div style="font-size:22px;font-weight:800;color:#059669">${linkedDeals}</div>
-        <div style="font-size:10px;color:#6b7280;font-weight:600">Synced to LeadHero</div>
-      </div>
-      <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:12px;text-align:center">
-        <div style="font-size:22px;font-weight:800;color:#d97706">${unlinked>0?unlinked:0}</div>
-        <div style="font-size:10px;color:#6b7280;font-weight:600">Not Yet Synced</div>
+        <div style="font-size:22px;font-weight:800;color:#059669">${withPhone}</div>
+        <div style="font-size:10px;color:#6b7280;font-weight:600">Acquisition Deals with Phone</div>
       </div>
       <div style="background:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;padding:12px;text-align:center">
-        <div style="font-size:22px;font-weight:800;color:#374151">${totalDeals}</div>
-        <div style="font-size:10px;color:#6b7280;font-weight:600">Total Deals</div>
+        <div style="font-size:22px;font-weight:800;color:#374151">${acqDeals.length}</div>
+        <div style="font-size:10px;color:#6b7280;font-weight:600">Total Acquisition Deals</div>
       </div>
     </div>
-    ${unlinked>0?`<button id="lh-sync-all-btn" class="btn btn-primary" style="width:100%;font-size:13px;padding:10px;margin-bottom:12px" onclick="syncAllToLeadHero()">
-      Sync ${unlinked} Unsynced Deals to LeadHero
-    </button>`:`<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px;text-align:center;font-size:12px;color:#059669;font-weight:600;margin-bottom:12px">All deals with phone numbers are synced to LeadHero</div>`}
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px;text-align:center;font-size:12px;color:#92400e;font-weight:600;margin-bottom:12px">Trial Period — Admin Only (Aidan & Lars)</div>
     <div style="font-size:11px;color:var(--text-muted);line-height:1.5">
       <strong>How it works:</strong><br>
-      • Click "Call in LeadHero" on a deal card → clears Ioannis's folder → loads just this lead<br>
-      • Ioannis clicks refresh in LeadHero → the lead is right there, ready to call<br>
-      • Only 1 lead at a time in the folder — no confusion about who to call<br>
-      • Call outcomes sync back via webhook → logged as activities on the deal<br>
-      • <a href="${LEADHERO_APP}/leads?leadFolders=${LEADHERO_IOANNIS_FOLDER}" target="_blank" style="color:var(--purple)">Open Ioannis's Folder</a> | <a href="${LEADHERO_APP}" target="_blank" style="color:var(--purple)">LeadHero Dashboard</a>
+      • Click "Call in JustCall" on an acquisition deal card<br>
+      • JustCall dialer opens in a popup window<br>
+      • Call connects directly — no need to leave the CRM<br>
+      • <a href="https://app.justcall.io" target="_blank" style="color:var(--purple)">JustCall Dashboard</a>
     </div>
   </div>`;
 }
