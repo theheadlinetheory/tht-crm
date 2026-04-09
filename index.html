@@ -2446,6 +2446,10 @@ async function moveDeal(dealId,newStage){
   if(d && (newStage==='Service Area Taken' || newStage==='Revisit')){
     addToRerunQueue(dealId).catch(e=>console.warn('Re-run queue auto-add failed:',e));
   }
+  // Auto-assign appointment follow-up sequence
+  if(d && (newStage==='Discovery Scheduled' || newStage==='Demo Scheduled') && d.bookedDate && /^\d{4}-\d{2}-\d{2}$/.test(d.bookedDate)){
+    generateAppointmentSequence(d);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -2848,6 +2852,63 @@ function assignSequence(dealId,dayLabel,acts,targetDate){
     for(const na of newActs){
       await apiPost("create_activity",na);
     }
+    pendingWrites--;
+  })();
+}
+
+function generateAppointmentSequence(deal){
+  if(!deal || !deal.bookedDate || !/^\d{4}-\d{2}-\d{2}$/.test(deal.bookedDate)) return;
+  if(deal.stage!=='Discovery Scheduled' && deal.stage!=='Demo Scheduled') return;
+  // Duplicate check: skip if Appointment Sequence activities already exist for this deal
+  if(state.activities.some(a=>a.dealId===deal.id && a.dayLabel==='Appointment Sequence' && !a.done)) return;
+  const today=new Date(TODAY()+'T00:00:00');
+  const apptDate=new Date(deal.bookedDate+'T00:00:00');
+  const daysOut=Math.round((apptDate-today)/(1000*60*60*24));
+  if(daysOut<1) return;
+  const type=deal.stage==='Discovery Scheduled'?'discovery call':'demo call';
+  const contact=deal.contact||deal.company||'this lead';
+  const company=deal.company||'';
+  const label=contact+(company&&contact!==company?' @ '+company:'');
+  const acts=[];
+  const addDate=(offset)=>{const d=new Date(today);d.setDate(d.getDate()+offset);return d.toISOString().slice(0,10);};
+  // Day-of activities (always present)
+  const dayOfDate=deal.bookedDate;
+  acts.push({type:'Text',subject:'Day-of '+type+' reminder for '+label,dueDate:dayOfDate});
+  acts.push({type:'Text',subject:'Send '+type+' video to '+label,dueDate:dayOfDate});
+  if(daysOut>=2){
+    const dayBeforeDate=addDate(daysOut-1);
+    acts.push({type:'Call',subject:'Pre-'+type+' call with '+label,dueDate:dayBeforeDate});
+  }
+  if(daysOut>=3){
+    acts.push({type:'Text',subject:'Confirm '+type+' with '+label,dueDate:TODAY()});
+  }
+  if(daysOut>=5){
+    const midStart=1;
+    const midEnd=daysOut-2;
+    const midDays=midEnd-midStart+1;
+    if(midDays>=2){
+      const emailDay=midStart+Math.floor(midDays/3);
+      const textDay=midStart+Math.floor(2*midDays/3);
+      acts.push({type:'Email',subject:'Email touchpoint — '+label,dueDate:addDate(emailDay)});
+      acts.push({type:'Text',subject:'Text touchpoint — '+label,dueDate:addDate(textDay)});
+    } else if(midDays===1){
+      acts.push({type:'Email',subject:'Email touchpoint — '+label,dueDate:addDate(midStart)});
+    }
+  } else if(daysOut===4){
+    const midDate=addDate(Math.floor(daysOut/2));
+    acts.push({type:'Text',subject:'Text touchpoint — '+label,dueDate:midDate});
+  }
+  const newActs=[];
+  for(const a of acts){
+    const na={id:uid(),dealId:deal.id,type:a.type,subject:a.subject,dueDate:a.dueDate,done:false,dayLabel:'Appointment Sequence',scheduledTime:''};
+    state.activities.push(na);
+    newActs.push(na);
+  }
+  if(state.selectedDeal && state.selectedDeal.id===deal.id) refreshModal();
+  render();
+  pendingWrites++;
+  (async()=>{
+    for(const na of newActs){ await apiPost('create_activity',na); }
     pendingWrites--;
   })();
 }
@@ -5819,6 +5880,11 @@ function renderDealModal(deal){
         <input type="date" id="sop-target-date" value="${TODAY()}" style="padding:4px 8px;border:1px solid #a7f3d0;border-radius:6px;font-size:12px;font-family:inherit">
         <span style="font-size:10px;color:#6ee7b7">${deal.pipeline==='Client'?'Client SOP':'Acquisition SOP'}</span>
       </div>
+      ${(deal.stage==='Discovery Scheduled'||deal.stage==='Demo Scheduled')&&deal.bookedDate&&/^\d{4}-\d{2}-\d{2}$/.test(deal.bookedDate)?`
+      <button class="sop-day-btn" style="background:#2563eb;color:#fff;border-color:#2563eb" onclick="generateAppointmentSequence(state.deals.find(d=>d.id==='${esc(deal.id)}'));state.showSop=false;refreshModal()">
+        ${svgIcon('calendar',12,'#fff')} Appointment Sequence
+        <span style="font-weight:400;color:#bfdbfe">(${(()=>{const dd=Math.round((new Date(deal.bookedDate+'T00:00:00')-new Date(TODAY()+'T00:00:00'))/(1000*60*60*24));return dd+'d out'})()})</span>
+      </button>`:''}
       ${Object.entries(sopDays).map(([day,acts])=>`
       <button class="sop-day-btn" onclick="doAssignSequenceWithDate('${deal.id}','${day}')">${day} <span style="font-weight:400;color:#6ee7b7">(${acts.length})</span></button>`).join("")}</div>`;
   }
@@ -6327,6 +6393,13 @@ function updateDealField(key,val){
           }
           saveAppointment(client.name, leadName, deal.bookedDate, deal.bookedTime);
         }
+      }
+    }
+    // Auto-assign appointment sequence when bookedDate is set on Discovery/Demo deal
+    if(key==='bookedDate' && val && /^\d{4}-\d{2}-\d{2}$/.test(val)){
+      const sd=state.selectedDeal;
+      if(sd.stage==='Discovery Scheduled' || sd.stage==='Demo Scheduled'){
+        generateAppointmentSequence(sd);
       }
     }
     debouncedDealFieldSave();
