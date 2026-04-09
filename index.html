@@ -378,14 +378,17 @@ details > summary::-webkit-details-marker { display:none; }
 
 <div id="app" style="display:none"></div>
 
-<!-- JustCall Dialer Widget -->
+<!-- JustCall Dialer Widget (persistent iframe — logs in once, dials via postMessage) -->
 <div id="justcall-widget" style="display:none;position:fixed;bottom:16px;right:16px;width:375px;height:660px;z-index:100000;border-radius:12px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.25);background:#fff;flex-direction:column">
   <div style="background:#0f172a;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
     <div style="display:flex;flex-direction:column;gap:1px">
       <span id="justcall-widget-title" style="color:#fff;font-size:12px;font-weight:600">JustCall Dialer</span>
       <span id="justcall-widget-hint" style="display:none;color:#f97316;font-size:10px;font-weight:600"></span>
     </div>
-    <button onclick="closeJustCallWidget()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:20px;line-height:1;padding:0 2px">&times;</button>
+    <div style="display:flex;align-items:center;gap:6px">
+      <button onclick="toggleJustCallMinimize()" id="justcall-minimize-btn" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:16px;line-height:1;padding:0 2px" title="Minimize">─</button>
+      <button onclick="closeJustCallWidget()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:20px;line-height:1;padding:0 2px" title="Close">&times;</button>
+    </div>
   </div>
   <iframe id="justcall-widget-iframe" style="flex:1;width:100%;border:none" allow="microphone; autoplay; clipboard-read; clipboard-write; hid"></iframe>
 </div>
@@ -774,7 +777,6 @@ const REPLY_CHECK_INTERVAL = 15000;
 const REPLY_BACKEND_POLL_INTERVAL = 300000; // 5 min — trigger backend SmartLead API poll
 
 // ─── JustCall Dialer Integration ───
-const JUSTCALL_DIALER_URL = 'https://app.justcall.io/app/macapp/dialpad_app_v2_orion_apex.php';
 const JUSTCALL_NUMBERS = {
   TX: {number:'+17372997832',label:'Austin'},
   MO: {number:'+13146901022',label:'Missouri'},
@@ -1656,6 +1658,22 @@ function findClientForDeal(deal){
 
 // Forward deal to matched client via Apps Script (email + optional SMS)
 // ─── JustCall Dialer Integration ───
+// Persistent iframe approach: iframe loads once at page load, dials via postMessage
+let justcallReady=false;
+function initJustCallDialer(){
+  const iframe=document.getElementById('justcall-widget-iframe');
+  if(!iframe) return;
+  // Load the dialer iframe (only for admins)
+  iframe.src='https://app.justcall.io/dialer';
+  // Listen for ready signal from JustCall iframe
+  window.addEventListener('message',function(e){
+    if(e.origin!=='https://app.justcall.io') return;
+    if(e.data&&e.data.type==='dialer-ready') justcallReady=true;
+    if(e.data&&e.data.type==='login-status') justcallReady=true;
+  });
+  // Mark ready after iframe has had time to load
+  setTimeout(()=>{justcallReady=true;},3000);
+}
 function callInJustCall(dealId){
   const deal=state.deals.find(d=>d.id===dealId);
   if(!deal) return;
@@ -1664,24 +1682,35 @@ function callInJustCall(dealId){
   const digits=phone.replace(/\D/g,'');
   const formatted=digits.length===10?'+1'+digits:digits.length===11&&digits[0]==='1'?'+'+digits:'+'+digits;
   const fromNum=getJustCallFrom(phone);
-  const metadata=JSON.stringify({dealId:deal.id,company:deal.company||''});
-  const dialerUrl=JUSTCALL_DIALER_URL+'?numbers='+encodeURIComponent(formatted)+'&medium=custom&metadata='+encodeURIComponent(metadata)+'&metadata_type=json';
-  // Show embedded dialer widget
   const widget=document.getElementById('justcall-widget');
   const iframe=document.getElementById('justcall-widget-iframe');
   const title=document.getElementById('justcall-widget-title');
   const hint=document.getElementById('justcall-widget-hint');
   title.textContent=esc(deal.company||formatted);
-  hint.textContent='Call via: '+fromNum.label;
+  hint.textContent='Select: '+fromNum.label+' ('+fromNum.number.replace(/(\d)(\d{3})(\d{3})(\d{4})/,'($2) $3-$4')+')';
   hint.style.display='block';
-  iframe.src=dialerUrl;
   widget.style.display='flex';
+  // Dial via postMessage (same method the official SDK uses)
+  setTimeout(()=>{
+    iframe.contentWindow.postMessage({type:'dial-number',phoneNumber:formatted},'https://app.justcall.io');
+  },500);
 }
 function closeJustCallWidget(){
+  document.getElementById('justcall-widget').style.display='none';
+}
+function toggleJustCallMinimize(){
   const widget=document.getElementById('justcall-widget');
   const iframe=document.getElementById('justcall-widget-iframe');
-  widget.style.display='none';
-  iframe.src='about:blank';
+  const btn=document.getElementById('justcall-minimize-btn');
+  if(iframe.style.display==='none'){
+    iframe.style.display='';
+    widget.style.height='660px';
+    btn.textContent='─';
+  } else {
+    iframe.style.display='none';
+    widget.style.height='auto';
+    btn.textContent='□';
+  }
 }
 
 async function forwardDealToClient(dealId){
@@ -7615,6 +7644,8 @@ async function initApp(){
     triggerBackendReplyCheck(); // Run immediately on load
     setInterval(triggerBackendReplyCheck, REPLY_BACKEND_POLL_INTERVAL);
   }
+  // JustCall dialer — persistent iframe for admins
+  if(isAdmin()) initJustCallDialer();
   // Load rerun data if starting on that tab
   if(state.pipeline==='nurture' && state.nurtureSubTab==='rerun') loadRerunData();
 }
