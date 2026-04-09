@@ -762,7 +762,7 @@ const REPLY_CHECK_INTERVAL = 15000;
 const REPLY_BACKEND_POLL_INTERVAL = 300000; // 5 min — trigger backend SmartLead API poll
 
 // ─── JustCall Dialer Integration ───
-const JUSTCALL_DIALER_URL = 'https://app.justcall.io/app/macrodialer';
+const JUSTCALL_DIALER_URL = 'https://app.justcall.io/dialer';
 // Restore deleted-ID sets from localStorage so deletions survive page refresh
 const deletedDealIds = new Set(JSON.parse(localStorage.getItem('tht_deletedDeals')||'[]'));
 const deletedActivityIds = new Set(JSON.parse(localStorage.getItem('tht_deletedActs')||'[]'));
@@ -1604,8 +1604,9 @@ function callInJustCall(dealId){
   // Clean phone to digits, ensure +1 prefix for US numbers
   const digits=phone.replace(/\D/g,'');
   const formatted=digits.length===10?'+1'+digits:digits.length===11&&digits[0]==='1'?'+'+digits:'+'+digits;
-  const dialerUrl=JUSTCALL_DIALER_URL+'?numbers='+encodeURIComponent(formatted);
-  window.open(dialerUrl,'justcall_dialer','width=400,height=600');
+  const metadata=JSON.stringify({dealId:deal.id,company:deal.company||''});
+  const dialerUrl=JUSTCALL_DIALER_URL+'?numbers='+encodeURIComponent(formatted)+'&medium=custom&metadata='+encodeURIComponent(metadata)+'&metadata_type=json';
+  window.open(dialerUrl,'justcall_dialer','width=385,height=665,location=no');
 }
 
 async function forwardDealToClient(dealId){
