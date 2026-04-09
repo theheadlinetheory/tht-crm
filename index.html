@@ -378,6 +378,15 @@ details > summary::-webkit-details-marker { display:none; }
 
 <div id="app" style="display:none"></div>
 
+<!-- JustCall Dialer Widget -->
+<div id="justcall-widget" style="display:none;position:fixed;bottom:16px;right:16px;width:375px;height:640px;z-index:100000;border-radius:12px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.25);background:#fff;flex-direction:column">
+  <div style="background:#0f172a;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+    <span id="justcall-widget-title" style="color:#fff;font-size:12px;font-weight:600">JustCall Dialer</span>
+    <button onclick="closeJustCallWidget()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:20px;line-height:1;padding:0 2px">&times;</button>
+  </div>
+  <iframe id="justcall-widget-iframe" style="flex:1;width:100%;border:none" allow="microphone; autoplay; clipboard-read; clipboard-write; hid"></iframe>
+</div>
+
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
@@ -1601,12 +1610,23 @@ function callInJustCall(dealId){
   if(!deal) return;
   const phone=str(deal.phone)||str(deal.mobilePhone);
   if(!phone){alert('No phone number on this deal.');return;}
-  // Clean phone to digits, ensure +1 prefix for US numbers
   const digits=phone.replace(/\D/g,'');
   const formatted=digits.length===10?'+1'+digits:digits.length===11&&digits[0]==='1'?'+'+digits:'+'+digits;
   const metadata=JSON.stringify({dealId:deal.id,company:deal.company||''});
   const dialerUrl=JUSTCALL_DIALER_URL+'?numbers='+encodeURIComponent(formatted)+'&medium=custom&metadata='+encodeURIComponent(metadata)+'&metadata_type=json';
-  window.open(dialerUrl,'justcall_dialer','width=385,height=665,location=no');
+  // Show embedded dialer widget
+  const widget=document.getElementById('justcall-widget');
+  const iframe=document.getElementById('justcall-widget-iframe');
+  const title=document.getElementById('justcall-widget-title');
+  title.textContent='Calling '+esc(deal.company||formatted);
+  iframe.src=dialerUrl;
+  widget.style.display='flex';
+}
+function closeJustCallWidget(){
+  const widget=document.getElementById('justcall-widget');
+  const iframe=document.getElementById('justcall-widget-iframe');
+  widget.style.display='none';
+  iframe.src='about:blank';
 }
 
 async function forwardDealToClient(dealId){
