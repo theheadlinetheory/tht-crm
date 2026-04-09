@@ -379,9 +379,12 @@ details > summary::-webkit-details-marker { display:none; }
 <div id="app" style="display:none"></div>
 
 <!-- JustCall Dialer Widget -->
-<div id="justcall-widget" style="display:none;position:fixed;bottom:16px;right:16px;width:375px;height:640px;z-index:100000;border-radius:12px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.25);background:#fff;flex-direction:column">
+<div id="justcall-widget" style="display:none;position:fixed;bottom:16px;right:16px;width:375px;height:660px;z-index:100000;border-radius:12px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.25);background:#fff;flex-direction:column">
   <div style="background:#0f172a;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
-    <span id="justcall-widget-title" style="color:#fff;font-size:12px;font-weight:600">JustCall Dialer</span>
+    <div style="display:flex;flex-direction:column;gap:1px">
+      <span id="justcall-widget-title" style="color:#fff;font-size:12px;font-weight:600">JustCall Dialer</span>
+      <span id="justcall-widget-hint" style="display:none;color:#f97316;font-size:10px;font-weight:600"></span>
+    </div>
     <button onclick="closeJustCallWidget()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:20px;line-height:1;padding:0 2px">&times;</button>
   </div>
   <iframe id="justcall-widget-iframe" style="flex:1;width:100%;border:none" allow="microphone; autoplay; clipboard-read; clipboard-write; hid"></iframe>
@@ -772,6 +775,54 @@ const REPLY_BACKEND_POLL_INTERVAL = 300000; // 5 min — trigger backend SmartLe
 
 // ─── JustCall Dialer Integration ───
 const JUSTCALL_DIALER_URL = 'https://app.justcall.io/app/macapp/dialpad_app_v2_orion_apex.php';
+const JUSTCALL_NUMBERS = {
+  TX: {number:'+17372997832',label:'Austin'},
+  MO: {number:'+13146901022',label:'Missouri'},
+  NY: {number:'+19292003285',label:'New York'},
+  OH: {number:'+17407363238',label:'Ohio'}
+};
+// Area code → nearest JustCall region (TX/MO/NY/OH)
+const AC_REGION = {
+  201:'NY',202:'NY',203:'NY',205:'OH',206:'TX',207:'NY',208:'MO',209:'TX',210:'TX',212:'NY',
+  213:'TX',214:'TX',215:'NY',216:'OH',217:'OH',218:'MO',219:'OH',220:'OH',223:'NY',224:'OH',
+  225:'TX',228:'TX',229:'OH',231:'OH',234:'OH',239:'OH',240:'NY',248:'OH',251:'OH',252:'OH',
+  253:'TX',254:'TX',256:'OH',260:'OH',262:'OH',267:'NY',269:'OH',270:'OH',272:'NY',276:'NY',
+  279:'TX',281:'TX',301:'NY',302:'NY',303:'MO',304:'NY',305:'OH',307:'MO',308:'MO',309:'OH',
+  310:'TX',312:'OH',313:'OH',314:'MO',315:'NY',316:'MO',317:'OH',318:'TX',319:'MO',320:'MO',
+  321:'OH',323:'TX',325:'TX',326:'OH',330:'OH',331:'OH',332:'NY',334:'OH',336:'OH',337:'TX',
+  339:'NY',340:'NY',346:'TX',347:'NY',351:'NY',352:'OH',360:'TX',361:'TX',364:'OH',380:'OH',
+  385:'MO',386:'OH',401:'NY',402:'MO',404:'OH',405:'MO',406:'MO',407:'OH',408:'TX',409:'TX',
+  410:'NY',412:'NY',413:'NY',414:'OH',415:'TX',417:'MO',419:'OH',423:'OH',424:'TX',425:'TX',
+  430:'TX',432:'TX',434:'NY',435:'MO',440:'OH',442:'TX',443:'NY',458:'TX',463:'OH',469:'TX',
+  470:'OH',475:'NY',478:'OH',479:'MO',480:'TX',484:'NY',501:'MO',502:'OH',503:'TX',504:'TX',
+  505:'MO',507:'MO',508:'NY',509:'TX',510:'TX',512:'TX',513:'OH',515:'MO',516:'NY',517:'OH',
+  518:'NY',520:'TX',530:'TX',531:'MO',534:'OH',539:'MO',540:'NY',541:'TX',551:'NY',559:'TX',
+  561:'OH',562:'TX',563:'MO',564:'TX',567:'OH',570:'NY',571:'NY',572:'MO',573:'MO',574:'OH',
+  575:'MO',580:'MO',585:'NY',586:'OH',601:'TX',602:'TX',603:'NY',605:'MO',606:'OH',607:'NY',
+  608:'OH',609:'NY',610:'NY',612:'MO',614:'OH',615:'OH',616:'OH',617:'NY',618:'OH',619:'TX',
+  620:'MO',623:'TX',626:'TX',628:'TX',629:'OH',630:'OH',631:'NY',636:'MO',641:'MO',646:'NY',
+  650:'TX',651:'MO',657:'TX',660:'MO',661:'TX',662:'TX',667:'NY',669:'TX',678:'OH',681:'NY',
+  682:'TX',689:'OH',701:'MO',702:'TX',703:'NY',704:'OH',706:'OH',707:'TX',708:'OH',712:'MO',
+  713:'TX',714:'TX',715:'OH',716:'NY',717:'NY',718:'NY',719:'MO',720:'MO',724:'NY',725:'TX',
+  726:'TX',727:'OH',731:'OH',732:'NY',734:'OH',737:'TX',740:'OH',747:'TX',754:'OH',757:'NY',
+  760:'TX',762:'OH',763:'MO',765:'OH',769:'TX',770:'OH',772:'OH',773:'OH',774:'NY',775:'TX',
+  779:'OH',781:'NY',785:'MO',786:'OH',801:'MO',802:'NY',803:'OH',804:'NY',805:'TX',806:'TX',
+  808:'TX',810:'OH',812:'OH',813:'OH',814:'NY',815:'OH',816:'MO',817:'TX',818:'TX',820:'TX',
+  828:'OH',830:'TX',831:'TX',832:'TX',839:'OH',843:'OH',845:'NY',847:'OH',848:'NY',850:'OH',
+  854:'OH',856:'NY',857:'NY',858:'TX',859:'OH',860:'NY',862:'NY',863:'OH',864:'OH',865:'OH',
+  870:'MO',872:'OH',901:'OH',903:'TX',904:'OH',906:'OH',907:'TX',908:'NY',909:'TX',910:'OH',
+  912:'OH',913:'MO',914:'NY',915:'TX',916:'TX',917:'NY',918:'MO',919:'OH',920:'OH',925:'TX',
+  928:'TX',929:'NY',930:'OH',931:'OH',934:'NY',936:'TX',937:'OH',938:'OH',940:'TX',941:'OH',
+  945:'TX',947:'OH',949:'TX',951:'TX',952:'MO',954:'OH',956:'TX',959:'NY',970:'MO',971:'TX',
+  972:'TX',973:'NY',978:'NY',979:'TX',980:'OH',984:'OH',985:'TX',989:'OH'
+};
+function getJustCallFrom(phone){
+  const digits=phone.replace(/\D/g,'');
+  // Extract area code (skip leading 1 if 11 digits)
+  const ac=digits.length===11&&digits[0]==='1'?digits.substring(1,4):digits.substring(0,3);
+  const region=AC_REGION[parseInt(ac)]||'TX';
+  return JUSTCALL_NUMBERS[region];
+}
 // Restore deleted-ID sets from localStorage so deletions survive page refresh
 const deletedDealIds = new Set(JSON.parse(localStorage.getItem('tht_deletedDeals')||'[]'));
 const deletedActivityIds = new Set(JSON.parse(localStorage.getItem('tht_deletedActs')||'[]'));
@@ -1612,13 +1663,17 @@ function callInJustCall(dealId){
   if(!phone){alert('No phone number on this deal.');return;}
   const digits=phone.replace(/\D/g,'');
   const formatted=digits.length===10?'+1'+digits:digits.length===11&&digits[0]==='1'?'+'+digits:'+'+digits;
+  const fromNum=getJustCallFrom(phone);
   const metadata=JSON.stringify({dealId:deal.id,company:deal.company||''});
   const dialerUrl=JUSTCALL_DIALER_URL+'?numbers='+encodeURIComponent(formatted)+'&medium=custom&metadata='+encodeURIComponent(metadata)+'&metadata_type=json';
   // Show embedded dialer widget
   const widget=document.getElementById('justcall-widget');
   const iframe=document.getElementById('justcall-widget-iframe');
   const title=document.getElementById('justcall-widget-title');
-  title.textContent='Calling '+esc(deal.company||formatted);
+  const hint=document.getElementById('justcall-widget-hint');
+  title.textContent=esc(deal.company||formatted);
+  hint.textContent='Call via: '+fromNum.label;
+  hint.style.display='block';
   iframe.src=dialerUrl;
   widget.style.display='flex';
 }
