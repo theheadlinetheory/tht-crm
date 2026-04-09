@@ -11,17 +11,17 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg: #f0fdf4;
-  --nav: #022c22;
+  --bg: #f8fafc;
+  --nav: #0f172a;
   --purple: #059669;
-  --purple-light: #d1fae5;
-  --purple-mid: #6ee7b7;
+  --purple-light: #f1f5f9;
+  --purple-mid: #cbd5e1;
   --text: #111827;
   --text-secondary: #6b7280;
   --text-muted: #9ca3af;
   --border: #e5e7eb;
   --card: #ffffff;
-  --col-bg: #f9fafb;
+  --col-bg: #f1f5f9;
   --green: #22c55e;
   --yellow: #eab308;
   --red: #ef4444;
@@ -35,14 +35,14 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .topbar { background: var(--nav); height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; position: sticky; top: 0; z-index: 100; }
 .topbar-brand { font-weight: 800; font-size: 15px; color: #fff; letter-spacing: -.3px; }
 .topbar-tabs { display: flex; gap: 2px; margin-left: 18px; }
-.topbar-tab { padding: 6px 14px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; background: transparent; color: #a7f3d0; font-family: var(--font); transition: all .15s; }
-.topbar-tab.active { background: var(--purple); color: #fff; }
-.topbar-tab:hover:not(.active) { background: rgba(5,150,105,.25); }
+.topbar-tab { padding: 6px 14px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; background: transparent; color: #64748b; font-family: var(--font); transition: all .15s; }
+.topbar-tab.active { background: #334155; color: #f1f5f9; }
+.topbar-tab:hover:not(.active) { background: rgba(51,65,85,.4); }
 .topbar-right { display: flex; align-items: center; gap: 10px; }
-.topbar-stat { font-size: 11px; color: #a7f3d0; }
+.topbar-stat { font-size: 11px; color: #64748b; }
 .btn { padding: 5px 12px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font); transition: all .12s; }
-.btn-ghost { background: #064e3b; color: #a7f3d0; }
-.btn-ghost:hover { background: #065f46; }
+.btn-ghost { background: #1e293b; color: #94a3b8; }
+.btn-ghost:hover { background: #334155; }
 .btn-primary { background: var(--purple); color: #fff; font-weight: 700; }
 .btn-primary:hover { background: #047857; }
 .btn-danger { background: #fef2f2; color: var(--red); border: 1px solid #fecaca; }
@@ -59,9 +59,9 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .col-empty { padding: 28px 0; text-align: center; font-size: 11px; color: #d1d5db; font-style: italic; }
 
 /* Deal Card */
-.deal-card { background: var(--card); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 6px; border: 1px solid var(--border); cursor: pointer; transition: box-shadow .15s, transform .1s; position: relative; z-index: 1; box-shadow: 0 1px 3px rgba(0,0,0,.04); overflow: hidden; }
+.deal-card { background: var(--card); border-radius: var(--radius); padding: 8px 10px; margin-bottom: 6px; border: 1px solid var(--border); cursor: pointer; transition: box-shadow .15s, transform .1s; position: relative; z-index: 1; box-shadow: 0 1px 3px rgba(0,0,0,.04); overflow: hidden; }
 .deal-card.has-reply { border-left: 3px solid #3b82f6; background: linear-gradient(90deg, #eff6ff 0%, var(--card) 12%); }
-.reply-indicator { display:inline-block; margin-right:5px; font-size:12px; animation: replyPulse 2s ease-in-out infinite; }
+.reply-indicator { display:inline-flex; align-items:center; margin-right:5px; vertical-align:middle; animation: replyPulse 2s ease-in-out infinite; }
 @keyframes replyPulse { 0%,100%{opacity:1} 50%{opacity:.5} }
 .deal-card div, .deal-card span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .deal-card.badge-open { z-index: 100; }
@@ -76,9 +76,9 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .delete-zone-won.drag-hover { background:linear-gradient(to bottom, #4ade80, #15803d); height:80px; font-size:16px; }
 .deal-card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
 .deal-reply-snippet { font-size: 10px; color: #6b7280; background: #f0fdf4; border-radius: 4px; padding: 3px 6px; margin-top: 4px; line-height: 1.3; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; border-left: 2px solid #86efac; }
-.deal-company { font-weight: 700; font-size: 12.5px; color: var(--text); line-height: 1.3; flex: 1; margin-right: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.deal-company { font-weight: 600; font-size: 12px; color: #0f172a; line-height: 1.3; flex: 1; margin-right: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .deal-contact { font-size: 11px; color: var(--text-secondary); margin-bottom: 2px; }
-.deal-detail { font-size: 10.5px; color: var(--text-muted); margin-bottom: 1px; }
+.deal-detail { font-size: 10.5px; color: #64748b; margin-bottom: 1px; }
 .deal-bottom { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
 .deal-value { font-size: 12px; font-weight: 700; }
 .deal-tag { font-size: 9.5px; padding: 1px 6px; border-radius: 8px; background: #f3f4f6; color: var(--text-secondary); }
@@ -624,8 +624,8 @@ function renderUserMenu(){
     </button>
     <div id="user-menu-dropdown" style="display:none;position:absolute;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);min-width:160px;z-index:9999;overflow:hidden">
       <div style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:11px;color:#6b7280">${esc(currentUser.email||'')}</div>
-      <button onclick="switchUser()" style="width:100%;text-align:left;padding:8px 12px;border:none;background:none;font-size:12px;cursor:pointer;color:var(--text);font-family:var(--font)" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">🔄 Switch User</button>
-      <button onclick="logout()" style="width:100%;text-align:left;padding:8px 12px;border:none;background:none;font-size:12px;cursor:pointer;color:#dc2626;font-family:var(--font)" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='none'">🚪 Log Out</button>
+      <button onclick="switchUser()" style="width:100%;text-align:left;padding:8px 12px;border:none;background:none;font-size:12px;cursor:pointer;color:var(--text);font-family:var(--font)" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">${svgIcon('refresh-cw',12)} Switch User</button>
+      <button onclick="logout()" style="width:100%;text-align:left;padding:8px 12px;border:none;background:none;font-size:12px;cursor:pointer;color:#dc2626;font-family:var(--font)" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='none'">Log Out</button>
     </div>
   </div>`;
 }
@@ -1637,6 +1637,28 @@ function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
 function str(v){return v===null||v===undefined?'':String(v)}
 
+function svgIcon(name, size=14, color='currentColor') {
+  const s = `width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"`;
+  const icons = {
+    clipboard: `<svg ${s}><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>`,
+    mail: `<svg ${s}><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`,
+    calendar: `<svg ${s}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
+    send: `<svg ${s}><path d="m22 2-7 20-4-9-9-4Z"/><path d="m22 2-11 11"/></svg>`,
+    'bar-chart': `<svg ${s}><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>`,
+    'refresh-cw': `<svg ${s}><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>`,
+    list: `<svg ${s}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`,
+    square: `<svg ${s}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>`,
+    'check-square': `<svg ${s}><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`,
+    archive: `<svg ${s}><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>`,
+    settings: `<svg ${s}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>`,
+    'message-circle': `<svg ${s}><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z"/></svg>`,
+    phone: `<svg ${s}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>`,
+    'upload': `<svg ${s}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`,
+    grid: `<svg ${s}><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>`,
+  };
+  return icons[name] || '';
+}
+
 // Find matching client for a deal — prioritize current stage (client column) over campaign keywords
 function findClientForDeal(deal){
   // First: if the deal's stage matches a client name, that's the assigned client (handles reassignments)
@@ -1812,7 +1834,7 @@ function showForwardPreview(deal, client){
     </div>
     <div style="padding:14px 20px;border-top:1px solid #e5e7eb;display:flex;justify-content:flex-end;gap:10px">
       <button onclick="this.closest('#fwd-preview-overlay').remove()" class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb">Cancel</button>
-      <button id="fwd-confirm-btn" onclick="confirmForward('${deal.id}')" class="btn forward-btn ready" style="width:auto;padding:8px 24px">📧 Send to ${esc(client.name)}</button>
+      <button id="fwd-confirm-btn" onclick="confirmForward('${deal.id}')" class="btn forward-btn ready" style="width:auto;padding:8px 24px">${svgIcon('mail',14)} Send to ${esc(client.name)}</button>
     </div>`;
 
   overlay.appendChild(modal);
@@ -1831,7 +1853,7 @@ async function confirmForward(dealId){
     if(!resp || resp.error){
       const errMsg=resp?resp.error:'No response from server — check Apps Script deployment';
       alert('Forward failed: '+errMsg);
-      if(btn){btn.textContent='📧 Retry';btn.disabled=false;}
+      if(btn){btn.innerHTML=svgIcon('mail',14)+' Retry';btn.disabled=false;}
       return;
     }
     if(deal) deal.forwardedAt=new Date().toISOString();
@@ -1843,7 +1865,7 @@ async function confirmForward(dealId){
     refreshModal();
   }catch(e){
     alert('Forward failed: '+e.message);
-    if(btn){btn.textContent='📧 Retry';btn.disabled=false;}
+    if(btn){btn.innerHTML=svgIcon('mail',14)+' Retry';btn.disabled=false;}
   }
 }
 
@@ -2591,9 +2613,9 @@ function renderOverdueBanner(){
   });
   const dealCount=Object.keys(byDeal).length;
   const label=activePip==='Acquisition'?'acquisition':activePip==='Client'?'client leads':'';
-  return `<div id="overdue-banner" style="margin:0 20px;padding:8px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="document.getElementById('overdue-detail').style.display=document.getElementById('overdue-detail').style.display==='none'?'block':'none'">
-    <span style="font-size:12px;font-weight:600;color:#dc2626">⚠️ ${overdue.length} overdue ${label} task${overdue.length!==1?'s':''} across ${dealCount} deal${dealCount!==1?'s':''}</span>
-    <span style="font-size:10px;color:#ef4444">Click to view ▾</span>
+  return `<div id="overdue-banner" style="margin:0 20px;padding:8px 14px;background:#fef2f2;border:1px solid #fecaca;border-bottom:1px solid #fecaca;border-radius:8px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="document.getElementById('overdue-detail').style.display=document.getElementById('overdue-detail').style.display==='none'?'block':'none'">
+    <span style="font-size:12px;font-weight:600;color:#dc2626">${overdue.length} overdue ${label} task${overdue.length!==1?'s':''} across ${dealCount} deal${dealCount!==1?'s':''}</span>
+    <span style="font-size:10px;color:#ef4444">View ▾</span>
   </div>
   <div id="overdue-detail" style="display:none;margin:0 20px;padding:8px 14px;background:#fff5f5;border:1px solid #fecaca;border-top:none;border-radius:0 0 8px 8px;max-height:200px;overflow-y:auto">
     ${Object.entries(byDeal).map(([dealId,acts])=>{
@@ -2632,13 +2654,13 @@ function renderBookedMeetingsBanner(){
     if(!byClient[cn]) byClient[cn]=[];
     byClient[cn].push(d);
   });
-  return `<div style="margin:0 20px;padding:8px 14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;cursor:pointer" onclick="document.getElementById('booked-detail').style.display=document.getElementById('booked-detail').style.display==='none'?'block':'none'">
+  return `<div style="margin:0 20px;padding:8px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-bottom:1px solid #bbf7d0;border-radius:8px;cursor:pointer" onclick="document.getElementById('booked-detail').style.display=document.getElementById('booked-detail').style.display==='none'?'block':'none'">
     <div style="display:flex;align-items:center;justify-content:space-between">
-      <span style="font-size:12px;font-weight:600;color:#1d4ed8">📅 ${label}${booked.length} upcoming meeting${booked.length!==1?'s':''} (all clients)</span>
-      <span style="font-size:10px;color:#3b82f6">Click to view ▾</span>
+      <span style="font-size:12px;font-weight:600;color:#15803d">${label}${booked.length} upcoming meeting${booked.length!==1?'s':''} (all clients)</span>
+      <span style="font-size:10px;color:#16a34a">View ▾</span>
     </div>
   </div>
-  <div id="booked-detail" style="display:none;margin:0 20px;padding:8px 14px;background:#f0f7ff;border:1px solid #bfdbfe;border-top:none;border-radius:0 0 8px 8px;max-height:300px;overflow-y:auto">
+  <div id="booked-detail" style="display:none;margin:0 20px;padding:8px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-top:none;border-radius:0 0 8px 8px;max-height:300px;overflow-y:auto">
     ${Object.keys(byClient).map(cn=>{
       const client=state.clients.find(c=>c.name===cn);
       const color=client&&client.color?client.color:'#6b7280';
@@ -2675,7 +2697,7 @@ function renderUpcomingMeetings(deal, clientName){
   });
   if(!allScheduled.length) return '<div id="upcoming-meetings-container"></div>';
   let h='<div id="upcoming-meetings-container"><div style="margin:0 0 12px 0;padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px">';
-  h+=`<div style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:6px">📅 ${esc(clientName)}'s Scheduled Meetings (${allScheduled.length})</div>`;
+  h+=`<div style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:6px">${svgIcon('calendar',12)} ${esc(clientName)}'s Scheduled Meetings (${allScheduled.length})</div>`;
   for(const m of allScheduled){
     const d=new Date(m.bookedDate+'T'+(m.bookedTime||'00:00'));
     const isPast=d<now;
@@ -3021,7 +3043,7 @@ function doCopyLeadInfo(dealId){
   const text=buildLeadMessage(deal, clientName);
   navigator.clipboard.writeText(text).then(()=>{
     const btn=document.querySelector('[onclick*="copyLeadInfo"]');
-    if(btn){ const orig=btn.innerHTML; btn.innerHTML='✅ Copied!'; setTimeout(()=>btn.innerHTML=orig, 1500); }
+    if(btn){ const orig=btn.innerHTML; btn.innerHTML='<span style="color:#059669">Copied!</span>'; setTimeout(()=>btn.innerHTML=orig, 1500); }
   }).catch(()=>{
     prompt('Copy this text:',text);
   });
@@ -3408,7 +3430,7 @@ function showCalendlyTimeConfirm(dealId, deal, clientName, ianaTz){
   const tzLabel=ianaTz?` (${clientName} time)`:'';
   overlay.innerHTML=`<div style="background:#fff;border-radius:12px;width:380px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden" onclick="event.stopPropagation()">
     <div style="padding:16px 20px;background:#f5f3ff;border-bottom:1px solid #e5e7eb">
-      <div style="font-size:15px;font-weight:700;color:#5b21b6">✅ Meeting Booked!</div>
+      <div style="font-size:15px;font-weight:700;color:#5b21b6">Meeting Booked!</div>
       <div style="font-size:12px;color:#6b7280;margin-top:4px">Confirm the appointment date & time${esc(tzLabel)}</div>
     </div>
     <div style="padding:20px">
@@ -3850,7 +3872,7 @@ function openClientInfoPanel(clientName){
     h+=`<div style="margin-bottom:16px">
       <button class="btn btn-primary" style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#818cf8;border-color:#818cf8"
         onclick="this.closest('#client-info-overlay').remove();openCalendlyEmbed(null,atob('${btoa(unescape(encodeURIComponent(cl.calendlyUrl)))}'),atob('${btoa(unescape(encodeURIComponent(clientName)))}'))">
-        📅 Open ${esc(clientName)}'s Calendly
+        ${svgIcon('calendar',14)} Open ${esc(clientName)}'s Calendly
       </button>
     </div>`;
   }
@@ -3858,7 +3880,7 @@ function openClientInfoPanel(clientName){
   // Upcoming meetings
   if(scheduled.length||appts.length){
     h+=`<div style="margin-bottom:16px;padding:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px">
-      <div style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:8px">📅 Scheduled Meetings (${scheduled.length+appts.length})</div>`;
+      <div style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:8px">${svgIcon('calendar',12)} Scheduled Meetings (${scheduled.length+appts.length})</div>`;
     for(const m of scheduled){
       const d=new Date(m.bookedDate+'T'+(m.bookedTime||'00:00'));
       const isPast=d<now;
@@ -4091,7 +4113,7 @@ function openWarmCallSheet(dealId){
             return `<!-- Inline Calendly — shows available times directly -->
             <div style="background:#fff;border-radius:12px;border:2px solid #7c3aed;overflow:hidden">
               <div style="background:#7c3aed;padding:8px 16px;display:flex;justify-content:space-between;align-items:center">
-                <div style="font-size:13px;font-weight:700;color:#fff">📅 Book on ${esc(mc.name)}'s Calendar</div>
+                <div style="font-size:13px;font-weight:700;color:#fff">${svgIcon('calendar',14,'#fff')} Book on ${esc(mc.name)}'s Calendar</div>
                 <button onclick="document.getElementById('wc-cal-prefill-toggle').style.display=document.getElementById('wc-cal-prefill-toggle').style.display==='none'?'block':'none'" style="background:rgba(255,255,255,.2);border:none;color:#fff;font-size:11px;padding:3px 10px;border-radius:6px;cursor:pointer;font-weight:600">Edit Guest Info</button>
               </div>
               <div id="wc-cal-prefill-toggle" style="display:none;padding:10px 16px;border-bottom:1px solid #e2e8f0;background:#f5f3ff">
@@ -4800,8 +4822,8 @@ function renderRerunTab(){
         <option value="sent" ${state.rerunFilterStatus==='sent'?'selected':''}>Sent</option>
         <option value="skipped" ${state.rerunFilterStatus==='skipped'?'selected':''}>Skipped</option>
       </select>
-      <button class="btn btn-primary" onclick="exportRerunCSV()">📥 Export CSV</button>
-      <button class="btn btn-ghost" style="background:#ecfdf5;color:var(--purple);border:1px solid #a7f3d0" onclick="exportRerunForSmartlead()">📤 Export for Smartlead</button>
+      <button class="btn btn-primary" onclick="exportRerunCSV()">Export CSV</button>
+      <button class="btn btn-ghost" style="background:#ecfdf5;color:var(--purple);border:1px solid #a7f3d0" onclick="exportRerunForSmartlead()">${svgIcon('upload',12)} Export for Smartlead</button>
       <span style="font-size:11px;color:var(--text-muted);margin-left:auto">${filtered.length} of ${state.rerunQueue.length} leads</span>
     </div>`;
 
@@ -4857,7 +4879,7 @@ function renderMarketSettingsModal(){
   let h = `<div class="modal-overlay" onmousedown="this._mdownTarget=event.target" onclick="if(event.target===this&&this._mdownTarget===this){state.rerunShowMarketModal=false;render()}">
     <div class="modal" style="width:560px" onclick="event.stopPropagation()">
       <div class="modal-header">
-        <h3>⚙️ Market Re-Run Settings</h3>
+        <h3>${svgIcon('settings',16)} Market Re-Run Settings</h3>
         <button class="modal-close" onclick="state.rerunShowMarketModal=false;render()">×</button>
       </div>
       <div class="modal-body">
@@ -4880,7 +4902,7 @@ function renderMarketSettingsModal(){
       </div>
       <div class="modal-footer" style="justify-content:flex-end;gap:8px">
         <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="state.rerunShowMarketModal=false;render()">Cancel</button>
-        <button class="btn btn-primary" onclick="saveMarketSettings()">💾 Save Settings</button>
+        <button class="btn btn-primary" onclick="saveMarketSettings()">Save Settings</button>
       </div>
     </div>
   </div>`;
@@ -4899,7 +4921,7 @@ async function saveMarketSettings(){
     await loadRerunData();
   } catch(e){
     alert('Failed to save market settings: '+e.message);
-    if(btn){ btn.textContent='💾 Save Settings'; btn.disabled=false; }
+    if(btn){ btn.textContent='Save Settings'; btn.disabled=false; }
   }
 }
 
@@ -5009,10 +5031,10 @@ function render(){
       <div class="topbar-right">
         ${boardActive?`<span class="topbar-stat">${nurtureDeals.length} deals</span>`:''}
         ${rerunActive?`<span class="topbar-stat">${state.rerunQueue.length} queued leads</span>
-        <button class="btn btn-ghost" onclick="loadRerunData()">↻ Sync</button>
-        <button class="btn btn-ghost" onclick="state.rerunShowMarketModal=true;render()">⚙ Markets</button>`:''}
+        <button class="btn btn-ghost" onclick="loadRerunData()" style="display:inline-flex;align-items:center;gap:4px">${svgIcon('refresh-cw',12)} Sync</button>
+        <button class="btn btn-ghost" onclick="state.rerunShowMarketModal=true;render()" style="display:inline-flex;align-items:center;gap:4px">${svgIcon('settings',12)} Markets</button>`:''}
         ${archiveActive?`<span class="topbar-stat">${state.archiveData.length} archived</span>
-        <button class="btn btn-ghost" onclick="state.archiveLoaded=false;loadArchive()">↻ Refresh</button>`:''}
+        <button class="btn btn-ghost" onclick="state.archiveLoaded=false;loadArchive()" style="display:inline-flex;align-items:center;gap:4px">${svgIcon('refresh-cw',12)} Refresh</button>`:''}
         ${renderUserMenu()}
       </div>
     </div>
@@ -5037,7 +5059,7 @@ function render(){
         </div>
       </div>
       <div class="topbar-right">
-        <button class="btn btn-ghost" onclick="syncFromSheet()">↻ Sync</button>
+        <button class="btn btn-ghost" onclick="syncFromSheet()" style="display:inline-flex;align-items:center;gap:4px">${svgIcon('refresh-cw',12)} Sync</button>
         ${renderUserMenu()}
       </div>
     </div>`;
@@ -5080,15 +5102,15 @@ function render(){
             </div>`).join('')}
         </div>`:''}
       </div>`:''/* end search wrapper */}
-      <span class="topbar-stat">${state.loadFailed?'⚠️ Offline (test data)':state.synced?'✓ Connected':'Connecting...'}${state.synced?' · ':' '}${totalDeals} deal${totalDeals!==1?'s':''}${isAdmin()?' · '+fmt$(totalValue):''}${state.syncing?' ↻':''}</span>
-      ${isAdmin()||isEmployee()?`<button class="btn btn-ghost" onclick="syncFromSheet()">↻ Sync</button>`:''}
-      ${isAdmin()||isEmployee()?`<button class="btn btn-ghost" onclick="toggleViewMode()" title="Toggle board/list view">${state.viewMode==='board'?'☰ List':'▦ Board'}</button>`:''}
-      ${isAdmin()||isEmployee()?`<button class="btn ${state.bulkMode?'btn-primary':'btn-ghost'}" onclick="toggleBulkMode()" title="Bulk select">${state.bulkMode?'✓ Bulk Mode':'☐ Bulk'}</button>`:''}
+      <span class="topbar-stat">${state.loadFailed?'⚠️ Offline (test data)':state.synced?'✓ Connected':'Connecting...'}${state.synced?' · ':' '}${totalDeals} deal${totalDeals!==1?'s':''}${state.syncing?' ↻':''}</span>
+      ${isAdmin()||isEmployee()?`<button class="btn btn-ghost" onclick="syncFromSheet()" style="display:inline-flex;align-items:center;gap:4px">${svgIcon('refresh-cw',12)} Sync</button>`:''}
+      ${isAdmin()||isEmployee()?`<button class="btn btn-ghost" onclick="toggleViewMode()" title="Toggle board/list view" style="display:inline-flex;align-items:center;gap:4px">${state.viewMode==='board'?svgIcon('list',12)+' List':svgIcon('grid',12)+' Board'}</button>`:''}
+      ${isAdmin()||isEmployee()?`<button class="btn ${state.bulkMode?'btn-primary':'btn-ghost'}" onclick="toggleBulkMode()" title="Bulk select" style="display:inline-flex;align-items:center;gap:4px">${state.bulkMode?svgIcon('check-square',12)+' Bulk Mode':svgIcon('square',12)+' Bulk'}</button>`:''}
       <button class="btn btn-primary" onclick="openNewDeal()">+ ${isClient()?'Lead':'Deal'}</button>
-      ${isClient()?`<button class="btn btn-ghost" onclick="openClientArchive()" title="View archived leads">📦 Archive${clientArchivedDeals.length?' ('+clientArchivedDeals.length+')':''}</button>`:''}
-      ${isEmployee()||isAdmin()?`<button class="btn ${state.showEmployeeArchive?'btn-primary':'btn-ghost'}" onclick="state.showEmployeeArchive=!state.showEmployeeArchive;render()" title="View archived leads">📦 Archive</button>`:''}
-      ${isAdmin()?`<button class="btn btn-ghost" onclick="openSettings()" title="Settings" style="font-size:16px;padding:6px 10px">⚙️</button>`:''}
-      ${isClient()?`<button class="btn btn-ghost" onclick="openClientStageSettings()" title="Edit stages" style="font-size:16px;padding:6px 10px">⚙️</button>`:''}
+      ${isClient()?`<button class="btn btn-ghost" onclick="openClientArchive()" title="View archived leads">${svgIcon('archive',12)} Archive${clientArchivedDeals.length?' ('+clientArchivedDeals.length+')':''}</button>`:''}
+      ${isEmployee()||isAdmin()?`<button class="btn ${state.showEmployeeArchive?'btn-primary':'btn-ghost'}" onclick="state.showEmployeeArchive=!state.showEmployeeArchive;render()" title="View archived leads">${svgIcon('archive',12)} Archive</button>`:''}
+      ${isAdmin()?`<button class="btn btn-ghost" onclick="openSettings()" title="Settings" style="display:inline-flex;align-items:center;gap:4px;padding:6px 10px">${svgIcon('settings',12)}</button>`:''}
+      ${isClient()?`<button class="btn btn-ghost" onclick="openClientStageSettings()" title="Edit stages" style="display:inline-flex;align-items:center;gap:4px;padding:6px 10px">${svgIcon('settings',12)}</button>`:''}
       ${renderUserMenu()}
     </div>
   </div>
@@ -5151,7 +5173,7 @@ function render(){
         <button class="btn btn-ghost" onclick="state.showEmployeeArchive=false;state.archiveSearch='';state.archiveFilterClient='';state.archiveFilterStatus='';render()" style="font-size:13px;padding:5px 12px;display:flex;align-items:center;gap:4px">← Back to Board</button>
         <span style="font-size:14px;font-weight:600">${state.pipeline==='acquisition'?'Archived Acquisition Deals':'Archived Client Leads'}</span>
         <span style="font-size:12px;color:var(--text-muted)">${empArchive.length} result${empArchive.length!==1?'s':''}</span>
-        <button class="btn btn-ghost" onclick="state.archiveLoaded=false;loadArchive()" style="font-size:11px;padding:3px 10px">↻ Refresh</button>
+        <button class="btn btn-ghost" onclick="state.archiveLoaded=false;loadArchive()" style="font-size:11px;padding:3px 10px;display:inline-flex;align-items:center;gap:4px">${svgIcon('refresh-cw',12)} Refresh</button>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
         ${archivePipeline==='client'?`<select onchange="state.archiveFilterClient=this.value.trim();render()" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
@@ -5230,7 +5252,7 @@ function render(){
           <div class="col-meta">${sd.length} lead${sd.length!==1?'s':''}${(()=>{if(state.pipeline!=='client_leads') return '';const _cl=state.clients.find(c=>c.name===stage.label);if(!_cl) return '';const st=str(_cl.clientStanding).toLowerCase()||'neutral';const standingMap={happy:{color:'#22c55e',bg:'#f0fdf4',label:'Happy',rule:'Pass all tiers'},neutral:{color:'#eab308',bg:'#fefce8',label:'Neutral',rule:'A & B freely, limit C\'s'},unhappy:{color:'#ef4444',bg:'#fef2f2',label:'Unhappy',rule:'A & B only, hold C\'s'}};const s=standingMap[st];if(!s) return '';return ` <span title="${s.rule}" style="font-size:9px;font-weight:700;color:${s.color};background:${s.bg};padding:1px 6px;border-radius:8px;letter-spacing:.3px;vertical-align:middle;cursor:help;border:1px solid ${s.color}33">${s.label}</span>`;})()}</div>
         </div>
         ${(isAdmin()||isEmployee())&&state.pipeline==='client_leads'?`<div style="display:flex;gap:6px;align-items:center">
-          ${(()=>{const cl=state.clients.find(c=>c.name===stage.label);return cl&&cl.calendlyUrl?'<button title="Open Calendly for '+esc(stage.label)+'" style="background:none;border:none;color:#818cf8;font-size:14px;cursor:pointer" onclick="event.stopPropagation();openCalendlyEmbed(null,atob(\''+btoa(unescape(encodeURIComponent(cl.calendlyUrl||'')))+'\'),atob(\''+btoa(unescape(encodeURIComponent(stage.label)))+'\'))">📅</button>':'';})()}
+          ${(()=>{const cl=state.clients.find(c=>c.name===stage.label);return cl&&cl.calendlyUrl?'<button title="Open Calendly for '+esc(stage.label)+'" style="background:none;border:none;color:#818cf8;font-size:14px;cursor:pointer" onclick="event.stopPropagation();openCalendlyEmbed(null,atob(\''+btoa(unescape(encodeURIComponent(cl.calendlyUrl||'')))+'\'),atob(\''+btoa(unescape(encodeURIComponent(stage.label)))+'\'))">'+svgIcon('calendar',14,'#818cf8')+'</button>':'';})()}
           ${isAdmin()?`<button style="background:none;border:none;color:#d1d5db;font-size:14px;cursor:pointer" onclick="event.stopPropagation();if(confirm('Remove this client?'))removeClient(atob('${btoa(unescape(encodeURIComponent(stage.label)))}'))">×</button>`:''}
         </div>`:''}
       </div>
@@ -5296,7 +5318,7 @@ function render(){
           onclick="${state.bulkMode?`event.preventDefault();event.stopPropagation();toggleBulkSelect('${deal.id}')`:`openDeal('${deal.id}')`}">
           ${state.bulkMode?`<div class="bulk-check">${isBulkSel?'✓':''}</div>`:''}
           <div class="deal-card-top">
-            <div class="deal-company">${deal.hasNewReply?'<span class="reply-indicator" title="New reply received">💬</span>':''}${esc(deal.company||deal.contact||deal.email||"New Deal")}${isRetainerClient(deal)?'<span style="display:inline-block;margin-left:6px;font-size:9px;font-weight:700;background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:3px;vertical-align:middle;white-space:nowrap;letter-spacing:.3px">RETAINER</span>':''}</div>
+            <div class="deal-company">${deal.hasNewReply?'<span class="reply-indicator" title="New reply received">'+svgIcon('message-circle',12,'#3b82f6')+'</span>':''}${esc(deal.company||deal.contact||deal.email||"New Deal")}${isRetainerClient(deal)?'<span style="display:inline-block;margin-left:6px;font-size:9px;font-weight:700;background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:3px;vertical-align:middle;white-space:nowrap;letter-spacing:.3px">RETAINER</span>':''}</div>
             ${isClient()?'':`<div class="status-indicator" onclick="event.stopPropagation();toggleBadgeDropdown('${deal.id}')">
               <div class="status-dot" style="background:${badge?badge.color:'#d1d5db'}"></div>
               ${badge?`<span class="status-count" style="color:${badge.color}">${badge.count}</span>`:''}
@@ -5311,12 +5333,9 @@ function render(){
                 </div>`:''}
             </div>`}
           </div>
-          ${deal.contact&&deal.contact!==deal.company?`<div class="deal-contact">${esc(deal.contact)}</div>`:''}
           ${deal.email?`<div class="deal-detail">${esc(deal.email)}</div>`:''}
-          ${deal.phone?`<div class="deal-detail">${esc(deal.phone)}</div>`:''}
-          ${deal.bookedDate&&deal.bookedDate.match(/^\d{4}-\d{2}-\d{2}$/)?`<div class="deal-detail" style="color:#2563eb;font-weight:600">📅 ${new Date(deal.bookedDate+'T'+(deal.bookedTime||'00:00')).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}${deal.bookedTime?' @ '+fmtTime12(deal.bookedTime):''}</div>`:''}
+          ${deal.bookedDate&&deal.bookedDate.match(/^\d{4}-\d{2}-\d{2}$/)?`<div class="deal-detail" style="color:#2563eb;font-weight:600">${new Date(deal.bookedDate+'T'+(deal.bookedTime||'00:00')).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}${deal.bookedTime?' @ '+fmtTime12(deal.bookedTime):''}</div>`:''}
           <div class="deal-bottom">
-            ${isAdmin()?`<span class="deal-value" style="color:${deal.value?'#059669':'#d1d5db'}">${fmt$(deal.value)}</span>`:''}
             <span style="display:flex;align-items:center;gap:4px">
               ${(()=>{const sa=serviceAreaResults[deal.id];if(!sa||!sa.status)return'';if(sa.status==='in')return'<span class="sa-badge sa-in" title="In service area">&#10003;</span>';if(sa.status==='out')return'<span class="sa-badge sa-out" title="Outside service area">&#10007;</span>';return'<span class="sa-badge sa-unknown" title="Service area unknown">?</span>';})()}
               ${leadAgeBadge(deal)}
@@ -5338,11 +5357,11 @@ function render(){
     <div class="delete-zone-half delete-zone-lost"
       ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';this.classList.add('drag-hover')"
       ondragleave="this.classList.remove('drag-hover')"
-      ondrop="doLostDrop()">${isClient()?'📦 Archive Lead':'🗑️ Lost / Delete'}</div>
+      ondrop="doLostDrop()">${isClient()?'Archive Lead':'Lost / Delete'}</div>
     <div class="delete-zone-half delete-zone-won"
       ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';this.classList.add('drag-hover')"
       ondragleave="this.classList.remove('drag-hover')"
-      ondrop="doWonDrop()">✅ ${isClient()?'Won / Closed':state.pipeline==='acquisition'?'Won → Upload to Database':'Won → Push to Tracker'}</div>
+      ondrop="doWonDrop()">${isClient()?'Won / Closed':state.pipeline==='acquisition'?'Won → Upload to Database':'Won → Push to Tracker'}</div>
   </div>`;
   } // end board view
 
@@ -5426,7 +5445,7 @@ function renderDealModal(deal){
       <div class="modal-header"><h3>Edit Deal</h3><button class="modal-close" onclick="closeDealModal()">×</button></div>
       <div class="modal-body">
         ${isRetainerClient(deal)?`<div style="background:#dbeafe;border:2px solid #3b82f6;border-radius:8px;padding:8px 12px;margin-bottom:12px;display:flex;align-items:center;gap:8px">
-          <span style="font-size:16px">📋</span>
+          <span style="font-size:16px">${svgIcon('clipboard',16)}</span>
           <div>
             <div style="font-size:13px;font-weight:700;color:#1d4ed8">RETAINER CLIENT</div>
             <div style="font-size:11px;color:#1e40af">No calling needed — categorize, check service area, and forward to client.</div>
@@ -5439,8 +5458,8 @@ function renderDealModal(deal){
             if((k==='phone'||k==='mobilePhone') && deal[k] && deal.pipeline==='Acquisition'){
               const ph=String(deal[k]).replace(/[^0-9+]/g,'');
               extra='<div id="phone-btns-'+k+'" style="margin-top:4px;display:flex;gap:6px">'
-                +'<a href="tel:'+esc(ph)+'" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px">📞 Call</a>'
-                +'<a href="sms:'+esc(ph)+'" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;color:#166534;border-color:#86efac">💬 Text</a>'
+                +'<a href="tel:'+esc(ph)+'" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px">'+svgIcon('phone',14)+' Call</a>'
+                +'<a href="sms:'+esc(ph)+'" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;color:#166534;border-color:#86efac">'+svgIcon('message-circle',14)+' Text</a>'
                 +'</div>';
             }
             if(k==='website'&&deal[k]){
@@ -5493,7 +5512,7 @@ function renderDealModal(deal){
           <textarea id="deal-notes" rows="2" oninput="updateDealField('notes',this.value)">${esc(deal.notes||'')}</textarea>
         </div>${deal.pipeline==='Client'?`
         <div class="form-group form-span2" style="margin-bottom:16px">
-          <label>📅 Meeting Date & Time</label>
+          <label>${svgIcon('calendar',14)} Meeting Date & Time</label>
           <div style="display:flex;gap:8px">
             <input type="date" id="deal-bookedDate" value="${esc(deal.bookedDate||'')}"
               onchange="updateDealField('bookedDate',this.value)"
@@ -5519,7 +5538,7 @@ function renderDealModal(deal){
     const catClass=str(deal.leadCategory||'').toLowerCase().includes('interested')?'cat-interested':
       str(deal.leadCategory||'').toLowerCase().includes('meeting')?'cat-meeting':'cat-info';
     h+=`<div class="reply-preview">
-      <div class="reply-preview-title">📨 Their Reply <span class="reply-preview-category ${catClass}">${esc(deal.leadCategory||'')}</span></div>
+      <div class="reply-preview-title">${svgIcon('mail',14)} Their Reply <span class="reply-preview-category ${catClass}">${esc(deal.leadCategory||'')}</span></div>
       <div class="reply-preview-body">${esc(replyText)}</div>
     </div>`;
   }
@@ -5527,7 +5546,7 @@ function renderDealModal(deal){
   // SmartLead Email Thread — on-demand viewer (admin + employee only)
   if((isAdmin()||isEmployee()) && str(deal.slLeadId).trim() && str(deal.slCampaignId).trim()){
     h+=`<button id="sl-thread-btn-${esc(deal.id)}" class="sl-thread-btn" onclick="event.stopPropagation();var _b=this;_b.disabled=true;_b.innerHTML='Loading...';loadSmartleadThread('${esc(deal.id)}').then(function(){_b.style.display='none'})">
-      📧 View Email Thread
+      ${svgIcon('mail',14)} View Email Thread
     </button>
     <div id="sl-thread-${esc(deal.id)}"></div>`;
   }
@@ -5560,7 +5579,7 @@ function renderDealModal(deal){
         h+=`<div style="margin:0 0 8px 0">
           <button class="btn" style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#059669;border-color:#059669;color:#fff;font-weight:700"
             onclick="openWarmCallSheet('${esc(deal.id)}')">
-            📋 ${esc(cn.name)} — Client Info & Warm Call Sheet
+            ${svgIcon('clipboard',14)} ${esc(cn.name)} — Client Info & Warm Call Sheet
           </button>
         </div>`;
       }
@@ -5569,8 +5588,8 @@ function renderDealModal(deal){
       if(isOn('enableForward')){
         const forwarded=deal.forwardedAt && str(deal.forwardedAt).trim()!=='';
         const fwdLabel=forwarded
-          ? '✅ Forwarded to '+esc(matchedClient.name)+' — '+new Date(deal.forwardedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})
-          : '📧 Forward Lead to '+esc(matchedClient.name);
+          ? '<span style="color:#059669">Forwarded to '+esc(matchedClient.name)+' — '+new Date(deal.forwardedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+'</span>'
+          : svgIcon('mail',14)+' Forward Lead to '+esc(matchedClient.name);
         h+=`<div style="margin:0 0 8px 0">
           <button class="btn forward-btn ${forwarded?'sent':'ready'}" 
             onclick="${forwarded?'':'forwardDealToClient(\''+deal.id+'\')'}" ${forwarded?'disabled':''}>
@@ -5595,7 +5614,7 @@ function renderDealModal(deal){
         h+=`<div style="margin:0 0 8px 0">
           <button class="btn btn-primary" style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#818cf8;border-color:#818cf8"
             onclick="toggleCalendlyBooking('${esc(deal.id)}','${esc(matchedClient.calendlyUrl)}')">
-            📅 Book Meeting on ${esc(matchedClient.name)}'s Calendar
+            ${svgIcon('calendar',14)} Book Meeting on ${esc(matchedClient.name)}'s Calendar
           </button>
         </div>
         <div id="calendly-booking-section" style="display:none;margin:0 0 12px 0;padding:12px;background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px">
@@ -5637,7 +5656,7 @@ function renderDealModal(deal){
         h+=`<div style="margin:0 0 8px 0">
           <button class="btn ${forwarded?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px;${forwarded?'':'background:#2563eb;border-color:#2563eb'}"
             onclick="openSendToClientPreview('${esc(deal.id)}',atob('${btoa(unescape(encodeURIComponent(matchedClient.name)))}'))" ${forwarded?'':''}>
-            ${forwarded?'✅ Sent to '+esc(matchedClient.name)+' — Send Again?':'📨 Send Lead Info to '+esc(matchedClient.name)}
+            ${forwarded?'<span style="color:#059669">Sent to '+esc(matchedClient.name)+' — Send Again?</span>':svgIcon('send',14)+' Send Lead Info to '+esc(matchedClient.name)}
           </button>
         </div>
 `;
@@ -5651,7 +5670,7 @@ function renderDealModal(deal){
         h+=`<div style="margin:0 0 8px 0">
           <button id="push-tracker-btn" class="btn ${pushed?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px"
             onclick="${pushed?'':'pushToLeadTracker(\''+deal.id+'\')'}" ${pushed?'disabled':''}>
-            ${pushed?'✅ Pushed to Lead Tracker':'📤 Push to Lead Tracker'}
+            ${pushed?'<span style="color:#059669">Pushed to Lead Tracker</span>':svgIcon('upload',14)+' Push to Lead Tracker'}
           </button>
         </div>`;
       }
@@ -5687,12 +5706,12 @@ function renderDealModal(deal){
       <button class="btn btn-primary"
         style="flex:1;justify-content:center;gap:6px;font-size:12px;display:flex;background:#2563eb;border-color:#2563eb"
         onclick="event.stopPropagation();openAcqCalendly('${esc(deal.id)}','demo')">
-        📅 Demo Call
+        ${svgIcon('calendar',14)} Demo Call
       </button>
       <button class="btn btn-primary"
         style="flex:1;justify-content:center;gap:6px;font-size:12px;display:flex;background:#7c3aed;border-color:#7c3aed"
         onclick="event.stopPropagation();openAcqCalendly('${esc(deal.id)}','strategy')">
-        📅 Strategy Call
+        ${svgIcon('calendar',14)} Strategy Call
       </button>
     </div>`;
   }
@@ -5703,7 +5722,7 @@ function renderDealModal(deal){
       <button class="btn"
         style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#f97316;border-color:#f97316;color:#fff;font-weight:700"
         onclick="callInJustCall('${esc(deal.id)}')">
-        📞 Call in JustCall
+        ${svgIcon('phone',14)} Call in JustCall
       </button>
     </div>`;
   }
@@ -5770,7 +5789,7 @@ function renderDealModal(deal){
     if(events.length){
       h+=`<details style="margin:0 0 12px 0;border:1px solid var(--border);border-radius:8px;background:#fafafa">
         <summary style="padding:8px 12px;font-size:12px;font-weight:700;color:var(--text);cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px">
-          <span style="font-size:10px">▶</span> 📋 Lead Timeline (${events.length})
+          <span style="font-size:10px">▶</span> ${svgIcon('list',14)} Lead Timeline (${events.length})
         </summary>
         <div style="padding:0 12px 10px;border-left:2px solid #d1d5db;margin-left:22px">
           ${events.map(e=>`<div style="padding:4px 0 4px 10px;font-size:11px;color:#374151;position:relative">
@@ -5788,7 +5807,7 @@ function renderDealModal(deal){
   h+=`<div id="activities-container"><div class="activities-section">
     <div class="activities-header">
       <h4>Activities</h4>
-      <button class="sop-btn ${state.showSop?'active':''}" onclick="state.showSop=!state.showSop;refreshModal()">📋 Assign SOP Day</button>
+      <button class="sop-btn ${state.showSop?'active':''}" onclick="state.showSop=!state.showSop;refreshModal()">${svgIcon('clipboard',14)} Assign SOP Day</button>
     </div>`;
 
   if(state.showSop){
@@ -6108,7 +6127,7 @@ async function loadSmartleadThread(dealId) {
   });
 
   if (!result || result.error) {
-    if (btn) { btn.disabled = false; btn.innerHTML = '📧 View Email Thread'; }
+    if (btn) { btn.disabled = false; btn.innerHTML = svgIcon('mail',14)+' View Email Thread'; }
     container.innerHTML = '<div class="sl-thread-error"><span>Couldn\'t load thread' +
       (result && result.error ? ': ' + esc(result.error) : '') + '</span>' +
       '<button onclick="loadSmartleadThread(\'' + esc(dealId) + '\')">Retry</button></div>';
@@ -6187,7 +6206,7 @@ function renderThreadMessage(msg, isLatest) {
 
   return '<div class="sl-thread-msg ' + dirClass + '">' +
     '<div class="sl-thread-msg-header">' +
-      '<span class="sl-thread-msg-from">' + (isReceived ? '📩 ' : '📤 ') + esc(String(from)) + '</span>' +
+      '<span class="sl-thread-msg-from">' + (isReceived ? '← ' : '→ ') + esc(String(from)) + '</span>' +
       '<span class="sl-thread-msg-time">' + esc(timeStr) + '</span>' +
     '</div>' +
     '<div class="sl-thread-msg-body">' + esc(safeBody) + '</div>' +
@@ -6275,8 +6294,8 @@ function updateDealField(key,val){
         const ph=String(val||'').replace(/[^0-9+]/g,'');
         if(ph){
           btns.style.display='flex';
-          btns.innerHTML='<a href="tel:'+ph+'" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px">📞 Call</a>'
-            +'<a href="sms:'+ph+'" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;color:#166534;border-color:#86efac">💬 Text</a>';
+          btns.innerHTML='<a href="tel:'+ph+'" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px">'+svgIcon('phone',14)+' Call</a>'
+            +'<a href="sms:'+ph+'" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;color:#166534;border-color:#86efac">'+svgIcon('message-circle',14)+' Text</a>';
         } else { btns.style.display='none'; }
       }
     }
@@ -6322,7 +6341,7 @@ function refreshPushButton(){
   const pushed=deal.pushedToTracker;
   if(pushed) return;
   btn.disabled=false;
-  btn.textContent='📤 Push to Lead Tracker';
+  btn.innerHTML=svgIcon('upload',14)+' Push to Lead Tracker';
   btn.onclick=function(){pushToLeadTracker(deal.id)};
 }
 
@@ -6658,7 +6677,7 @@ function renderSettingsPanel(){
   panel.onclick=e=>e.stopPropagation();
 
   let h=`<div class="settings-header">
-    <h3>⚙️ Settings</h3>
+    <h3>${svgIcon('settings',16)} Settings</h3>
     <button class="modal-close" onclick="closeSettings()">×</button>
   </div>
   <div class="settings-tab-bar">
@@ -6683,7 +6702,7 @@ function renderSettingsPanel(){
   h+=`</div>
   <div class="settings-footer">
     <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="closeSettings()">Cancel</button>
-    <button class="btn btn-primary" onclick="saveSettingsToSheet()">💾 Save Settings</button>
+    <button class="btn btn-primary" onclick="saveSettingsToSheet()">Save Settings</button>
     <span id="settings-autosave-status" style="font-size:10px;color:#9ca3af;align-self:center;margin-left:8px"></span>
   </div>`;
 
@@ -6737,7 +6756,7 @@ function renderStagesSettings(){
   let h='';
   // Acquisition stages
   h+=`<div class="settings-section">
-    <h4>📊 Acquisition Pipeline Stages</h4>
+    <h4>${svgIcon('bar-chart',14)} Acquisition Pipeline Stages</h4>
     <div class="settings-list" id="settings-acq-stages" data-key="acquisition_stages">`;
   for(const [i,s] of settingsDraft.acquisition_stages.entries()){
     h+=`<div class="settings-list-item" draggable="true" data-idx="${i}">
@@ -6756,7 +6775,7 @@ function renderStagesSettings(){
 
   // Nurture stages
   h+=`<div class="settings-section">
-    <h4>🌱 Nurture Pipeline Stages</h4>
+    <h4>Nurture Pipeline Stages</h4>
     <div class="settings-list" id="settings-nurt-stages" data-key="nurture_stages">`;
   for(const [i,s] of settingsDraft.nurture_stages.entries()){
     h+=`<div class="settings-list-item" draggable="true" data-idx="${i}">
@@ -6773,13 +6792,13 @@ function renderStagesSettings(){
     </div>
   </div>`;
 
-  h+=`<p style="font-size:11px;color:var(--text-muted);margin-top:8px">ℹ️ Client Leads stages are managed via the + Client button. Drag stages to reorder.</p>`;
+  h+=`<p style="font-size:11px;color:var(--text-muted);margin-top:8px">Client Leads stages are managed via the + Client button. Drag stages to reorder.</p>`;
   return h;
 }
 
 function renderActivityTypesSettings(){
   let h=`<div class="settings-section">
-    <h4>📋 Activity Types</h4>
+    <h4>${svgIcon('clipboard',14)} Activity Types</h4>
     <div class="settings-list" id="settings-act-types" data-key="activity_types">`;
   for(const [i,t] of settingsDraft.activity_types.entries()){
     h+=`<div class="settings-list-item" draggable="true" data-idx="${i}">
@@ -6803,7 +6822,7 @@ function renderSopSettings(){
   let h='';
   // Acquisition SOPs
   h+=`<div class="settings-section">
-    <h4>📊 Acquisition SOP Sequences</h4>`;
+    <h4>${svgIcon('bar-chart',14)} Acquisition SOP Sequences</h4>`;
   for(const [i,seq] of settingsDraft.sop_acquisition.entries()){
     h+=renderSopSequence('sop_acquisition',i,seq);
   }
@@ -6814,7 +6833,7 @@ function renderSopSettings(){
 
   // Client SOPs
   h+=`<div class="settings-section">
-    <h4>👥 Client SOP Sequences</h4>`;
+    <h4>Client SOP Sequences</h4>`;
   for(const [i,seq] of settingsDraft.sop_client.entries()){
     h+=renderSopSequence('sop_client',i,seq);
   }
@@ -7049,16 +7068,16 @@ function renderClientsSettings(){
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">
         <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableForward')?'#eff6ff':'var(--card)'}">
-          <input type="checkbox" ${isOn('enableForward')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableForward',this.checked)"> 📧 Forward Email
+          <input type="checkbox" ${isOn('enableForward')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableForward',this.checked)"> ${svgIcon('mail',12)} Forward Email
         </label>
         <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableCalendly')?'#ecfdf5':'var(--card)'}">
-          <input type="checkbox" ${isOn('enableCalendly')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableCalendly',this.checked)"> 📅 Calendly
+          <input type="checkbox" ${isOn('enableCalendly')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableCalendly',this.checked)"> ${svgIcon('calendar',12)} Calendly
         </label>
         <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableCopyInfo')?'#f0fdf4':'var(--card)'}">
-          <input type="checkbox" ${isOn('enableCopyInfo')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableCopyInfo',this.checked)"> 📋 Copy Info
+          <input type="checkbox" ${isOn('enableCopyInfo')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableCopyInfo',this.checked)"> ${svgIcon('clipboard',12)} Copy Info
         </label>
         <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableTracker')?'#fefce8':'var(--card)'}">
-          <input type="checkbox" ${isOn('enableTracker')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableTracker',this.checked)"> 📤 Lead Tracker
+          <input type="checkbox" ${isOn('enableTracker')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableTracker',this.checked)"> ${svgIcon('upload',12)} Lead Tracker
         </label>
       </div>
 
@@ -7118,7 +7137,7 @@ function renderClientsSettings(){
         if(!str(c.warmCallNotesText).trim()){const ci=lookupClientInfo(c.name);if(ci&&ci.warmCallNotes)wcDefault=ci.warmCallNotes.join('\n');}
         const wcVal=str(c.warmCallNotesText).trim()||wcDefault;
         return `<div style="margin-bottom:8px">
-        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">📋 SDR / Warm Call Notes</label>
+        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">${svgIcon('clipboard',10)} SDR / Warm Call Notes</label>
         <div style="font-size:10px;color:var(--text-muted);margin:2px 0 4px">Key talking points for the appointment setter (one per line)</div>
         <textarea placeholder="e.g. Veteran-owned&#10;24 years in business&#10;10% discount for churches&#10;Current clients: Marriott, YMCA" rows="6"
           oninput="updateClientField('${esc(c.id)}','warmCallNotesText',this.value)"
@@ -7244,7 +7263,7 @@ function renderCampaignAssignSettings(){
   const adminUsers = (usersListCache||[]).filter(u => u.role==='admin').map(u => u.name||u.email);
 
   let h = `<div class="settings-section">
-    <h4>📊 Acquisition Campaign Assignments</h4>
+    <h4>${svgIcon('bar-chart',14)} Acquisition Campaign Assignments</h4>
     <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Assign each acquisition campaign to a team member. Leads from that campaign will be tagged with their color on the board.</p>
     <div id="campaign-assign-container"><div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px">Loading campaigns...</div></div>
   </div>`;
@@ -7293,7 +7312,7 @@ async function fetchAcquisitionCampaigns(){
   } else {
     h += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <span style="font-size:11px;font-weight:600;color:var(--text-secondary)">${_fetchedCampaigns.length} acquisition campaign${_fetchedCampaigns.length!==1?'s':''}</span>
-      <button class="btn btn-ghost" style="font-size:10px;padding:3px 10px;background:#f9fafb;color:#6b7280;border:1px solid var(--border)" onclick="_fetchedCampaigns=null;fetchAcquisitionCampaigns()">↻ Refresh</button>
+      <button class="btn btn-ghost" style="font-size:10px;padding:3px 10px;background:#f9fafb;color:#6b7280;border:1px solid var(--border);display:inline-flex;align-items:center;gap:4px" onclick="_fetchedCampaigns=null;fetchAcquisitionCampaigns()">${svgIcon('refresh-cw',12)} Refresh</button>
     </div>`;
 
     for(const camp of _fetchedCampaigns){
@@ -7357,7 +7376,7 @@ function renderDialerSettings(){
   const acqDeals=state.deals.filter(d=>d.pipeline==='Acquisition');
   const withPhone=acqDeals.filter(d=>d.phone||d.mobilePhone).length;
   return `<div class="settings-section">
-    <h4>📞 JustCall Dialer</h4>
+    <h4>${svgIcon('phone',14)} JustCall Dialer</h4>
     <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Click "Call in JustCall" on any acquisition deal → JustCall dialer opens → call starts immediately.</p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
       <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;text-align:center">
@@ -7382,7 +7401,7 @@ function renderDialerSettings(){
 
 function renderUsersSettings(){
   let h = `<div class="settings-section">
-    <h4>👥 User Management</h4>
+    <h4>User Management</h4>
     <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Manage who can access the CRM and what they can see.</p>
     <div id="users-list-container"><div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px">Loading users...</div></div>
     <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
@@ -7527,14 +7546,14 @@ function openClientArchive(){
   overlay.onclick = ()=>overlay.remove();
   
   let h = `<div class="modal" style="width:520px;max-height:80vh" onclick="event.stopPropagation()">
-    <div class="modal-header"><h3>📦 Archived Leads</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button></div>
+    <div class="modal-header"><h3>${svgIcon('archive',16)} Archived Leads</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button></div>
     <div class="modal-body" style="max-height:60vh;overflow-y:auto">`;
   
   if(clientArchivedDeals.length === 0){
     h += `<div style="text-align:center;padding:30px;color:var(--text-muted)">No archived leads yet.<br><span style="font-size:11px">Drag a lead to "Archive" or "Won" to move it here.</span></div>`;
   } else {
     for(const deal of clientArchivedDeals){
-      const reason = deal.archiveReason === 'won' ? '✅ Won' : deal.archiveReason === 'passed' ? '🤝 Passed Off' : deal.archiveReason === 'admin' ? '🗂️ Archived by Admin' : '📦 Archived';
+      const reason = deal.archiveReason === 'won' ? 'Won' : deal.archiveReason === 'passed' ? 'Passed Off' : deal.archiveReason === 'admin' ? 'Archived by Admin' : 'Archived';
       const date = deal.archivedAt ? new Date(deal.archivedAt).toLocaleDateString() : '';
       h += `<div style="display:flex;align-items:center;gap:10px;padding:10px;margin-bottom:6px;background:#f9fafb;border:1px solid var(--border);border-radius:8px">
         <div style="flex:1;min-width:0">
@@ -7570,7 +7589,7 @@ function renderClientStageSettingsInner(overlay){
   const colors = ['#059669','#2563eb','#d97706','#059669','#ef4444','#0891b2','#10b981','#dc2626','#15803d','#b45309'];
   
   let h = `<div class="modal" style="width:420px" onclick="event.stopPropagation()">
-    <div class="modal-header"><h3>⚙️ Pipeline Stages</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button></div>
+    <div class="modal-header"><h3>${svgIcon('settings',16)} Pipeline Stages</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button></div>
     <div class="modal-body">
       <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Customize your pipeline stages. Drag to reorder.</p>
       <div id="client-stages-list">`;
