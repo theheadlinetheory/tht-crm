@@ -5517,7 +5517,7 @@ function renderDealModal(deal){
           ${["company:Company","contact:Contact Name","email:Email","phone:Business Phone","mobilePhone:Mobile Phone","website:Website","location:Address",...(isAdmin()?["value:Deal Value ($)"]:[])].map(f=>{
             const[k,label]=f.split(":");
             let extra='';
-            if((k==='phone'||k==='mobilePhone') && deal[k] && deal.pipeline==='Acquisition'){
+            if((k==='phone'||k==='mobilePhone') && deal[k]){
               const ph=String(deal[k]).replace(/[^0-9+]/g,'');
               extra='<div id="phone-btns-'+k+'" style="margin-top:4px;display:flex;gap:6px">'
                 +'<a href="tel:'+esc(ph)+'" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px">'+svgIcon('phone',14)+' Call</a>'
@@ -6355,7 +6355,7 @@ function updateDealField(key,val){
     if(!pendingDealFields[state.selectedDeal.id]) pendingDealFields[state.selectedDeal.id]={};
     pendingDealFields[state.selectedDeal.id][key]=val;
     // Update Call/Text button hrefs when phone fields change
-    if((key==='phone'||key==='mobilePhone') && state.selectedDeal.pipeline==='Acquisition'){
+    if((key==='phone'||key==='mobilePhone')){
       const btns=document.getElementById('phone-btns-'+key);
       if(btns){
         const ph=String(val||'').replace(/[^0-9+]/g,'');
