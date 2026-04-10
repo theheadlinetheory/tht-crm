@@ -5522,6 +5522,7 @@ function renderDealModal(deal){
               extra='<div id="phone-btns-'+k+'" style="margin-top:4px;display:flex;gap:6px">'
                 +'<a href="tel:'+esc(ph)+'" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px">'+svgIcon('phone',14)+' Call</a>'
                 +'<a href="sms:'+esc(ph)+'" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;color:#166534;border-color:#86efac">'+svgIcon('message-circle',14)+' Text</a>'
+                +(isAdmin()?'<button onclick="callInJustCall(\''+esc(deal.id)+'\');event.stopPropagation()" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#f97316;color:#fff;border-color:#f97316;cursor:pointer;font-weight:600">'+svgIcon('phone',14,'#fff')+' JustCall</button>':'')
                 +'</div>';
             }
             if(k==='website'&&deal[k]){
@@ -5778,16 +5779,7 @@ function renderDealModal(deal){
     </div>`;
   }
 
-  // JustCall Dialer — admin-only during trial
-  if(isAdmin() && (deal.phone || deal.mobilePhone)){
-    h+=`<div style="margin:0 0 8px 0">
-      <button class="btn"
-        style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#f97316;border-color:#f97316;color:#fff;font-weight:700"
-        onclick="callInJustCall('${esc(deal.id)}')">
-        ${svgIcon('phone',14)} Call in JustCall
-      </button>
-    </div>`;
-  }
+  // JustCall Dialer — inline buttons added under phone fields above
 
   // Location Map — show for ANY deal with an address, regardless of pipeline or matched client
   {
@@ -6362,7 +6354,8 @@ function updateDealField(key,val){
         if(ph){
           btns.style.display='flex';
           btns.innerHTML='<a href="tel:'+ph+'" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px">'+svgIcon('phone',14)+' Call</a>'
-            +'<a href="sms:'+ph+'" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;color:#166534;border-color:#86efac">'+svgIcon('message-circle',14)+' Text</a>';
+            +'<a href="sms:'+ph+'" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;color:#166534;border-color:#86efac">'+svgIcon('message-circle',14)+' Text</a>'
+            +(isAdmin()?'<button onclick="callInJustCall(\''+esc(state.selectedDeal.id)+'\');event.stopPropagation()" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#f97316;color:#fff;border-color:#f97316;cursor:pointer;font-weight:600">'+svgIcon('phone',14,'#fff')+' JustCall</button>':'');
         } else { btns.style.display='none'; }
       }
     }
