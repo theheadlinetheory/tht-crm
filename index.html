@@ -5686,13 +5686,13 @@ function renderDealModal(deal){
           </div>
           <div style="margin-bottom:6px">
             <label style="font-size:11px;color:#6b7280;font-weight:600">Guest Name</label>
-            <input type="text" id="cal-prefill-name" value="${esc(deal.calName!=null?deal.calName:(deal.contact||deal.company||''))}"
+            <input type="text" id="cal-prefill-name" value="${esc(deal.calName||(deal.contact||deal.company||''))}"
               oninput="savePrefillField('${esc(deal.id)}','calName',this.value)"
               style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px">
           </div>
           <div style="margin-bottom:6px">
             <label style="font-size:11px;color:#6b7280;font-weight:600">Guest Email</label>
-            <input type="text" id="cal-prefill-email" value="${esc(deal.calEmail!=null?deal.calEmail:(deal.email||''))}"
+            <input type="text" id="cal-prefill-email" value="${esc(deal.calEmail||(deal.email||''))}"
               oninput="savePrefillField('${esc(deal.id)}','calEmail',this.value)"
               style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px">
           </div>
@@ -5700,7 +5700,7 @@ function renderDealModal(deal){
             <label style="font-size:11px;color:#6b7280;font-weight:600">Additional Info / Instructions</label>
             <textarea id="cal-prefill-notes" rows="5"
               oninput="savePrefillField('${esc(deal.id)}','calNotes',this.value)"
-              style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px;resize:vertical">${esc(deal.calNotes!=null?deal.calNotes:prefillLines.join('\n'))}</textarea>
+              style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px;resize:vertical">${esc(deal.calNotes||prefillLines.join('\n'))}</textarea>
           </div>
           <button class="btn btn-primary" style="width:100%;justify-content:center;font-size:13px;background:#818cf8;border-color:#818cf8"
             onclick="openCalendlyEmbed('${esc(deal.id)}','${esc(matchedClient.calendlyUrl)}',atob('${btoa(unescape(encodeURIComponent(matchedClient.name)))}'))">
