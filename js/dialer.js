@@ -1,48 +1,17 @@
 // ═══════════════════════════════════════════════════════════
-// DIALER — JustCall Sales Dialer (embedded iframe via SDK protocol)
+// DIALER — JustCall Sales Dialer (campaign-based via Edge Function)
 // ═══════════════════════════════════════════════════════════
 import { state } from './app.js';
 import { str, esc } from './utils.js';
+import { invokeEdgeFunction } from './api.js';
 
-// SDK iframe URL (same URL the official @justcall/justcall-dialer-sdk uses)
-const DIALER_URL = 'https://app.justcall.io/app/macapp/dialer_events';
-let dialerReady = false;
-let dialerLoggedIn = false;
+let sdPopup = null; // reference to Sales Dialer popup window
 
 export function initJustCallDialer(){
-  const container = document.getElementById('justcall-dialer');
-  if(!container) return;
-
-  // Create the iframe (replicating what the SDK does internally)
-  const iframe = document.createElement('iframe');
-  iframe.id = 'justcall-dialer-iframe';
-  iframe.src = DIALER_URL;
-  iframe.allow = 'microphone; autoplay; clipboard-read; clipboard-write; hid';
-  iframe.style.cssText = 'width:100%;height:100%;border:none';
-  container.appendChild(iframe);
-
-  // Listen for SDK events from the iframe
-  window.addEventListener('message', (e) => {
-    if(e.origin !== 'https://app.justcall.io') return;
-    const data = e.data;
-    if(!data) return;
-
-    if(data.type === 'dialer-ready' || data.type === 'ready') {
-      dialerReady = true;
-    }
-    if(data.type === 'login-status' || data.type === 'login') {
-      dialerLoggedIn = !!data.logged_in;
-      if(data.login_numbers && data.login_numbers.length > 0) {
-        console.log('[JustCall] Numbers:', data.login_numbers);
-      }
-    }
-  });
-
-  // Fallback: assume ready after 4 seconds
-  setTimeout(() => { dialerReady = true; }, 4000);
+  // No iframe setup needed — Sales Dialer uses API + popup approach
 }
 
-export function callInJustCall(dealId){
+export async function callInJustCall(dealId){
   const deal = state.deals.find(d => d.id === dealId);
   if(!deal) return;
   const phone = str(deal.phone) || str(deal.mobilePhone);
@@ -52,22 +21,67 @@ export function callInJustCall(dealId){
     : digits.length === 11 && digits[0] === '1' ? '+' + digits
     : '+' + digits;
 
-  // Show the widget
+  const contactName = str(deal.contact) || str(deal.company) || '';
+
+  // Show status in the CRM widget
   const widget = document.getElementById('justcall-widget');
   const title = document.getElementById('justcall-widget-title');
-  title.textContent = esc(deal.contact || deal.company || formatted);
+  const statusEl = document.getElementById('justcall-dialer');
+  title.textContent = esc(contactName || formatted);
+  statusEl.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:12px;padding:20px;text-align:center">'
+    + '<div style="width:32px;height:32px;border:3px solid #3b82f6;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite"></div>'
+    + '<div style="font-size:13px;font-weight:600;color:#1e293b">Queuing call to Sales Dialer...</div>'
+    + '<div style="font-size:12px;color:#64748b">' + esc(formatted) + '</div>'
+    + '</div>';
   widget.style.display = 'flex';
 
-  // Send dial command to iframe via postMessage (SDK protocol)
-  const iframe = document.getElementById('justcall-dialer-iframe');
-  if(iframe && iframe.contentWindow) {
-    setTimeout(() => {
-      iframe.contentWindow.postMessage(
-        { type: 'dial-number', phoneNumber: formatted },
-        'https://app.justcall.io'
-      );
-    }, dialerReady ? 300 : 2000);
+  try {
+    // Push contact to Sales Dialer campaign via Edge Function
+    const result = await invokeEdgeFunction('justcall-dialer', {
+      action: 'dial',
+      phone: formatted,
+      name: contactName,
+      email: str(deal.email),
+      dealId: dealId,
+    });
+
+    if(result && result.status === 'ok'){
+      statusEl.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:12px;padding:20px;text-align:center">'
+        + '<div style="font-size:28px">&#9989;</div>'
+        + '<div style="font-size:13px;font-weight:600;color:#059669">Contact queued in Sales Dialer</div>'
+        + '<div style="font-size:12px;color:#64748b">' + esc(contactName) + ' &bull; ' + esc(formatted) + '</div>'
+        + '<div style="font-size:11px;color:#94a3b8;margin-top:4px">Open the Sales Dialer window to start calling</div>'
+        + '<button onclick="openSalesDialerUI()" style="margin-top:8px;padding:8px 20px;border-radius:8px;border:none;background:#3b82f6;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font)">Open Sales Dialer</button>'
+        + '</div>';
+    } else {
+      const errMsg = result?.error || 'Unknown error';
+      statusEl.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:12px;padding:20px;text-align:center">'
+        + '<div style="font-size:28px">&#10060;</div>'
+        + '<div style="font-size:13px;font-weight:600;color:#dc2626">Failed to queue call</div>'
+        + '<div style="font-size:12px;color:#64748b">' + esc(errMsg) + '</div>'
+        + '</div>';
+    }
+  } catch(err){
+    statusEl.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:12px;padding:20px;text-align:center">'
+      + '<div style="font-size:28px">&#10060;</div>'
+      + '<div style="font-size:13px;font-weight:600;color:#dc2626">Network error</div>'
+      + '<div style="font-size:12px;color:#64748b">' + esc(String(err)) + '</div>'
+      + '</div>';
   }
+}
+
+export function openSalesDialerUI(){
+  const w = 420, h = 720;
+  const left = window.screen.width - w - 20;
+  const top = Math.max(0, (window.screen.height - h) / 2);
+  const features = `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`;
+
+  // Reuse existing popup if still open
+  if(sdPopup && !sdPopup.closed){
+    sdPopup.focus();
+    return;
+  }
+  sdPopup = window.open('https://app.justcall.io/salesdialer', 'JustCallSD', features);
 }
 
 export function closeJustCallWidget(){
@@ -93,3 +107,4 @@ export function toggleJustCallMinimize(){
 window.callInJustCall = callInJustCall;
 window.closeJustCallWidget = closeJustCallWidget;
 window.toggleJustCallMinimize = toggleJustCallMinimize;
+window.openSalesDialerUI = openSalesDialerUI;
