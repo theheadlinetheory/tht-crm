@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // DEALS — CRUD operations, bulk actions, drag-drop
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites, deletedDealIds, clientPortalStages } from './app.js';
+import { state, store, pendingWrites, deletedDealIds, clientPortalStages } from './app.js';
 import { ACQUISITION_STAGES } from './config.js';
 import { render } from './render.js';
 import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbArchiveDeal, sbRestoreFromArchive, sbCreateActivity, camelToSnake } from './api.js';
@@ -18,13 +18,13 @@ export async function createDeal(form){
     deal.pipeline = 'Client';
     deal.clientStage = (clientPortalStages && clientPortalStages.length > 0) ? clientPortalStages[0].id : 'Positive Response';
   }
-  state.deals.push(deal);render();
+  store.addDeal(deal);
   await sbCreateDeal(camelToSnake(deal));
 }
 
 export async function saveDeal(updated){
-  state.deals=state.deals.map(d=>d.id===updated.id?{...d,...updated,lastUpdated:TODAY()}:d);
-  state.selectedDeal=null;render();
+  store.updateDeal(updated.id, {...updated, lastUpdated: TODAY()}, {silent: true});
+  store.set({selectedDeal: null});
   pendingWrites.value++;
   try { const {id, ...fields} = updated; await sbUpdateDeal(id || updated.id, camelToSnake(fields)); }
   finally { pendingWrites.value--; }
@@ -37,9 +37,9 @@ export async function deleteDeal(id, archiveStatus, clientName){
   const pipeline=deal?deal.pipeline:'';
   deletedDealIds.add(id);
   localStorage.setItem('tht_deletedDeals',JSON.stringify([...deletedDealIds]));
-  state.deals=state.deals.filter(d=>d.id!==id);
-  state.activities=state.activities.filter(a=>a.dealId!==id);
-  state.selectedDeal=null;render();
+  store.removeDeal(id, {silent: true});
+  store.removeActivitiesForDeal(id, {silent: true});
+  store.set({selectedDeal: null});
   pendingWrites.value++;
   try { await sbArchiveDeal(id, JSON.stringify({archiveStatus:status, pipeline, clientName:cName})); await sbDeleteDeal(id); }
   catch(e){ console.error('Archive failed, falling back to delete:',e); try { await sbDeleteDeal(id); } catch(e2){} }
@@ -117,13 +117,11 @@ export async function bulkAddActivity(){
   if(!confirm('Add "'+subject+'" activity to '+ids.length+' deal'+(ids.length!==1?'s':'')+'?')) return;
   const newActs=[];
   for(const dealId of ids){
-    const a={id:uid(),dealId,type,subject,dueDate,done:false,dayLabel:'',scheduledTime:'',createdDate:new Date().toISOString(),completedAt:''};
-    state.activities.push(a);
+    const a={id:uid(),dealId,type,subject,dueDate,done:false,dayLabel:'',scheduledTime:null,createdDate:new Date().toISOString(),completedAt:null};
+    store.addActivity(a, {silent: true});
     newActs.push(a);
   }
-  state.bulkSelected=new Set();
-  state.bulkMode=false;
-  render();
+  store.set({bulkSelected: new Set(), bulkMode: false});
   pendingWrites.value++;
   try{
     for(const a of newActs){ await sbCreateActivity(camelToSnake(a)); }
@@ -135,13 +133,11 @@ export async function bulkArchive(){
   if(!confirm('Archive '+ids.length+' deal'+(ids.length!==1?'s':'')+'? They can be restored later.')) return;
   for(const id of ids){
     deletedDealIds.add(String(id));
-    state.deals=state.deals.filter(d=>d.id!==id);
-    state.activities=state.activities.filter(a=>a.dealId!==id);
+    store.removeDeal(id, {silent: true});
+    store.removeActivitiesForDeal(id, {silent: true});
   }
   localStorage.setItem('tht_deletedDeals',JSON.stringify([...deletedDealIds]));
-  state.bulkSelected=new Set();
-  state.bulkMode=false;
-  render();
+  store.set({bulkSelected: new Set(), bulkMode: false});
   pendingWrites.value++;
   try{
     for(const id of ids){ await sbArchiveDeal(id, JSON.stringify({archiveStatus:'Deleted/Lost'})); await sbDeleteDeal(id); }

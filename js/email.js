@@ -2,7 +2,7 @@
 // EMAIL — Forward to client, lead tracker push, send to thread
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites } from './app.js';
-import { LEAD_ENTRY_SHEET_ID, TRACKER_ZERO_COST_CLIENTS } from './config.js';
+import { LEAD_ENTRY_SHEET_ID } from './config.js';
 import { render, refreshModal } from './render.js';
 import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js';
 import { esc, str, svgIcon } from './utils.js';

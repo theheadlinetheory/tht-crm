@@ -1,10 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // ARCHIVE — Admin archive (Deals sheet archive), load/render
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js';
+import { state, store, pendingWrites } from './app.js';
 import { render } from './render.js';
 import { sbGetArchive, sbRestoreFromArchive, normalizeRow, supabase } from './api.js';
 import { esc, str, fmtDate } from './utils.js';
+import { registerActions } from './delegate.js';
+import { filterSelect } from './html-helpers.js';
 
 export async function loadArchive(silent){
   if(!silent){
@@ -14,7 +16,7 @@ export async function loadArchive(silent){
   try {
     const data=await sbGetArchive();
     if(Array.isArray(data)){
-      state.archiveData=data.map(normalizeRow);
+      store.setArchiveData(data.map(normalizeRow), {silent: true});
     }
   } catch(e){ console.warn('Failed to load archive:', e); }
   state.archiveLoaded=true;
@@ -47,19 +49,10 @@ export function renderArchiveTab(){
 
   let h=`<div style="padding:16px 20px">
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
-      <select onchange="state.archiveFilterPipeline=this.value;render()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:var(--font)">
-        <option value="">All Pipelines</option>
-        ${pipelines.map(p=>`<option value="${esc(p)}" ${state.archiveFilterPipeline===p?'selected':''}>${esc(p)}</option>`).join('')}
-      </select>
-      <select onchange="state.archiveFilterStatus=this.value;render()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:var(--font)">
-        <option value="">All Statuses</option>
-        ${statuses.map(s=>`<option value="${esc(s)}" ${state.archiveFilterStatus===s?'selected':''}>${esc(s)}</option>`).join('')}
-      </select>
-      <select onchange="state.archiveFilterClient=this.value;render()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:var(--font)">
-        <option value="">All Clients</option>
-        ${clients.map(c=>`<option value="${esc(c)}" ${state.archiveFilterClient===c?'selected':''}>${esc(c)}</option>`).join('')}
-      </select>
-      <button class="btn btn-ghost" style="font-size:11px" onclick="state.archiveSortDir=state.archiveSortDir==='newest'?'oldest':'newest';render()">
+      ${filterSelect('archiveFilterPipeline', 'All Pipelines', pipelines, state.archiveFilterPipeline)}
+      ${filterSelect('archiveFilterStatus', 'All Statuses', statuses, state.archiveFilterStatus)}
+      ${filterSelect('archiveFilterClient', 'All Clients', clients, state.archiveFilterClient)}
+      <button class="btn btn-ghost" style="font-size:11px" data-action="archiveToggleSort">
         Sort: ${state.archiveSortDir==='newest'?'Newest First':'Oldest First'}
       </button>
       <span style="font-size:11px;color:var(--text-muted);margin-left:auto">${filtered.length} archived deals</span>
@@ -81,7 +74,7 @@ export function renderArchiveTab(){
         <td style="padding:8px 10px;font-size:12px;font-weight:600">${esc(d.company||d.contact||'?')}</td>
         <td style="padding:8px 10px;font-size:12px;color:var(--text-muted)">${esc(d.clientName||d.stage||'')}</td>
         <td style="padding:8px 10px;font-size:11px">
-          <select onchange="updateArchiveStatus('${esc(d.id)}',this.value)" style="padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:var(--font)">
+          <select data-action="updateArchiveStatus" data-id="${esc(d.id)}" style="padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:var(--font)">
             <option value="Deleted/Lost" ${d.archiveStatus==='Deleted/Lost'?'selected':''}>Deleted/Lost</option>
             <option value="Closed Won" ${d.archiveStatus==='Closed Won'?'selected':''}>Closed Won</option>
             <option value="Passed Off" ${d.archiveStatus==='Passed Off'?'selected':''}>Passed Off</option>
@@ -89,7 +82,7 @@ export function renderArchiveTab(){
         </td>
         <td style="padding:8px 10px;font-size:11px;color:var(--text-muted)">${fmtDate(d.archivedAt)||''}</td>
         <td style="text-align:center;padding:8px 10px">
-          <button class="btn btn-ghost" style="font-size:10px;padding:4px 8px" onclick="restoreFromArchive('${esc(d.id)}')">Restore</button>
+          <button class="btn btn-ghost" style="font-size:10px;padding:4px 8px" data-action="restoreFromArchive" data-id="${esc(d.id)}">Restore</button>
         </td>
       </tr>`;
     }
@@ -119,8 +112,7 @@ export async function updateArchiveStatus(id,newStatus){
 
 export async function restoreFromArchive(id){
   if(!confirm('Restore this deal from archive?')) return;
-  state.archiveData=state.archiveData.filter(d=>d.id!==id);
-  render();
+  store.removeArchiveItem(id);
   pendingWrites.value++;
   try {
     await sbRestoreFromArchive(id);
@@ -134,7 +126,18 @@ export function toggleViewMode(){
   render();
 }
 
-// Expose to inline HTML handlers
+// Event delegation handlers
+registerActions({
+  archiveFilterPipeline(el) { state.archiveFilterPipeline = el.value; render(); },
+  archiveFilterStatus(el) { state.archiveFilterStatus = el.value; render(); },
+  archiveFilterClient(el) { state.archiveFilterClient = el.value; render(); },
+  archiveToggleSort() { state.archiveSortDir = state.archiveSortDir === 'newest' ? 'oldest' : 'newest'; render(); },
+  updateArchiveStatus(el) { updateArchiveStatus(el.dataset.id, el.value); },
+  restoreFromArchive(el) { restoreFromArchive(el.dataset.id); },
+  toggleViewMode() { toggleViewMode(); },
+});
+
+// Still needed by other modules that call these directly
 window.loadArchive = loadArchive;
 window.updateArchiveStatus = updateArchiveStatus;
 window.restoreFromArchive = restoreFromArchive;

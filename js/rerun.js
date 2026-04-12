@@ -1,10 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // RERUN — Re-run queue management, market settings
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js';
+import { state, store, pendingWrites } from './app.js';
 import { render } from './render.js';
 import { sbGetRerunQueue, sbGetMarketSettings, sbUpdateRerunStatus, sbAddToRerun, sbSaveMarketSetting, camelToSnake, normalizeRow } from './api.js';
 import { esc, str, getToday, fmtDate, svgIcon } from './utils.js';
+import { registerActions } from './delegate.js';
+import { statCard, filterSelect, modalWrap, modalHeader, modalFooter } from './html-helpers.js';
 import { findClientForDeal } from './client-info.js';
 
 export async function loadRerunData(){
@@ -71,7 +73,7 @@ export async function addToRerunQueue(dealId){
   try {
     const resp=await sbAddToRerun(camelToSnake(data));
     if(resp && resp.id){
-      state.rerunQueue.push({...data,id:resp.id,status:'queued',queuedAt:new Date().toISOString()});
+      store.addRerunItem({...data,id:resp.id,status:'queued',queuedAt:new Date().toISOString()}, {silent: true});
     }
   } finally { pendingWrites.value--; }
 }
@@ -139,41 +141,18 @@ export function renderRerunTab(){
 
   let h = `<div class="rerun-container">
     <div class="rerun-stat-cards">
-      <div class="rerun-stat-card">
-        <div class="stat-label">Total Queued</div>
-        <div class="stat-value" style="color:#d97706">${totalQueued}</div>
-      </div>
-      <div class="rerun-stat-card">
-        <div class="stat-label">Already Sent</div>
-        <div class="stat-value" style="color:#22c55e">${totalSent}</div>
-      </div>
-      <div class="rerun-stat-card">
-        <div class="stat-label">States</div>
-        <div class="stat-value">${uniqueStates}</div>
-      </div>
-      <div class="rerun-stat-card">
-        <div class="stat-label">Cities / Markets</div>
-        <div class="stat-value">${uniqueCities}</div>
-      </div>
+      ${statCard('Total Queued', totalQueued, '#d97706')}
+      ${statCard('Already Sent', totalSent, '#22c55e')}
+      ${statCard('States', uniqueStates)}
+      ${statCard('Cities / Markets', uniqueCities)}
     </div>
 
     <div class="rerun-filters">
-      <select onchange="state.rerunFilterState=this.value;state.rerunFilterCity='';render()">
-        <option value="">All States</option>
-        ${states.map(s=>`<option value="${esc(s)}" ${state.rerunFilterState===s?'selected':''}>${esc(s)}</option>`).join('')}
-      </select>
-      <select onchange="state.rerunFilterCity=this.value;render()">
-        <option value="">All Cities</option>
-        ${cities.map(c=>`<option value="${esc(c)}" ${state.rerunFilterCity===c?'selected':''}>${esc(c)}</option>`).join('')}
-      </select>
-      <select onchange="state.rerunFilterStatus=this.value;render()">
-        <option value="">All Statuses</option>
-        <option value="queued" ${state.rerunFilterStatus==='queued'?'selected':''}>Queued</option>
-        <option value="sent" ${state.rerunFilterStatus==='sent'?'selected':''}>Sent</option>
-        <option value="skipped" ${state.rerunFilterStatus==='skipped'?'selected':''}>Skipped</option>
-      </select>
-      <button class="btn btn-primary" onclick="exportRerunCSV()">Export CSV</button>
-      <button class="btn btn-ghost" style="background:#ecfdf5;color:var(--purple);border:1px solid #a7f3d0" onclick="exportRerunForSmartlead()">${svgIcon('upload',12)} Export for Smartlead</button>
+      ${filterSelect('rerunFilterState', 'All States', states, state.rerunFilterState)}
+      ${filterSelect('rerunFilterCity', 'All Cities', cities, state.rerunFilterCity)}
+      ${filterSelect('rerunFilterStatus', 'All Statuses', ['queued','sent','skipped'], state.rerunFilterStatus)}
+      <button class="btn btn-primary" data-action="exportRerunCSV">Export CSV</button>
+      <button class="btn btn-ghost" style="background:#ecfdf5;color:var(--purple);border:1px solid #a7f3d0" data-action="exportRerunForSmartlead">${svgIcon('upload',12)} Export for Smartlead</button>
       <span style="font-size:11px;color:var(--text-muted);margin-left:auto">${filtered.length} of ${state.rerunQueue.length} leads</span>
     </div>`;
 
@@ -207,7 +186,7 @@ export function renderRerunTab(){
         <td style="font-weight:600">${esc(r.rerunDate||'')}</td>
         <td><span class="rerun-status ${statusCls}">${esc(r.status||'Queued')}</span></td>
         <td>
-          ${(r.status||'').toLowerCase()!=='sent'?`<button class="btn" style="font-size:10px;padding:2px 8px;background:#f3f4f6;color:#6b7280" onclick="updateRerunStatus('${esc(r.id)}','skipped')">Skip</button>`:''}
+          ${(r.status||'').toLowerCase()!=='sent'?`<button class="btn" style="font-size:10px;padding:2px 8px;background:#f3f4f6;color:#6b7280" data-action="skipRerunItem" data-id="${esc(r.id)}">Skip</button>`:''}
         </td>
       </tr>`;
     }
@@ -221,7 +200,23 @@ export function renderRerunTab(){
   return h;
 }
 
-// Expose to inline HTML handlers
+// Event delegation handlers
+registerActions({
+  rerunFilterState(el) { state.rerunFilterState = el.value; state.rerunFilterCity = ''; render(); },
+  rerunFilterCity(el) { state.rerunFilterCity = el.value; render(); },
+  rerunFilterStatus(el) { state.rerunFilterStatus = el.value; render(); },
+  exportRerunCSV() { exportRerunCSV(); },
+  exportRerunForSmartlead() { exportRerunForSmartlead(); },
+  skipRerunItem(el) { updateRerunStatus(el.dataset.id, 'skipped'); },
+  closeMarketModal() { state.rerunShowMarketModal = false; render(); },
+  dismissMarketModal(el, e) { if (e.target === el) { state.rerunShowMarketModal = false; render(); } },
+  marketSettingField(el) { state.rerunMarketSettings[parseInt(el.dataset.idx)][el.dataset.field] = el.value; },
+  removeMarketSetting(el) { state.rerunMarketSettings.splice(parseInt(el.dataset.idx), 1); render(); },
+  addMarketSetting() { state.rerunMarketSettings.push({ state: '', city: '', months: '6' }); render(); },
+  saveMarketSettings() { saveMarketSettings(); },
+});
+
+// Still needed by other modules
 window.loadRerunData = loadRerunData;
 window.updateRerunStatus = updateRerunStatus;
 window.exportRerunCSV = exportRerunCSV;
@@ -231,37 +226,27 @@ window.switchNurtureTab = switchNurtureTab;
 // Market settings modal
 export function renderMarketSettingsModal(){
   const ms = state.rerunMarketSettings;
-  let h = `<div class="modal-overlay" onmousedown="this._mdownTarget=event.target" onclick="if(event.target===this&&this._mdownTarget===this){state.rerunShowMarketModal=false;render()}">
-    <div class="modal" style="width:560px" onclick="event.stopPropagation()">
-      <div class="modal-header">
-        <h3>Market Re-Run Settings</h3>
-        <button class="modal-close" onclick="state.rerunShowMarketModal=false;render()">\u00D7</button>
-      </div>
-      <div class="modal-body">
-        <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Set how many months before leads are eligible for re-run by state or city. City settings override state defaults.</p>
-        <table class="rerun-table" style="margin-bottom:16px">
-          <thead><tr><th>State</th><th>City (optional)</th><th>Re-Run After (months)</th><th></th></tr></thead>
-          <tbody>`;
+  let body = modalHeader('Market Re-Run Settings', 'closeMarketModal');
+  body += `<div class="modal-body">
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Set how many months before leads are eligible for re-run by state or city. City settings override state defaults.</p>
+    <table class="rerun-table" style="margin-bottom:16px">
+      <thead><tr><th>State</th><th>City (optional)</th><th>Re-Run After (months)</th><th></th></tr></thead>
+      <tbody>`;
   for(const [i,m] of ms.entries()){
-    h += `<tr>
-      <td><input type="text" value="${esc(m.state||'')}" style="width:60px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px" oninput="state.rerunMarketSettings[${i}].state=this.value"></td>
-      <td><input type="text" value="${esc(m.city||'')}" placeholder="All cities" style="width:120px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px" oninput="state.rerunMarketSettings[${i}].city=this.value"></td>
-      <td><input type="number" value="${esc(m.months||'6')}" min="1" max="24" style="width:60px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px" oninput="state.rerunMarketSettings[${i}].months=this.value"></td>
-      <td><button class="act-delete" onclick="state.rerunMarketSettings.splice(${i},1);render()">\u00D7</button></td>
+    body += `<tr>
+      <td><input type="text" value="${esc(m.state||'')}" style="width:60px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px" data-action="marketSettingField" data-idx="${i}" data-field="state"></td>
+      <td><input type="text" value="${esc(m.city||'')}" placeholder="All cities" style="width:120px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px" data-action="marketSettingField" data-idx="${i}" data-field="city"></td>
+      <td><input type="number" value="${esc(m.months||'6')}" min="1" max="24" style="width:60px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px" data-action="marketSettingField" data-idx="${i}" data-field="months"></td>
+      <td><button class="act-delete" data-action="removeMarketSetting" data-idx="${i}">\u00D7</button></td>
     </tr>`;
   }
-  h += `</tbody></table>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-ghost" style="background:#ecfdf5;color:var(--purple);border:1px solid #a7f3d0" onclick="state.rerunMarketSettings.push({state:'',city:'',months:'6'});render()">+ Add Market</button>
-        </div>
-      </div>
-      <div class="modal-footer" style="justify-content:flex-end;gap:8px">
-        <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="state.rerunShowMarketModal=false;render()">Cancel</button>
-        <button class="btn btn-primary" onclick="saveMarketSettings()">Save Settings</button>
-      </div>
+  body += `</tbody></table>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" style="background:#ecfdf5;color:var(--purple);border:1px solid #a7f3d0" data-action="addMarketSetting">+ Add Market</button>
     </div>
   </div>`;
-  return h;
+  body += modalFooter('closeMarketModal', 'saveMarketSettings', 'Save Settings');
+  return modalWrap(body, { closeAction: 'dismissMarketModal', width: '560px' });
 }
 
 export async function saveMarketSettings(){
@@ -280,4 +265,3 @@ export async function saveMarketSettings(){
   }
 }
 
-window.saveMarketSettings = saveMarketSettings;
