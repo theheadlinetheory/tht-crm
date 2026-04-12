@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// APP — Entry point, state, initApp
+// APP — Entry point, initApp, re-exports from state.js
 // ═══════════════════════════════════════════════════════════
 import { REPLY_CHECK_INTERVAL, REPLY_BACKEND_POLL_INTERVAL, DEFAULT_CLIENT_STAGES } from './config.js';
 import { render } from './render.js';
@@ -8,93 +8,19 @@ import { isAdmin, isClient, isEmployee, currentUser, loadCampaignAssignments, li
 import { initJustCallDialer } from './dialer.js';
 import { esc, svgIcon } from './utils.js';
 
-// ─── State Object (single source of truth) ───
-export let state = {
-  deals: [],
-  activities: [],
-  clients: [],
-  appointments: [],
-  pipeline: (() => { try { const h=location.hash.replace('#',''); if(h==='archive'){location.hash='nurture';return 'nurture';} return ['dashboard','acquisition','client_leads','nurture'].includes(h)?h:'dashboard'; } catch(e){ return 'acquisition'; } })(),
-  selectedDeal: null,
-  showNew: false,
-  showAddClient: false,
-  showActivateClient: false,
-  activateClientLoading: false,
-  unactivatedClients: [],
-  activateClientsLoading: false,
-  activateSelectedClient: null,
-  showSop: false,
-  dragId: null,
-  overCol: null,
-  synced: false,
-  syncing: false,
-  loadFailed: false,
-  searchQuery: "",
-  searchResults: null,
-  savedSettings: null,
-  // Re-Run Queue state
-  nurtureSubTab: 'board',
-  dashboardTab: 'client_leads',
-  dashboardMonth: new Date().toISOString().slice(0,7),
-  rerunQueue: [],
-  rerunMarketSettings: [],
-  rerunLoading: false,
-  rerunFilterState: '',
-  rerunFilterCity: '',
-  rerunFilterStatus: '',
-  rerunShowMarketModal: false,
-  archiveData: [],
-  archiveLoaded: false,
-  archiveFilterPipeline: '',
-  archiveFilterStatus: '',
-  archiveFilterClient: '',
-  archiveSortDir: 'newest',
-  // Bulk select
-  bulkMode: false,
-  bulkSelected: new Set(),
-  // View mode
-  viewMode: 'board',
-  // Campaign assignment (acquisition owner split)
-  campaignAssignments: {},
-  acquisitionFilter: '',
-  showAcqFilterDropdown: false,
-};
-
-// ─── Mutable counters/sets (exported as objects for cross-module mutation) ───
-export const pendingWrites = { value: 0 };
-export const failedWriteQueue = [];
-export const pendingDealFields = {};
-
-// Restore deleted-ID sets from localStorage
-export const deletedDealIds = new Set(JSON.parse(localStorage.getItem('tht_deletedDeals')||'[]'));
-export const deletedActivityIds = new Set(JSON.parse(localStorage.getItem('tht_deletedActs')||'[]'));
-export const completedActivityIds = new Set(JSON.parse(localStorage.getItem('tht_completedActs')||'[]'));
-export const deletedClientIds = new Set();
-
-// Preserve horizontal scroll across renders
-export let savedScrollLeft = 0;
-export function setSavedScrollLeft(v){ savedScrollLeft = v; }
-
-// Settings state
-export let settingsOpen = false;
-export function setSettingsOpen(v){ settingsOpen = v; }
-export let settingsTab = 'stages';
-export function setSettingsTab(v){ settingsTab = v; }
-export let clientsSubTab = 'notifications';
-export function setClientsSubTab(v){ clientsSubTab = v; }
-export let settingsDraft = null;
-export function setSettingsDraft(v){ settingsDraft = v; }
-
-// Client portal stages
-export let clientPortalStages = null;
-export function setClientPortalStages(v){ clientPortalStages = v; }
-export let clientArchivedDeals = [];
-export function setClientArchivedDeals(v){ clientArchivedDeals = v; }
-
-// Warn user before closing if writes are still in flight
-window.addEventListener('beforeunload', e => {
-  if(pendingWrites.value > 0 || failedWriteQueue.length > 0){ e.preventDefault(); e.returnValue=''; }
-});
+// ─── Re-export state from centralized module ───
+export {
+  state, store,
+  pendingWrites, failedWriteQueue, pendingDealFields,
+  deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds,
+  savedScrollLeft, setSavedScrollLeft,
+  settingsOpen, setSettingsOpen,
+  settingsTab, setSettingsTab,
+  clientsSubTab, setClientsSubTab,
+  settingsDraft, setSettingsDraft,
+  clientPortalStages, setClientPortalStages,
+  clientArchivedDeals, setClientArchivedDeals,
+} from './state.js';
 
 // ─── Client Portal Stages (Firestore) ───
 export async function loadClientPortalStages(){
@@ -158,9 +84,8 @@ export async function archiveDeal(dealId, reason){
       { archivedDeals: clientArchivedDeals }, { merge: true }
     );
   } catch(e){ console.error('Failed to save archive:', e); }
-  state.deals = state.deals.filter(d=>d.id!==dealId);
-  state.selectedDeal = null;
-  render();
+  store.removeDeal(dealId, {silent: true});
+  store.set({selectedDeal: null});
 }
 
 export async function restoreDeal(dealId){
@@ -182,7 +107,7 @@ export async function restoreDeal(dealId){
     if(clientPortalStages && clientPortalStages.length > 0){
       deal.clientStage = clientPortalStages[0].id;
     }
-    state.deals.push(deal);
+    store.addDeal(deal, {silent: true});
     try {
       await db.collection('client_settings').doc(currentUser.clientName).set(
         { archivedDeals: clientArchivedDeals }, { merge: true }
@@ -210,6 +135,14 @@ export async function initApp(){
   if(isAdmin()||isEmployee()){
     await loadCampaignAssignments();
     listenCampaignAssignments();
+  }
+  // Load client config from database (calendly URLs, services, warm call notes, etc.)
+  const { loadClientConfig } = await import('./client-info.js');
+  await loadClientConfig();
+  // Initialize service area polygon data from global script
+  if(window.SERVICE_AREA_POLYGONS){
+    const { setServiceAreaData } = await import('./maps.js');
+    setServiceAreaData(window.SERVICE_AREA_POLYGONS);
   }
   render();
   await initialSync();
@@ -329,6 +262,10 @@ window.openClientStageSettings = openClientStageSettings;
 window.addClientStage = addClientStage;
 window.saveClientStagesAndClose = saveClientStagesAndClose;
 window.renderClientStageSettingsInner = renderClientStageSettingsInner;
+
+// ─── Event Delegation ───
+import { initDelegation } from './delegate.js';
+initDelegation();
 
 // ─── Bootstrap ───
 setupAuthListener(initApp);

@@ -60,16 +60,6 @@ export const FLAG_CYCLE = ["none", "green", "yellow", "red"];
 
 export const CLIENT_PALETTE = ["#2563eb","#059669","#0891b2","#10b981","#d97706","#dc2626","#0d9488","#34d399","#b45309","#047857","#be185d","#15803d"];
 
-// ─── Default Calendly Links ───
-export const DEFAULT_CALENDLY_URLS = {
-  "High Southern Landscapes": "https://calendly.com/will-highsouthernscapes/30min",
-  "High Southern": "https://calendly.com/will-highsouthernscapes/30min",
-  "Time Savers Landscaping": "https://calendly.com/timesaverslandscaping/meeting-with-time-savers",
-  "Time Savers": "https://calendly.com/timesaverslandscaping/meeting-with-time-savers",
-  "Coastal Lawn Care": "https://calendly.com/ryan-coastallawncare/meeting-with-coastal-lawn-care",
-  "Lightning Lawn Care": "https://calendly.com/jonrebel3/quote-meeting-with-lightning-lawn-care",
-};
-
 // ─── SOP Sequences ───
 export const SOP_DAYS = {
   "Day 1": [{type:"Text",subject:"Initial text - immediate"},{type:"Call",subject:"Call #1 - immediate"},{type:"Text",subject:"Post-call text"},{type:"Email",subject:"Initial email"},{type:"Call",subject:"Call #2 - EOD"}],
@@ -159,7 +149,6 @@ export const OWNER_COLORS_MAP = { 'aidan': { cls: 'owner-tag-blue', label: 'Aida
 export const LEAD_TRACKER_SHEET_ID = '1zEfZQOuzbrE9s01gfTOoVvEJ-DgtOxkPIWNiZHaxaZ4';
 export const LEAD_ENTRY_SHEET_ID = '1RAa689xwLM2fQjO0K8cpOyBCPt8bEorTErKDbdFL_fY';
 export const CLIENT_INFO_SHEET_ID = '1y8AoGopplKltre5ZOP2v0tJPy6Jp0c6C8rqUBO30xFg';
-export const TRACKER_ZERO_COST_CLIENTS = ['abc','deeter'];
 
 // ─── Geocodio ───
 export const GEOCODIO_KEY = 'c9ca6a4ab56ca94ca65ac2c66646952d69d2d6a';

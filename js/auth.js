@@ -100,17 +100,8 @@ export async function handleGoogleSignIn(){
   errEl.style.display='none';
   try {
     const provider = new firebase.auth.GoogleAuthProvider();
-    const cred = await auth.signInWithPopup(provider);
-    const userDoc = await db.collection('users').doc(cred.user.uid).get();
-    if(!userDoc.exists){
-      await db.collection('users').doc(cred.user.uid).set({
-        name: cred.user.displayName || cred.user.email,
-        email: cred.user.email,
-        role: 'employee',
-        clientName: '',
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-    }
+    // Use redirect instead of popup to avoid COOP issues on localhost
+    await auth.signInWithRedirect(provider);
   } catch(e){
     if(e.code === 'auth/popup-closed-by-user') return;
     errEl.textContent = e.message || 'Google sign-in failed';

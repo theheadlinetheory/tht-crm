@@ -6,7 +6,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 export { supabase };
-import { state, pendingWrites, failedWriteQueue, pendingDealFields, deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds } from './app.js';
+import { state, store, pendingWrites, failedWriteQueue, pendingDealFields, deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds } from './app.js';
 import { render, refreshModal } from './render.js';
 
 /** @deprecated Use Supabase CRUD helpers (sb*) for data operations. Kept for server-side operations that will become Edge Functions. */
@@ -40,19 +40,42 @@ export async function apiPost(action,data,retries=2){
   }
 }
 
-export function showSaveError(msg){
-  let el=document.getElementById('save-error-toast');
-  if(!el){
-    el=document.createElement('div');
-    el.id='save-error-toast';
-    el.style.cssText='position:fixed;bottom:20px;right:20px;background:#dc2626;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,.3);transition:opacity .3s';
+// ─── Centralized Error Handling ───
+
+function showToast(msg, type = 'error') {
+  let el = document.getElementById('api-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'api-toast';
     document.body.appendChild(el);
   }
-  el.textContent=msg;
-  el.style.opacity='1';
+  const bg = type === 'error' ? '#dc2626' : type === 'success' ? '#059669' : '#d97706';
+  el.style.cssText = `position:fixed;bottom:20px;right:20px;background:${bg};color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,.3);transition:opacity .3s;opacity:1`;
+  el.textContent = msg;
   clearTimeout(el._fadeTimer);
-  el._fadeTimer=setTimeout(()=>{el.style.opacity='0';setTimeout(()=>el.remove(),400);},5000);
+  el._fadeTimer = setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 400); }, 5000);
 }
+
+export { showToast };
+export const showSaveError = (msg) => showToast(msg, 'error');
+
+async function sbCall(fn, { retries = 1, label = 'Operation' } = {}) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      console.warn(`${label} failed (attempt ${attempt + 1}):`, e.message);
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
+        continue;
+      }
+      showToast(`${label} failed: ${e.message}`, 'error');
+      throw e;
+    }
+  }
+}
+
+export { sbCall };
 
 export async function retryFailedWrites(){
   if(failedWriteQueue.length===0) return;
@@ -107,16 +130,12 @@ export async function syncFromSheet(){
       });
     }
     if(data.clients && Array.isArray(data.clients) && data.clients.length>0){
-      const { DEFAULT_CALENDLY_URLS } = await import('./config.js');
       state.clients=data.clients.filter(c => !deletedClientIds.has(String(c.id)));
       for(const c of state.clients){
         if(!c.calendlyUrl){
-          const match = DEFAULT_CALENDLY_URLS[c.name] || Object.entries(DEFAULT_CALENDLY_URLS).find(([k])=>{
-            const cn=c.name.toLowerCase().replace(/[^a-z]/g,'');
-            const kn=k.toLowerCase().replace(/[^a-z]/g,'');
-            return cn.includes(kn) || kn.includes(cn);
-          })?.[1];
-          if(match) c.calendlyUrl = match;
+          const { getClientConfig } = await import('./client-info.js');
+          const cfg = getClientConfig(c.name);
+          if(cfg?.calendly_url) c.calendlyUrl = cfg.calendly_url;
         }
       }
     }
@@ -296,19 +315,28 @@ for (const [snake, camel] of Object.entries(FIELD_MAP)) {
   REVERSE_FIELD_MAP[camel] = snake;
 }
 
+const BOOLEAN_FIELDS = new Set(['done']);
+
 export function normalizeRow(row) {
   const normalized = {};
   for (const [key, value] of Object.entries(row)) {
     const camelKey = FIELD_MAP[key] || key;
-    normalized[camelKey] = value != null ? String(value) : '';
+    if (BOOLEAN_FIELDS.has(camelKey)) {
+      normalized[camelKey] = (value === true || value === 'true' || value === 'TRUE');
+    } else {
+      normalized[camelKey] = value != null ? String(value) : '';
+    }
   }
   return normalized;
 }
 
+const NULLABLE_COLS = new Set(['completed_at','scheduled_time','created_at','updated_at','forwarded_at','pushed_to_tracker','queued_at','rerun_after','sent_at','archived_at','value','lead_cost','rerun_days']);
+
 export function camelToSnake(obj) {
   const result = {};
   for (const [key, value] of Object.entries(obj)) {
-    result[REVERSE_FIELD_MAP[key] || key] = value;
+    const snakeKey = REVERSE_FIELD_MAP[key] || key;
+    result[snakeKey] = (value === '' && NULLABLE_COLS.has(snakeKey)) ? null : value;
   }
   return result;
 }
@@ -325,14 +353,25 @@ export async function initialSync() {
     state.clients = clients.map(normalizeRow);
     state.appointments = (appointments || []).map(normalizeRow);
 
+    // Normalize deal fields
+    for (const d of state.deals) {
+      if (d.phone && (d.phone.includes('#ERROR') || d.phone.includes('ERROR'))) d.phone = '';
+      if (d.pipeline === 'Client Leads') d.pipeline = 'Client';
+      if (d.value === '0') d.value = '';
+      if (d.bookedDate && !/^\d{4}-\d{2}-\d{2}$/.test(d.bookedDate)) d.bookedDate = '';
+      const pending = pendingDealFields[String(d.id)];
+      if (pending) Object.assign(d, pending);
+    }
+
     // Apply deletion guards
     state.deals = state.deals.filter(d => !deletedDealIds.has(String(d.id)));
     state.activities = state.activities.filter(a => !deletedActivityIds.has(String(a.id)));
 
     // Apply completed status guards
     for (const a of state.activities) {
-      if (completedActivityIds.has(String(a.id))) {
-        a.done = 'true';
+      if (completedActivityIds.has(String(a.id)) && !a.done) {
+        a.done = true;
+        if (!a.completedAt) a.completedAt = new Date().toISOString();
       }
     }
 
@@ -403,157 +442,175 @@ function handleRealtimeChange(table, payload) {
 // ─── Supabase CRUD Helpers ───
 
 // Deals
-export async function sbGetDeals() {
+export const sbGetDeals = () => sbCall(async () => {
   const { data, error } = await supabase.from('deals').select('*');
   if (error) throw error;
   return data;
-}
+}, { label: 'Load deals' });
 
-export async function sbCreateDeal(fields) {
+export const sbCreateDeal = (fields) => sbCall(async () => {
   const { data, error } = await supabase.from('deals').insert(fields).select().single();
   if (error) throw error;
   return data;
-}
+}, { label: 'Create deal' });
 
-export async function sbUpdateDeal(id, fields) {
+export const sbUpdateDeal = (id, fields) => sbCall(async () => {
   const { error } = await supabase.from('deals').update(fields).eq('id', id);
   if (error) throw error;
-}
+}, { label: 'Update deal' });
 
-export async function sbDeleteDeal(id) {
+export const sbDeleteDeal = (id) => sbCall(async () => {
   const { error } = await supabase.from('deals').delete().eq('id', id);
   if (error) throw error;
-}
+}, { label: 'Delete deal' });
 
 // Activities
-export async function sbGetActivities() {
+export const sbGetActivities = () => sbCall(async () => {
   const { data, error } = await supabase.from('activities').select('*');
   if (error) throw error;
   return data;
-}
+}, { label: 'Load activities' });
 
-export async function sbCreateActivity(fields) {
+export const sbCreateActivity = (fields) => sbCall(async () => {
   const { data, error } = await supabase.from('activities').insert(fields).select().single();
   if (error) throw error;
   return data;
-}
+}, { label: 'Create activity' });
 
-export async function sbUpdateActivity(id, fields) {
+export const sbUpdateActivity = (id, fields) => sbCall(async () => {
   const { error } = await supabase.from('activities').update(fields).eq('id', id);
   if (error) throw error;
-}
+}, { label: 'Update activity' });
 
-export async function sbDeleteActivity(id) {
+export const sbDeleteActivity = (id) => sbCall(async () => {
   const { error } = await supabase.from('activities').delete().eq('id', id);
   if (error) throw error;
-}
+}, { label: 'Delete activity' });
 
 // Clients
-export async function sbGetClients() {
+export const sbGetClients = () => sbCall(async () => {
   const { data, error } = await supabase.from('clients').select('*');
   if (error) throw error;
   return data;
-}
+}, { label: 'Load clients' });
 
-export async function sbCreateClient(fields) {
+export const sbCreateClient = (fields) => sbCall(async () => {
   const { data, error } = await supabase.from('clients').insert(fields).select().single();
   if (error) throw error;
   return data;
-}
+}, { label: 'Create client' });
 
-export async function sbUpdateClient(id, fields) {
+export const sbUpdateClient = (id, fields) => sbCall(async () => {
   const { error } = await supabase.from('clients').update(fields).eq('id', id);
   if (error) throw error;
-}
+}, { label: 'Update client' });
 
-export async function sbDeleteClient(id) {
+export const sbDeleteClient = (id) => sbCall(async () => {
   const { error } = await supabase.from('clients').delete().eq('id', id);
   if (error) throw error;
-}
+}, { label: 'Delete client' });
 
-export async function sbBatchUpdateClients(updates) {
+export const sbBatchUpdateClients = (updates) => sbCall(async () => {
   const promises = updates.map(({ id, ...fields }) =>
     supabase.from('clients').update(fields).eq('id', id)
   );
   const results = await Promise.all(promises);
   const failed = results.filter(r => r.error);
   if (failed.length) throw new Error(`${failed.length} client updates failed`);
-}
+}, { label: 'Save client settings' });
 
 // Appointments
-export async function sbGetAppointments() {
+export const sbGetAppointments = () => sbCall(async () => {
   const { data, error } = await supabase.from('appointments').select('*');
   if (error) throw error;
   return data;
-}
+}, { label: 'Load appointments' });
 
-export async function sbCreateAppointment(fields) {
+export const sbCreateAppointment = (fields) => sbCall(async () => {
   const { data, error } = await supabase.from('appointments').insert(fields).select().single();
   if (error) throw error;
   return data;
-}
+}, { label: 'Create appointment' });
 
-export async function sbDeleteAppointment(id) {
+export const sbDeleteAppointment = (id) => sbCall(async () => {
   const { error } = await supabase.from('appointments').delete().eq('id', id);
   if (error) throw error;
-}
+}, { label: 'Delete appointment' });
 
 // Rerun Queue
-export async function sbGetRerunQueue() {
+export const sbGetRerunQueue = () => sbCall(async () => {
   const { data, error } = await supabase.from('rerun_queue').select('*');
   if (error) throw error;
   return data;
-}
+}, { label: 'Load rerun queue' });
 
-export async function sbAddToRerun(fields) {
+export const sbAddToRerun = (fields) => sbCall(async () => {
   const { data, error } = await supabase.from('rerun_queue').insert(fields).select().single();
   if (error) throw error;
   return data;
-}
+}, { label: 'Add to rerun queue' });
 
-export async function sbUpdateRerunStatus(id, status) {
+export const sbUpdateRerunStatus = (id, status) => sbCall(async () => {
   const { error } = await supabase.from('rerun_queue').update({ status }).eq('id', id);
   if (error) throw error;
-}
+}, { label: 'Update rerun status' });
 
 // Market Settings
-export async function sbGetMarketSettings() {
+export const sbGetMarketSettings = () => sbCall(async () => {
   const { data, error } = await supabase.from('market_settings').select('*');
   if (error) throw error;
   return data;
-}
+}, { label: 'Load market settings' });
 
-export async function sbSaveMarketSetting(fields) {
+export const sbSaveMarketSetting = (fields) => sbCall(async () => {
   const { error } = await supabase.from('market_settings')
     .upsert(fields, { onConflict: 'state,city' });
   if (error) throw error;
-}
+}, { label: 'Save market setting' });
 
 // Archive
-export async function sbGetArchive() {
+export const sbGetArchive = () => sbCall(async () => {
   const { data, error } = await supabase.from('archive').select('*');
   if (error) throw error;
   return data;
-}
+}, { label: 'Load archive' });
 
-export async function sbArchiveDeal(id, originalData) {
+export const sbArchiveDeal = (id, originalData) => sbCall(async () => {
   const { error } = await supabase.from('archive').insert({ id, original_data: originalData });
   if (error) throw error;
-}
+}, { label: 'Archive deal' });
 
-export async function sbRestoreFromArchive(id) {
+export const sbRestoreFromArchive = (id) => sbCall(async () => {
   const { data, error } = await supabase.from('archive').select('*').eq('id', id).single();
   if (error) throw error;
   await supabase.from('archive').delete().eq('id', id);
   return data;
-}
+}, { label: 'Restore from archive' });
+
+// Client Config
+export const sbGetClientConfig = () => sbCall(async () => {
+  const { data, error } = await supabase.from('client_config').select('*');
+  if (error) throw error;
+  return data;
+}, { label: 'Load client config' });
+
+export const sbUpdateClientConfig = (clientName, fields) => sbCall(async () => {
+  const { error } = await supabase.from('client_config').update(fields).eq('client_name', clientName);
+  if (error) throw error;
+}, { label: 'Update client config' });
+
+export const sbCreateClientConfig = (fields) => sbCall(async () => {
+  const { data, error } = await supabase.from('client_config').insert(fields).select().single();
+  if (error) throw error;
+  return data;
+}, { label: 'Create client config' });
 
 // Webhook Log
-export async function sbGetWebhookLog() {
+export const sbGetWebhookLog = () => sbCall(async () => {
   const { data, error } = await supabase.from('webhook_log').select('*').order('timestamp', { ascending: false }).limit(100);
   if (error) throw error;
   return data;
-}
+}, { label: 'Load webhook log' });
 
 // ─── Edge Function Invoker ───
 

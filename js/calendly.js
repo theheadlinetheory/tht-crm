@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // CALENDLY — Calendly popup/inline widget integration
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js';
+import { state, store, pendingWrites } from './app.js';
 import { TZ_TO_IANA, ACQ_CALENDLY_URLS } from './config.js';
 import { render, refreshModal } from './render.js';
 import { sbUpdateDeal, sbCreateAppointment, sbDeleteAppointment, camelToSnake } from './api.js';
@@ -124,7 +124,7 @@ export function applyBookedDateTime(dealId, deal, bookedDate, bookedTime, client
       address:deal.location||deal.address||''
     };
     const appt={id:uid(),...apptData};
-    state.appointments.push(appt);
+    store.addAppointment(appt, {silent: true});
     pendingWrites.value++;
     sbCreateAppointment(camelToSnake(appt)).catch(e=>console.error('Create appointment failed:',e)).finally(()=>{pendingWrites.value--;});
   }
@@ -137,17 +137,16 @@ export function applyBookedDateTime(dealId, deal, bookedDate, bookedTime, client
 
 export function saveAppointment(clientName, leadName, apptDate, apptTime, notes, address){
   const appt={id:uid(),clientName,leadName,apptDate,apptTime,notes:notes||'',address:address||''};
-  state.appointments.push(appt);
+  store.addAppointment(appt, {silent: true});
   pendingWrites.value++;
   sbCreateAppointment(camelToSnake(appt)).catch(e=>console.error('Create appointment failed:',e)).finally(()=>{pendingWrites.value--;});
   return appt;
 }
 
 export function removeAppointment(id){
-  state.appointments=state.appointments.filter(a=>a.id!==id);
+  store.removeAppointment(id);
   pendingWrites.value++;
   sbDeleteAppointment(id).catch(e=>console.error('Delete appointment failed:',e)).finally(()=>{pendingWrites.value--;});
-  render();
 }
 
 // ─── Manual Appointment Entry ───

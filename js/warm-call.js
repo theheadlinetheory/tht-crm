@@ -9,7 +9,7 @@ import { state, pendingWrites } from './app.js';
 import { render, refreshModal } from './render.js';
 import { invokeEdgeFunction } from './api.js';
 import { esc, str, svgIcon, getToday, isValidDate, fmtDate, fmtTime12, uid } from './utils.js';
-import { findClientForDeal, lookupClientInfo, getWarmCallQA, CLIENT_INFO } from './client-info.js';
+import { findClientForDeal, lookupClientInfo, getWarmCallQA } from './client-info.js';
 import { isAdmin, isEmployee } from './auth.js';
 
 export function openWarmCallSheet(dealId){
