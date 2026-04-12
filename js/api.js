@@ -378,12 +378,6 @@ export async function initialSync() {
     state.synced = true;
     state.loadFailed = false;
     render();
-
-    // Fire-and-forget: poll SmartLead for any leads webhooks missed
-    fetch(`${SUPABASE_URL}/functions/v1/smartlead-poll`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    }).catch(() => {});
   } catch (e) {
     console.error('Initial sync failed:', e);
     state.loadFailed = true;
