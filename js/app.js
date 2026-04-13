@@ -153,6 +153,7 @@ export async function initApp(){
     setInterval(triggerBackendReplyCheck, REPLY_BACKEND_POLL_INTERVAL);
   }
   if(!isClient()) initJustCallDialer();
+  if(!isClient()) import('./number-health.js').then(m => m.loadNumberHealth()).catch(e => console.warn('Number health load failed:', e));
   if(state.pipeline==='nurture' && state.nurtureSubTab==='rerun'){
     const { loadRerunData } = await import('./rerun.js');
     loadRerunData();
