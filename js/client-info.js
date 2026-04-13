@@ -42,67 +42,76 @@ export function isZeroCostClient(name) {
 
 export const CLIENT_THREAD_IDS = new Proxy({}, { get: (_, prop) => typeof prop === 'string' ? getClientThreadId(prop) : undefined });
 
-// Look up client info — first from database (client_config), then from synced clients
+// Look up client info — merges client_config (DB) with synced client data
+// client_config fields take priority; synced client data fills any gaps
 export function lookupClientInfo(name){
   if(!name) return null;
   const cfg = getClientConfig(name);
-  if (cfg) {
-    return {
-      primaryContact: cfg.primary_contact || '',
-      primaryEmail: cfg.primary_email || '',
-      phone: cfg.phone || '',
-      location: cfg.location || '',
-      timeZone: cfg.time_zone || '',
-      serviceAreaCities: cfg.service_area_cities || '',
-      forwardName: cfg.forward_name || '',
-      forwardEmail: cfg.forward_email || '',
-      calendlyUrl: cfg.calendly_url || '',
-      website: cfg.website || '',
-      pricingModel: cfg.pricing_model || '',
-      services: Array.isArray(cfg.services) ? cfg.services : [],
-      warmCallNotes: Array.isArray(cfg.warm_call_notes) ? cfg.warm_call_notes : [],
-    };
-  }
+
+  // Build fallback from synced client data
   const n=name.toLowerCase().trim();
-  // Fallback: build info from synced client data
   const sc=state.clients.find(c=>{
     const cn=c.name.toLowerCase().trim();
     return cn===n||n.includes(cn)||cn.includes(n);
   });
-  if(!sc) return null;
-  const notes=str(sc.clientNotes);
-  let parsedLocation='',parsedServices=[],parsedServiceArea='',parsedPricing='';
-  if(notes){
-    const sections=notes.split('\n\n');
-    for(const sec of sections){
-      const lines=sec.split('\n').map(l=>l.trim()).filter(Boolean);
-      if(!lines.length) continue;
-      const header=lines[0].toLowerCase();
-      if(header==='services'&&lines.length>1){
-        parsedServices=lines.slice(1).map(l=>l.replace(/^[\u2022\-\*]\s*/,'').trim()).filter(Boolean);
-      } else if(header==='service area'&&lines.length>1){
-        parsedServiceArea=lines.slice(1).join(', ');
-      } else if(header==='pricing'&&lines.length>1){
-        parsedPricing=lines.slice(1).join(' | ');
-      } else if(header==='contact'&&lines.length>1){
-        const locLine=lines.find(l=>/\(EST\)|\(CST\)|\(MST\)|\(PST\)/i.test(l));
-        if(locLine) parsedLocation=locLine.replace(/\s*\([A-Z]{2,4}\)\s*$/,'').trim();
+  let fallback = null;
+  if(sc){
+    const notes=str(sc.clientNotes);
+    let parsedLocation='',parsedServices=[],parsedServiceArea='',parsedPricing='';
+    if(notes){
+      const sections=notes.split('\n\n');
+      for(const sec of sections){
+        const lines=sec.split('\n').map(l=>l.trim()).filter(Boolean);
+        if(!lines.length) continue;
+        const header=lines[0].toLowerCase();
+        if(header==='services'&&lines.length>1){
+          parsedServices=lines.slice(1).map(l=>l.replace(/^[\u2022\-\*]\s*/,'').trim()).filter(Boolean);
+        } else if(header==='service area'&&lines.length>1){
+          parsedServiceArea=lines.slice(1).join(', ');
+        } else if(header==='pricing'&&lines.length>1){
+          parsedPricing=lines.slice(1).join(' | ');
+        } else if(header==='contact'&&lines.length>1){
+          const locLine=lines.find(l=>/\(EST\)|\(CST\)|\(MST\)|\(PST\)/i.test(l));
+          if(locLine) parsedLocation=locLine.replace(/\s*\([A-Z]{2,4}\)\s*$/,'').trim();
+        }
       }
     }
+    fallback = {
+      timeZone:sc.timeZone||'',
+      location:parsedLocation||str(sc.location).trim()||'',
+      primaryContact:str(sc.contactFirstName).trim()||'',
+      primaryEmail:str(sc.notifyEmail).trim()||'',
+      forwardEmail:str(sc.notifyEmail).trim()||'',
+      phone:'',
+      calendlyUrl:str(sc.calendlyUrl).trim()||'',
+      website:str(sc.website).trim()||'',
+      services:parsedServices.length?parsedServices:undefined,
+      serviceAreaCities:parsedServiceArea||'',
+      pricingModel:parsedPricing||'',
+      warmCallNotes:[]
+    };
   }
-  return {
-    timeZone:sc.timeZone||'',
-    location:parsedLocation||str(sc.location).trim()||'',
-    primaryContact:str(sc.contactFirstName).trim()||'',
-    primaryEmail:str(sc.notifyEmail).trim()||'',
-    forwardEmail:str(sc.notifyEmail).trim()||'',
-    calendlyUrl:str(sc.calendlyUrl).trim()||'',
-    website:str(sc.website).trim()||'',
-    services:parsedServices.length?parsedServices:undefined,
-    serviceAreaCities:parsedServiceArea||'',
-    pricingModel:parsedPricing||'',
-    warmCallNotes:[]
-  };
+
+  if (cfg) {
+    const fb = fallback || {};
+    return {
+      primaryContact: cfg.primary_contact || fb.primaryContact || '',
+      primaryEmail: cfg.primary_email || fb.primaryEmail || '',
+      phone: cfg.phone || fb.phone || '',
+      location: cfg.location || fb.location || '',
+      timeZone: cfg.time_zone || fb.timeZone || '',
+      serviceAreaCities: cfg.service_area_cities || fb.serviceAreaCities || '',
+      forwardName: cfg.forward_name || '',
+      forwardEmail: cfg.forward_email || fb.forwardEmail || '',
+      calendlyUrl: cfg.calendly_url || fb.calendlyUrl || '',
+      website: cfg.website || fb.website || '',
+      pricingModel: cfg.pricing_model || fb.pricingModel || '',
+      services: Array.isArray(cfg.services) && cfg.services.length ? cfg.services : (fb.services || []),
+      warmCallNotes: Array.isArray(cfg.warm_call_notes) && cfg.warm_call_notes.length ? cfg.warm_call_notes : (fb.warmCallNotes || []),
+    };
+  }
+
+  return fallback;
 }
 
 export function isRetainerClient(deal){
