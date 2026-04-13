@@ -480,7 +480,7 @@ export function renderDealModal(deal){
               style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px;resize:vertical">${esc(deal.calNotes||prefillLines.join('\n'))}</textarea>
           </div>
           <button class="btn btn-primary" style="width:100%;justify-content:center;font-size:13px;background:#818cf8;border-color:#818cf8"
-            onclick="openCalendlyEmbed('${esc(deal.id)}','${esc(matchedClient.calendlyUrl)}',atob('${btoa(unescape(encodeURIComponent(matchedClient.name)))}'))">
+            onclick="openCalendlyEmbed('${esc(deal.id)}','${esc(matchedClient.calendlyUrl)}',atob('${btoa(unescape(encodeURIComponent(matchedClient.name)))}'),document.getElementById('cal-prefill-name')?.value||'',document.getElementById('cal-prefill-email')?.value||'',document.getElementById('cal-prefill-notes')?.value||'')">
             Open Calendar & Book
           </button>
         </div>`;
