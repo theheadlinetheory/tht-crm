@@ -6,7 +6,7 @@ import { str, esc, uid, getToday } from './utils.js';
 import { invokeEdgeFunction, sbCreateActivity, camelToSnake } from './api.js';
 import { getHealthyNumber, getRegionForPhone, recordCallOutcome } from './number-health.js';
 
-const DIALER_URL = 'https://app.justcall.io/app/macapp/dialer_events';
+const DIALER_URL = 'https://app.justcall.io/dialer';
 let dialerReady = false;
 let currentCallDealId = null;
 let currentCallNumber = null; // outbound number used
