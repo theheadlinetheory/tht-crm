@@ -368,7 +368,7 @@ export function renderDealModal(deal){
       <div class="sl-info-title">Smartlead Source</div>
       <div>Campaign: ${esc(deal.campaignName)}</div>
       ${deal.leadCategory?`<div>Category: ${esc(deal.leadCategory)}</div>`:''}
-      ${deal.smartleadUrl?`<a href="${esc(deal.smartleadUrl)}" target="_blank" rel="noopener">Open in Smartlead →</a>`:''}
+      ${(deal.smartleadUrl||deal.email)?`<a href="${esc(deal.smartleadUrl||('https://app.smartlead.ai/app/master-inbox?sortBy=REPLY_TIME_DESC&search='+encodeURIComponent(deal.email)))}" target="_blank" rel="noopener">Open in Smartlead →</a>`:''}
     </div>`;
   }
 
