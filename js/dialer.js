@@ -79,19 +79,31 @@ export async function callInJustCall(dealId){
   currentCallNumber = outboundNumber;
   currentCallPhone = formatted;
 
-  // Show number instruction banner + iframe dialer
+  // Format numbers for display
   const formattedOutbound = outboundNumber.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, '($1) $2-$3');
-  dialerEl.innerHTML = `<div style="background:#0f172a;padding:10px 14px;display:flex;align-items:center;gap:10px;border-bottom:2px solid #38bdf8">
-    <div style="flex:1">
-      <div style="font-size:10px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Select this number before calling</div>
-      <div style="font-size:16px;font-weight:800;color:#38bdf8;letter-spacing:.5px;margin-top:2px">${esc(formattedOutbound)}</div>
-      <div style="font-size:11px;color:#64748b;margin-top:1px">${region} region \u2022 ...${last4}</div>
+  const formattedLead = formatted.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, '($1) $2-$3');
+
+  // Show: outbound number to select + lead's phone to dial + copy button + iframe
+  dialerEl.innerHTML = `<div style="background:#0f172a;padding:10px 14px;border-bottom:2px solid #38bdf8">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <div style="flex:1">
+        <div style="font-size:10px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Select this number before calling</div>
+        <div style="font-size:16px;font-weight:800;color:#38bdf8;letter-spacing:.5px;margin-top:2px">${esc(formattedOutbound)}</div>
+        <div style="font-size:11px;color:#64748b;margin-top:1px">${region} region \u2022 ...${last4}</div>
+      </div>
+      <div style="background:#38bdf8;color:#0f172a;font-size:10px;font-weight:800;padding:4px 10px;border-radius:4px;text-transform:uppercase;letter-spacing:.5px">Use This #</div>
     </div>
-    <div style="background:#38bdf8;color:#0f172a;font-size:10px;font-weight:800;padding:4px 10px;border-radius:4px;text-transform:uppercase;letter-spacing:.5px">Use This #</div>
+    <div style="display:flex;align-items:center;gap:8px;background:#1e293b;padding:8px 12px;border-radius:6px;border:1px solid #334155">
+      <div style="flex:1">
+        <div style="font-size:10px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Dial this number</div>
+        <div style="font-size:18px;font-weight:800;color:#34d399;letter-spacing:.5px;margin-top:2px">${esc(formattedLead)}</div>
+      </div>
+      <button id="copy-lead-phone-btn" onclick="navigator.clipboard.writeText('${esc(digits)}').then(()=>{this.textContent='Copied!';setTimeout(()=>{this.textContent='Copy'},1500)})" style="background:#34d399;color:#0f172a;font-size:10px;font-weight:800;padding:6px 12px;border-radius:4px;border:none;cursor:pointer;text-transform:uppercase;letter-spacing:.5px">Copy</button>
+    </div>
   </div>
   <div id="justcall-dialer-frame" style="flex:1;min-height:0"></div>`;
 
-  // Load iframe dialer and use postMessage to pre-fill number + set caller ID
+  // Load iframe dialer
   const frameContainer = document.getElementById('justcall-dialer-frame');
   if(frameContainer){
     const iframe = document.createElement('iframe');
@@ -100,29 +112,6 @@ export async function callInJustCall(dealId){
     iframe.allow = 'microphone; autoplay; clipboard-read; clipboard-write; hid';
     iframe.style.cssText = 'width:100%;height:100%;border:none';
     frameContainer.appendChild(iframe);
-
-    // After iframe loads, send postMessage commands to pre-fill number and set caller ID
-    const sendDialCommands = () => {
-      const iframeEl = document.getElementById('justcall-dialer-iframe');
-      if(!iframeEl || !iframeEl.contentWindow) return;
-      const origin = 'https://app.justcall.io';
-      const outDigits = outboundNumber.replace(/\D/g, '');
-      // Try multiple known postMessage formats for JustCall CTI SDK
-      // Set the outbound/caller number
-      iframeEl.contentWindow.postMessage({ type: 'select-number', number: outboundNumber }, origin);
-      iframeEl.contentWindow.postMessage({ type: 'set-caller-id', caller_id: outboundNumber }, origin);
-      iframeEl.contentWindow.postMessage({ type: 'set-number', number: outboundNumber }, origin);
-      iframeEl.contentWindow.postMessage({ event_name: 'select-number', data: { number: outboundNumber } }, origin);
-      // Pre-fill the lead's phone number to dial
-      iframeEl.contentWindow.postMessage({ type: 'dial', number: formatted }, origin);
-      iframeEl.contentWindow.postMessage({ type: 'make-call', number: formatted }, origin);
-      iframeEl.contentWindow.postMessage({ type: 'set-phone', number: formatted }, origin);
-      iframeEl.contentWindow.postMessage({ event_name: 'dial', data: { phone_number: formatted } }, origin);
-    };
-    // Send after delays to catch different iframe ready states
-    setTimeout(sendDialCommands, 2000);
-    setTimeout(sendDialCommands, 4000);
-    setTimeout(sendDialCommands, 6000);
   }
 }
 
