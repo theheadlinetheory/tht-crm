@@ -66,9 +66,9 @@ export async function callInJustCall(dealId){
   const title = document.getElementById('justcall-widget-title');
   const dialerEl = document.getElementById('justcall-dialer');
   const last4 = outboundNumber.slice(-4);
-  title.textContent = esc(deal.contact || deal.company || formatted);
+  title.textContent = deal.contact || deal.company || formatted;
   widget.style.display = 'flex';
-  widget.style.height = '820px';
+  widget.style.height = '90vh';
   dialerEl.style.display = '';
 
   const regionBadge = document.getElementById('justcall-region-badge');
@@ -105,7 +105,7 @@ export async function callInJustCall(dealId){
   if(frameContainer){
     const iframe = document.createElement('iframe');
     iframe.id = 'justcall-dialer-iframe';
-    iframe.src = DIALER_URL + '?numbers=' + encodeURIComponent(formatted);
+    iframe.src = DIALER_URL + '?numbers=' + encodeURIComponent(formatted) + '&caller_id=' + encodeURIComponent(outboundNumber) + '&from=' + encodeURIComponent(outboundNumber);
     iframe.allow = 'microphone; autoplay; clipboard-read; clipboard-write; hid';
     iframe.style.cssText = 'width:100%;height:100%;border:none';
     frameContainer.appendChild(iframe);
@@ -188,7 +188,7 @@ export function toggleJustCallMinimize(){
   const btn = document.getElementById('justcall-minimize-btn');
   if(dialer.style.display === 'none'){
     dialer.style.display = '';
-    widget.style.height = '820px';
+    widget.style.height = '90vh';
     btn.textContent = '\u2500';
   } else {
     dialer.style.display = 'none';
