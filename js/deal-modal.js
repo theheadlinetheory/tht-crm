@@ -39,9 +39,23 @@ export function openNewDeal(){ state.showNew=true; render(); }
 export function openAddClient(){ state.showAddClient=true; render(); }
 
 export function changeDealPipeline(newPipeline){
-  state.pipeline=newPipeline;
-  location.hash=newPipeline;
-  render();
+  const deal = state.selectedDeal;
+  if(!deal) return;
+  deal.pipeline = newPipeline;
+  // Set stage to first stage of the new pipeline
+  if(newPipeline === 'Acquisition'){
+    deal.stage = ACQUISITION_STAGES[0]?.id || 'Cold Email Response';
+  } else if(newPipeline === 'Nurture'){
+    deal.stage = NURTURE_STAGES[0]?.id || 'Revisit';
+  } else if(newPipeline === 'Client'){
+    deal.stage = 'Client Not Distributed';
+  }
+  // Save to Supabase
+  pendingWrites.value++;
+  sbUpdateDeal(deal.id, camelToSnake({ pipeline: deal.pipeline, stage: deal.stage }))
+    .catch(e => console.error('Update deal pipeline failed:', e))
+    .finally(() => { pendingWrites.value--; });
+  refreshModal();
 }
 
 export function changeDealOwner(val){
