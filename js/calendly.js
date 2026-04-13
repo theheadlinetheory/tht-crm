@@ -72,25 +72,30 @@ export function openCalendlyEmbed(dealId, baseCalUrl, clientName, overrideName, 
   calendlyBookingDealId=dealId;
   const ianaTz=clientName?clientIanaTz(clientName):null;
 
-  // Build URL manually with encodeURIComponent (%20) instead of URLSearchParams (+)
-  // because Calendly displays + literally instead of decoding as spaces
-  const params=[];
+  // Build prefill data for Calendly popup widget
+  const prefill={};
+  const customAnswers={};
   if(deal){
     const guestName=overrideName||deal.calName||deal.contact||deal.company||'';
     const guestEmail=overrideEmail||deal.calEmail||deal.email||'';
     const notes=overrideNotes||deal.calNotes||'';
-    if(guestName) params.push('name='+encodeURIComponent(guestName));
-    if(guestEmail) params.push('email='+encodeURIComponent(guestEmail));
-    if(notes) params.push('a1='+encodeURIComponent(notes));
-    else if(deal.company) params.push('a1='+encodeURIComponent(deal.company));
+    if(guestName) prefill.name=guestName;
+    if(guestEmail) prefill.email=guestEmail;
+    if(notes) customAnswers.a1=notes;
+    else if(deal.company) customAnswers.a1=deal.company;
   }
-  if(ianaTz) params.push('timezone='+encodeURIComponent(ianaTz));
-  const sep=baseCalUrl.includes('?')?'&':'?';
-  const finalUrl=params.length?baseCalUrl+sep+params.join('&'):baseCalUrl;
+  if(Object.keys(customAnswers).length) prefill.customAnswers=customAnswers;
 
-  // Use Calendly popup widget
+  // Append timezone to URL (only param that must be in URL)
+  let finalUrl=baseCalUrl;
+  if(ianaTz){
+    const sep=baseCalUrl.includes('?')?'&':'?';
+    finalUrl=baseCalUrl+sep+'timezone='+encodeURIComponent(ianaTz);
+  }
+
+  // Use Calendly popup widget with prefill object (avoids URL encoding issues)
   if(window.Calendly){
-    window.Calendly.initPopupWidget({url:finalUrl});
+    window.Calendly.initPopupWidget({url:finalUrl,prefill:prefill});
   } else {
     window.open(finalUrl,'_blank');
   }
