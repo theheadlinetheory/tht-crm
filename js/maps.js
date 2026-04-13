@@ -140,17 +140,17 @@ export async function runServiceAreaChecks(){
 
   if(addresses.length) await batchGeocode(addresses);
 
-  // Check each deal against its client's service area polygon
+  // Check each deal against its client's service area polygon (if available)
+  // Always store geocoded coords so maps render even without polygon data
   for(const d of clientDeals){
-    const client=findClientForDeal(d)||state.clients.find(c=>c.name===d.stage);
-    if(!client) continue;
-    const pm=findPolygonForClient(client.name);
-    if(!pm) continue;
     const addr=normalizeAddressForGeocode(d.address||d.location||'');
     const cached=geocodeCache[addr];
     if(!cached) continue;
-    const inArea=checkPointInServiceArea(cached.lat, cached.lng, pm.polygon);
-    serviceAreaResults[d.id]={inArea, lat:cached.lat, lng:cached.lng, clientName:client.name};
+    const client=findClientForDeal(d)||state.clients.find(c=>c.name===d.stage);
+    const clientName=client?client.name:'';
+    const pm=client?findPolygonForClient(clientName):null;
+    const inArea=pm?checkPointInServiceArea(cached.lat, cached.lng, pm.polygon):undefined;
+    serviceAreaResults[d.id]={inArea, lat:cached.lat, lng:cached.lng, clientName};
   }
 }
 
@@ -166,8 +166,9 @@ export function renderServiceAreaMap(containerId, dealId, opts){
   const inArea = result.inArea !== undefined ? result.inArea : (opts && opts.inArea);
   const pm=findPolygonForClient(clientName);
   const polygon=pm?pm.polygon:null;
+  const defaultZoom = (opts && opts.defaultZoom) || 10;
 
-  const map=L.map(container,{zoomControl:true,attributionControl:false}).setView([lat,lng],10);
+  const map=L.map(container,{zoomControl:true,attributionControl:false}).setView([lat,lng],defaultZoom);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(map);
 
   // Draw polygon — always green
@@ -290,12 +291,12 @@ export async function geocodeAndCheckDeal(dealId){
   await batchGeocode([addr]);
   const cached=geocodeCache[addr];
   if(!cached) return;
+  // Always store geocoded coords so the map renders — even without a client/polygon match
   const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
-  if(!client) return;
-  const pm=findPolygonForClient(client.name);
-  if(!pm) return;
-  const inArea=checkPointInServiceArea(cached.lat, cached.lng, pm.polygon);
-  serviceAreaResults[dealId]={inArea, lat:cached.lat, lng:cached.lng, clientName:client.name};
+  const clientName=client?client.name:'';
+  const pm=client?findPolygonForClient(clientName):null;
+  const inArea=pm?checkPointInServiceArea(cached.lat, cached.lng, pm.polygon):undefined;
+  serviceAreaResults[dealId]={inArea, lat:cached.lat, lng:cached.lng, clientName};
   updateServiceAreaMapInPlace(dealId);
 }
 
