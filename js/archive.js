@@ -16,7 +16,15 @@ export async function loadArchive(silent){
   try {
     const data=await sbGetArchive();
     if(Array.isArray(data)){
-      store.setArchiveData(data.map(normalizeRow), {silent: true});
+      const parsed = data.map(row => {
+        let deal = { id: row.id, archivedAt: row.archived_at };
+        try {
+          const orig = typeof row.original_data === 'string' ? JSON.parse(row.original_data) : row.original_data;
+          Object.assign(deal, orig);
+        } catch(e) {}
+        return deal;
+      });
+      store.setArchiveData(parsed, {silent: true});
     }
   } catch(e){ console.warn('Failed to load archive:', e); }
   state.archiveLoaded=true;

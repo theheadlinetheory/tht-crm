@@ -41,7 +41,7 @@ export async function deleteDeal(id, archiveStatus, clientName){
   store.removeActivitiesForDeal(id, {silent: true});
   store.set({selectedDeal: null});
   pendingWrites.value++;
-  try { await sbArchiveDeal(id, JSON.stringify({archiveStatus:status, pipeline, clientName:cName})); await sbDeleteDeal(id); }
+  try { await sbArchiveDeal(id, JSON.stringify({...deal, archiveStatus:status, pipeline, clientName:cName})); await sbDeleteDeal(id); }
   catch(e){ console.error('Archive failed, falling back to delete:',e); try { await sbDeleteDeal(id); } catch(e2){} }
   finally { pendingWrites.value--; }
 }
@@ -140,7 +140,7 @@ export async function bulkArchive(){
   store.set({bulkSelected: new Set(), bulkMode: false});
   pendingWrites.value++;
   try{
-    for(const id of ids){ await sbArchiveDeal(id, JSON.stringify({archiveStatus:'Deleted/Lost'})); await sbDeleteDeal(id); }
+    for(const id of ids){ const d=state.deals.find(x=>x.id===id); await sbArchiveDeal(id, JSON.stringify({...d, archiveStatus:'Deleted/Lost'})); await sbDeleteDeal(id); }
   }finally{ pendingWrites.value--; }
 }
 
@@ -177,7 +177,8 @@ export function clearAllDragOver(){
 export function doDrop(stageKey){
   clearAllDragOver();
   if(!state.dragId) return;
-  moveDeal(state.dragId, stageKey);
+  const stage = decodeURIComponent(escape(atob(stageKey)));
+  moveDeal(state.dragId, stage);
   state.dragId=null;
 }
 
