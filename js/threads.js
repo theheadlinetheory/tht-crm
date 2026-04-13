@@ -11,15 +11,25 @@ let slThreadCache = {};
 
 export async function loadSmartleadThread(dealId) {
   const deal=state.deals.find(d=>d.id===dealId);
-  if(!deal||!deal.slLeadId||!deal.slCampaignId) return;
+  if(!deal||!deal.slLeadId||!deal.slCampaignId){ resetThreadBtn(dealId,'No SmartLead data'); return; }
   if(slThreadCache[dealId]) return;
   try {
     const resp=await apiGet('get_smartlead_thread&leadId='+deal.slLeadId+'&campaignId='+deal.slCampaignId);
-    if(Array.isArray(resp)){
+    if(Array.isArray(resp) && resp.length){
       slThreadCache[dealId]=resp;
       refreshModal();
+    } else {
+      resetThreadBtn(dealId,'No thread found');
     }
-  } catch(e){ console.warn('Failed to load SmartLead thread:', e); }
+  } catch(e){
+    console.warn('Failed to load SmartLead thread:', e);
+    resetThreadBtn(dealId,'Failed to load thread');
+  }
+}
+
+function resetThreadBtn(dealId, msg){
+  const btn=document.getElementById('sl-thread-btn-'+dealId);
+  if(btn){ btn.disabled=false; btn.innerHTML=msg||'Retry'; btn.style.color='#9ca3af'; }
 }
 
 export function renderSmartleadThread(dealId, messages) {
