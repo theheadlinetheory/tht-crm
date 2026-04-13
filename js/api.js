@@ -302,7 +302,7 @@ for (const [snake, camel] of Object.entries(FIELD_MAP)) {
   REVERSE_FIELD_MAP[camel] = snake;
 }
 
-const BOOLEAN_FIELDS = new Set(['done']);
+const BOOLEAN_FIELDS = new Set(['done', 'hasNewReply']);
 
 export function normalizeRow(row) {
   const normalized = {};
