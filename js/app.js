@@ -154,6 +154,7 @@ export async function initApp(){
   }
   if(!isClient()) initJustCallDialer();
   if(!isClient()) import('./number-health.js').then(m => m.loadNumberHealth()).catch(e => console.warn('Number health load failed:', e));
+  if(!isClient()) import('./warm-call.js').catch(e => console.warn('Warm call module load failed:', e));
   if(state.pipeline==='nurture' && state.nurtureSubTab==='rerun'){
     const { loadRerunData } = await import('./rerun.js');
     loadRerunData();
