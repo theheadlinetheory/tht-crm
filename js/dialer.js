@@ -5,6 +5,7 @@ import { state } from './app.js';
 import { str, esc, uid, getToday } from './utils.js';
 import { invokeEdgeFunction, sbCreateActivity, camelToSnake } from './api.js';
 import { getHealthyNumber, getRegionForPhone, recordCallOutcome } from './number-health.js';
+import { JUSTCALL_NUMBERS } from './config.js';
 
 const DIALER_URL = 'https://app.justcall.io/dialer';
 let dialerReady = false;
@@ -91,7 +92,8 @@ export async function callInJustCall(dealId){
   dialerEl.style.display = '';
 
   const regionBadge = document.getElementById('justcall-region-badge');
-  if(regionBadge) regionBadge.textContent = region + ' \u2022 ' + formattedOutbound;
+  const jcLabel = JUSTCALL_NUMBERS[region] ? JUSTCALL_NUMBERS[region].label : region;
+  if(regionBadge) regionBadge.textContent = 'Use: ' + jcLabel;
 
   // Track current call for outcome logging
   currentCallDealId = dealId;
