@@ -96,22 +96,14 @@ export async function callInJustCall(dealId){
 
     if(result.status === 'ok'){
       updateCallStatus('Call connected — answer in your JustCall app', '#22c55e');
-      // Show the iframe dialer for call controls (mute, hold, transfer)
-      setTimeout(()=>{
-        showDialerIframe(formatted);
-      }, 2000);
     } else {
       const errMsg = result.data?.message || result.data?.error || JSON.stringify(result.data);
       updateCallStatus('Call failed: ' + errMsg, '#ef4444');
       console.warn('[Dialer] make-call failed:', result);
-      // Fall back to iframe dialer
-      setTimeout(()=>{ showDialerIframe(formatted); }, 1500);
     }
   } catch(e){
     console.warn('[Dialer] make-call error:', e);
-    updateCallStatus('API error — opening dialer...', '#f59e0b');
-    // Fall back to iframe dialer
-    setTimeout(()=>{ showDialerIframe(formatted); }, 1500);
+    updateCallStatus('API error — could not initiate call', '#ef4444');
   }
 }
 
