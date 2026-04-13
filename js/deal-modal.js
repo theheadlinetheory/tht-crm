@@ -567,28 +567,32 @@ export function renderDealModal(deal){
       h += `<div class="sa-result-banner ${bannerClass}">${bannerIcon} ${bannerText}</div>`;
     }
 
-    // Show map if we have polygon, geocoded coordinates, OR an address to geocode
-    if(polyMatch || hasGeo || hasAddr){
+    // Always show a map on every deal modal
+    {
       const mapId = 'sa-map-' + deal.id;
       h += `<div class="sa-map-container">
         <div id="${mapId}"></div>
-        <button class="sa-enlarge-btn" onclick="event.stopPropagation();openEnlargedMap('${esc(deal.id)}','${esc(_mc ? _mc.name : '')}')" title="Enlarge map">
+        ${(_mc || hasGeo) ? `<button class="sa-enlarge-btn" onclick="event.stopPropagation();openEnlargedMap('${esc(deal.id)}','${esc(_mc ? _mc.name : '')}')" title="Enlarge map">
           ⛶ Enlarge
-        </button>
+        </button>` : ''}
       </div>`;
 
-      // Auto-geocode if not yet geocoded (no cache entry at all)
+      // Auto-geocode if address exists but not yet geocoded
       if(hasAddr && !cachedGeo){
         const _did = deal.id;
         setTimeout(() => geocodeAndCheckDeal(_did), 100);
       }
 
-      // Render map — use cached geo coords directly if serviceAreaResults doesn't have them
+      // Render map — default to US center if no coordinates yet
+      const renderLat = mapLat || 39.8;
+      const renderLng = mapLng || -98.5;
+      const renderZoom = hasGeo ? undefined : 4;
       setTimeout(() => renderServiceAreaMap(mapId, deal.id, {
         clientName: _mc ? _mc.name : '',
         polygonKey: polyMatch ? polyMatch.key : undefined,
-        lat: mapLat, lng: mapLng,
-        inArea: saResult.inArea, status: saResult.inArea === true ? 'in' : saResult.inArea === false ? 'out' : (hasGeo ? 'unknown' : undefined)
+        lat: renderLat, lng: renderLng,
+        inArea: saResult.inArea,
+        defaultZoom: renderZoom
       }), 50);
     }
   }
