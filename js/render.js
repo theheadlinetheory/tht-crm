@@ -4,7 +4,7 @@
 
 import { state, savedScrollLeft, setSavedScrollLeft, clientArchivedDeals } from './app.js';
 import { ACQUISITION_STAGES, NURTURE_STAGES, ACTIVITY_ICONS } from './config.js';
-import { esc, svgIcon, getToday, fmtDate, fmtTime12, str } from './utils.js';
+import { esc, svgIcon, getToday, fmtDate, fmtTime12, str, stripHtml } from './utils.js';
 import { isAdmin, isClient, isEmployee, renderUserMenu, getOwnerForDeal } from './auth.js';
 import { initialSync as syncFromSheet } from './api.js';
 import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js';
@@ -455,7 +455,7 @@ export function render(){
               ${(()=>{ const ow=getOwnerForDeal(deal); return ow?`<span class="owner-tag ${ow.cls}">${esc(ow.label)}</span>`:''; })()}
             </span>
           </div>
-          ${deal.emailBody?`<div class="deal-reply-snippet" title="${esc(deal.emailBody)}">${esc(String(deal.emailBody).substring(0,80))}${String(deal.emailBody).length>80?'…':''}</div>`:''}
+          ${deal.emailBody?`<div class="deal-reply-snippet" title="${esc(stripHtml(deal.emailBody))}">${esc(stripHtml(deal.emailBody).substring(0,80))}${stripHtml(deal.emailBody).length>80?'…':''}</div>`:''}
         </div>`;
       }
     }

@@ -10,7 +10,7 @@ import { state, pendingWrites, pendingDealFields } from './app.js';
 import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS } from './config.js';
 import { render, refreshModal } from './render.js';
 import { apiGet, invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js';
-import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp } from './utils.js';
+import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml } from './utils.js';
 import { isAdmin, isClient, isEmployee } from './auth.js';
 import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js';
 import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence } from './activities.js';
@@ -373,7 +373,7 @@ export function renderDealModal(deal){
   }
 
   // Reply preview — show in ALL pipelines
-  const replyText=str(deal.emailBody||'').trim();
+  const replyText=stripHtml(str(deal.emailBody||'')).trim();
   if(replyText){
     const catClass=str(deal.leadCategory||'').toLowerCase().includes('interested')?'cat-interested':
       str(deal.leadCategory||'').toLowerCase().includes('meeting')?'cat-meeting':'cat-info';

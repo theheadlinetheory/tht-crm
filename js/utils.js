@@ -87,6 +87,11 @@ export function fmtTimestamp(iso){
   }catch(e){return '';}
 }
 
+export function stripHtml(s){
+  if(!s) return '';
+  return String(s).replace(/<[^>]*>/g,' ').replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').replace(/&quot;/gi,'"').replace(/&#39;/gi,"'").replace(/\s+/g,' ').trim();
+}
+
 export function copyToClipboard(text, btnEl){
   navigator.clipboard.writeText(text).then(()=>{
     if(btnEl){const orig=btnEl.textContent;btnEl.textContent='Copied!';setTimeout(()=>btnEl.textContent=orig,1500);}
