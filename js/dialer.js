@@ -95,11 +95,17 @@ export async function callInJustCall(dealId){
     });
 
     if(result.status === 'ok'){
-      updateCallStatus('Call connected — answer in your JustCall app', '#22c55e');
+      updateCallStatus('Call connected via ' + (result.endpoint||'API') + ' — answer in your JustCall app', '#22c55e');
     } else {
-      const errMsg = result.data?.message || result.data?.error || JSON.stringify(result.data);
-      updateCallStatus('Call failed: ' + errMsg, '#ef4444');
-      console.warn('[Dialer] make-call failed:', result);
+      console.warn('[Dialer] make-call failed:', JSON.stringify(result, null, 2));
+      // Show diagnostic details
+      if(result.attempts){
+        const summary = result.attempts.map(a => a.endpoint.split('.io')[1] + ': ' + a.status).join(' | ');
+        updateCallStatus('All endpoints failed: ' + summary, '#ef4444');
+      } else {
+        const errMsg = result.data?.message || result.data?.error || JSON.stringify(result.data);
+        updateCallStatus('Call failed: ' + errMsg, '#ef4444');
+      }
     }
   } catch(e){
     console.warn('[Dialer] make-call error:', e);
