@@ -203,6 +203,7 @@ export function renderServiceAreaMap(containerId, dealId, opts){
   // Fix tiles not loading when container isn't fully rendered yet
   setTimeout(()=>{ map.invalidateSize(); },200);
   setTimeout(()=>{ map.invalidateSize(); },500);
+  setTimeout(()=>{ map.invalidateSize(); },1000);
 
   return map;
 }
