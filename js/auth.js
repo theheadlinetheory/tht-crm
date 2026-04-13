@@ -143,15 +143,17 @@ export function resetAppState(){
   location.hash = '';
 }
 
-export function showTransitionScreen(){
+export function showTransitionScreen(msg){
   let overlay = document.getElementById('transition-overlay');
   if(!overlay){
     overlay = document.createElement('div');
     overlay.id = 'transition-overlay';
     overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center';
-    overlay.innerHTML = '<div class="loading-logo"><span>T</span></div><div class="loading-text" style="color:var(--text-muted);font-size:14px;margin-top:12px">Switching account...</div><div class="loading-spinner"></div>';
+    overlay.innerHTML = '<div class="loading-logo"><span>T</span></div><div id="transition-text" class="loading-text" style="color:var(--text-muted);font-size:14px;margin-top:12px">Loading...</div><div class="loading-spinner"></div>';
     document.body.appendChild(overlay);
   }
+  const textEl = overlay.querySelector('#transition-text');
+  if(textEl) textEl.textContent = msg || 'Loading...';
   overlay.style.display = 'flex';
 }
 
@@ -161,7 +163,7 @@ export function hideTransitionScreen(){
 }
 
 export function logout(){
-  showTransitionScreen();
+  showTransitionScreen('Logging out...');
   resetAppState();
   document.getElementById('app').style.display='none';
   document.getElementById('app').innerHTML='';
@@ -172,7 +174,7 @@ export function logout(){
 }
 
 export function switchUser(){
-  showTransitionScreen();
+  showTransitionScreen('Switching account...');
   resetAppState();
   document.getElementById('app').style.display='none';
   document.getElementById('app').innerHTML='';
@@ -291,6 +293,9 @@ export function setupAuthListener(onLogin){
   });
 
   auth.onAuthStateChanged(async (user) => {
+    const bootLoader = document.getElementById('boot-loader');
+    if(bootLoader) bootLoader.remove();
+
     if(user){
       let userDoc;
       try {
@@ -315,7 +320,7 @@ export function setupAuthListener(onLogin){
       };
 
       document.getElementById('login-screen').style.display='none';
-      showTransitionScreen();
+      showTransitionScreen('Loading your CRM...');
 
       if(isClient() || isEmployee()){
         state.pipeline = 'client_leads';
@@ -326,14 +331,19 @@ export function setupAuthListener(onLogin){
       }
 
       document.getElementById('app').style.display='block';
-      onLogin();
+      try {
+        await onLogin();
+      } catch(e){
+        console.error('initApp error:', e);
+      }
+      // Hide transition once synced, or after 8s max
       const _waitForSync = setInterval(()=>{
         if(state.synced){
           clearInterval(_waitForSync);
           hideTransitionScreen();
         }
       }, 100);
-      setTimeout(hideTransitionScreen, 8000);
+      setTimeout(()=>{ clearInterval(_waitForSync); hideTransitionScreen(); }, 8000);
     } else {
       currentUser = null;
       document.getElementById('app').style.display='none';
