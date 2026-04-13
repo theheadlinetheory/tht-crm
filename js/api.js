@@ -226,11 +226,13 @@ export async function syncFromSheet(){
 }
 
 // ─── Reply Polling ───
-// Reply status is now handled via Supabase realtime — the smartlead webhook
-// sets has_new_reply=true on existing deals when a new reply comes in.
-// openDeal() clears the flag via sbUpdateDeal. No legacy polling needed.
+// Reply detection: edge function checks SmartLead message history for new replies.
+// Supabase realtime propagates has_new_reply changes to the frontend.
+// openDeal() clears the flag via sbUpdateDeal.
 export async function pollReplyStatus(){}
-export async function triggerBackendReplyCheck(){}
+export async function triggerBackendReplyCheck(){
+  try{ await invokeEdgeFunction('check-replies',{}); }catch(e){ console.warn('[ReplyCheck]',e.message); }
+}
 
 // ─── Field Normalization (snake_case ↔ camelCase) ───
 
