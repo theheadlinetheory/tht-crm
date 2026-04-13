@@ -41,7 +41,7 @@ export function initJustCallDialer(){
   setTimeout(() => { dialerReady = true; }, 4000);
 }
 
-export function callInJustCall(dealId){
+export async function callInJustCall(dealId){
   const deal = state.deals.find(d => d.id === dealId);
   if(!deal) return;
   const phone = str(deal.phone) || str(deal.mobilePhone);
@@ -51,7 +51,7 @@ export function callInJustCall(dealId){
     : digits.length === 11 && digits[0] === '1' ? '+' + digits
     : '+' + digits;
 
-  // Smart number selection
+  // Smart number selection based on lead's area code
   const region = getRegionForPhone(formatted);
   const outboundNumber = getHealthyNumber(region);
   if(!outboundNumber){
@@ -59,64 +59,77 @@ export function callInJustCall(dealId){
     return;
   }
 
+  // Show the widget with call status
+  const widget = document.getElementById('justcall-widget');
+  const title = document.getElementById('justcall-widget-title');
+  const dialerEl = document.getElementById('justcall-dialer');
+  const last4 = outboundNumber.slice(-4);
+  title.textContent = esc(deal.contact || deal.company || formatted);
+  widget.style.display = 'flex';
+  widget.style.height = '660px';
+  dialerEl.style.display = '';
+
+  const regionBadge = document.getElementById('justcall-region-badge');
+  if(regionBadge) regionBadge.textContent = region + ' (...' + last4 + ')';
+
+  // Show "Connecting..." status in the dialer area
+  dialerEl.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;color:#94a3b8;font-family:var(--font,system-ui)">
+    <div style="font-size:14px;font-weight:600;color:#e2e8f0">Connecting call...</div>
+    <div style="font-size:24px;font-weight:700;color:#fff;letter-spacing:1px">${esc(formatted)}</div>
+    <div style="font-size:12px;color:#38bdf8;background:rgba(56,189,248,.15);padding:4px 12px;border-radius:6px;font-weight:600">via ${region} (...${last4})</div>
+    <div class="loading-spinner" style="margin-top:8px"></div>
+    <div id="call-status-text" style="font-size:12px;color:#64748b;margin-top:4px">Ringing your JustCall app...</div>
+  </div>`;
+
   // Track current call for outcome logging
   currentCallDealId = dealId;
   currentCallNumber = outboundNumber;
   currentCallPhone = formatted;
 
-  // Show the widget
-  const widget = document.getElementById('justcall-widget');
-  const title = document.getElementById('justcall-widget-title');
+  // Initiate call via JustCall API (server-side) with exact from/to numbers
+  try {
+    const result = await invokeEdgeFunction('justcall-dialer', {
+      action: 'make-call',
+      to: formatted,
+      from: outboundNumber,
+    });
+
+    if(result.status === 'ok'){
+      updateCallStatus('Call connected — answer in your JustCall app', '#22c55e');
+      // Show the iframe dialer for call controls (mute, hold, transfer)
+      setTimeout(()=>{
+        showDialerIframe(formatted);
+      }, 2000);
+    } else {
+      const errMsg = result.data?.message || result.data?.error || JSON.stringify(result.data);
+      updateCallStatus('Call failed: ' + errMsg, '#ef4444');
+      console.warn('[Dialer] make-call failed:', result);
+      // Fall back to iframe dialer
+      setTimeout(()=>{ showDialerIframe(formatted); }, 1500);
+    }
+  } catch(e){
+    console.warn('[Dialer] make-call error:', e);
+    updateCallStatus('API error — opening dialer...', '#f59e0b');
+    // Fall back to iframe dialer
+    setTimeout(()=>{ showDialerIframe(formatted); }, 1500);
+  }
+}
+
+function updateCallStatus(msg, color){
+  const el = document.getElementById('call-status-text');
+  if(el){ el.textContent = msg; el.style.color = color || '#64748b'; }
+}
+
+function showDialerIframe(phoneNumber){
   const dialerEl = document.getElementById('justcall-dialer');
-  title.textContent = esc(deal.contact || deal.company || formatted);
-  widget.style.display = 'flex';
-  dialerEl.style.display = '';
-  widget.style.height = '660px';
-
-  // Show region badge with clear instruction
-  const regionBadge = document.getElementById('justcall-region-badge');
-  if(regionBadge){
-    const last4 = outboundNumber.slice(-4);
-    regionBadge.textContent = 'Call via ' + region + ' (...' + last4 + ')';
-  }
-
-  // Load dialer iframe with number pre-filled via URL
-  // Strip '+' from outbound number — JustCall dropdown shows digits only (e.g. 17372997832)
-  const outboundDigits = outboundNumber.replace(/^\+/, '');
-  const dialerUrl = DIALER_URL
-    + '?numbers=' + encodeURIComponent(formatted)
-    + '&caller_id=' + encodeURIComponent(outboundDigits)
-    + '&from_number=' + encodeURIComponent(outboundDigits)
-    + '&justcall_number=' + encodeURIComponent(outboundDigits);
-  let iframe = document.getElementById('justcall-dialer-iframe');
-  if(iframe){
-    iframe.src = dialerUrl;
-  } else {
-    initJustCallDialer();
-    iframe = document.getElementById('justcall-dialer-iframe');
-    if(iframe) iframe.src = dialerUrl;
-  }
-
-  // Try to auto-select outbound number via postMessage after iframe loads
-  if(iframe){
-    const trySelectNumber = () => {
-      try {
-        const msgs = [
-          { type:'select-number', number: outboundDigits },
-          { type:'set-caller-id', caller_id: outboundDigits },
-          { event:'set_caller_id', data: { number: outboundDigits } },
-          { type:'select_phone_number', phone_number: outboundDigits },
-          { type:'make-call', to: formatted.replace(/^\+/,''), from: outboundDigits },
-        ];
-        for(const msg of msgs){
-          iframe.contentWindow.postMessage(msg, 'https://app.justcall.io');
-        }
-      } catch(e){}
-    };
-    iframe.addEventListener('load', trySelectNumber, { once: true });
-    setTimeout(trySelectNumber, 2000);
-    setTimeout(trySelectNumber, 4000);
-  }
+  if(!dialerEl) return;
+  dialerEl.innerHTML = '';
+  const iframe = document.createElement('iframe');
+  iframe.id = 'justcall-dialer-iframe';
+  iframe.src = DIALER_URL + '?numbers=' + encodeURIComponent(phoneNumber);
+  iframe.allow = 'microphone; autoplay; clipboard-read; clipboard-write; hid';
+  iframe.style.cssText = 'width:100%;height:100%;border:none';
+  dialerEl.appendChild(iframe);
 }
 
 async function onCallEnded(){

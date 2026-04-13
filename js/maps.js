@@ -167,7 +167,7 @@ export function renderServiceAreaMap(containerId, dealId, opts){
   const pm=findPolygonForClient(clientName);
   const polygon=pm?pm.polygon:null;
 
-  const map=L.map(container,{zoomControl:false,attributionControl:false}).setView([lat,lng],10);
+  const map=L.map(container,{zoomControl:true,attributionControl:false}).setView([lat,lng],10);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(map);
 
   // Draw polygon — always green
