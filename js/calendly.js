@@ -43,7 +43,10 @@ export function setCalendlyBookingDealId(id){
 
 export function toggleCalendlyBooking(dealId, calUrl){
   calendlyBookingDealId=dealId;
-  openCalendlyEmbed(dealId, calUrl, null);
+  // Find client name for timezone
+  const deal=state.deals.find(d=>d.id===dealId);
+  const client=deal?(findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage)):null;
+  openCalendlyEmbed(dealId, calUrl, client?client.name:null);
 }
 
 let _prefillSaveTimers={};
