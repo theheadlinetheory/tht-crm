@@ -107,18 +107,24 @@ let calendlySelectedDateTime=null;
 window.addEventListener('message',function(e){
   if(!e.data||!e.data.event) return;
   if(e.data.event==='calendly.event_scheduled'){
+    console.log('[Calendly] Event scheduled payload:', JSON.stringify(e.data.payload||{}).substring(0,500));
     const payload=e.data.payload||{};
     const startTime=payload.event&&payload.event.start_time;
-    if(startTime && calendlyBookingDealId){
+    if(calendlyBookingDealId){
       const deal=state.deals.find(d=>d.id===calendlyBookingDealId);
       if(deal){
-        const dt=new Date(startTime);
-        const bookedDate=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
-        const bookedTime=String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');
         const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
         const clientName=client?client.name:'';
         const ianaTz=clientName?clientIanaTz(clientName):null;
-        applyBookedDateTime(calendlyBookingDealId, deal, bookedDate, bookedTime, clientName, ianaTz, startTime);
+        if(startTime){
+          const dt=new Date(startTime);
+          const bookedDate=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+          const bookedTime=String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');
+          applyBookedDateTime(calendlyBookingDealId, deal, bookedDate, bookedTime, clientName, ianaTz, startTime);
+        } else {
+          // Calendly didn't include start_time — ask user to confirm
+          showCalendlyTimeConfirm(calendlyBookingDealId, deal, clientName, ianaTz);
+        }
       }
     }
     calendlyBookingDealId=null;
@@ -143,11 +149,13 @@ export function applyBookedDateTime(dealId, deal, bookedDate, bookedTime, client
     store.addAppointment(appt, {silent: true});
     pendingWrites.value++;
     sbCreateAppointment(camelToSnake(appt)).catch(e=>console.error('Create appointment failed:',e)).finally(()=>{pendingWrites.value--;});
+    console.log('[Calendly] Appointment saved:', clientName, bookedDate, bookedTime);
   }
   // Save deal fields
+  deal.bookedFor=clientName||'';
   pendingWrites.value++;
-  sbUpdateDeal(dealId, camelToSnake({bookedDate,bookedTime,bookedTimezone:deal.bookedTimezone,lastUpdated:deal.lastUpdated})).catch(e=>console.error('Update deal failed:',e)).finally(()=>{pendingWrites.value--;});
-  if(state.selectedDeal && state.selectedDeal.id===dealId) refreshModal();
+  sbUpdateDeal(dealId, camelToSnake({bookedDate,bookedTime,bookedFor:deal.bookedFor,bookedTimezone:deal.bookedTimezone,lastUpdated:deal.lastUpdated})).catch(e=>console.error('Update deal failed:',e)).finally(()=>{pendingWrites.value--;});
+  if(state.selectedDeal && state.selectedDeal.id===dealId) refreshModal(true);
   else render();
 }
 
