@@ -22,6 +22,11 @@ import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggle
 export function openDeal(id){
   const deal=state.deals.find(d=>d.id===id);
   if(!deal) return;
+  // Clear new-reply indicator when opening the deal card
+  if(deal.hasNewReply){
+    deal.hasNewReply=false;
+    sbUpdateDeal(id, { has_new_reply: false });
+  }
   state.selectedDeal=deal;
   render();
 }
@@ -489,6 +494,25 @@ export function renderDealModal(deal){
       // Client's Upcoming Meetings — show all future bookings for this client
       h+=renderUpcomingMeetings(deal, matchedClient.name);
 
+      // Editable instructions for non-Calendly clients (auto-saves to calNotes)
+      if(!isOn('enableCalendly') || !matchedClient.calendlyUrl){
+        const instrLines=[];
+        if(deal.company) instrLines.push('Business: '+deal.company);
+        if(deal.website) instrLines.push('Website: '+deal.website);
+        const instrAddr=str(deal.address||deal.location||'').trim();
+        if(instrAddr) instrLines.push('Address: '+instrAddr);
+        if(deal.email) instrLines.push('Email: '+deal.email);
+        if(deal.phone) instrLines.push('Phone: '+deal.phone);
+        if(deal.contact && deal.contact!==deal.company) instrLines.push('Contact: '+deal.contact);
+        instrLines.push('Instructions: ');
+        h+=`<div style="margin:0 0 10px 0;padding:10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px">
+          <label style="font-size:11px;font-weight:700;color:#0369a1;display:block;margin-bottom:4px">Send Instructions</label>
+          <textarea rows="5" id="send-instructions-notes"
+            oninput="savePrefillField('${esc(deal.id)}','calNotes',this.value)"
+            style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);resize:vertical">${esc(deal.calNotes||instrLines.join('\n'))}</textarea>
+        </div>`;
+      }
+
       // Send Lead Info to Client button
       if(isOn('enableCopyInfo')){
         const forwarded=deal.forwardedAt && str(deal.forwardedAt).trim()!=='';
@@ -585,7 +609,7 @@ export function renderDealModal(deal){
     {
       const mapId = 'sa-map-' + deal.id;
       h += `<div class="sa-map-container">
-        <div id="${mapId}"></div>
+        <div id="${mapId}" style="min-height:220px"></div>
         ${(_mc || hasGeo) ? `<button class="sa-enlarge-btn" onclick="event.stopPropagation();openEnlargedMap('${esc(deal.id)}','${esc(_mc ? _mc.name : '')}')" title="Enlarge map">
           ⛶ Enlarge
         </button>` : ''}
@@ -607,7 +631,7 @@ export function renderDealModal(deal){
         lat: renderLat, lng: renderLng,
         inArea: saResult.inArea,
         defaultZoom: renderZoom
-      }), 50);
+      }), 200);
     }
   }
 
