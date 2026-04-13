@@ -43,10 +43,11 @@ export function setCalendlyBookingDealId(id){
 
 export function toggleCalendlyBooking(dealId, calUrl){
   calendlyBookingDealId=dealId;
-  // Find client name for timezone
-  const deal=state.deals.find(d=>d.id===dealId);
-  const client=deal?(findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage)):null;
-  openCalendlyEmbed(dealId, calUrl, client?client.name:null);
+  // Toggle the inline prefill/review section instead of opening Calendly directly
+  const section=document.getElementById('calendly-booking-section');
+  if(section){
+    section.style.display=section.style.display==='none'?'block':'none';
+  }
 }
 
 let _prefillSaveTimers={};
