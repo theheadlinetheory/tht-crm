@@ -299,7 +299,9 @@ details > summary::-webkit-details-marker { display:none; }
 
 /* Leaflet Map in Modal */
 .sa-map-container { border-radius:var(--radius); overflow:hidden; border:1px solid var(--border); margin-bottom:12px; position:relative; }
-.sa-map-container .leaflet-container { height:220px; width:100%; touch-action:none; }
+.sa-map-container .leaflet-container { height:220px; width:100%; touch-action:none; cursor:grab; }
+.sa-map-container .leaflet-container:active { cursor:grabbing; }
+.sa-map-container .leaflet-container.leaflet-drag-target { cursor:grabbing; }
 .sa-enlarge-btn { position:absolute; top:8px; right:8px; z-index:1000; background:white; border:1px solid var(--border); border-radius:6px; padding:4px 10px; font-size:12px; font-weight:600; cursor:pointer; color:var(--text-muted); box-shadow:0 1px 3px rgba(0,0,0,0.15); transition:background 0.15s; }
 .sa-enlarge-btn:hover { background:#f3f4f6; color:var(--text); }
 #sa-enlarged-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:10000; display:flex; align-items:center; justify-content:center; }
