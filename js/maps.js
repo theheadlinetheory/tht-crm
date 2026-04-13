@@ -127,8 +127,8 @@ export async function batchGeocode(addresses){
 }
 
 export async function runServiceAreaChecks(){
-  // Get all client-pipeline deals that have addresses
-  const clientDeals=state.deals.filter(d=>d.pipeline==='Client' && (d.location||d.address));
+  // Get all deals that have addresses (client + acquisition)
+  const clientDeals=state.deals.filter(d=>(d.location||d.address));
   if(!clientDeals.length) return;
 
   // Collect addresses to geocode
