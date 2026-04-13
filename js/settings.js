@@ -57,18 +57,21 @@ export function debouncedAutoSave(){
       const clientUpdates = state.clients.filter(c=>c.id).map(c=>({
         id:c.id,
         notifyEmails:str(c.notifyEmails),
+        notifyEmail:str(c.notifyEmails),
         campaignKeywords:str(c.campaignKeywords),
         contactFirstName:str(c.contactFirstName),
         calendlyUrl:str(c.calendlyUrl),
         enableForward:str(c.enableForward),
         enableCalendly:str(c.enableCalendly),
+        enableAutoForward:str(c.enableAutoForward),
         enableCopyInfo:str(c.enableCopyInfo),
         enableTracker:str(c.enableTracker),
         leadCost:str(c.leadCost),
         serviceAreaUrl:str(c.serviceAreaUrl),
         clientNotes:str(c.clientNotes||''),
         warmCallNotesText:str(c.warmCallNotesText||''),
-        clientStanding:str(c.clientStanding||'neutral')
+        clientStanding:str(c.clientStanding||'neutral'),
+        timeZone:str(c.timeZone||'')
       }));
       await Promise.all([
         apiPost('save_settings',{settings:settingsDraft}),
@@ -387,6 +390,22 @@ function renderClientsSettings(){
         <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableTracker')?'#fefce8':'var(--card)'}">
           <input type="checkbox" ${isOn('enableTracker')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableTracker',this.checked)"> ${svgIcon('upload',12)} Lead Tracker
         </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid ${isOn('enableAutoForward')?'#f97316':'var(--border)'};border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableAutoForward')?'#fff7ed':'var(--card)'}">
+          <input type="checkbox" ${isOn('enableAutoForward')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableAutoForward',this.checked)"> ${svgIcon('mail',12)} Auto-Forward
+        </label>
+        <div style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--card)">
+          ${svgIcon('clock',12)}
+          <select onchange="updateClientField('${esc(c.id)}','timeZone',this.value);debouncedAutoSave()"
+            style="border:none;background:transparent;font-size:12px;font-family:var(--font);color:var(--text);cursor:pointer;flex:1">
+            <option value="" ${!str(c.timeZone).trim()?'selected':''}>No TZ</option>
+            <option value="EST" ${str(c.timeZone)==='EST'?'selected':''}>EST</option>
+            <option value="CST" ${str(c.timeZone)==='CST'?'selected':''}>CST</option>
+            <option value="MST" ${str(c.timeZone)==='MST'?'selected':''}>MST</option>
+            <option value="PST" ${str(c.timeZone)==='PST'?'selected':''}>PST</option>
+            <option value="AST" ${str(c.timeZone)==='AST'?'selected':''}>AST</option>
+            <option value="HST" ${str(c.timeZone)==='HST'?'selected':''}>HST</option>
+          </select>
+        </div>
       </div>
 
       <div style="margin-bottom:8px">
@@ -714,6 +733,7 @@ export function toggleClientField(clientId, field, checked){
   }
   const body=document.querySelector('.settings-body');
   if(body) body.innerHTML=renderClientsSettings();
+  debouncedAutoSave();
 }
 
 export function updateClientCalendly(name, url){
@@ -733,18 +753,21 @@ export async function saveSettingsToSheet(){
     const clientUpdates = state.clients.filter(c=>c.id).map(c=>({
       id:c.id,
       notifyEmails:str(c.notifyEmails),
+      notifyEmail:str(c.notifyEmails),
       campaignKeywords:str(c.campaignKeywords),
       contactFirstName:str(c.contactFirstName),
       calendlyUrl:str(c.calendlyUrl),
       enableForward:str(c.enableForward),
       enableCalendly:str(c.enableCalendly),
+      enableAutoForward:str(c.enableAutoForward),
       enableCopyInfo:str(c.enableCopyInfo),
       enableTracker:str(c.enableTracker),
       leadCost:str(c.leadCost),
       serviceAreaUrl:str(c.serviceAreaUrl),
       clientNotes:str(c.clientNotes||''),
       warmCallNotesText:str(c.warmCallNotesText||''),
-      clientStanding:str(c.clientStanding||'neutral')
+      clientStanding:str(c.clientStanding||'neutral'),
+      timeZone:str(c.timeZone||'')
     }));
     await Promise.all([
       apiPost('save_settings',{settings:settingsDraft}),
