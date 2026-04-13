@@ -170,28 +170,28 @@ export function renderServiceAreaMap(containerId, dealId, opts){
   const map=L.map(container,{zoomControl:false,attributionControl:false}).setView([lat,lng],10);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(map);
 
-  // Draw polygon
+  // Draw polygon — always green
+  const polyLayers=[];
   if(polygon && polygon.geometry){
     const coords=polygon.geometry.type==='MultiPolygon'
       ? polygon.geometry.coordinates.flat(1)
       : polygon.geometry.coordinates;
     for(const ring of coords){
-      L.polygon(ring.map(c=>[c[1],c[0]]),{color:inArea?'#22c55e':'#ef4444',weight:2,fillOpacity:0.1}).addTo(map);
+      const pl=L.polygon(ring.map(c=>[c[1],c[0]]),{color:'#22c55e',weight:2,fillColor:'#bbf7d0',fillOpacity:0.25}).addTo(map);
+      polyLayers.push(pl);
     }
   }
 
-  // Add marker
-  const color=inArea?'green':'red';
-  L.circleMarker([lat,lng],{radius:6,fillColor:color,color:'#fff',weight:2,fillOpacity:1}).addTo(map);
+  // Add location pin marker
+  const pinIcon=L.divIcon({className:'',html:'<svg width="24" height="36" viewBox="0 0 24 36"><path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" fill="'+(inArea===false?'#ef4444':'#22c55e')+'"/><circle cx="12" cy="12" r="5" fill="#fff"/></svg>',iconSize:[24,36],iconAnchor:[12,36]});
+  L.marker([lat,lng],{icon:pinIcon}).addTo(map);
 
-  if(opts&&opts.fitBounds && polygon){
+  // Fit bounds to show full polygon + marker
+  if(polyLayers.length){
     try {
-      const allCoords=polygon.geometry.type==='MultiPolygon'
-        ? polygon.geometry.coordinates.flat(2)
-        : polygon.geometry.coordinates.flat(1);
-      const lats=allCoords.map(c=>c[1]);
-      const lngs=allCoords.map(c=>c[0]);
-      map.fitBounds([[Math.min(...lats),Math.min(...lngs)],[Math.max(...lats),Math.max(...lngs)]]);
+      const group=L.featureGroup(polyLayers);
+      group.addLayer(L.marker([lat,lng]));
+      map.fitBounds(group.getBounds().pad(0.1));
     } catch(e){}
   }
 
@@ -234,11 +234,12 @@ export function openEnlargedMap(dealId, clientName){
         ? polygon.geometry.coordinates.flat(1)
         : polygon.geometry.coordinates;
       for(const ring of coords){
-        L.polygon(ring.map(c=>[c[1],c[0]]),{color:'#2563eb',weight:2,fillOpacity:0.15}).addTo(map);
+        L.polygon(ring.map(c=>[c[1],c[0]]),{color:'#22c55e',weight:2,fillColor:'#bbf7d0',fillOpacity:0.25}).addTo(map);
       }
     }
     if(result){
-      L.circleMarker([result.lat,result.lng],{radius:8,fillColor:result.inArea?'#22c55e':'#ef4444',color:'#fff',weight:2,fillOpacity:1}).addTo(map);
+      const pinIcon=L.divIcon({className:'',html:'<svg width="24" height="36" viewBox="0 0 24 36"><path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" fill="'+(result.inArea?'#22c55e':'#ef4444')+'"/><circle cx="12" cy="12" r="5" fill="#fff"/></svg>',iconSize:[24,36],iconAnchor:[12,36]});
+      L.marker([result.lat,result.lng],{icon:pinIcon}).addTo(map);
     }
     enlargedMapState.map=map;
     enlargedMapState.polygon=polygon;
@@ -259,7 +260,8 @@ export async function searchEnlargedMap(){
   const inArea=checkPointInServiceArea(lat,lng,enlargedMapState.polygon);
   if(enlargedMapState.map){
     enlargedMapState.map.setView([lat,lng],12);
-    L.circleMarker([lat,lng],{radius:8,fillColor:inArea?'#22c55e':'#ef4444',color:'#fff',weight:2,fillOpacity:1}).addTo(enlargedMapState.map);
+    const pinIcon=L.divIcon({className:'',html:'<svg width="24" height="36" viewBox="0 0 24 36"><path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" fill="'+(inArea?'#22c55e':'#ef4444')+'"/><circle cx="12" cy="12" r="5" fill="#fff"/></svg>',iconSize:[24,36],iconAnchor:[12,36]});
+    L.marker([lat,lng],{icon:pinIcon}).addTo(enlargedMapState.map);
   }
   resultEl.innerHTML=inArea
     ? `<span style="color:#22c55e;font-weight:700">\u2713 Inside service area</span> \u2014 ${esc(addr)}`
