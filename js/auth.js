@@ -100,10 +100,17 @@ export async function handleGoogleSignIn(){
   errEl.style.display='none';
   try {
     const provider = new firebase.auth.GoogleAuthProvider();
-    // Use redirect instead of popup to avoid COOP issues on localhost
-    await auth.signInWithRedirect(provider);
+    const result = await auth.signInWithPopup(provider);
+    // onAuthStateChanged handles the rest
   } catch(e){
-    if(e.code === 'auth/popup-closed-by-user') return;
+    if(e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return;
+    // If popup blocked, fall back to redirect
+    if(e.code === 'auth/popup-blocked'){
+      try {
+        await auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());
+        return;
+      } catch(e2){}
+    }
     errEl.textContent = e.message || 'Google sign-in failed';
     errEl.style.display='block';
   }
@@ -275,6 +282,14 @@ export function listenCampaignAssignments(){
 
 // ─── Auth State Listener (called from app.js) ───
 export function setupAuthListener(onLogin){
+  // Handle Google redirect result (if popup was blocked and redirect was used)
+  auth.getRedirectResult().catch(e => {
+    if(e.code !== 'auth/popup-closed-by-user'){
+      const errEl = document.getElementById('login-error');
+      if(errEl){ errEl.textContent = e.message || 'Google sign-in failed'; errEl.style.display='block'; }
+    }
+  });
+
   auth.onAuthStateChanged(async (user) => {
     if(user){
       let userDoc;
