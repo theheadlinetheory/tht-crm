@@ -226,29 +226,11 @@ export async function syncFromSheet(){
 }
 
 // ─── Reply Polling ───
-export async function pollReplyStatus(){
-  if(pendingWrites.value>0) return;
-  try{
-    const replies=await apiGet('get_reply_status');
-    if(!Array.isArray(replies)) return;
-    let changed=false;
-    for(const r of replies){
-      const deal=state.deals.find(d=>String(d.id)===String(r.id));
-      if(deal && !deal.hasNewReply){
-        deal.hasNewReply=r.hasNewReply;
-        changed=true;
-      }
-    }
-    if(changed){
-      if(state.selectedDeal) refreshModal();
-      else render();
-    }
-  }catch(e){}
-}
-
-export async function triggerBackendReplyCheck(){
-  try{ await apiGet('run_admin&fn=checkReplies'); }catch(e){}
-}
+// Reply status is now handled via Supabase realtime — the smartlead webhook
+// sets has_new_reply=true on existing deals when a new reply comes in.
+// openDeal() clears the flag via sbUpdateDeal. No legacy polling needed.
+export async function pollReplyStatus(){}
+export async function triggerBackendReplyCheck(){}
 
 // ─── Field Normalization (snake_case ↔ camelCase) ───
 
