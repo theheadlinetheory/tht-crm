@@ -108,7 +108,7 @@ export async function callInJustCall(dealId){
   if(frameContainer){
     const iframe = document.createElement('iframe');
     iframe.id = 'justcall-dialer-iframe';
-    iframe.src = DIALER_URL;
+    iframe.src = DIALER_URL + '?numbers=' + encodeURIComponent(formatted);
     iframe.allow = 'microphone; autoplay; clipboard-read; clipboard-write; hid';
     iframe.style.cssText = 'width:100%;height:100%;border:none';
     frameContainer.appendChild(iframe);
