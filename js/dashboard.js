@@ -2,7 +2,7 @@
 // DASHBOARD — Dashboard rendering (client fulfillment + acquisition)
 // ═══════════════════════════════════════════════════════════
 import { state } from './app.js';
-import { ACQUISITION_STAGES, ALL_PIPELINES } from './config.js';
+import { ACQUISITION_STAGES, NURTURE_STAGES, DEFAULT_CLIENT_STAGES, ALL_PIPELINES } from './config.js';
 import { render } from './render.js';
 import { esc, fmt$, getToday } from './utils.js';
 import { isAdmin, isClient, isEmployee } from './auth.js';
@@ -11,8 +11,12 @@ import { getStages, getVisiblePipelines, getVisiblePipelinesWithArchive } from '
 
 export function getStagesForPipeline(pip){
   if(pip==='Acquisition') return ACQUISITION_STAGES;
-  // More stages can be added here
-  return ACQUISITION_STAGES;
+  if(pip==='Nurture') return NURTURE_STAGES;
+  if(pip==='Client'){
+    const clientCols=state.clients.map(c=>({id:c.name,label:c.name,color:c.color||'#6b7280'}));
+    return [{id:'Client Not Distributed',label:'Not Distributed',color:'#6b7280'},...clientCols];
+  }
+  return DEFAULT_CLIENT_STAGES;
 }
 
 export function renderDashboard(){
