@@ -632,29 +632,11 @@ function getOwnerColor(name){
 }
 
 function renderDialerSettings(){
-  const acqDeals=state.deals.filter(d=>d.pipeline==='Acquisition');
-  const withPhone=acqDeals.filter(d=>d.phone||d.mobilePhone).length;
+  const mod = window.__numberHealthModule;
+  if(mod) return mod.renderNumberHealthSettings();
   return `<div class="settings-section">
-    <h4>${svgIcon('phone',14)} JustCall Dialer</h4>
-    <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Click "Call in JustCall" on any deal with a phone number \u2192 JustCall dialer opens \u2192 call starts immediately.</p>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
-      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;text-align:center">
-        <div style="font-size:22px;font-weight:800;color:#059669">${withPhone}</div>
-        <div style="font-size:10px;color:#6b7280;font-weight:600">Acquisition Deals with Phone</div>
-      </div>
-      <div style="background:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;padding:12px;text-align:center">
-        <div style="font-size:22px;font-weight:800;color:#374151">${acqDeals.length}</div>
-        <div style="font-size:10px;color:#6b7280;font-weight:600">Total Acquisition Deals</div>
-      </div>
-    </div>
-    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px;text-align:center;font-size:12px;color:#92400e;font-weight:600;margin-bottom:12px">Trial Period \u2014 Admin Only (Aidan & Lars)</div>
-    <div style="font-size:11px;color:var(--text-muted);line-height:1.5">
-      <strong>How it works:</strong><br>
-      \u2022 Click "Call in JustCall" on any deal card with a phone number<br>
-      \u2022 JustCall dialer opens in a popup window<br>
-      \u2022 Call connects directly \u2014 no need to leave the CRM<br>
-      \u2022 <a href="https://app.justcall.io" target="_blank" style="color:var(--purple)">JustCall Dashboard</a>
-    </div>
+    <h4>${svgIcon('phone',14)} Dialer Numbers</h4>
+    <p style="font-size:11px;color:var(--text-muted)">Loading number health data...</p>
   </div>`;
 }
 
