@@ -60,7 +60,7 @@ export function changeDealPipeline(newPipeline){
   sbUpdateDeal(deal.id, camelToSnake({ pipeline: deal.pipeline, stage: deal.stage }))
     .catch(e => console.error('Update deal pipeline failed:', e))
     .finally(() => { pendingWrites.value--; });
-  refreshModal();
+  refreshModal(true);
 }
 
 export function changeDealOwner(val){
