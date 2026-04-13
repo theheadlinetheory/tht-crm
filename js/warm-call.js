@@ -525,12 +525,15 @@ export async function pushToLeadTracker(dealId){
   if(deal.pushedToTracker && str(deal.pushedToTracker).trim()!==''){
     if(!confirm('Already pushed to tracker. Push again?')) return;
   }
+  const btn=document.getElementById('push-tracker-btn');
+  if(btn){btn.disabled=true;btn.innerHTML='Pushing...';}
   const { autoPushToTracker } = await import('./email.js');
   try {
     await autoPushToTracker(deal);
-    refreshModal();
+    refreshModal(true);
   } catch(e){
     alert('Push to tracker failed: '+e.message);
+    if(btn){btn.disabled=false;btn.innerHTML='Retry Push';}
   }
 }
 
