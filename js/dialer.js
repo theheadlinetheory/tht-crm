@@ -81,7 +81,13 @@ export function callInJustCall(dealId){
   }
 
   // Load dialer iframe with number pre-filled via URL
-  const dialerUrl = DIALER_URL + '?numbers=' + encodeURIComponent(formatted) + '&caller_id=' + encodeURIComponent(outboundNumber);
+  // Strip '+' from outbound number — JustCall dropdown shows digits only (e.g. 17372997832)
+  const outboundDigits = outboundNumber.replace(/^\+/, '');
+  const dialerUrl = DIALER_URL
+    + '?numbers=' + encodeURIComponent(formatted)
+    + '&caller_id=' + encodeURIComponent(outboundDigits)
+    + '&from_number=' + encodeURIComponent(outboundDigits)
+    + '&justcall_number=' + encodeURIComponent(outboundDigits);
   let iframe = document.getElementById('justcall-dialer-iframe');
   if(iframe){
     iframe.src = dialerUrl;
@@ -89,6 +95,27 @@ export function callInJustCall(dealId){
     initJustCallDialer();
     iframe = document.getElementById('justcall-dialer-iframe');
     if(iframe) iframe.src = dialerUrl;
+  }
+
+  // Try to auto-select outbound number via postMessage after iframe loads
+  if(iframe){
+    const trySelectNumber = () => {
+      try {
+        const msgs = [
+          { type:'select-number', number: outboundDigits },
+          { type:'set-caller-id', caller_id: outboundDigits },
+          { event:'set_caller_id', data: { number: outboundDigits } },
+          { type:'select_phone_number', phone_number: outboundDigits },
+          { type:'make-call', to: formatted.replace(/^\+/,''), from: outboundDigits },
+        ];
+        for(const msg of msgs){
+          iframe.contentWindow.postMessage(msg, 'https://app.justcall.io');
+        }
+      } catch(e){}
+    };
+    iframe.addEventListener('load', trySelectNumber, { once: true });
+    setTimeout(trySelectNumber, 2000);
+    setTimeout(trySelectNumber, 4000);
   }
 }
 
