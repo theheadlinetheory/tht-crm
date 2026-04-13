@@ -99,20 +99,45 @@ export async function callInJustCall(dealId){
   currentCallPhone = formatted;
 
   // Show iframe directly — no banner, maximum space for dialer
-  dialerEl.innerHTML = '<div id="justcall-dialer-frame" style="width:100%;height:100%"></div>';
-  const frameContainer = document.getElementById('justcall-dialer-frame');
-  if(frameContainer){
-    const iframe = getOrCreateIframe();
-    frameContainer.appendChild(iframe);
+  dialerEl.innerHTML = '';
+  const iframe = document.createElement('iframe');
+  iframe.id = 'justcall-dialer-iframe';
+  // Pass numbers (destination) and from (caller ID) as URL params
+  iframe.src = DIALER_URL + '?numbers=' + encodeURIComponent(formatted)
+    + '&from=' + encodeURIComponent(outboundNumber)
+    + '&caller_id=' + encodeURIComponent(outboundNumber);
+  iframe.allow = 'microphone; autoplay; clipboard-read; clipboard-write; hid';
+  iframe.style.cssText = 'width:100%;height:100%;border:none';
+  dialerEl.appendChild(iframe);
+  {
 
-    // Use SDK postMessage to dial the number after iframe is ready
-    const dialNumber = () => {
+    // Use SDK postMessage to dial number + try to set caller ID
+    const setupCall = () => {
+      // Official SDK: pre-fill destination number
       sendToDialer({ type: 'dial-number', phoneNumber: formatted });
+
+      // Undocumented: try various message types to set the outbound/from number
+      const outNum = outboundNumber;
+      const outDigits = outNum.replace(/\D/g, '');
+      sendToDialer({ type: 'set-caller-id', callerId: outNum });
+      sendToDialer({ type: 'set-caller-id', caller_id: outNum });
+      sendToDialer({ type: 'set-caller-id', number: outNum });
+      sendToDialer({ type: 'set-from-number', number: outNum });
+      sendToDialer({ type: 'set-from-number', fromNumber: outNum });
+      sendToDialer({ type: 'select-number', number: outNum });
+      sendToDialer({ type: 'select-number', phoneNumber: outNum });
+      sendToDialer({ type: 'change-number', number: outNum });
+      sendToDialer({ type: 'set-outbound-number', number: outNum });
+      sendToDialer({ type: 'set-phone-number', phoneNumber: outNum });
+      sendToDialer({ type: 'switch-number', number: outNum });
+      // Try with just digits
+      sendToDialer({ type: 'set-caller-id', callerId: outDigits });
+      sendToDialer({ type: 'select-number', number: outDigits });
     };
     // Send after delays to catch different ready states
-    setTimeout(dialNumber, 1500);
-    setTimeout(dialNumber, 3000);
-    setTimeout(dialNumber, 5000);
+    setTimeout(setupCall, 1500);
+    setTimeout(setupCall, 3000);
+    setTimeout(setupCall, 5000);
   }
 }
 
