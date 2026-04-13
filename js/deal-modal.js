@@ -616,22 +616,25 @@ export function renderDealModal(deal){
       </div>`;
 
       // Auto-geocode if address exists but not yet geocoded
-      if(hasAddr && !cachedGeo){
+      const needsGeocode = hasAddr && !cachedGeo;
+      if(needsGeocode){
         const _did = deal.id;
         setTimeout(() => geocodeAndCheckDeal(_did), 100);
       }
 
-      // Render map — default to US center if no coordinates yet
-      const renderLat = mapLat || 39.8;
-      const renderLng = mapLng || -98.5;
-      const renderZoom = hasGeo ? undefined : 4;
-      setTimeout(() => renderServiceAreaMap(mapId, deal.id, {
-        clientName: _mc ? _mc.name : '',
-        polygonKey: polyMatch ? polyMatch.key : undefined,
-        lat: renderLat, lng: renderLng,
-        inArea: saResult.inArea,
-        defaultZoom: renderZoom
-      }), 200);
+      // Render map — skip if geocoding will replace it shortly
+      if(hasGeo || !needsGeocode){
+        const renderLat = mapLat || 39.8;
+        const renderLng = mapLng || -98.5;
+        const renderZoom = hasGeo ? undefined : 4;
+        setTimeout(() => renderServiceAreaMap(mapId, deal.id, {
+          clientName: _mc ? _mc.name : '',
+          polygonKey: polyMatch ? polyMatch.key : undefined,
+          lat: renderLat, lng: renderLng,
+          inArea: saResult.inArea,
+          defaultZoom: renderZoom
+        }), 200);
+      }
     }
   }
 

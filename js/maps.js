@@ -25,6 +25,7 @@ export function setServiceAreaData(polygons, aliases){
 
 export const serviceAreaResults = {};
 export let geocodeCache = {};
+const activeMapInstances = {};
 
 export function saveGeocodeCache(){
   try { localStorage.setItem('tht_geocodeCache', JSON.stringify(geocodeCache)); } catch(e){}
@@ -168,7 +169,13 @@ export function renderServiceAreaMap(containerId, dealId, opts){
   const polygon=pm?pm.polygon:null;
   const defaultZoom = (opts && opts.defaultZoom) || 10;
 
+  // Clean up any existing map on this container
+  if(activeMapInstances[dealId]){
+    try { activeMapInstances[dealId].remove(); } catch(e){}
+    delete activeMapInstances[dealId];
+  }
   const map=L.map(container,{zoomControl:true,attributionControl:false,scrollWheelZoom:true}).setView([lat,lng],defaultZoom);
+  activeMapInstances[dealId]=map;
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(map);
 
   // Prevent modal scroll from intercepting map drag
@@ -312,6 +319,11 @@ export async function geocodeAndCheckDeal(dealId){
 export function updateServiceAreaMapInPlace(dealId){
   const container=document.getElementById('sa-map-'+dealId);
   if(!container) return;
+  // Properly remove existing Leaflet map instance before re-creating
+  if(activeMapInstances[dealId]){
+    try { activeMapInstances[dealId].remove(); } catch(e){}
+    delete activeMapInstances[dealId];
+  }
   container.innerHTML='';
   renderServiceAreaMap('sa-map-'+dealId, dealId, {fitBounds:false});
 }
