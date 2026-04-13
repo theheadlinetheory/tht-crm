@@ -87,7 +87,7 @@ export function debouncedDealFieldSave(){
       const el=document.getElementById('deal-'+f);
       if(el && el.value!==undefined){
         const val=el.value;
-        if(deal[f]!==val){
+        if((deal[f]||'')!==(val||'')){
           deal[f]=val;
           fields[f]=val;
         }
