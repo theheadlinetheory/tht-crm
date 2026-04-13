@@ -59,7 +59,7 @@ export async function callInJustCall(dealId){
     return;
   }
 
-  // Show the widget with call status
+  // Show the widget
   const widget = document.getElementById('justcall-widget');
   const title = document.getElementById('justcall-widget-title');
   const dialerEl = document.getElementById('justcall-dialer');
@@ -72,44 +72,32 @@ export async function callInJustCall(dealId){
   const regionBadge = document.getElementById('justcall-region-badge');
   if(regionBadge) regionBadge.textContent = region + ' (...' + last4 + ')';
 
-  // Show "Connecting..." status in the dialer area
-  dialerEl.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;color:#94a3b8;font-family:var(--font,system-ui)">
-    <div style="font-size:14px;font-weight:600;color:#e2e8f0">Connecting call...</div>
-    <div style="font-size:24px;font-weight:700;color:#fff;letter-spacing:1px">${esc(formatted)}</div>
-    <div style="font-size:12px;color:#38bdf8;background:rgba(56,189,248,.15);padding:4px 12px;border-radius:6px;font-weight:600">via ${region} (...${last4})</div>
-    <div class="loading-spinner" style="margin-top:8px"></div>
-    <div id="call-status-text" style="font-size:12px;color:#64748b;margin-top:4px">Ringing your JustCall app...</div>
-  </div>`;
-
   // Track current call for outcome logging
   currentCallDealId = dealId;
   currentCallNumber = outboundNumber;
   currentCallPhone = formatted;
 
-  // Initiate call via JustCall API (server-side) with exact from/to numbers
-  try {
-    const result = await invokeEdgeFunction('justcall-dialer', {
-      action: 'make-call',
-      to: formatted,
-      from: outboundNumber,
-    });
+  // Show number instruction banner + iframe dialer
+  const formattedOutbound = outboundNumber.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, '($1) $2-$3');
+  dialerEl.innerHTML = `<div style="background:#0f172a;padding:10px 14px;display:flex;align-items:center;gap:10px;border-bottom:2px solid #38bdf8">
+    <div style="flex:1">
+      <div style="font-size:10px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Select this number before calling</div>
+      <div style="font-size:16px;font-weight:800;color:#38bdf8;letter-spacing:.5px;margin-top:2px">${esc(formattedOutbound)}</div>
+      <div style="font-size:11px;color:#64748b;margin-top:1px">${region} region \u2022 ...${last4}</div>
+    </div>
+    <div style="background:#38bdf8;color:#0f172a;font-size:10px;font-weight:800;padding:4px 10px;border-radius:4px;text-transform:uppercase;letter-spacing:.5px">Use This #</div>
+  </div>
+  <div id="justcall-dialer-frame" style="flex:1;min-height:0"></div>`;
 
-    if(result.status === 'ok'){
-      updateCallStatus('Call connected via ' + (result.endpoint||'API') + ' — answer in your JustCall app', '#22c55e');
-    } else {
-      console.warn('[Dialer] make-call failed:', JSON.stringify(result, null, 2));
-      // Show diagnostic details
-      if(result.attempts){
-        const summary = result.attempts.map(a => a.endpoint.split('.io')[1] + ': ' + a.status).join(' | ');
-        updateCallStatus('All endpoints failed: ' + summary, '#ef4444');
-      } else {
-        const errMsg = result.data?.message || result.data?.error || JSON.stringify(result.data);
-        updateCallStatus('Call failed: ' + errMsg, '#ef4444');
-      }
-    }
-  } catch(e){
-    console.warn('[Dialer] make-call error:', e);
-    updateCallStatus('API error — could not initiate call', '#ef4444');
+  // Load iframe dialer with lead's phone pre-dialed
+  const frameContainer = document.getElementById('justcall-dialer-frame');
+  if(frameContainer){
+    const iframe = document.createElement('iframe');
+    iframe.id = 'justcall-dialer-iframe';
+    iframe.src = DIALER_URL + '?phone=' + encodeURIComponent(formatted);
+    iframe.allow = 'microphone; autoplay; clipboard-read; clipboard-write; hid';
+    iframe.style.cssText = 'width:100%;height:100%;border:none';
+    frameContainer.appendChild(iframe);
   }
 }
 
