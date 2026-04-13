@@ -182,7 +182,7 @@ export function doAssignSequence(dealId,day){
 }
 
 export function doAssignSequenceWithDate(dealId,day){
-  const dateEl=document.getElementById('sop-date-'+day.replace(/\s/g,''));
+  const dateEl=document.getElementById('sop-target-date');
   const targetDate=dateEl?dateEl.value:getToday();
   const sopDaysMap=getSopDaysForDeal(dealId);
   const acts=sopDaysMap[day];
