@@ -1,28 +1,39 @@
 // ═══════════════════════════════════════════════════════════
-// DIALER — JustCall Sales Dialer (embedded iframe + campaign API)
+// DIALER — JustCall Dialer (embedded iframe via SDK protocol)
 // ═══════════════════════════════════════════════════════════
 import { state } from './app.js';
 import { str, esc } from './utils.js';
-import { invokeEdgeFunction } from './api.js';
 
-const SD_URL = 'https://app.justcall.io/salesdialer';
-let iframeLoaded = false;
+const DIALER_URL = 'https://app.justcall.io/app/macapp/dialer_events';
+let dialerReady = false;
 
 export function initJustCallDialer(){
   const container = document.getElementById('justcall-dialer');
   if(!container) return;
 
-  // Embed Sales Dialer UI directly in the CRM widget
   const iframe = document.createElement('iframe');
   iframe.id = 'justcall-dialer-iframe';
-  iframe.src = SD_URL;
+  iframe.src = DIALER_URL;
   iframe.allow = 'microphone; autoplay; clipboard-read; clipboard-write; hid';
   iframe.style.cssText = 'width:100%;height:100%;border:none';
-  iframe.onload = () => { iframeLoaded = true; };
   container.appendChild(iframe);
+
+  window.addEventListener('message', (e) => {
+    if(e.origin !== 'https://app.justcall.io') return;
+    const data = e.data;
+    if(!data) return;
+    if(data.type === 'dialer-ready' || data.type === 'ready') dialerReady = true;
+    if(data.type === 'login-status' || data.type === 'login') {
+      if(data.login_numbers && data.login_numbers.length > 0) {
+        console.log('[JustCall] Numbers:', data.login_numbers);
+      }
+    }
+  });
+
+  setTimeout(() => { dialerReady = true; }, 4000);
 }
 
-export async function callInJustCall(dealId){
+export function callInJustCall(dealId){
   const deal = state.deals.find(d => d.id === dealId);
   if(!deal) return;
   const phone = str(deal.phone) || str(deal.mobilePhone);
@@ -32,55 +43,30 @@ export async function callInJustCall(dealId){
     : digits.length === 11 && digits[0] === '1' ? '+' + digits
     : '+' + digits;
 
-  const contactName = str(deal.contact) || str(deal.company) || '';
-
-  // Show the widget with the embedded Sales Dialer
+  // Show the widget
   const widget = document.getElementById('justcall-widget');
   const title = document.getElementById('justcall-widget-title');
   const dialerEl = document.getElementById('justcall-dialer');
-  title.textContent = esc(contactName || formatted);
+  title.textContent = esc(deal.contact || deal.company || formatted);
   widget.style.display = 'flex';
-
-  // Make sure iframe is visible (not minimized)
   dialerEl.style.display = '';
   widget.style.height = '660px';
-  const btn = document.getElementById('justcall-minimize-btn');
-  if(btn) btn.textContent = '\u2500';
 
   // Ensure iframe exists
   if(!document.getElementById('justcall-dialer-iframe')){
     initJustCallDialer();
   }
 
-  // Queue contact to Sales Dialer campaign via API (background)
-  invokeEdgeFunction('justcall-dialer', {
-    action: 'dial',
-    phone: formatted,
-    name: contactName,
-    email: str(deal.email),
-    dealId: dealId,
-  }).then(result => {
-    if(result && result.status === 'ok'){
-      // Show brief toast notification
-      showDialerToast('Contact queued: ' + (contactName || formatted), 'success');
-    } else {
-      showDialerToast('Queue failed: ' + (result?.error || 'Unknown error'), 'error');
-    }
-  }).catch(err => {
-    showDialerToast('Queue error: ' + String(err), 'error');
-  });
-}
-
-function showDialerToast(msg, type){
-  const existing = document.getElementById('dialer-toast');
-  if(existing) existing.remove();
-  const color = type === 'success' ? '#059669' : '#dc2626';
-  const toast = document.createElement('div');
-  toast.id = 'dialer-toast';
-  toast.style.cssText = 'position:absolute;bottom:8px;left:8px;right:8px;padding:8px 12px;border-radius:6px;font-size:11px;font-weight:600;color:#fff;z-index:10;text-align:center;background:' + color;
-  toast.textContent = msg;
-  document.getElementById('justcall-widget').appendChild(toast);
-  setTimeout(() => toast.remove(), 4000);
+  // Send dial command to iframe via postMessage (SDK protocol)
+  const iframe = document.getElementById('justcall-dialer-iframe');
+  if(iframe && iframe.contentWindow) {
+    setTimeout(() => {
+      iframe.contentWindow.postMessage(
+        { type: 'dial-number', phoneNumber: formatted },
+        'https://app.justcall.io'
+      );
+    }, dialerReady ? 300 : 2000);
+  }
 }
 
 export function closeJustCallWidget(){
