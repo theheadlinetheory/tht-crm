@@ -68,7 +68,7 @@ export async function callInJustCall(dealId){
   const last4 = outboundNumber.slice(-4);
   title.textContent = esc(deal.contact || deal.company || formatted);
   widget.style.display = 'flex';
-  widget.style.height = '660px';
+  widget.style.height = '820px';
   dialerEl.style.display = '';
 
   const regionBadge = document.getElementById('justcall-region-badge');
@@ -83,22 +83,19 @@ export async function callInJustCall(dealId){
   const formattedOutbound = outboundNumber.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, '($1) $2-$3');
   const formattedLead = formatted.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, '($1) $2-$3');
 
-  // Show: outbound number to select + lead's phone to dial + copy button + iframe
-  dialerEl.innerHTML = `<div style="background:#0f172a;padding:10px 14px;border-bottom:2px solid #38bdf8">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-      <div style="flex:1">
-        <div style="font-size:10px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Select this number before calling</div>
-        <div style="font-size:16px;font-weight:800;color:#38bdf8;letter-spacing:.5px;margin-top:2px">${esc(formattedOutbound)}</div>
-        <div style="font-size:11px;color:#64748b;margin-top:1px">${region} region \u2022 ...${last4}</div>
-      </div>
-      <div style="background:#38bdf8;color:#0f172a;font-size:10px;font-weight:800;padding:4px 10px;border-radius:4px;text-transform:uppercase;letter-spacing:.5px">Use This #</div>
+  // Compact banner: outbound # + lead phone side by side, then full iframe
+  dialerEl.innerHTML = `<div style="background:#0f172a;padding:8px 12px;display:flex;gap:8px;border-bottom:2px solid #38bdf8">
+    <div style="flex:1;min-width:0">
+      <div style="font-size:9px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Use this caller ID</div>
+      <div style="font-size:14px;font-weight:800;color:#38bdf8;letter-spacing:.3px;margin-top:1px">${esc(formattedOutbound)}</div>
+      <div style="font-size:10px;color:#64748b">${region} \u2022 ...${last4}</div>
     </div>
-    <div style="display:flex;align-items:center;gap:8px;background:#1e293b;padding:8px 12px;border-radius:6px;border:1px solid #334155">
-      <div style="flex:1">
-        <div style="font-size:10px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Dial this number</div>
-        <div style="font-size:18px;font-weight:800;color:#34d399;letter-spacing:.5px;margin-top:2px">${esc(formattedLead)}</div>
+    <div style="flex:1;min-width:0;background:#1e293b;padding:6px 10px;border-radius:6px;border:1px solid #334155;display:flex;align-items:center;gap:6px">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:9px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Dial this #</div>
+        <div style="font-size:14px;font-weight:800;color:#34d399;letter-spacing:.3px;margin-top:1px">${esc(formattedLead)}</div>
       </div>
-      <button id="copy-lead-phone-btn" onclick="navigator.clipboard.writeText('${esc(digits)}').then(()=>{this.textContent='Copied!';setTimeout(()=>{this.textContent='Copy'},1500)})" style="background:#34d399;color:#0f172a;font-size:10px;font-weight:800;padding:6px 12px;border-radius:4px;border:none;cursor:pointer;text-transform:uppercase;letter-spacing:.5px">Copy</button>
+      <button onclick="navigator.clipboard.writeText('${esc(digits)}').then(()=>{this.textContent='\u2713';setTimeout(()=>{this.textContent='Copy'},1500)})" style="background:#34d399;color:#0f172a;font-size:9px;font-weight:800;padding:4px 8px;border-radius:4px;border:none;cursor:pointer;text-transform:uppercase;letter-spacing:.3px;flex-shrink:0">Copy</button>
     </div>
   </div>
   <div id="justcall-dialer-frame" style="flex:1;min-height:0"></div>`;
@@ -191,7 +188,7 @@ export function toggleJustCallMinimize(){
   const btn = document.getElementById('justcall-minimize-btn');
   if(dialer.style.display === 'none'){
     dialer.style.display = '';
-    widget.style.height = '660px';
+    widget.style.height = '820px';
     btn.textContent = '\u2500';
   } else {
     dialer.style.display = 'none';

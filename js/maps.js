@@ -168,8 +168,12 @@ export function renderServiceAreaMap(containerId, dealId, opts){
   const polygon=pm?pm.polygon:null;
   const defaultZoom = (opts && opts.defaultZoom) || 10;
 
-  const map=L.map(container,{zoomControl:true,attributionControl:false}).setView([lat,lng],defaultZoom);
+  const map=L.map(container,{zoomControl:true,attributionControl:false,scrollWheelZoom:true}).setView([lat,lng],defaultZoom);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(map);
+
+  // Prevent modal scroll from intercepting map drag
+  container.addEventListener('mousedown',function(e){ e.stopPropagation(); });
+  container.addEventListener('wheel',function(e){ e.stopPropagation(); },{ passive:false });
 
   // Draw polygon — always green
   const polyLayers=[];
@@ -195,6 +199,10 @@ export function renderServiceAreaMap(containerId, dealId, opts){
       map.fitBounds(group.getBounds().pad(0.1));
     } catch(e){}
   }
+
+  // Fix tiles not loading when container isn't fully rendered yet
+  setTimeout(()=>{ map.invalidateSize(); },200);
+  setTimeout(()=>{ map.invalidateSize(); },500);
 
   return map;
 }
