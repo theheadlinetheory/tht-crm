@@ -27,10 +27,12 @@ export function initJustCallDialer(){
     if(e.origin !== 'https://app.justcall.io') return;
     const data = e.data;
     if(!data) return;
+    // Log ALL messages from JustCall for discovery
+    console.log('[JustCall msg]', JSON.stringify(data).substring(0, 500));
     if(data.type === 'dialer-ready' || data.type === 'ready') dialerReady = true;
     if(data.type === 'login-status' || data.type === 'login') {
       if(data.login_numbers && data.login_numbers.length > 0) {
-        console.log('[JustCall] Numbers:', data.login_numbers);
+        console.log('[JustCall] Available numbers:', JSON.stringify(data.login_numbers));
       }
     }
     if(data.type === 'call-ended' || data.type === 'hangup') {
@@ -89,15 +91,38 @@ export async function callInJustCall(dealId){
   </div>
   <div id="justcall-dialer-frame" style="flex:1;min-height:0"></div>`;
 
-  // Load iframe dialer with lead's phone pre-dialed
+  // Load iframe dialer and use postMessage to pre-fill number + set caller ID
   const frameContainer = document.getElementById('justcall-dialer-frame');
   if(frameContainer){
     const iframe = document.createElement('iframe');
     iframe.id = 'justcall-dialer-iframe';
-    iframe.src = DIALER_URL + '?phone=' + encodeURIComponent(formatted);
+    iframe.src = DIALER_URL;
     iframe.allow = 'microphone; autoplay; clipboard-read; clipboard-write; hid';
     iframe.style.cssText = 'width:100%;height:100%;border:none';
     frameContainer.appendChild(iframe);
+
+    // After iframe loads, send postMessage commands to pre-fill number and set caller ID
+    const sendDialCommands = () => {
+      const iframeEl = document.getElementById('justcall-dialer-iframe');
+      if(!iframeEl || !iframeEl.contentWindow) return;
+      const origin = 'https://app.justcall.io';
+      const outDigits = outboundNumber.replace(/\D/g, '');
+      // Try multiple known postMessage formats for JustCall CTI SDK
+      // Set the outbound/caller number
+      iframeEl.contentWindow.postMessage({ type: 'select-number', number: outboundNumber }, origin);
+      iframeEl.contentWindow.postMessage({ type: 'set-caller-id', caller_id: outboundNumber }, origin);
+      iframeEl.contentWindow.postMessage({ type: 'set-number', number: outboundNumber }, origin);
+      iframeEl.contentWindow.postMessage({ event_name: 'select-number', data: { number: outboundNumber } }, origin);
+      // Pre-fill the lead's phone number to dial
+      iframeEl.contentWindow.postMessage({ type: 'dial', number: formatted }, origin);
+      iframeEl.contentWindow.postMessage({ type: 'make-call', number: formatted }, origin);
+      iframeEl.contentWindow.postMessage({ type: 'set-phone', number: formatted }, origin);
+      iframeEl.contentWindow.postMessage({ event_name: 'dial', data: { phone_number: formatted } }, origin);
+    };
+    // Send after delays to catch different iframe ready states
+    setTimeout(sendDialCommands, 2000);
+    setTimeout(sendDialCommands, 4000);
+    setTimeout(sendDialCommands, 6000);
   }
 }
 
