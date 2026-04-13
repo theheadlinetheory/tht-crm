@@ -11,36 +11,53 @@ let dialerReady = false;
 let currentCallDealId = null;
 let currentCallNumber = null; // outbound number used
 let currentCallPhone = null;  // lead's phone
+let justcallNumbers = [];     // numbers available in JustCall account
+
+// Persistent iframe — created once, reused for all calls
+let persistentIframe = null;
 
 export function initJustCallDialer(){
-  const container = document.getElementById('justcall-dialer');
-  if(!container || document.getElementById('justcall-dialer-iframe')) return;
+  // Listen for SDK events from JustCall iframe
+  window.addEventListener('message', (e) => {
+    if(e.origin !== 'https://app.justcall.io') return;
+    const data = e.data;
+    if(!data) return;
+    console.log('[JustCall msg]', JSON.stringify(data).substring(0, 500));
 
+    // SDK events use data.name for event type
+    const evtName = data.name || data.type || '';
+    const evtData = data.data || data;
+
+    if(evtName === 'logged-in-status' || evtName === 'login-status' || evtName === 'login') {
+      dialerReady = true;
+      const nums = evtData.login_numbers || data.login_numbers;
+      if(nums && nums.length) {
+        justcallNumbers = nums;
+        console.log('[JustCall] Available numbers:', JSON.stringify(nums));
+      }
+    }
+    if(evtName === 'call-ended' || evtName === 'hangup' || data.type === 'call-ended') {
+      onCallEnded();
+    }
+  });
+}
+
+function getOrCreateIframe(){
+  if(persistentIframe && document.body.contains(persistentIframe)) return persistentIframe;
   const iframe = document.createElement('iframe');
   iframe.id = 'justcall-dialer-iframe';
   iframe.src = DIALER_URL;
   iframe.allow = 'microphone; autoplay; clipboard-read; clipboard-write; hid';
   iframe.style.cssText = 'width:100%;height:100%;border:none';
-  container.appendChild(iframe);
+  persistentIframe = iframe;
+  return iframe;
+}
 
-  window.addEventListener('message', (e) => {
-    if(e.origin !== 'https://app.justcall.io') return;
-    const data = e.data;
-    if(!data) return;
-    // Log ALL messages from JustCall for discovery
-    console.log('[JustCall msg]', JSON.stringify(data).substring(0, 500));
-    if(data.type === 'dialer-ready' || data.type === 'ready') dialerReady = true;
-    if(data.type === 'login-status' || data.type === 'login') {
-      if(data.login_numbers && data.login_numbers.length > 0) {
-        console.log('[JustCall] Available numbers:', JSON.stringify(data.login_numbers));
-      }
-    }
-    if(data.type === 'call-ended' || data.type === 'hangup') {
-      onCallEnded();
-    }
-  });
-
-  setTimeout(() => { dialerReady = true; }, 4000);
+function sendToDialer(msg){
+  const iframe = document.getElementById('justcall-dialer-iframe');
+  if(iframe && iframe.contentWindow){
+    iframe.contentWindow.postMessage(msg, 'https://app.justcall.io');
+  }
 }
 
 export async function callInJustCall(dealId){
@@ -66,67 +83,37 @@ export async function callInJustCall(dealId){
   const title = document.getElementById('justcall-widget-title');
   const dialerEl = document.getElementById('justcall-dialer');
   const last4 = outboundNumber.slice(-4);
+  const formattedOutbound = outboundNumber.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, '($1) $2-$3');
+
   title.textContent = deal.contact || deal.company || formatted;
   widget.style.display = 'flex';
   widget.style.height = '90vh';
   dialerEl.style.display = '';
 
   const regionBadge = document.getElementById('justcall-region-badge');
-  if(regionBadge) regionBadge.textContent = region + ' (...' + last4 + ')';
+  if(regionBadge) regionBadge.textContent = region + ' \u2022 ' + formattedOutbound;
 
   // Track current call for outcome logging
   currentCallDealId = dealId;
   currentCallNumber = outboundNumber;
   currentCallPhone = formatted;
 
-  // Format numbers for display
-  const formattedOutbound = outboundNumber.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, '($1) $2-$3');
-  const formattedLead = formatted.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, '($1) $2-$3');
-
-  // Compact banner: outbound # + lead phone side by side, then full iframe
-  dialerEl.innerHTML = `<div style="background:#0f172a;padding:8px 12px;display:flex;gap:8px;border-bottom:2px solid #38bdf8">
-    <div style="flex:1;min-width:0">
-      <div style="font-size:9px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Use this caller ID</div>
-      <div style="font-size:14px;font-weight:800;color:#38bdf8;letter-spacing:.3px;margin-top:1px">${esc(formattedOutbound)}</div>
-      <div style="font-size:10px;color:#64748b">${region} \u2022 ...${last4}</div>
-    </div>
-    <div style="flex:1;min-width:0;background:#1e293b;padding:6px 10px;border-radius:6px;border:1px solid #334155;display:flex;align-items:center;gap:6px">
-      <div style="flex:1;min-width:0">
-        <div style="font-size:9px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Dial this #</div>
-        <div style="font-size:14px;font-weight:800;color:#34d399;letter-spacing:.3px;margin-top:1px">${esc(formattedLead)}</div>
-      </div>
-      <button onclick="navigator.clipboard.writeText('${esc(digits)}').then(()=>{this.textContent='\u2713';setTimeout(()=>{this.textContent='Copy'},1500)})" style="background:#34d399;color:#0f172a;font-size:9px;font-weight:800;padding:4px 8px;border-radius:4px;border:none;cursor:pointer;text-transform:uppercase;letter-spacing:.3px;flex-shrink:0">Copy</button>
-    </div>
-  </div>
-  <div id="justcall-dialer-frame" style="flex:1;min-height:0"></div>`;
-
-  // Load iframe dialer
+  // Show iframe directly — no banner, maximum space for dialer
+  dialerEl.innerHTML = '<div id="justcall-dialer-frame" style="width:100%;height:100%"></div>';
   const frameContainer = document.getElementById('justcall-dialer-frame');
   if(frameContainer){
-    const iframe = document.createElement('iframe');
-    iframe.id = 'justcall-dialer-iframe';
-    iframe.src = DIALER_URL + '?numbers=' + encodeURIComponent(formatted) + '&caller_id=' + encodeURIComponent(outboundNumber) + '&from=' + encodeURIComponent(outboundNumber);
-    iframe.allow = 'microphone; autoplay; clipboard-read; clipboard-write; hid';
-    iframe.style.cssText = 'width:100%;height:100%;border:none';
+    const iframe = getOrCreateIframe();
     frameContainer.appendChild(iframe);
+
+    // Use SDK postMessage to dial the number after iframe is ready
+    const dialNumber = () => {
+      sendToDialer({ type: 'dial-number', phoneNumber: formatted });
+    };
+    // Send after delays to catch different ready states
+    setTimeout(dialNumber, 1500);
+    setTimeout(dialNumber, 3000);
+    setTimeout(dialNumber, 5000);
   }
-}
-
-function updateCallStatus(msg, color){
-  const el = document.getElementById('call-status-text');
-  if(el){ el.textContent = msg; el.style.color = color || '#64748b'; }
-}
-
-function showDialerIframe(phoneNumber){
-  const dialerEl = document.getElementById('justcall-dialer');
-  if(!dialerEl) return;
-  dialerEl.innerHTML = '';
-  const iframe = document.createElement('iframe');
-  iframe.id = 'justcall-dialer-iframe';
-  iframe.src = DIALER_URL + '?numbers=' + encodeURIComponent(phoneNumber);
-  iframe.allow = 'microphone; autoplay; clipboard-read; clipboard-write; hid';
-  iframe.style.cssText = 'width:100%;height:100%;border:none';
-  dialerEl.appendChild(iframe);
 }
 
 async function onCallEnded(){
