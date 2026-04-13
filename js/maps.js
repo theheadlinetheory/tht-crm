@@ -156,11 +156,14 @@ export async function runServiceAreaChecks(){
 
 export function renderServiceAreaMap(containerId, dealId, opts){
   // Renders a Leaflet map in the given container
-  const result=serviceAreaResults[dealId];
-  if(!result) return;
+  const result=serviceAreaResults[dealId] || {};
+  const lat = result.lat || (opts && opts.lat);
+  const lng = result.lng || (opts && opts.lng);
+  if(!lat || !lng) return;
   const container=document.getElementById(containerId);
   if(!container) return;
-  const { lat, lng, clientName, inArea } = result;
+  const clientName = result.clientName || (opts && opts.clientName) || '';
+  const inArea = result.inArea !== undefined ? result.inArea : (opts && opts.inArea);
   const pm=findPolygonForClient(clientName);
   const polygon=pm?pm.polygon:null;
 

@@ -555,13 +555,13 @@ export function renderDealModal(deal){
     const mapLng = saResult.lng || (cachedGeo ? cachedGeo.lng : null);
     const hasGeo = mapLat && mapLng;
     const hasAddr = _addr.length > 0;
-    const hasResult = saResult.status && saResult.status !== 'unknown' && hasGeo;
+    const hasResult = saResult.inArea !== undefined && hasGeo;
 
     // Status banner (only for client pipeline with polygon)
     if(hasResult && _mc){
-      const bannerClass = saResult.status === 'in' ? 'sa-in-banner' : 'sa-out-banner';
-      const bannerIcon = saResult.status === 'in' ? '&#10003;' : '&#10007;';
-      const bannerText = saResult.status === 'in'
+      const bannerClass = saResult.inArea ? 'sa-in-banner' : 'sa-out-banner';
+      const bannerIcon = saResult.inArea ? '&#10003;' : '&#10007;';
+      const bannerText = saResult.inArea
         ? 'In ' + esc(_mc.name) + "'s service area"
         : 'Outside ' + esc(_mc.name) + "'s service area";
       h += `<div class="sa-result-banner ${bannerClass}">${bannerIcon} ${bannerText}</div>`;
@@ -588,7 +588,7 @@ export function renderDealModal(deal){
         clientName: _mc ? _mc.name : '',
         polygonKey: polyMatch ? polyMatch.key : undefined,
         lat: mapLat, lng: mapLng,
-        status: saResult.status || (hasGeo ? 'unknown' : undefined)
+        inArea: saResult.inArea, status: saResult.inArea === true ? 'in' : saResult.inArea === false ? 'out' : (hasGeo ? 'unknown' : undefined)
       }), 50);
     }
   }
