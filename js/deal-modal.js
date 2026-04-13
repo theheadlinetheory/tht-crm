@@ -546,7 +546,7 @@ export function renderDealModal(deal){
   // Location Map — show for ANY deal with an address, regardless of pipeline or matched client
   {
     const saResult = serviceAreaResults[deal.id] || {};
-    const _mc = (deal.pipeline==='Client') ? (findClientForDeal(deal) || state.clients.find(c=>c.name===deal.stage)) : null;
+    const _mc = findClientForDeal(deal) || state.clients.find(c=>c.name===deal.stage) || null;
     const polyMatch = _mc ? findPolygonForClient(_mc.name) : null;
     const _addr = str(deal.address || deal.location || '').trim();
     const cachedGeo = _addr ? geocodeCache[_addr] : null;

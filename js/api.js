@@ -196,12 +196,10 @@ export async function syncFromSheet(){
     }
     state.synced=true;
     state.loadFailed=false;
-    // Run service area checks in background
-    const { isAdmin, isEmployee } = await import('./auth.js');
-    if(isAdmin()||isEmployee()){
-      const { runServiceAreaChecks } = await import('./maps.js');
-      runServiceAreaChecks();
-    }
+    // Run service area checks in background (all roles — clients need maps too)
+    // Re-render after checks complete to show badges/maps
+    const { runServiceAreaChecks } = await import('./maps.js');
+    runServiceAreaChecks().then(() => render()).catch(e => console.warn('Service area checks failed:', e));
     // Pre-load archive
     if((isAdmin()||isEmployee()) && !state.archiveLoaded){
       const { loadArchive } = await import('./archive.js');
