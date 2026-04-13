@@ -73,24 +73,22 @@ export function callInJustCall(dealId){
   dialerEl.style.display = '';
   widget.style.height = '660px';
 
-  // Show region badge
+  // Show region badge with clear instruction
   const regionBadge = document.getElementById('justcall-region-badge');
-  if(regionBadge) regionBadge.textContent = region + ' ' + outboundNumber.slice(-4);
-
-  // Ensure iframe exists
-  if(!document.getElementById('justcall-dialer-iframe')){
-    initJustCallDialer();
+  if(regionBadge){
+    const last4 = outboundNumber.slice(-4);
+    regionBadge.textContent = 'Call via ' + region + ' (...' + last4 + ')';
   }
 
-  // Send dial command to iframe via postMessage (SDK protocol)
-  const iframe = document.getElementById('justcall-dialer-iframe');
-  if(iframe && iframe.contentWindow) {
-    setTimeout(() => {
-      iframe.contentWindow.postMessage(
-        { type: 'dial-number', phoneNumber: formatted, fromNumber: outboundNumber },
-        'https://app.justcall.io'
-      );
-    }, dialerReady ? 300 : 2000);
+  // Load dialer iframe with number pre-filled via URL
+  const dialerUrl = DIALER_URL + '?numbers=' + encodeURIComponent(formatted) + '&caller_id=' + encodeURIComponent(outboundNumber);
+  let iframe = document.getElementById('justcall-dialer-iframe');
+  if(iframe){
+    iframe.src = dialerUrl;
+  } else {
+    initJustCallDialer();
+    iframe = document.getElementById('justcall-dialer-iframe');
+    if(iframe) iframe.src = dialerUrl;
   }
 }
 
