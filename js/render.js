@@ -449,7 +449,7 @@ export function render(){
           ${deal.bookedDate&&deal.bookedDate.match(/^\d{4}-\d{2}-\d{2}$/)?`<div class="deal-detail" style="color:#2563eb;font-weight:600">${new Date(deal.bookedDate+'T'+(deal.bookedTime||'00:00')).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}${deal.bookedTime?' @ '+fmtTime12(deal.bookedTime):''}</div>`:''}
           <div class="deal-bottom">
             <span style="display:flex;align-items:center;gap:4px">
-              ${(()=>{const sa=serviceAreaResults[deal.id];if(!sa||!sa.status)return'';if(sa.status==='in')return'<span class="sa-badge sa-in" title="In service area">&#10003;</span>';if(sa.status==='out')return'<span class="sa-badge sa-out" title="Outside service area">&#10007;</span>';return'<span class="sa-badge sa-unknown" title="Service area unknown">?</span>';})()}
+              ${(()=>{const sa=serviceAreaResults[deal.id];if(!sa||sa.inArea===undefined)return'';if(sa.inArea===true)return'<span class="sa-badge sa-in" title="In service area">&#10003;</span>';if(sa.inArea===false)return'<span class="sa-badge sa-out" title="Outside service area">&#10007;</span>';return'<span class="sa-badge sa-unknown" title="Service area unknown">?</span>';})()}
               ${leadAgeBadge(deal)}
               ${deal.leadCategory?`<span class="deal-tag">${esc(deal.leadCategory)}</span>`:''}
               ${(()=>{ const ow=getOwnerForDeal(deal); return ow?`<span class="owner-tag ${ow.cls}">${esc(ow.label)}</span>`:''; })()}
