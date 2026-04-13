@@ -74,10 +74,13 @@ export function openCalendlyEmbed(dealId, baseCalUrl, clientName, overrideName, 
 
   const urlObj=new URL(baseCalUrl);
   if(deal){
-    if(deal.prefillName||deal.contact||overrideName) urlObj.searchParams.set('name',overrideName||deal.prefillName||deal.contact||'');
-    if(deal.prefillEmail||deal.email||overrideEmail) urlObj.searchParams.set('email',overrideEmail||deal.prefillEmail||deal.email||'');
-    if(deal.company) urlObj.searchParams.set('a1',deal.company);
-    if(deal.prefillNotes||overrideNotes) urlObj.searchParams.set('a2',overrideNotes||deal.prefillNotes||'');
+    const guestName=overrideName||deal.calName||deal.contact||deal.company||'';
+    const guestEmail=overrideEmail||deal.calEmail||deal.email||'';
+    const notes=overrideNotes||deal.calNotes||'';
+    if(guestName) urlObj.searchParams.set('name',guestName);
+    if(guestEmail) urlObj.searchParams.set('email',guestEmail);
+    if(notes) urlObj.searchParams.set('a1',notes);
+    else if(deal.company) urlObj.searchParams.set('a1',deal.company);
   }
   if(ianaTz) urlObj.searchParams.set('timezone',ianaTz);
 
