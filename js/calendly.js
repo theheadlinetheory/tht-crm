@@ -72,23 +72,27 @@ export function openCalendlyEmbed(dealId, baseCalUrl, clientName, overrideName, 
   calendlyBookingDealId=dealId;
   const ianaTz=clientName?clientIanaTz(clientName):null;
 
-  const urlObj=new URL(baseCalUrl);
+  // Build URL manually with encodeURIComponent (%20) instead of URLSearchParams (+)
+  // because Calendly displays + literally instead of decoding as spaces
+  const params=[];
   if(deal){
     const guestName=overrideName||deal.calName||deal.contact||deal.company||'';
     const guestEmail=overrideEmail||deal.calEmail||deal.email||'';
     const notes=overrideNotes||deal.calNotes||'';
-    if(guestName) urlObj.searchParams.set('name',guestName);
-    if(guestEmail) urlObj.searchParams.set('email',guestEmail);
-    if(notes) urlObj.searchParams.set('a1',notes);
-    else if(deal.company) urlObj.searchParams.set('a1',deal.company);
+    if(guestName) params.push('name='+encodeURIComponent(guestName));
+    if(guestEmail) params.push('email='+encodeURIComponent(guestEmail));
+    if(notes) params.push('a1='+encodeURIComponent(notes));
+    else if(deal.company) params.push('a1='+encodeURIComponent(deal.company));
   }
-  if(ianaTz) urlObj.searchParams.set('timezone',ianaTz);
+  if(ianaTz) params.push('timezone='+encodeURIComponent(ianaTz));
+  const sep=baseCalUrl.includes('?')?'&':'?';
+  const finalUrl=params.length?baseCalUrl+sep+params.join('&'):baseCalUrl;
 
   // Use Calendly popup widget
   if(window.Calendly){
-    window.Calendly.initPopupWidget({url:urlObj.toString()});
+    window.Calendly.initPopupWidget({url:finalUrl});
   } else {
-    window.open(urlObj.toString(),'_blank');
+    window.open(finalUrl,'_blank');
   }
 }
 
