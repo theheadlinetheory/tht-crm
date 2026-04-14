@@ -252,6 +252,14 @@ export function openClientInfoPanel(clientName){
     </div>`;
   }
 
+  if(info.serviceAreaCities || str(cl.serviceAreaUrl).trim()){
+    h+=`<div style="margin-bottom:16px;padding:12px;background:#eff6ff;border-radius:8px;border:1px solid #bfdbfe">
+      <div style="font-size:11px;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Service Area</div>
+      ${info.serviceAreaCities?`<div style="font-size:13px;color:#1e3a5f;line-height:1.6;margin-bottom:${str(cl.serviceAreaUrl).trim()?'8':'0'}px">${esc(info.serviceAreaCities)}</div>`:''}
+      ${str(cl.serviceAreaUrl).trim()?`<a href="${esc(str(cl.serviceAreaUrl))}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#2563eb;text-decoration:none;font-weight:600">Open Service Area Map ↗</a>`:''}
+    </div>`;
+  }
+
   if(warmLines.length){
     h+=`<div style="margin-bottom:16px;padding:12px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0">
       <div style="font-size:11px;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">SDR Quick Reference / Warm Call Notes</div>
