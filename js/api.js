@@ -571,6 +571,26 @@ export const sbArchiveDeal = (id, originalData) => sbCall(async () => {
 export const sbRestoreFromArchive = (id) => sbCall(async () => {
   const { data, error } = await supabase.from('archive').select('*').eq('id', id).single();
   if (error) throw error;
+
+  // Parse original deal data and re-insert into deals table
+  let dealData = {};
+  try {
+    dealData = typeof data.original_data === 'string' ? JSON.parse(data.original_data) : (data.original_data || {});
+  } catch(e) { throw new Error('Failed to parse archived deal data'); }
+
+  // Remove archive-specific and non-column fields before inserting
+  const exclude = new Set(['archivedAt','archiveStatus','clientName','done','dealId','dayLabel','scheduledTime','completedAt','createdDate']);
+  const insert = {};
+  for (const [key, value] of Object.entries(dealData)) {
+    if (exclude.has(key)) continue;
+    const snakeKey = REVERSE_FIELD_MAP[key] || key;
+    insert[snakeKey] = value != null ? value : '';
+  }
+
+  const { error: insertErr } = await supabase.from('deals').insert(insert);
+  if (insertErr) throw insertErr;
+
+  // Delete from archive after successful restore
   await supabase.from('archive').delete().eq('id', id);
   return data;
 }, { label: 'Restore from archive' });
