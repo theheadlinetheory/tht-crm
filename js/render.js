@@ -534,6 +534,8 @@ export function render(){
 }
 
 // ─── Window exposures for inline HTML onclick handlers ───
-window.state = state;
+// state is deferred because app.js re-exports it from state.js,
+// and render.js evaluates before app.js finishes (circular import TDZ)
+setTimeout(() => { window.state = state; }, 0);
 window.render = render;
 window.refreshModal = refreshModal;
