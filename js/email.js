@@ -134,7 +134,8 @@ export async function confirmForward(dealId){
 
 export async function autoPushToTracker(deal){
   const client=findClientForDeal(deal) || state.clients.find(c=>c.name===deal.stage);
-  const clientName=client?client.name:deal.stage;
+  // Acquisition deals use company name as client (they ARE the new client)
+  const clientName = deal.pipeline==='Acquisition' ? (deal.company||deal.contact||'Unknown') : (client?client.name:deal.stage);
   if(!clientName){console.warn('No client name for tracker push');return;}
   const now=new Date();
   const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
