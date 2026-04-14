@@ -213,7 +213,7 @@ export function doLostDrop(){
   const id=state.dragId;
   state.dragId=null;
   const deal=state.deals.find(d=>d.id===id);
-  const client=deal?(findClientForDealSync(deal)||{name:deal.stage}):null;
+  const client=deal?(findClientForDeal(deal)||{name:deal.stage}):null;
   const { deleteDeal } = window;
   if(deleteDeal) deleteDeal(id, 'Deleted/Lost', client?client.name:'');
 }
@@ -225,7 +225,7 @@ export async function doWonDrop(){
   state.dragId=null;
   const deal=state.deals.find(d=>d.id===id);
   if(!deal) return;
-  const client=findClientForDealSync(deal)||state.clients.find(c=>c.name===deal.stage);
+  const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
   const clientName=client?client.name:deal.stage;
 
   // Acquisition Won → Client Tracker (new client onboarding)
@@ -238,19 +238,16 @@ export async function doWonDrop(){
       const { autoPushToTracker } = await import('./email.js');
       await autoPushToTracker(deal);
     }
-  } catch(e){ console.warn('Push on won failed:', e); }
+  } catch(e){
+    console.error('Push on won failed:', e);
+    const { showToast } = await import('./api.js');
+    showToast('Lead tracker push failed: ' + e.message, 'error');
+  }
 
   const { deleteDeal } = await import('./deals.js');
   deleteDeal(id, 'Closed Won', clientName);
 }
 
-function findClientForDealSync(deal){
-  // Sync version — avoids import
-  if(deal.pipeline==='Client' && deal.stage){
-    return state.clients.find(c=>c.name===deal.stage);
-  }
-  return null;
-}
 
 export function toggleBadgeDropdown(dealId){
   const el=document.getElementById('badge-dropdown-'+dealId);

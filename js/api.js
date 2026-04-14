@@ -331,8 +331,15 @@ export function camelToSnake(obj) {
 
 // ─── Supabase Initial Sync & Realtime ───
 
-export async function initialSync() {
+export async function initialSync(isStartup) {
+  // Sync guards — skip if writes are in-flight or modal is open (except on first load)
+  if (!isStartup) {
+    if (state.selectedDeal || state.showNew || state.showAddClient) return;
+    if (pendingWrites.value > 0) return;
+  }
   try {
+    state.syncing = true;
+    render();
     const [deals, activities, clients, appointments] = await Promise.all([
       sbGetDeals(), sbGetActivities(), sbGetClients(), sbGetAppointments()
     ]);
@@ -374,11 +381,17 @@ export async function initialSync() {
 
     state.synced = true;
     state.loadFailed = false;
+    state.syncing = false;
     render();
+
+    // Run service area checks in background, re-render when done
+    const { runServiceAreaChecks } = await import('./maps.js');
+    runServiceAreaChecks().then(() => render()).catch(e => console.warn('Service area checks failed:', e));
   } catch (e) {
     console.error('Initial sync failed:', e);
     state.loadFailed = true;
     state.synced = true;
+    state.syncing = false;
     render();
   }
 }

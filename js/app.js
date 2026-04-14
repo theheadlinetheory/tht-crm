@@ -145,7 +145,7 @@ export async function initApp(){
     setServiceAreaData(window.SERVICE_AREA_POLYGONS);
   }
   render();
-  await initialSync();
+  await initialSync(true);
   subscribeRealtime();
   if(isAdmin()||isEmployee()){
     setInterval(pollReplyStatus, REPLY_CHECK_INTERVAL);

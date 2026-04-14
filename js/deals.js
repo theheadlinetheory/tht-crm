@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // DEALS — CRUD operations, bulk actions, drag-drop
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, deletedDealIds, clientPortalStages } from './app.js';
+import { state, store, pendingWrites, pendingDealFields, deletedDealIds, clientPortalStages } from './app.js';
 import { ACQUISITION_STAGES } from './config.js';
 import { render } from './render.js';
 import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbArchiveDeal, sbRestoreFromArchive, sbCreateActivity, camelToSnake } from './api.js';
@@ -49,10 +49,18 @@ export async function deleteDeal(id, archiveStatus, clientName){
 export async function moveDeal(dealId,newStage){
   const d=state.deals.find(x=>x.id===dealId);
   if(d){d.stage=newStage;d.lastUpdated=TODAY();}
+  // Track pending stage so sync doesn't revert it
+  if(!pendingDealFields[String(dealId)]) pendingDealFields[String(dealId)]={};
+  pendingDealFields[String(dealId)].stage=newStage;
   render();
   pendingWrites.value++;
-  try { await sbUpdateDeal(dealId, {stage:newStage}); }
-  finally { pendingWrites.value--; }
+  try {
+    await sbUpdateDeal(dealId, {stage:newStage});
+    // Clear pending after successful save
+    const pending=pendingDealFields[String(dealId)];
+    if(pending && pending.stage===newStage) delete pending.stage;
+    if(pending && Object.keys(pending).length===0) delete pendingDealFields[String(dealId)];
+  } finally { pendingWrites.value--; }
   if(d && (newStage==='Service Area Taken' || newStage==='Revisit')){
     const { addToRerunQueue } = await import('./rerun.js');
     addToRerunQueue(dealId).catch(e=>console.warn('Re-run queue auto-add failed:',e));
