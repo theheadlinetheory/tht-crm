@@ -351,6 +351,15 @@ export async function initialSync() {
       if (pending) Object.assign(d, pending);
     }
 
+    // Clean up deletedDealIds for deals that were restored (exist in DB again)
+    if (deletedDealIds.size) {
+      const fetchedDealIds = new Set(state.deals.map(d => String(d.id)));
+      for (const id of deletedDealIds) {
+        if (fetchedDealIds.has(id)) deletedDealIds.delete(id);
+      }
+      localStorage.setItem('tht_deletedDeals', JSON.stringify([...deletedDealIds]));
+    }
+
     // Apply deletion guards
     state.deals = state.deals.filter(d => !deletedDealIds.has(String(d.id)));
     state.activities = state.activities.filter(a => !deletedActivityIds.has(String(a.id)));

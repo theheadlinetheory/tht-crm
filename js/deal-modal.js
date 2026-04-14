@@ -82,7 +82,8 @@ export function debouncedDealFieldSave(){
     const fields={};
     // Read all editable fields from the modal DOM
     const fieldMap=['company','contact','email','phone','mobilePhone','website','location','address','value','notes',
-      'email2','email3','email4','bookedDate','bookedTime','bookedFor','prefillName','prefillEmail','prefillNotes'];
+      'email2','email3','email4','bookedDate','bookedTime','bookedFor','prefillName','prefillEmail','prefillNotes',
+      'stage','pipeline'];
     for(const f of fieldMap){
       const el=document.getElementById('deal-'+f);
       if(el && el.value!==undefined){

@@ -67,6 +67,11 @@ export const SOP_DAYS = {
   "Day 3": [{type:"Call",subject:"Morning call"},{type:"Text",subject:"Follow-up text"},{type:"Email",subject:"Follow-up email"},{type:"Call",subject:"Evening call"}],
   "Day 4": [{type:"Call",subject:"Morning call"},{type:"Email",subject:"Follow-up email"},{type:"Call",subject:"Evening call"}],
   "Day 5": [{type:"Email",subject:"Follow-up email"}],
+  "Day 6": [{type:"Email",subject:"Follow-up email"},{type:"Call",subject:"Check-in call"}],
+  "Day 8": [{type:"Email",subject:"Follow-up email"}],
+  "Day 9": [{type:"Call",subject:"Check-in call"}],
+  "Day 10": [{type:"Email",subject:"Final email"}],
+  "Day 30": [{type:"Email",subject:"Last attempt email"},{type:"Call",subject:"Last attempt call"}],
 };
 
 export const CLIENT_SOP_DAYS = {
