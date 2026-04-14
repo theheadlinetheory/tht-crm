@@ -157,6 +157,7 @@ registerActions({
   archiveFilterStatusSelect(el) { state.archiveFilterStatus=el.value; render(); },
   archiveSortSelect(el) { state.archiveSortDir=el.value; render(); },
   archiveSearchInput(el) { state.archiveSearch=el.value; render(); },
+  toggleEmployeeArchive() { state.showEmployeeArchive=!state.showEmployeeArchive; render(); },
 });
 
 // Still needed by other modules that call these directly
