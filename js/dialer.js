@@ -61,10 +61,10 @@ function sendToDialer(msg){
   }
 }
 
-export async function callInJustCall(dealId){
+export async function callInJustCall(dealId, phoneField){
   const deal = state.deals.find(d => d.id === dealId);
   if(!deal) return;
-  const phone = str(deal.phone) || str(deal.mobilePhone);
+  const phone = phoneField === 'mobilePhone' ? (str(deal.mobilePhone) || str(deal.phone)) : (str(deal.phone) || str(deal.mobilePhone));
   if(!phone){ alert('No phone number on this deal.'); return; }
   const digits = phone.replace(/\D/g, '');
   const formatted = digits.length === 10 ? '+1' + digits
