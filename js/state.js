@@ -46,6 +46,8 @@ export const state = {
   archiveFilterStatus: '',
   archiveFilterClient: '',
   archiveSortDir: 'newest',
+  archiveSearch: '',
+  showEmployeeArchive: false,
   bulkMode: false,
   bulkSelected: new Set(),
   viewMode: 'board',

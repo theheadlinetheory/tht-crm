@@ -602,13 +602,18 @@ export const sbRestoreFromArchive = (id) => sbCall(async () => {
 
   // Remove archive-specific and non-column fields before inserting
   const exclude = new Set(['archivedAt','archiveStatus','clientName','done','dealId','dayLabel','scheduledTime','completedAt','createdDate']);
+  // Valid deals table columns
+  const DEAL_COLS = new Set(['id','company','contact','email','phone','value','stage','pipeline','flag','notes','sl_lead_id','sl_campaign_id','campaign_name','lead_category','website','location','smartlead_url','forwarded_at','email_body','mobile_phone','pushed_to_tracker','address','client_stage','booked_date','booked_time','cal_name','cal_email','cal_notes','created_at','updated_at','owner_override','lead_hero_id','has_new_reply','reply_msg_count','email2','email3','email4','booked_for','prefill_name','prefill_email','prefill_notes','booked_timezone']);
   const insert = {};
   for (const [key, value] of Object.entries(dealData)) {
     if (exclude.has(key)) continue;
     const snakeKey = REVERSE_FIELD_MAP[key] || key;
+    if (!DEAL_COLS.has(snakeKey)) continue; // Skip unknown columns
     // Empty strings must be null for non-text columns (numeric, timestamp, date, time)
     if (value === '' && NULLABLE_COLS.has(snakeKey)) {
       insert[snakeKey] = null;
+    } else if (typeof value === 'boolean') {
+      insert[snakeKey] = String(value);
     } else {
       insert[snakeKey] = value != null ? value : null;
     }

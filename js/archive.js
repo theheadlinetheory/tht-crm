@@ -120,16 +120,21 @@ export async function updateArchiveStatus(id,newStatus){
 
 export async function restoreFromArchive(id){
   if(!confirm('Restore this deal from archive?')) return;
-  store.removeArchiveItem(id);
   // Remove from deletion guard so sync doesn't filter it out
   deletedDealIds.delete(String(id));
   localStorage.setItem('tht_deletedDeals',JSON.stringify([...deletedDealIds]));
   pendingWrites.value++;
   try {
     await sbRestoreFromArchive(id);
-    const { initialSync } = await import('./api.js');
-    await initialSync();
+  } catch(e) {
+    console.error('Restore failed:', e);
+    return;
   } finally { pendingWrites.value--; }
+  // Remove from archive UI only after DB restore succeeds
+  store.removeArchiveItem(id);
+  // Sync to load the restored deal onto the board
+  const { initialSync } = await import('./api.js');
+  await initialSync();
 }
 
 export function toggleViewMode(){
