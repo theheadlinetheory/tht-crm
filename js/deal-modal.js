@@ -228,11 +228,17 @@ export async function doWonDrop(){
   const client=findClientForDealSync(deal)||state.clients.find(c=>c.name===deal.stage);
   const clientName=client?client.name:deal.stage;
 
-  // Push to Lead Entry sheet on Won (syncs to admin Lead Tracker)
+  // Acquisition Won → Client Tracker (new client onboarding)
+  // Client Won → Lead Entry (syncs to admin Lead Tracker)
   try {
-    const { autoPushToTracker } = await import('./email.js');
-    await autoPushToTracker(deal);
-  } catch(e){ console.warn('Lead Entry push on won failed:', e); }
+    if(deal.pipeline==='Acquisition'){
+      const { pushToClientInfo } = await import('./warm-call.js');
+      await pushToClientInfo(deal.id);
+    } else {
+      const { autoPushToTracker } = await import('./email.js');
+      await autoPushToTracker(deal);
+    }
+  } catch(e){ console.warn('Push on won failed:', e); }
 
   const { deleteDeal } = await import('./deals.js');
   deleteDeal(id, 'Closed Won', clientName);
