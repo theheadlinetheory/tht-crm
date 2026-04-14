@@ -24,9 +24,13 @@ export async function loadClientConfig() {
 export function getClientConfig(name) {
   if (!name) return null;
   const n = name.toLowerCase().trim();
+  const nStripped = n.replace(/[^a-z0-9]/g, '');
   return _clientConfigCache.find(c => {
     const cn = (c.client_name || '').toLowerCase();
-    return cn === n || n.includes(cn) || cn.includes(n);
+    const cnStripped = cn.replace(/[^a-z0-9]/g, '');
+    // Exact match, substring match, or stripped match (handles apostrophes/spaces)
+    return cn === n || n.includes(cn) || cn.includes(n)
+      || cnStripped === nStripped || nStripped.includes(cnStripped) || cnStripped.includes(nStripped);
   }) || null;
 }
 
