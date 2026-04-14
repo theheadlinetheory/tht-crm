@@ -151,6 +151,12 @@ registerActions({
   updateArchiveStatus(el) { updateArchiveStatus(el.dataset.id, el.value); },
   restoreFromArchive(el) { restoreFromArchive(el.dataset.id); },
   toggleViewMode() { toggleViewMode(); },
+  archiveBackToBoard() { state.showEmployeeArchive=false; state.archiveSearch=''; state.archiveFilterClient=''; state.archiveFilterStatus=''; render(); },
+  archiveRefresh() { state.archiveLoaded=false; loadArchive(); },
+  archiveFilterClientSelect(el) { state.archiveFilterClient=el.value.trim(); render(); },
+  archiveFilterStatusSelect(el) { state.archiveFilterStatus=el.value; render(); },
+  archiveSortSelect(el) { state.archiveSortDir=el.value; render(); },
+  archiveSearchInput(el) { state.archiveSearch=el.value; render(); },
 });
 
 // Still needed by other modules that call these directly

@@ -281,27 +281,27 @@ export function render(){
     const empArchiveClients=[...new Set(state.archiveData.filter(d=>(d.pipeline||'').toLowerCase()===archivePipeline).map(d=>(d.clientName||d.stage||'').trim()).filter(Boolean))].sort();
     html+=`<div style="padding:16px 20px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-        <button class="btn btn-ghost" onclick="state.showEmployeeArchive=false;state.archiveSearch='';state.archiveFilterClient='';state.archiveFilterStatus='';render()" style="font-size:13px;padding:5px 12px;display:flex;align-items:center;gap:4px">← Back to Board</button>
+        <button class="btn btn-ghost" data-action="archiveBackToBoard" style="font-size:13px;padding:5px 12px;display:flex;align-items:center;gap:4px">\u2190 Back to Board</button>
         <span style="font-size:14px;font-weight:600">${state.pipeline==='acquisition'?'Archived Acquisition Deals':'Archived Client Leads'}</span>
         <span style="font-size:12px;color:var(--text-muted)">${empArchive.length} result${empArchive.length!==1?'s':''}</span>
-        <button class="btn btn-ghost" onclick="state.archiveLoaded=false;loadArchive()" style="font-size:11px;padding:3px 10px;display:inline-flex;align-items:center;gap:4px">${svgIcon('refresh-cw',12)} Refresh</button>
+        <button class="btn btn-ghost" data-action="archiveRefresh" style="font-size:11px;padding:3px 10px;display:inline-flex;align-items:center;gap:4px">${svgIcon('refresh-cw',12)} Refresh</button>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
-        ${archivePipeline==='client'?`<select onchange="state.archiveFilterClient=this.value.trim();render()" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+        ${archivePipeline==='client'?`<select data-action="archiveFilterClientSelect" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
           <option value="">All Clients</option>
           ${empArchiveClients.map(c=>`<option value="${esc(c)}" ${state.archiveFilterClient===c?'selected':''}>${esc(c)}</option>`).join('')}
         </select>`:''}
-        <select onchange="state.archiveFilterStatus=this.value;render()" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+        <select data-action="archiveFilterStatusSelect" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
           <option value="">All Statuses</option>
           <option value="Deleted/Lost" ${state.archiveFilterStatus==='Deleted/Lost'?'selected':''}>Deleted / Lost</option>
           <option value="Closed Won" ${state.archiveFilterStatus==='Closed Won'?'selected':''}>Closed Won</option>
           <option value="Passed Off" ${state.archiveFilterStatus==='Passed Off'?'selected':''}>Passed Off</option>
         </select>
-        <select onchange="state.archiveSortDir=this.value;render()" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+        <select data-action="archiveSortSelect" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
           <option value="newest" ${state.archiveSortDir==='newest'?'selected':''}>Newest First</option>
           <option value="oldest" ${state.archiveSortDir==='oldest'?'selected':''}>Oldest First</option>
         </select>
-        <input type="text" id="archive-search-input" placeholder="Search..." value="${esc(state.archiveSearch||'')}" oninput="state.archiveSearch=this.value;render()" style="margin-left:auto;padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);width:200px;background:var(--card)">
+        <input type="text" id="archive-search-input" placeholder="Search..." value="${esc(state.archiveSearch||'')}" data-action="archiveSearchInput" style="margin-left:auto;padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);width:200px;background:var(--card)">
       </div>
       <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;background:var(--card)">
         <table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -326,13 +326,13 @@ export function render(){
         <td style="padding:8px 10px">${esc(d.contact||'')}</td>
         <td style="padding:8px 10px;color:var(--text-muted)">${esc(d.email||'')}</td>
         <td style="padding:8px 10px">${esc(d.clientName||d.stage||'')}</td>
-        <td style="padding:8px 10px"><select onchange="updateArchiveStatus('${esc(d.id)}',this.value)" style="padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;background:${stBg};color:${stColor};border:1px solid ${stColor}33;font-family:var(--font);cursor:pointer">
+        <td style="padding:8px 10px"><select data-action="updateArchiveStatus" data-id="${esc(d.id)}" style="padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;background:${stBg};color:${stColor};border:1px solid ${stColor}33;font-family:var(--font);cursor:pointer">
           <option value="Deleted/Lost" ${d.archiveStatus==='Deleted/Lost'?'selected':''}>Deleted/Lost</option>
           <option value="Closed Won" ${d.archiveStatus==='Closed Won'?'selected':''}>Closed Won</option>
           <option value="Passed Off" ${d.archiveStatus==='Passed Off'?'selected':''}>Passed Off</option>
         </select></td>
         <td style="padding:8px 10px;color:var(--text-muted);white-space:nowrap">${dateStr}</td>
-        <td style="padding:8px 10px"><button class="btn btn-ghost" style="font-size:11px;padding:3px 10px;background:#f0fdf4;color:#059669;border:1px solid #a7f3d0" onclick="restoreFromArchive('${esc(d.id)}')">↩ Restore</button></td>
+        <td style="padding:8px 10px"><button class="btn btn-ghost" style="font-size:11px;padding:3px 10px;background:#f0fdf4;color:#059669;border:1px solid #a7f3d0" data-action="restoreFromArchive" data-id="${esc(d.id)}">&#8617; Restore</button></td>
       </tr>`;
     }
     html+=`</tbody></table></div></div>`;
