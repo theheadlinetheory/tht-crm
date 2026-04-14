@@ -530,7 +530,11 @@ export async function pushToLeadTracker(dealId){
   const { autoPushToTracker } = await import('./email.js');
   try {
     await autoPushToTracker(deal);
-    refreshModal(true);
+    // Archive the deal after successful push (same as Won drop)
+    const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
+    const clientName=client?client.name:deal.stage;
+    const { deleteDeal } = await import('./deals.js');
+    deleteDeal(dealId, 'Closed Won', clientName);
   } catch(e){
     alert('Push to tracker failed: '+e.message);
     if(btn){btn.disabled=false;btn.innerHTML='Retry Push';}
