@@ -4,8 +4,7 @@
 import { state } from './app.js';
 import { str, esc, uid, getToday } from './utils.js';
 import { invokeEdgeFunction, sbCreateActivity, camelToSnake } from './api.js';
-import { getHealthyNumber, getRegionForPhone, recordCallOutcome } from './number-health.js';
-import { JUSTCALL_NUMBERS } from './config.js';
+import { getBestNumberForLead, getRegionForPhone, recordCallOutcome } from './number-health.js';
 
 const DIALER_URL = 'https://app.justcall.io/dialer';
 let dialerReady = false;
@@ -71,13 +70,13 @@ export async function callInJustCall(dealId, phoneField){
     : digits.length === 11 && digits[0] === '1' ? '+' + digits
     : '+' + digits;
 
-  // Smart number selection based on lead's area code
-  const region = getRegionForPhone(formatted);
-  const outboundNumber = getHealthyNumber(region);
-  if(!outboundNumber){
-    alert('No healthy dialer numbers for the ' + region + ' region. Check Settings \u2192 Dialer.');
+  // Smart number selection — picks healthiest number closest to lead's area code
+  const bestNumber = getBestNumberForLead(formatted);
+  if(!bestNumber){
+    alert('No healthy dialer numbers available. Check Settings \u2192 Dialer.');
     return;
   }
+  const outboundNumber = bestNumber.number;
 
   // Show the widget
   const widget = document.getElementById('justcall-widget');
@@ -92,7 +91,7 @@ export async function callInJustCall(dealId, phoneField){
   dialerEl.style.display = '';
 
   const regionBadge = document.getElementById('justcall-region-badge');
-  const jcLabel = JUSTCALL_NUMBERS[region] ? JUSTCALL_NUMBERS[region].label : region;
+  const jcLabel = bestNumber.label || bestNumber.region || outboundNumber;
   if(regionBadge) regionBadge.textContent = 'Use: ' + jcLabel;
 
   // Track current call for outcome logging
