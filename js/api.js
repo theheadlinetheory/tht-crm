@@ -601,8 +601,24 @@ export const sbRestoreFromArchive = (id) => sbCall(async () => {
     }
   }
 
+  // Reset to first stage of the pipeline
+  const pipeline = insert.pipeline || dealData.pipeline || '';
+  if (pipeline === 'Acquisition') {
+    insert.stage = 'Cold Email Response';
+  } else if (pipeline === 'Nurture') {
+    insert.stage = 'Revisit';
+  } else {
+    insert.stage = 'Client Not Distributed';
+  }
+  // Clear tracking fields on restore
+  insert.pushed_to_tracker = null;
+  insert.forwarded_at = null;
+
   const { error: insertErr } = await supabase.from('deals').insert(insert);
   if (insertErr) throw insertErr;
+
+  // Delete any existing activities for this deal (clean slate)
+  await supabase.from('activities').delete().eq('deal_id', insert.id || id);
 
   // Delete from archive after successful restore
   await supabase.from('archive').delete().eq('id', id);
