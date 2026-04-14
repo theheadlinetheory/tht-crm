@@ -552,21 +552,36 @@ export function deriveTimezone(location){
   return '';
 }
 
-// ─── Push to Client Info sheet ───
+// ─── Push to Client Tracker sheet ───
+// Columns: A=Client, B=Primary(first), C=Primary(email), D=Other Contacts,
+//          E=Location, F=Time Zone, G=Service Area, H=Phone Number,
+//          I=Calendly Link, J=Email for Lead Forwarding
 export async function pushToClientInfo(dealId){
   const deal=state.deals.find(d=>d.id===dealId);
   if(!deal) return;
   const { CLIENT_INFO_SHEET_ID } = await import('./config.js');
-  const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
-  const clientName=client?client.name:deal.stage;
   const tz=deriveTimezone(deal.location||deal.address||'');
+
+  // Map deal fields to Client Tracker columns
+  const row=[
+    deal.company||deal.contact||'',           // A: Client (company name)
+    deal.contact||'',                          // B: Primary contact name
+    deal.email||'',                            // C: Primary email
+    [deal.email2,deal.email3,deal.email4].filter(e=>e&&str(e).trim()).join(', '),  // D: Other Contacts
+    deal.location||deal.address||'',           // E: Location
+    tz,                                        // F: Time Zone
+    '',                                        // G: Service Area (populated later)
+    deal.phone||deal.mobilePhone||'',          // H: Phone Number
+    '',                                        // I: Calendly Link (populated later)
+    deal.email||''                             // J: Email for Lead Forwarding
+  ];
 
   pendingWrites.value++;
   try {
     await invokeEdgeFunction('push-lead-tracker',{
       sheetId:CLIENT_INFO_SHEET_ID,
-      sheetName:'Info for CRM',
-      row:[deal.company||'',deal.contact||'',deal.email||'',deal.phone||'',deal.website||'',deal.location||'',tz,clientName]
+      sheetName:'Client Tracker',
+      row
     });
   } finally { pendingWrites.value--; }
 }
