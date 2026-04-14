@@ -318,7 +318,7 @@ export function normalizeRow(row) {
   return normalized;
 }
 
-const NULLABLE_COLS = new Set(['completed_at','scheduled_time','created_at','updated_at','forwarded_at','pushed_to_tracker','queued_at','rerun_after','sent_at','archived_at','value','lead_cost','rerun_days']);
+const NULLABLE_COLS = new Set(['completed_at','scheduled_time','created_at','updated_at','forwarded_at','pushed_to_tracker','queued_at','rerun_after','sent_at','archived_at','value','lead_cost','rerun_days','booked_date','booked_time']);
 
 export function camelToSnake(obj) {
   const result = {};
@@ -584,7 +584,12 @@ export const sbRestoreFromArchive = (id) => sbCall(async () => {
   for (const [key, value] of Object.entries(dealData)) {
     if (exclude.has(key)) continue;
     const snakeKey = REVERSE_FIELD_MAP[key] || key;
-    insert[snakeKey] = value != null ? value : '';
+    // Empty strings must be null for non-text columns (numeric, timestamp, date, time)
+    if (value === '' && NULLABLE_COLS.has(snakeKey)) {
+      insert[snakeKey] = null;
+    } else {
+      insert[snakeKey] = value != null ? value : null;
+    }
   }
 
   const { error: insertErr } = await supabase.from('deals').insert(insert);
