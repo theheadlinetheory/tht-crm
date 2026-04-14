@@ -6,7 +6,7 @@ import { CLIENT_PALETTE } from './config.js';
 import { render } from './render.js';
 import { str, uid, esc, isValidDate, getToday, svgIcon } from './utils.js';
 import { sbCreateClient, sbDeleteClient, camelToSnake } from './api.js';
-import { isClient } from './auth.js';
+import { isClient, isAdmin } from './auth.js';
 
 // ─── Client Config (loaded from Supabase client_config table) ───
 let _clientConfigCache = [];
@@ -307,7 +307,7 @@ export function openClientInfoPanel(clientName){
     h+=`</div>`;
   }
 
-  if(info.pricingModel){
+  if(info.pricingModel && isAdmin()){
     h+=`<div style="margin-bottom:16px;font-size:12px;color:#64748b"><strong>Pricing:</strong> ${esc(info.pricingModel)}</div>`;
   }
 
