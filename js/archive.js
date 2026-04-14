@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // ARCHIVE — Admin archive (Deals sheet archive), load/render
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js';
+import { state, store, pendingWrites, deletedDealIds } from './app.js';
 import { render } from './render.js';
 import { sbGetArchive, sbRestoreFromArchive, normalizeRow, supabase } from './api.js';
 import { esc, str, fmtDate } from './utils.js';
@@ -121,11 +121,14 @@ export async function updateArchiveStatus(id,newStatus){
 export async function restoreFromArchive(id){
   if(!confirm('Restore this deal from archive?')) return;
   store.removeArchiveItem(id);
+  // Remove from deletion guard so sync doesn't filter it out
+  deletedDealIds.delete(String(id));
+  localStorage.setItem('tht_deletedDeals',JSON.stringify([...deletedDealIds]));
   pendingWrites.value++;
   try {
     await sbRestoreFromArchive(id);
     const { initialSync } = await import('./api.js');
-    initialSync();
+    await initialSync();
   } finally { pendingWrites.value--; }
 }
 
