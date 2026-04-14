@@ -2,7 +2,6 @@
 // EMAIL — Forward to client, lead tracker push, send to thread
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites } from './app.js';
-import { LEAD_ENTRY_SHEET_ID } from './config.js';
 import { render, refreshModal } from './render.js';
 import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js';
 import { esc, str, svgIcon } from './utils.js';
@@ -134,18 +133,12 @@ export async function confirmForward(dealId){
 
 export async function autoPushToTracker(deal){
   const client=findClientForDeal(deal) || state.clients.find(c=>c.name===deal.stage);
-  // Acquisition deals use company name as client (they ARE the new client)
   const clientName = deal.pipeline==='Acquisition' ? (deal.company||deal.contact||'Unknown') : (client?client.name:deal.stage);
   if(!clientName){console.warn('No client name for tracker push');return;}
-  const now=new Date();
-  const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
-  const monthGenerated=monthNames[now.getMonth()]+'/'+String(now.getFullYear()).slice(2);
-  const dateGenerated=(now.getMonth()+1)+'/'+now.getDate()+'/'+String(now.getFullYear()).slice(2);
   const leadName=deal.company||deal.contact||'Unknown';
   const leadEmail=deal.email||'';
-  const row=[clientName,monthGenerated,leadName,leadEmail,dateGenerated];
-  const resp=await invokeEdgeFunction('push-lead-tracker',{sheetId:LEAD_ENTRY_SHEET_ID,sheetName:'Lead Entry',row});
-  if(resp && !resp.error){
+  const resp=await invokeEdgeFunction('push-lead-tracker',{clientName,leadName,leadEmail});
+  if(resp && resp.ok){
     deal.pushedToTracker=new Date().toISOString();
     pendingWrites.value++;
     sbUpdateDeal(deal.id, camelToSnake({pushedToTracker:deal.pushedToTracker})).catch(e=>console.error('Update deal failed:',e)).finally(()=>{pendingWrites.value--;});

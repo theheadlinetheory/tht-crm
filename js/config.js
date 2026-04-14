@@ -150,9 +150,7 @@ export const TZ_TO_IANA = {
 // ─── Owner Colors Map ───
 export const OWNER_COLORS_MAP = { 'aidan': { cls: 'owner-tag-blue', label: 'Aidan' }, 'lars': { cls: 'owner-tag-yellow', label: 'Lars' } };
 
-// ─── Lead Tracker & Client Info Sheet IDs ───
-export const LEAD_TRACKER_SHEET_ID = '1zEfZQOuzbrE9s01gfTOoVvEJ-DgtOxkPIWNiZHaxaZ4';
-export const LEAD_ENTRY_SHEET_ID = '1RAa689xwLM2fQjO0K8cpOyBCPt8bEorTErKDbdFL_fY';
+// ─── Client Info Sheet ID ───
 export const CLIENT_INFO_SHEET_ID = '1y8AoGopplKltre5ZOP2v0tJPy6Jp0c6C8rqUBO30xFg';
 
 // ─── Geocodio ───
