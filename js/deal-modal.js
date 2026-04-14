@@ -14,7 +14,7 @@ import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimesta
 import { isAdmin, isClient, isEmployee } from './auth.js';
 import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js';
 import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence } from './activities.js';
-import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA, isZeroCostClient } from './client-info.js';
+import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js';
 import { getStagesForPipeline } from './dashboard.js';
 import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal } from './maps.js';
 import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js';
@@ -533,7 +533,6 @@ export function renderDealModal(deal){
       // Push to Lead Tracker button
       if(isOn('enableTracker')){
         const pushed=deal.pushedToTracker;
-        const zeroCost=isZeroCostClient(matchedClient.name||'');
         h+=`<div style="margin:0 0 8px 0">
           <button id="push-tracker-btn" class="btn ${pushed?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px"
             onclick="${pushed?'':'pushToLeadTracker(\''+deal.id+'\')'}" ${pushed?'disabled':''}>

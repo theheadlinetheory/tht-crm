@@ -39,10 +39,6 @@ export function getClientThreadId(name) {
   return cfg?.gmail_thread_id || '';
 }
 
-export function isZeroCostClient(name) {
-  const cfg = getClientConfig(name);
-  return cfg?.zero_cost === true;
-}
 
 export const CLIENT_THREAD_IDS = new Proxy({}, { get: (_, prop) => typeof prop === 'string' ? getClientThreadId(prop) : undefined });
 
