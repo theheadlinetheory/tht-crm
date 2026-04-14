@@ -227,11 +227,16 @@ export async function doWonDrop(){
   const client=findClientForDealSync(deal)||state.clients.find(c=>c.name===deal.stage);
   const clientName=client?client.name:deal.stage;
 
-  // Auto-push to tracker on Won
+  // Push to sheet on Won — acquisition goes to Client Info, client goes to Lead Tracker
   try {
-    const { autoPushToTracker } = await import('./email.js');
-    await autoPushToTracker(deal);
-  } catch(e){ console.warn('Tracker push on won failed:', e); }
+    if(deal.pipeline==='Acquisition'){
+      const { pushToClientInfo } = await import('./warm-call.js');
+      await pushToClientInfo(deal.id);
+    } else {
+      const { autoPushToTracker } = await import('./email.js');
+      await autoPushToTracker(deal);
+    }
+  } catch(e){ console.warn('Tracker/info push on won failed:', e); }
 
   const { deleteDeal } = await import('./deals.js');
   deleteDeal(id, 'Closed Won', clientName);

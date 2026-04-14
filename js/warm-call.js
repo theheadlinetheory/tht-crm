@@ -565,7 +565,7 @@ export async function pushToClientInfo(dealId){
   try {
     await invokeEdgeFunction('push-lead-tracker',{
       sheetId:CLIENT_INFO_SHEET_ID,
-      sheetName:'Client Info',
+      sheetName:'Info for CRM',
       row:[deal.company||'',deal.contact||'',deal.email||'',deal.phone||'',deal.website||'',deal.location||'',tz,clientName]
     });
   } finally { pendingWrites.value--; }
