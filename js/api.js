@@ -286,6 +286,7 @@ const FIELD_MAP = {
   owner_override: 'ownerOverride',
   has_new_reply: 'hasNewReply',
   booked_for: 'bookedFor',
+  booked_timezone: 'bookedTimezone',
   prefill_name: 'prefillName',
   prefill_email: 'prefillEmail',
   prefill_notes: 'prefillNotes',
