@@ -115,6 +115,20 @@ export function debouncedDealFieldSave(){
 export function updateDealField(key,val){
   if(!state.selectedDeal) return;
   state.selectedDeal[key]=val;
+  // Stage and pipeline changes save immediately (like drag-drop) — not debounced.
+  // The debounced save is killed when the modal closes, so stage changes were lost.
+  if(key==='stage'||key==='pipeline'){
+    const dealId=state.selectedDeal.id;
+    if(!pendingDealFields[String(dealId)]) pendingDealFields[String(dealId)]={};
+    pendingDealFields[String(dealId)][key]=val;
+    pendingWrites.value++;
+    sbUpdateDeal(dealId, {[key]:val}).then(()=>{
+      const pending=pendingDealFields[String(dealId)];
+      if(pending && pending[key]===val) delete pending[key];
+      if(pending && Object.keys(pending).length===0) delete pendingDealFields[String(dealId)];
+    }).finally(()=>{pendingWrites.value--;});
+    return;
+  }
   debouncedDealFieldSave();
 }
 
