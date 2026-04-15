@@ -132,11 +132,22 @@ export async function runServiceAreaChecks(){
   const clientDeals=state.deals.filter(d=>(d.location||d.address));
   if(!clientDeals.length) return;
 
-  // Collect addresses to geocode
+  // Collect addresses to geocode — append client city/state for ambiguous addresses
   const addresses=[];
+  const addrMap={};  // deal.id → final address used for geocoding
   for(const d of clientDeals){
-    const addr=normalizeAddressForGeocode(d.address||d.location||'');
-    if(addr && !geocodeCache[addr]) addresses.push(addr);
+    let addr=normalizeAddressForGeocode(d.address||d.location||'');
+    if(!addr) continue;
+    const client=findClientForDeal(d)||state.clients.find(c=>c.name===d.stage);
+    if(client){
+      const hasGeoContext = /\b[A-Z]{2}\b/.test(addr) || /\b\d{5}\b/.test(addr);
+      if(!hasGeoContext){
+        const info=lookupClientInfo(client.name);
+        if(info && info.location) addr = addr + ', ' + info.location;
+      }
+    }
+    addrMap[d.id]=addr;
+    if(!geocodeCache[addr]) addresses.push(addr);
   }
 
   if(addresses.length) await batchGeocode(addresses);
@@ -144,7 +155,8 @@ export async function runServiceAreaChecks(){
   // Check each deal against its client's service area polygon (if available)
   // Always store geocoded coords so maps render even without polygon data
   for(const d of clientDeals){
-    const addr=normalizeAddressForGeocode(d.address||d.location||'');
+    const addr=addrMap[d.id];
+    if(!addr) continue;
     const cached=geocodeCache[addr];
     if(!cached) continue;
     const client=findClientForDeal(d)||state.clients.find(c=>c.name===d.stage);
@@ -320,14 +332,24 @@ export function onAddressFieldChange(dealId, newAddr){
 export async function geocodeAndCheckDeal(dealId){
   const deal=state.deals.find(d=>d.id===dealId);
   if(!deal) return;
-  const addr=normalizeAddressForGeocode(deal.address||deal.location||'');
+  let addr=normalizeAddressForGeocode(deal.address||deal.location||'');
   if(!addr) return;
+
+  // If deal belongs to a client, append the client's city/state to help geocoding
+  // when the address lacks geographic context (no state abbreviation, no zip, no city)
+  const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
+  const clientName=client?client.name:'';
+  if(client){
+    const hasGeoContext = /\b[A-Z]{2}\b/.test(addr) || /\b\d{5}\b/.test(addr);
+    if(!hasGeoContext){
+      const info=lookupClientInfo(clientName);
+      if(info && info.location) addr = addr + ', ' + info.location;
+    }
+  }
+
   await batchGeocode([addr]);
   const cached=geocodeCache[addr];
   if(!cached) return;
-  // Always store geocoded coords so the map renders — even without a client/polygon match
-  const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
-  const clientName=client?client.name:'';
   const pm=client?findPolygonForClient(clientName):null;
   const inArea=pm?checkPointInServiceArea(cached.lat, cached.lng, pm.polygon):undefined;
   serviceAreaResults[dealId]={inArea, lat:cached.lat, lng:cached.lng, clientName};
