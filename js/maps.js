@@ -8,7 +8,7 @@
 // This module provides the functions that operate on that data.
 
 import { state, pendingWrites } from './app.js';
-import { GEOCODIO_KEY, CA_PROVINCES } from './config.js';
+import { GEOCODIO_KEY, CA_PROVINCES, CA_POSTAL, CA_CITIES } from './config.js';
 import { render, refreshModal } from './render.js';
 // api.js imports removed — no direct API calls in this module
 import { str, esc } from './utils.js';
@@ -84,7 +84,7 @@ export async function batchGeocode(addresses){
   const usAddrs = [];
   const caAddrs = [];
   for(const addr of toGeocode){
-    if(CA_PROVINCES.test(addr)){
+    if(CA_PROVINCES.test(addr) || CA_POSTAL.test(addr) || CA_CITIES.test(addr)){
       caAddrs.push(addr);
     } else {
       usAddrs.push(addr);

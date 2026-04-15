@@ -72,32 +72,34 @@ export function openCalendlyEmbed(dealId, baseCalUrl, clientName, overrideName, 
   calendlyBookingDealId=dealId;
   const ianaTz=clientName?clientIanaTz(clientName):null;
 
-  // Build prefill data for Calendly popup widget
-  const prefill={};
-  const customAnswers={};
+  // Build prefill — encode everything into URL params (most reliable method)
+  let guestName='', guestEmail='', notes='';
   if(deal){
-    const guestName=overrideName||deal.calName||deal.contact||deal.company||'';
-    const guestEmail=overrideEmail||deal.calEmail||deal.email||'';
-    const notes=overrideNotes||deal.calNotes||'';
-    if(guestName) prefill.name=guestName;
-    if(guestEmail) prefill.email=guestEmail;
-    if(notes) customAnswers.a1=notes;
-    else if(deal.company) customAnswers.a1=deal.company;
-  }
-  if(Object.keys(customAnswers).length) prefill.customAnswers=customAnswers;
-
-  // Append timezone to URL (only param that must be in URL)
-  let finalUrl=baseCalUrl;
-  if(ianaTz){
-    const sep=baseCalUrl.includes('?')?'&':'?';
-    finalUrl=baseCalUrl+sep+'timezone='+encodeURIComponent(ianaTz);
+    guestName=overrideName||deal.calName||deal.contact||deal.company||'';
+    guestEmail=overrideEmail||deal.calEmail||deal.email||'';
+    notes=overrideNotes||deal.calNotes||'';
+    if(!notes && deal.company) notes=deal.company;
   }
 
-  // Use Calendly popup widget with prefill object (avoids URL encoding issues)
-  if(window.Calendly){
-    window.Calendly.initPopupWidget({url:finalUrl,prefill:prefill});
-  } else {
-    window.open(finalUrl,'_blank');
+  try {
+    const url=new URL(baseCalUrl);
+    if(guestName) url.searchParams.set('name', guestName);
+    if(guestEmail) url.searchParams.set('email', guestEmail);
+    if(notes) url.searchParams.set('a1', notes);
+    if(ianaTz) url.searchParams.set('timezone', ianaTz);
+
+    if(window.Calendly){
+      window.Calendly.initPopupWidget({url:url.toString()});
+    } else {
+      window.open(url.toString(),'_blank');
+    }
+  } catch(e){
+    // Fallback if URL parsing fails
+    if(window.Calendly){
+      window.Calendly.initPopupWidget({url:baseCalUrl});
+    } else {
+      window.open(baseCalUrl,'_blank');
+    }
   }
 }
 
