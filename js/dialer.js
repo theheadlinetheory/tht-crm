@@ -5,6 +5,8 @@ import { state } from './app.js';
 import { str, esc, uid, getToday } from './utils.js';
 import { invokeEdgeFunction, sbCreateActivity, camelToSnake } from './api.js';
 import { getBestNumberForLead, getRegionForPhone, recordCallOutcome } from './number-health.js';
+import { JUSTCALL_USER_MAP } from './config.js';
+import { currentUser } from './auth.js';
 
 const DIALER_URL = 'https://app.justcall.io/dialer';
 let dialerReady = false;
@@ -46,7 +48,10 @@ function getOrCreateIframe(){
   if(persistentIframe && document.body.contains(persistentIframe)) return persistentIframe;
   const iframe = document.createElement('iframe');
   iframe.id = 'justcall-dialer-iframe';
-  iframe.src = DIALER_URL;
+  let src = DIALER_URL;
+  const jcId = currentUser && currentUser.email ? JUSTCALL_USER_MAP[currentUser.email.toLowerCase()] : null;
+  if(jcId) src += '?agent_id=' + jcId;
+  iframe.src = src;
   iframe.allow = 'microphone; autoplay; clipboard-read; clipboard-write; hid';
   iframe.style.cssText = 'width:100%;height:100%;border:none';
   persistentIframe = iframe;
@@ -103,10 +108,14 @@ export async function callInJustCall(dealId, phoneField){
   dialerEl.innerHTML = '';
   const iframe = document.createElement('iframe');
   iframe.id = 'justcall-dialer-iframe';
-  // Pass numbers (destination) and from (caller ID) as URL params
-  iframe.src = DIALER_URL + '?numbers=' + encodeURIComponent(formatted)
+  // Pass numbers (destination), caller ID, and agent ID as URL params
+  let dialerSrc = DIALER_URL + '?numbers=' + encodeURIComponent(formatted)
     + '&from=' + encodeURIComponent(outboundNumber)
     + '&caller_id=' + encodeURIComponent(outboundNumber);
+  // Map current CRM user to their JustCall agent ID for per-user dialer sessions
+  const jcAgentId = currentUser && currentUser.email ? JUSTCALL_USER_MAP[currentUser.email.toLowerCase()] : null;
+  if(jcAgentId) dialerSrc += '&agent_id=' + jcAgentId;
+  iframe.src = dialerSrc;
   iframe.allow = 'microphone; autoplay; clipboard-read; clipboard-write; hid';
   iframe.style.cssText = 'width:100%;height:100%;border:none';
   dialerEl.appendChild(iframe);

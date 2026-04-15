@@ -106,6 +106,13 @@ export const TZ_TO_IANA = {
 // ─── Owner Colors Map ───
 export const OWNER_COLORS_MAP = { 'aidan': { cls: 'owner-tag-blue', label: 'Aidan' }, 'lars': { cls: 'owner-tag-yellow', label: 'Lars' } };
 
+// ─── JustCall User ID Mapping (Firebase email → JustCall agent ID) ───
+export const JUSTCALL_USER_MAP = {
+  'aidan@theheadlinetheory.com': 492591,
+  'lars@theheadlinetheory.com': 492589,
+  'contact@theheadlinetheory.com': 493398,
+};
+
 // ─── Client Info Sheet ID ───
 export const CLIENT_INFO_SHEET_ID = '1y8AoGopplKltre5ZOP2v0tJPy6Jp0c6C8rqUBO30xFg';
 
