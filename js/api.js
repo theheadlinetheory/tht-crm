@@ -440,7 +440,14 @@ function handleRealtimeChange(table, payload) {
     }
   } else if (eventType === 'UPDATE' && newRow) {
     const idx = list.findIndex(item => String(item.id) === String(newRow.id));
-    if (idx >= 0) list[idx] = newRow;
+    if (idx >= 0) {
+      list[idx] = newRow;
+      // Re-apply pending fields so Realtime events don't revert in-flight changes
+      if (table === 'deals') {
+        const pending = pendingDealFields[String(newRow.id)];
+        if (pending) Object.assign(newRow, pending);
+      }
+    }
   } else if (eventType === 'DELETE' && oldRow) {
     const idx = list.findIndex(item => String(item.id) === String(oldRow.id));
     if (idx >= 0) list.splice(idx, 1);
