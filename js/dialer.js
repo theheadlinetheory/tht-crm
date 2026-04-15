@@ -103,50 +103,23 @@ export async function callInJustCall(dealId, phoneField){
   currentCallNumber = outboundNumber;
   currentCallPhone = formatted;
 
-  // Show iframe directly — no banner, maximum space for dialer
-  dialerEl.innerHTML = '';
-  const iframe = document.createElement('iframe');
-  iframe.id = 'justcall-dialer-iframe';
-  // Pass numbers (destination), caller ID, and agent ID as URL params
-  let dialerSrc = DIALER_URL + '?numbers=' + encodeURIComponent(formatted)
-    + '&from=' + encodeURIComponent(outboundNumber)
-    + '&caller_id=' + encodeURIComponent(outboundNumber);
-  // Map current CRM user to their JustCall agent ID for per-user dialer sessions
-  const jcAgentId = currentUser && currentUser.email ? JUSTCALL_USER_MAP[currentUser.email.toLowerCase()] : null;
-  if(jcAgentId) dialerSrc += '&agent_id=' + jcAgentId;
-  iframe.src = dialerSrc;
-  iframe.allow = 'microphone; autoplay; clipboard-read; clipboard-write; hid';
-  iframe.style.cssText = 'width:100%;height:100%;border:none';
-  dialerEl.appendChild(iframe);
-  {
+  // Reuse persistent iframe — keeps JustCall session + call controls alive
+  const iframe = getOrCreateIframe();
+  if(!dialerEl.contains(iframe)){
+    dialerEl.innerHTML = '';
+    dialerEl.appendChild(iframe);
+  }
 
-    // Use SDK postMessage to dial number + try to set caller ID
-    const setupCall = () => {
-      // Official SDK: pre-fill destination number
-      sendToDialer({ type: 'dial-number', phoneNumber: formatted });
-
-      // Undocumented: try various message types to set the outbound/from number
-      const outNum = outboundNumber;
-      const outDigits = outNum.replace(/\D/g, '');
-      sendToDialer({ type: 'set-caller-id', callerId: outNum });
-      sendToDialer({ type: 'set-caller-id', caller_id: outNum });
-      sendToDialer({ type: 'set-caller-id', number: outNum });
-      sendToDialer({ type: 'set-from-number', number: outNum });
-      sendToDialer({ type: 'set-from-number', fromNumber: outNum });
-      sendToDialer({ type: 'select-number', number: outNum });
-      sendToDialer({ type: 'select-number', phoneNumber: outNum });
-      sendToDialer({ type: 'change-number', number: outNum });
-      sendToDialer({ type: 'set-outbound-number', number: outNum });
-      sendToDialer({ type: 'set-phone-number', phoneNumber: outNum });
-      sendToDialer({ type: 'switch-number', number: outNum });
-      // Try with just digits
-      sendToDialer({ type: 'set-caller-id', callerId: outDigits });
-      sendToDialer({ type: 'select-number', number: outDigits });
-    };
-    // Send after delays to catch different ready states
-    setTimeout(setupCall, 1500);
-    setTimeout(setupCall, 3000);
-    setTimeout(setupCall, 5000);
+  // Use SDK postMessage to dial number
+  const setupCall = () => {
+    sendToDialer({ type: 'dial-number', phoneNumber: formatted });
+  };
+  // Send after delays to ensure iframe is ready
+  if(dialerReady){
+    setTimeout(setupCall, 500);
+  } else {
+    setTimeout(setupCall, 2000);
+    setTimeout(setupCall, 4000);
   }
 }
 
