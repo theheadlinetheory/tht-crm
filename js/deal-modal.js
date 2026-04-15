@@ -625,11 +625,12 @@ export function renderDealModal(deal){
         setTimeout(() => geocodeAndCheckDeal(_did), 100);
       }
 
-      // Always render map immediately — geocoding will update it later if needed
+      // Render map — if geocoding is pending, only pass polygon/client (no fake lat/lng)
+      // so the map centers on the polygon instead of flashing at US center first
       {
-        const renderLat = mapLat || 39.8;
-        const renderLng = mapLng || -98.5;
-        const renderZoom = hasGeo ? undefined : 4;
+        const renderLat = hasGeo ? mapLat : null;
+        const renderLng = hasGeo ? mapLng : null;
+        const renderZoom = hasGeo ? undefined : undefined;
         setTimeout(() => renderServiceAreaMap(mapId, deal.id, {
           clientName: _mc ? _mc.name : '',
           polygonKey: polyMatch ? polyMatch.key : undefined,
