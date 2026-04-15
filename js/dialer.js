@@ -103,23 +103,25 @@ export async function callInJustCall(dealId, phoneField){
   currentCallNumber = outboundNumber;
   currentCallPhone = formatted;
 
-  // Reuse persistent iframe — keeps JustCall session + call controls alive
-  const iframe = getOrCreateIframe();
-  if(!dialerEl.contains(iframe)){
-    dialerEl.innerHTML = '';
-    dialerEl.appendChild(iframe);
-  }
+  // Build dialer URL with destination + caller ID pre-selected
+  let dialerSrc = DIALER_URL + '?numbers=' + encodeURIComponent(formatted)
+    + '&caller_id=' + encodeURIComponent(outboundNumber);
+  const jcAgentId = currentUser && currentUser.email ? JUSTCALL_USER_MAP[currentUser.email.toLowerCase()] : null;
+  if(jcAgentId) dialerSrc += '&agent_id=' + jcAgentId;
 
-  // Use SDK postMessage to dial number
-  const setupCall = () => {
-    sendToDialer({ type: 'dial-number', phoneNumber: formatted });
-  };
-  // Send after delays to ensure iframe is ready
-  if(dialerReady){
-    setTimeout(setupCall, 500);
+  // Check if we can reuse the existing iframe (same agent, no active call)
+  const existing = document.getElementById('justcall-dialer-iframe');
+  if(existing && existing.contentWindow){
+    // Update src to load new call params — keeps same iframe element
+    existing.src = dialerSrc;
   } else {
-    setTimeout(setupCall, 2000);
-    setTimeout(setupCall, 4000);
+    dialerEl.innerHTML = '';
+    const iframe = document.createElement('iframe');
+    iframe.id = 'justcall-dialer-iframe';
+    iframe.src = dialerSrc;
+    iframe.allow = 'microphone; autoplay; clipboard-read; clipboard-write; hid';
+    iframe.style.cssText = 'width:100%;height:100%;border:none';
+    dialerEl.appendChild(iframe);
   }
 }
 
