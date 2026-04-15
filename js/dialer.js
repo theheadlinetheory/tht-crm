@@ -96,8 +96,7 @@ export async function callInJustCall(dealId, phoneField){
   dialerEl.style.display = '';
 
   const regionBadge = document.getElementById('justcall-region-badge');
-  const jcLabel = bestNumber.label || bestNumber.region || outboundNumber;
-  if(regionBadge) regionBadge.textContent = 'Use: ' + jcLabel;
+  if(regionBadge) regionBadge.textContent = 'From: ' + formattedOutbound + (bestNumber.region ? ' (' + bestNumber.region + ')' : '');
 
   // Track current call for outcome logging
   currentCallDealId = dealId;
