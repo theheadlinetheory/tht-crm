@@ -158,9 +158,8 @@ export async function runServiceAreaChecks(){
 export function renderServiceAreaMap(containerId, dealId, opts){
   // Renders a Leaflet map in the given container
   const result=serviceAreaResults[dealId] || {};
-  const lat = result.lat || (opts && opts.lat);
-  const lng = result.lng || (opts && opts.lng);
-  if(!lat || !lng) return;
+  let lat = result.lat || (opts && opts.lat);
+  let lng = result.lng || (opts && opts.lng);
   const container=document.getElementById(containerId);
   if(!container) return;
   const clientName = result.clientName || (opts && opts.clientName) || '';
@@ -168,6 +167,23 @@ export function renderServiceAreaMap(containerId, dealId, opts){
   const pm=findPolygonForClient(clientName);
   const polygon=pm?pm.polygon:null;
   const defaultZoom = (opts && opts.defaultZoom) || 10;
+  const hasPin = lat && lng;
+
+  // If no lat/lng but we have a polygon, use polygon center as fallback
+  if(!hasPin && polygon && polygon.geometry){
+    try {
+      const coords = polygon.geometry.type==='MultiPolygon'
+        ? polygon.geometry.coordinates.flat(2)
+        : polygon.geometry.coordinates.flat(1);
+      const sumLat = coords.reduce((s,c) => s+c[1], 0);
+      const sumLng = coords.reduce((s,c) => s+c[0], 0);
+      lat = sumLat / coords.length;
+      lng = sumLng / coords.length;
+    } catch(e){}
+  }
+
+  // Still no coordinates — nothing to render
+  if(!lat || !lng) return;
 
   // Clean up any existing map on this container
   if(activeMapInstances[dealId]){
@@ -194,15 +210,17 @@ export function renderServiceAreaMap(containerId, dealId, opts){
     }
   }
 
-  // Add location pin marker
-  const pinIcon=L.divIcon({className:'',html:'<svg width="24" height="36" viewBox="0 0 24 36"><path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" fill="'+(inArea===false?'#ef4444':'#22c55e')+'"/><circle cx="12" cy="12" r="5" fill="#fff"/></svg>',iconSize:[24,36],iconAnchor:[12,36]});
-  L.marker([lat,lng],{icon:pinIcon}).addTo(map);
+  // Add location pin marker only if we have actual geocoded coords
+  if(hasPin){
+    const pinIcon=L.divIcon({className:'',html:'<svg width="24" height="36" viewBox="0 0 24 36"><path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" fill="'+(inArea===false?'#ef4444':'#22c55e')+'"/><circle cx="12" cy="12" r="5" fill="#fff"/></svg>',iconSize:[24,36],iconAnchor:[12,36]});
+    L.marker([lat,lng],{icon:pinIcon}).addTo(map);
+  }
 
-  // Fit bounds to show full polygon + marker
+  // Fit bounds to show full polygon (+ marker if present)
   if(polyLayers.length){
     try {
       const group=L.featureGroup(polyLayers);
-      group.addLayer(L.marker([lat,lng]));
+      if(hasPin) group.addLayer(L.marker([lat,lng]));
       map.fitBounds(group.getBounds().pad(0.1));
     } catch(e){}
   }
