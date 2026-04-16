@@ -12,7 +12,6 @@ import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWo
 import { renderActivateClientModal } from './activate-client.js';
 import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from './activities.js';
 import { renderDashboard } from './dashboard.js';
-import { loadRerunData, renderRerunTab, switchNurtureTab } from './rerun.js';
 import { loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js';
 import { toggleBulkMode, bulkMoveStage, bulkSelectAll, bulkArchive, bulkAddActivity, toggleBulkSelect } from './deals.js';
 import { openSettings } from './settings.js';
@@ -128,7 +127,10 @@ export function render(){
 
   // ─── Nurture Archive sub-tab ───
   if(state.pipeline==='nurture' && state.nurtureSubTab==='archive'){
-    if(!state.archiveLoaded) setTimeout(()=>loadArchive(),0);
+    if(!state.archiveLoaded && !state._archiveLoadPending){
+      state._archiveLoadPending=true;
+      loadArchive().finally(()=>{ state._archiveLoadPending=false; });
+    }
     const tabStyle=(active)=>`padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;color:${active?'var(--purple)':'var(--text-muted)'};border-bottom:2px solid ${active?'var(--purple)':'transparent'};margin-bottom:-2px`;
     let html=`
     <div class="topbar">
@@ -250,8 +252,8 @@ export function render(){
 
   // ─── Employee/Admin Archive View ───
   if((isEmployee()||isAdmin()) && state.showEmployeeArchive){
-    // If archive not loaded yet (edge case), trigger background load and show what we have
-    if(!state.archiveLoaded){ loadArchive(); }
+    // If archive not loaded yet (edge case), trigger background load (silent to avoid recursive render)
+    if(!state.archiveLoaded){ loadArchive(true); }
     // Filter archive by current pipeline tab
     const archivePipeline = state.pipeline === 'acquisition' ? 'acquisition' : 'client';
     let empArchive = state.archiveData.filter(d => (d.pipeline||'').toLowerCase() === archivePipeline);
@@ -528,9 +530,22 @@ export function render(){
 function switchPipeline(id){
   state.pipeline=id;
   location.hash=id;
-  // Reset nurture sub-tab to board when leaving nurture
+  // Ensure nurture sub-tab is valid (board or archive)
+  if(state.nurtureSubTab!=='board' && state.nurtureSubTab!=='archive') state.nurtureSubTab='board';
   if(id!=='nurture') state.nurtureSubTab='board';
   render();
+}
+
+// ─── Nurture sub-tab switching ───
+function switchNurtureTab(tab){
+  state.nurtureSubTab=tab;
+  if(tab==='archive' && !state.archiveLoaded){
+    // Defer archive load to avoid recursive render
+    render();
+    loadArchive();
+  } else {
+    render();
+  }
 }
 
 // ─── Window exposures for inline HTML onclick handlers ───
@@ -540,3 +555,4 @@ setTimeout(() => { window.state = state; }, 0);
 window.render = render;
 window.refreshModal = refreshModal;
 window.switchPipeline = switchPipeline;
+window.switchNurtureTab = switchNurtureTab;

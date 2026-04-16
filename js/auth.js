@@ -131,7 +131,7 @@ export function resetAppState(){
   state.archiveSearch = '';
   state.archiveLoaded = false;
   state.archiveData = [];
-  state.nurtureSubTab = 'rerun';
+  state.nurtureSubTab = 'board';
   state.searchQuery = '';
   state.searchResults = null;
   state.bulkMode = false;
