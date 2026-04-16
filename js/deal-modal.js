@@ -909,6 +909,7 @@ async function startAutoFollowUp(dealId){
       leadId: deal.slLeadId,
       campaignId: deal.slCampaignId,
       dealId: deal.id,
+      email: deal.email,
     });
 
     if(result.status === 'ok'){
