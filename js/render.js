@@ -126,17 +126,10 @@ export function render(){
     return;
   }
 
-  // ─── Nurture Tab (Board + Re-Run Queue + Archive sub-tabs) ───
-  if(state.pipeline==='nurture' && state.nurtureSubTab!=='board'){
-    const subTab=state.nurtureSubTab||'rerun';
-    // Defer data loads to avoid recursive render (loadRerunData/loadArchive call render() internally)
-    if(subTab==='rerun' && !state.rerunQueue.length && !state.rerunLoading) setTimeout(()=>loadRerunData(),0);
-    if(subTab==='archive' && !state.archiveLoaded) setTimeout(()=>loadArchive(),0);
-    const boardActive=false;
-    const rerunActive=subTab==='rerun';
-    const archiveActive=subTab==='archive';
+  // ─── Nurture Archive sub-tab ───
+  if(state.pipeline==='nurture' && state.nurtureSubTab==='archive'){
+    if(!state.archiveLoaded) setTimeout(()=>loadArchive(),0);
     const tabStyle=(active)=>`padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;color:${active?'var(--purple)':'var(--text-muted)'};border-bottom:2px solid ${active?'var(--purple)':'transparent'};margin-bottom:-2px`;
-    const nurtureDeals=state.deals.filter(d=>d.pipeline==='Nurture');
     let html=`
     <div class="topbar">
       <div style="display:flex;align-items:center;">
@@ -145,22 +138,16 @@ export function render(){
         </div>
       </div>
       <div class="topbar-right">
-        ${boardActive?`<span class="topbar-stat">${nurtureDeals.length} deals</span>`:''}
-        ${rerunActive?`<span class="topbar-stat">${state.rerunQueue.length} queued leads</span>
-        <button class="btn btn-ghost" onclick="loadRerunData()" style="display:inline-flex;align-items:center;gap:4px">${svgIcon('refresh-cw',12)} Sync</button>
-        <button class="btn btn-ghost" onclick="state.rerunShowMarketModal=true;render()" style="display:inline-flex;align-items:center;gap:4px">${svgIcon('settings',12)} Markets</button>`:''}
-        ${archiveActive?`<span class="topbar-stat">${state.archiveData.length} archived</span>
-        <button class="btn btn-ghost" onclick="state.archiveLoaded=false;loadArchive()" style="display:inline-flex;align-items:center;gap:4px">${svgIcon('refresh-cw',12)} Refresh</button>`:''}
+        <span class="topbar-stat">${state.archiveData.length} archived</span>
+        <button class="btn btn-ghost" onclick="state.archiveLoaded=false;loadArchive()" style="display:inline-flex;align-items:center;gap:4px">${svgIcon('refresh-cw',12)} Refresh</button>
         ${renderUserMenu()}
       </div>
     </div>
     <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin:0 20px;">
-      <button onclick="switchNurtureTab('board')" style="${tabStyle(boardActive)}">Board</button>
-      <button onclick="switchNurtureTab('rerun')" style="${tabStyle(rerunActive)}">Re-Run Queue</button>
-      <button onclick="switchNurtureTab('archive')" style="${tabStyle(archiveActive)}">Archive</button>
+      <button onclick="switchNurtureTab('board')" style="${tabStyle(false)}">Board</button>
+      <button onclick="switchNurtureTab('archive')" style="${tabStyle(true)}">Archive</button>
     </div>`;
-    if(rerunActive) html+=renderRerunTab();
-    else html+=renderArchiveTab();
+    html+=renderArchiveTab();
     app.innerHTML=html;
     return;
   }
@@ -232,7 +219,6 @@ export function render(){
   </div>
   ${state.pipeline==='nurture'?`<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin:0 20px;">
     <button onclick="switchNurtureTab('board')" style="padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;color:var(--purple);border-bottom:2px solid var(--purple);margin-bottom:-2px">Board</button>
-    <button onclick="switchNurtureTab('rerun')" style="padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;color:var(--text-muted);border-bottom:2px solid transparent;margin-bottom:-2px">Re-Run Queue</button>
     <button onclick="switchNurtureTab('archive')" style="padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;color:var(--text-muted);border-bottom:2px solid transparent;margin-bottom:-2px">Archive</button>
   </div>`:''}
   ${renderOverdueBanner()}
@@ -542,8 +528,8 @@ export function render(){
 function switchPipeline(id){
   state.pipeline=id;
   location.hash=id;
-  // Reset nurture sub-tab default when leaving nurture
-  if(id!=='nurture') state.nurtureSubTab='rerun';
+  // Reset nurture sub-tab to board when leaving nurture
+  if(id!=='nurture') state.nurtureSubTab='board';
   render();
 }
 
