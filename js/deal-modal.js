@@ -382,11 +382,16 @@ export function renderDealModal(deal){
         </div>`:''}`;
 
   if(deal.campaignName){
+    const isSubseqActive = str(deal.leadCategory).toLowerCase() === 'ht subsequence fu';
     h+=`<div class="sl-info">
       <div class="sl-info-title">Smartlead Source</div>
       <div>Campaign: ${esc(deal.campaignName)}</div>
       ${deal.leadCategory?`<div>Category: ${esc(deal.leadCategory)}</div>`:''}
       ${(deal.smartleadUrl||deal.email)?`<a href="${esc(deal.smartleadUrl||('https://app.smartlead.ai/app/master-inbox?sortBy=REPLY_TIME_DESC&search='+encodeURIComponent(deal.email)))}" target="_blank" rel="noopener">Open in Smartlead →</a>`:''}
+      ${deal.pipeline==='Acquisition'&&str(deal.slLeadId).trim()&&str(deal.slCampaignId).trim()&&!isSubseqActive
+        ?`<button class="sl-subseq-btn" onclick="event.stopPropagation();startAutoFollowUp('${esc(deal.id)}')" style="margin-top:8px;display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:#7c3aed;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font)">${svgIcon('send',14,'#fff')} Start Auto Follow-Up</button>`
+        :''}
+      ${isSubseqActive?`<div style="margin-top:8px;display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:#f3e8ff;color:#7c3aed;border-radius:6px;font-size:12px;font-weight:600">${svgIcon('check',14,'#7c3aed')} Auto Follow-Up Active</div>`:''}
     </div>`;
   }
 
@@ -888,3 +893,33 @@ export function skipScheduleAndCopy(){
 
 window.confirmScheduleAndCopy = confirmScheduleAndCopy;
 window.skipScheduleAndCopy = skipScheduleAndCopy;
+
+// ─── Auto Follow-Up (SmartLead Subsequence) ───
+async function startAutoFollowUp(dealId){
+  const deal = state.deals.find(d => d.id === dealId);
+  if(!deal || !deal.slLeadId || !deal.slCampaignId) return;
+  if(!confirm('Start automated email follow-up sequence for this lead?\n\nSmartLead will send follow-up emails automatically until they reply.')) return;
+
+  const btn = document.querySelector('.sl-subseq-btn');
+  if(btn){ btn.textContent = 'Starting...'; btn.disabled = true; }
+
+  try {
+    const result = await invokeEdgeFunction('smartlead-subsequence', {
+      action: 'start-subsequence',
+      leadId: deal.slLeadId,
+      campaignId: deal.slCampaignId,
+      dealId: deal.id,
+    });
+
+    if(result.status === 'ok'){
+      deal.leadCategory = 'HT Subsequence FU';
+      refreshModal();
+    } else {
+      throw new Error(result.error || 'Failed to start subsequence');
+    }
+  } catch(e){
+    alert('Failed to start auto follow-up: ' + e.message);
+    if(btn){ btn.textContent = 'Start Auto Follow-Up'; btn.disabled = false; }
+  }
+}
+window.startAutoFollowUp = startAutoFollowUp;
