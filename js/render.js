@@ -108,6 +108,10 @@ export function refreshModal(forceFullRebuild){
   }
 }
 
+function pipelineTabsHtml(){
+  return getVisiblePipelinesWithArchive().map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="switchPipeline('${p.id}')">${p.label}</button>`).join('');
+}
+
 // ─── render ───
 export function render(){
   try{
@@ -125,8 +129,9 @@ export function render(){
   // ─── Nurture Tab (Board + Re-Run Queue + Archive sub-tabs) ───
   if(state.pipeline==='nurture' && state.nurtureSubTab!=='board'){
     const subTab=state.nurtureSubTab||'rerun';
-    if(subTab==='rerun' && !state.rerunQueue.length && !state.rerunLoading) loadRerunData();
-    if(subTab==='archive' && !state.archiveLoaded) loadArchive();
+    // Defer data loads to avoid recursive render (loadRerunData/loadArchive call render() internally)
+    if(subTab==='rerun' && !state.rerunQueue.length && !state.rerunLoading) setTimeout(()=>loadRerunData(),0);
+    if(subTab==='archive' && !state.archiveLoaded) setTimeout(()=>loadArchive(),0);
     const boardActive=false;
     const rerunActive=subTab==='rerun';
     const archiveActive=subTab==='archive';
@@ -136,7 +141,7 @@ export function render(){
     <div class="topbar">
       <div style="display:flex;align-items:center;">
         <div class="topbar-tabs">
-          ${getVisiblePipelinesWithArchive().map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="state.pipeline='${p.id}';location.hash='${p.id}';render()">${p.label}</button>`).join("")}
+          ${pipelineTabsHtml()}
         </div>
       </div>
       <div class="topbar-right">
@@ -166,7 +171,7 @@ export function render(){
     <div class="topbar">
       <div style="display:flex;align-items:center;">
         <div class="topbar-tabs">
-          ${getVisiblePipelinesWithArchive().map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="state.pipeline='${p.id}';location.hash='${p.id}';render()">${p.label}</button>`).join("")}
+          ${pipelineTabsHtml()}
         </div>
       </div>
       <div class="topbar-right">
@@ -189,7 +194,7 @@ export function render(){
   <div class="topbar">
     <div style="display:flex;align-items:center;">
       <div class="topbar-tabs">
-        ${getVisiblePipelinesWithArchive().map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="state.pipeline='${p.id}';location.hash='${p.id}';if('${p.id}'!=='nurture')state.nurtureSubTab='rerun';render()">${p.label}</button>`).join("")}
+        ${pipelineTabsHtml()}
       </div>
     </div>
     <div class="topbar-right">
@@ -533,9 +538,19 @@ export function render(){
   }catch(err){console.error('Render error:',err,err.stack);}
 }
 
+// ─── Pipeline switching (single source of truth) ───
+function switchPipeline(id){
+  state.pipeline=id;
+  location.hash=id;
+  // Reset nurture sub-tab default when leaving nurture
+  if(id!=='nurture') state.nurtureSubTab='rerun';
+  render();
+}
+
 // ─── Window exposures for inline HTML onclick handlers ───
 // state is deferred because app.js re-exports it from state.js,
 // and render.js evaluates before app.js finishes (circular import TDZ)
 setTimeout(() => { window.state = state; }, 0);
 window.render = render;
 window.refreshModal = refreshModal;
+window.switchPipeline = switchPipeline;
