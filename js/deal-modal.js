@@ -7,6 +7,7 @@
 // the key functions other modules depend on.
 
 import { state, pendingWrites, pendingDealFields } from './app.js';
+import { flushRealtimeQueue } from './api.js';
 import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS } from './config.js';
 import { render, refreshModal } from './render.js';
 import { apiGet, invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js';
@@ -34,6 +35,7 @@ export function openDeal(id){
 export function closeDealModal(){
   state.selectedDeal=null;
   state.showSop=false;
+  flushRealtimeQueue();
   render();
 }
 
@@ -165,6 +167,7 @@ export function doCreateDeal(){
   if(!form.company&&!form.contact){alert('Enter a company or contact name');return;}
   if(!form.stage){alert('Select a stage');return;}
   state.showNew=false;
+  flushRealtimeQueue();
   createDeal(form);
 }
 
@@ -173,6 +176,7 @@ export function doAddClient(){
   const name=nameEl?nameEl.value.trim():'';
   if(!name){alert('Enter a client name');return;}
   state.showAddClient=false;
+  flushRealtimeQueue();
   addClient(name);
 }
 

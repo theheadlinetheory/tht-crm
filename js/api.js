@@ -396,36 +396,70 @@ export async function initialSync(isStartup) {
   }
 }
 
+// ─── Realtime event queue & debounced render ───
+const _realtimeQueue = [];        // events received while guards are active
+let _realtimeRenderTimer = null;  // debounce timer for batching rapid renders
+
+function debouncedRealtimeRender() {
+  if (_realtimeRenderTimer) return;          // already scheduled
+  _realtimeRenderTimer = setTimeout(() => {
+    _realtimeRenderTimer = null;
+    render();
+  }, 150);                                    // batch renders within 150ms window
+}
+
+export function flushRealtimeQueue() {
+  if (!_realtimeQueue.length) return;
+  const queued = _realtimeQueue.splice(0);
+  for (const { table, payload } of queued) {
+    applyRealtimeEvent(table, payload);
+  }
+  render();
+}
+
 export function subscribeRealtime() {
   supabase.channel('deals-changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'deals' }, payload => {
-      if (pendingWrites.value > 0 || state.selectedDeal || state.showNew || state.showAddClient) return;
-      handleRealtimeChange('deals', payload);
+      if (pendingWrites.value > 0 || state.selectedDeal || state.showNew || state.showAddClient) {
+        _realtimeQueue.push({ table: 'deals', payload });
+        return;
+      }
+      applyRealtimeEvent('deals', payload);
+      debouncedRealtimeRender();
     })
     .subscribe();
 
   supabase.channel('activities-changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'activities' }, payload => {
-      if (pendingWrites.value > 0) return;
-      handleRealtimeChange('activities', payload);
+      if (pendingWrites.value > 0) {
+        _realtimeQueue.push({ table: 'activities', payload });
+        return;
+      }
+      applyRealtimeEvent('activities', payload);
+      debouncedRealtimeRender();
     })
     .subscribe();
 
   supabase.channel('clients-changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, payload => {
-      if (pendingWrites.value > 0) return;
-      handleRealtimeChange('clients', payload);
+      if (pendingWrites.value > 0) {
+        _realtimeQueue.push({ table: 'clients', payload });
+        return;
+      }
+      applyRealtimeEvent('clients', payload);
+      debouncedRealtimeRender();
     })
     .subscribe();
 
   supabase.channel('appointments-changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, payload => {
-      handleRealtimeChange('appointments', payload);
+      applyRealtimeEvent('appointments', payload);
+      debouncedRealtimeRender();
     })
     .subscribe();
 }
 
-function handleRealtimeChange(table, payload) {
+function applyRealtimeEvent(table, payload) {
   const { eventType } = payload;
   const newRow = payload.new ? normalizeRow(payload.new) : null;
   const oldRow = payload.old ? normalizeRow(payload.old) : null;
@@ -442,7 +476,6 @@ function handleRealtimeChange(table, payload) {
     const idx = list.findIndex(item => String(item.id) === String(newRow.id));
     if (idx >= 0) {
       list[idx] = newRow;
-      // Re-apply pending fields so Realtime events don't revert in-flight changes
       if (table === 'deals') {
         const pending = pendingDealFields[String(newRow.id)];
         if (pending) Object.assign(newRow, pending);
@@ -452,8 +485,6 @@ function handleRealtimeChange(table, payload) {
     const idx = list.findIndex(item => String(item.id) === String(oldRow.id));
     if (idx >= 0) list.splice(idx, 1);
   }
-
-  render();
 }
 
 // ─── Supabase CRUD Helpers ───

@@ -1,9 +1,9 @@
 // ═══════════════════════════════════════════════════════════
 // APP — Entry point, initApp, re-exports from state.js
 // ═══════════════════════════════════════════════════════════
-import { REPLY_CHECK_INTERVAL, REPLY_BACKEND_POLL_INTERVAL, DEFAULT_CLIENT_STAGES } from './config.js';
+import { REPLY_CHECK_INTERVAL, REPLY_BACKEND_POLL_INTERVAL, SYNC_INTERVAL, DEFAULT_CLIENT_STAGES } from './config.js';
 import { render } from './render.js';
-import { syncFromSheet, pollReplyStatus, triggerBackendReplyCheck, initialSync, subscribeRealtime } from './api.js';
+import { syncFromSheet, pollReplyStatus, triggerBackendReplyCheck, initialSync, subscribeRealtime, flushRealtimeQueue } from './api.js';
 import { isAdmin, isClient, isEmployee, currentUser, loadCampaignAssignments, listenCampaignAssignments, setupAuthListener, db } from './auth.js';
 import { initJustCallDialer } from './dialer.js';
 import { esc, svgIcon } from './utils.js';
@@ -147,6 +147,11 @@ export async function initApp(){
   render();
   await initialSync(true);
   subscribeRealtime();
+  // Background sync every 30s — catches anything realtime missed (modal open, writes in flight, etc.)
+  setInterval(() => {
+    flushRealtimeQueue();
+    initialSync(false);
+  }, SYNC_INTERVAL);
   if(isAdmin()||isEmployee()){
     setInterval(pollReplyStatus, REPLY_CHECK_INTERVAL);
     triggerBackendReplyCheck();
