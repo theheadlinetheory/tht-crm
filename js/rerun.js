@@ -116,19 +116,7 @@ export function exportRerunForSmartlead(){
   URL.revokeObjectURL(url);
 }
 
-export function switchNurtureTab(tab){
-  state.nurtureSubTab=tab;
-  if(tab==='rerun') loadRerunData();
-  else if(tab==='archive'){ const { loadArchive } = require_archive_sync(); if(!state.archiveLoaded) loadArchive(); else render(); }
-  else { render(); }
-}
-
-function require_archive_sync(){
-  // Lazy import to avoid circular dependency
-  let mod;
-  import('./archive.js').then(m=>{ mod=m; });
-  return { loadArchive: ()=>{ import('./archive.js').then(m=>m.loadArchive()); } };
-}
+// switchNurtureTab moved to render.js
 
 export function renderRerunTab(){
   const filtered = getFilteredRerunQueue();
@@ -221,7 +209,7 @@ window.loadRerunData = loadRerunData;
 window.updateRerunStatus = updateRerunStatus;
 window.exportRerunCSV = exportRerunCSV;
 window.exportRerunForSmartlead = exportRerunForSmartlead;
-window.switchNurtureTab = switchNurtureTab;
+// switchNurtureTab is now in render.js
 
 // Market settings modal
 export function renderMarketSettingsModal(){
