@@ -8,7 +8,7 @@
 
 import { state, pendingWrites, pendingDealFields } from './app.js';
 import { flushRealtimeQueue } from './api.js';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS } from './config.js';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 import { render, refreshModal } from './render.js';
 import { apiGet, invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js';
 import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml } from './utils.js';
@@ -901,30 +901,41 @@ window.skipScheduleAndCopy = skipScheduleAndCopy;
 // ─── Auto Follow-Up (SmartLead Subsequence) ───
 async function startAutoFollowUp(dealId){
   const deal = state.deals.find(d => d.id === dealId);
-  if(!deal || !deal.slLeadId || !deal.slCampaignId) return;
+  if(!deal){ console.error('[Subseq] Deal not found:', dealId); return; }
+  if(!deal.slLeadId || !deal.slCampaignId){ console.error('[Subseq] Missing SmartLead IDs:', {slLeadId:deal.slLeadId, slCampaignId:deal.slCampaignId}); return; }
   if(!confirm('Start automated email follow-up sequence for this lead?\n\nSmartLead will send follow-up emails automatically until they reply.')) return;
 
   const btn = document.querySelector('.sl-subseq-btn');
-  if(btn){ btn.textContent = 'Starting...'; btn.disabled = true; }
+  if(btn){ btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" style="animation:spin 1s linear infinite"><style>@keyframes spin{to{transform:rotate(360deg)}}</style><circle cx="12" cy="12" r="10" stroke="#fff" stroke-width="3" fill="none" stroke-dasharray="31.4 31.4" stroke-linecap="round"/></svg> Starting\u2026</span>'; btn.disabled = true; }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25000);
 
   try {
-    const result = await invokeEdgeFunction('smartlead-subsequence', {
-      action: 'start-subsequence',
-      leadId: deal.slLeadId,
-      campaignId: deal.slCampaignId,
-      dealId: deal.id,
-      email: deal.email,
+    console.log('[Subseq] Calling edge function...', { leadId:deal.slLeadId, campaignId:deal.slCampaignId, email:deal.email });
+    const url = `${SUPABASE_URL}/functions/v1/smartlead-subsequence`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+      body: JSON.stringify({ action:'start-subsequence', leadId:deal.slLeadId, campaignId:deal.slCampaignId, dealId:deal.id, email:deal.email }),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
+    const result = await resp.json();
+    console.log('[Subseq] Response:', resp.status, result);
 
-    if(result.status === 'ok'){
+    if(resp.ok && result.status === 'ok'){
       deal.leadCategory = 'HT Subsequence FU';
       refreshModal();
     } else {
-      throw new Error(result.error || 'Failed to start subsequence');
+      throw new Error(result.error || `SmartLead returned ${resp.status}`);
     }
   } catch(e){
-    alert('Failed to start auto follow-up: ' + e.message);
-    if(btn){ btn.textContent = 'Start Auto Follow-Up'; btn.disabled = false; }
+    clearTimeout(timeout);
+    const msg = e.name === 'AbortError' ? 'Request timed out (25s). The lead lookup may be slow — try again.' : e.message;
+    console.error('[Subseq] Error:', e);
+    alert('Failed to start auto follow-up: ' + msg);
+    if(btn){ btn.innerHTML = '\u26A0 Retry Follow-Up'; btn.disabled = false; }
   }
 }
 window.startAutoFollowUp = startAutoFollowUp;
