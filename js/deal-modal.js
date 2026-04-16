@@ -389,9 +389,9 @@ export function renderDealModal(deal){
       ${deal.leadCategory?`<div>Category: ${esc(deal.leadCategory)}</div>`:''}
       ${(deal.smartleadUrl||deal.email)?`<a href="${esc(deal.smartleadUrl||('https://app.smartlead.ai/app/master-inbox?sortBy=REPLY_TIME_DESC&search='+encodeURIComponent(deal.email)))}" target="_blank" rel="noopener">Open in Smartlead →</a>`:''}
       ${(deal.pipeline==='Acquisition'||ACQUISITION_STAGES.some(s=>s.id===deal.stage))&&str(deal.slLeadId).trim()&&str(deal.slCampaignId).trim()&&!isSubseqActive
-        ?`<button class="sl-subseq-btn" onclick="event.stopPropagation();startAutoFollowUp('${esc(deal.id)}')" style="margin-top:8px;display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:#7c3aed;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font)">${svgIcon('send',14,'#fff')} Start Auto Follow-Up</button>`
+        ?`<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e9d5ff"><button class="sl-subseq-btn" onclick="event.stopPropagation();startAutoFollowUp('${esc(deal.id)}')" style="display:inline-flex;align-items:center;gap:6px;padding:7px 16px;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);box-shadow:0 1px 3px rgba(124,58,237,.3);transition:opacity .15s" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">${svgIcon('send',14,'#fff')} Start Auto Follow-Up</button></div>`
         :''}
-      ${isSubseqActive?`<div style="margin-top:8px;display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:#f3e8ff;color:#7c3aed;border-radius:6px;font-size:12px;font-weight:600">${svgIcon('check',14,'#7c3aed')} Auto Follow-Up Active</div>`:''}
+      ${isSubseqActive?`<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e9d5ff"><div style="display:inline-flex;align-items:center;gap:6px;padding:7px 16px;background:#f3e8ff;color:#6d28d9;border-radius:8px;font-size:12px;font-weight:600">${svgIcon('check',14,'#6d28d9')} Auto Follow-Up Active</div></div>`:''}
     </div>`;
   }
 
