@@ -327,6 +327,8 @@ export function normalizeRow(row) {
     const camelKey = FIELD_MAP[key] || key;
     if (BOOLEAN_FIELDS.has(camelKey)) {
       normalized[camelKey] = (value === true || value === 'true' || value === 'TRUE');
+    } else if (value !== null && typeof value === 'object') {
+      normalized[camelKey] = value;
     } else {
       normalized[camelKey] = value != null ? String(value) : '';
     }
