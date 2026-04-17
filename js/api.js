@@ -305,6 +305,13 @@ const FIELD_MAP = {
   calendar_id: 'calendarId',
   work_start: 'workStart',
   work_end: 'workEnd',
+  suggested_updates: 'suggestedUpdates',
+  contact2: 'contact2',
+  contact3: 'contact3',
+  phone2: 'phone2',
+  phone3: 'phone3',
+  title2: 'title2',
+  title3: 'title3',
 };
 
 const REVERSE_FIELD_MAP = {};
