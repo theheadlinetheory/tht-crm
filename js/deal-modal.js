@@ -21,6 +21,104 @@ import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocode
 import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js';
 import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js';
 
+function renderSuggestedUpdates(deal) {
+  const su = deal.suggestedUpdates;
+  if (!su || !su.suggestions || su.suggestions.length === 0) return '';
+  const fieldLabels = {
+    contact: 'Contact', phone: 'Phone', mobilePhone: 'Mobile', address: 'Address', jobTitle: 'Title',
+    contact2: 'Contact 2', email2: 'Email 2', phone2: 'Phone 2', title2: 'Title 2',
+    contact3: 'Contact 3', email3: 'Email 3', phone3: 'Phone 3', title3: 'Title 3',
+  };
+  let rows = su.suggestions.map((s, i) => {
+    const label = fieldLabels[s.field] || s.field;
+    const current = s.current ? '"' + esc(s.current) + '"' : '(empty)';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(0,0,0,0.06)">
+      <span style="min-width:70px;font-weight:600;font-size:11px;color:#374151">${label}</span>
+      <span style="font-size:11px;color:#6b7280">${current} → <strong style="color:#059669">"${esc(s.suggested)}"</strong></span>
+      <div style="margin-left:auto;display:flex;gap:4px">
+        <button onclick="acceptSuggestion('${esc(deal.id)}',${i})" style="font-size:10px;padding:2px 8px;background:#059669;color:#fff;border:none;border-radius:4px;cursor:pointer">Accept</button>
+        <button onclick="skipSuggestion('${esc(deal.id)}',${i})" style="font-size:10px;padding:2px 8px;background:#e5e7eb;color:#374151;border:none;border-radius:4px;cursor:pointer">Skip</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<div style="background:linear-gradient(135deg,#ecfdf5,#f0fdf4);border:1px solid #86efac;border-radius:10px;padding:10px 14px;margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+      <span style="font-size:12px;font-weight:700;color:#065f46">Suggested Updates</span>
+      <span style="font-size:10px;color:#6b7280;margin-left:4px">from email signature</span>
+      <div style="margin-left:auto;display:flex;gap:6px">
+        <button onclick="acceptAllSuggestions('${esc(deal.id)}')" style="font-size:10px;padding:2px 10px;background:#059669;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600">Accept All</button>
+        <button onclick="dismissSuggestions('${esc(deal.id)}')" style="font-size:10px;padding:2px 10px;background:transparent;color:#6b7280;border:1px solid #d1d5db;border-radius:4px;cursor:pointer">Dismiss</button>
+      </div>
+    </div>
+    ${rows}
+  </div>`;
+}
+
+async function acceptSuggestion(dealId, index) {
+  const deal = state.deals.find(d => d.id === dealId);
+  if (!deal || !deal.suggestedUpdates) return;
+  const su = deal.suggestedUpdates;
+  const suggestion = su.suggestions[index];
+  if (!suggestion) return;
+  deal[suggestion.field] = suggestion.suggested;
+  pendingWrites.value++;
+  sbUpdateDeal(dealId, camelToSnake({ [suggestion.field]: suggestion.suggested }))
+    .finally(() => { pendingWrites.value--; });
+  su.suggestions.splice(index, 1);
+  const newSu = su.suggestions.length > 0 ? su : null;
+  deal.suggestedUpdates = newSu;
+  pendingWrites.value++;
+  sbUpdateDeal(dealId, { suggested_updates: newSu })
+    .finally(() => { pendingWrites.value--; });
+  refreshModal();
+}
+
+async function acceptAllSuggestions(dealId) {
+  const deal = state.deals.find(d => d.id === dealId);
+  if (!deal || !deal.suggestedUpdates) return;
+  const su = deal.suggestedUpdates;
+  const fields = {};
+  for (const s of su.suggestions) {
+    deal[s.field] = s.suggested;
+    fields[s.field] = s.suggested;
+  }
+  deal.suggestedUpdates = null;
+  fields.suggestedUpdates = null;
+  pendingWrites.value++;
+  sbUpdateDeal(dealId, camelToSnake(fields))
+    .finally(() => { pendingWrites.value--; });
+  refreshModal();
+}
+
+async function skipSuggestion(dealId, index) {
+  const deal = state.deals.find(d => d.id === dealId);
+  if (!deal || !deal.suggestedUpdates) return;
+  const su = deal.suggestedUpdates;
+  su.suggestions.splice(index, 1);
+  const newSu = su.suggestions.length > 0 ? su : null;
+  deal.suggestedUpdates = newSu;
+  pendingWrites.value++;
+  sbUpdateDeal(dealId, { suggested_updates: newSu })
+    .finally(() => { pendingWrites.value--; });
+  refreshModal();
+}
+
+async function dismissSuggestions(dealId) {
+  const deal = state.deals.find(d => d.id === dealId);
+  if (!deal) return;
+  deal.suggestedUpdates = null;
+  pendingWrites.value++;
+  sbUpdateDeal(dealId, { suggested_updates: null })
+    .finally(() => { pendingWrites.value--; });
+  refreshModal();
+}
+
+window.acceptSuggestion = acceptSuggestion;
+window.acceptAllSuggestions = acceptAllSuggestions;
+window.skipSuggestion = skipSuggestion;
+window.dismissSuggestions = dismissSuggestions;
+
 export function openDeal(id){
   const deal=state.deals.find(d=>d.id===id);
   if(!deal) return;
@@ -86,7 +184,8 @@ export function debouncedDealFieldSave(){
     const fields={};
     // Read all editable fields from the modal DOM
     const fieldMap=['company','contact','email','phone','mobilePhone','website','location','address','value','notes',
-      'email2','email3','email4','bookedDate','bookedTime','bookedFor','prefillName','prefillEmail','prefillNotes',
+      'email2','email3','email4','contact2','contact3','phone2','phone3','title2','title3',
+      'bookedDate','bookedTime','bookedFor','prefillName','prefillEmail','prefillNotes',
       'stage','pipeline'];
     for(const f of fieldMap){
       const el=document.getElementById('deal-'+f);
@@ -399,6 +498,7 @@ export function renderDealModal(deal){
             <div style="font-size:11px;color:#1e40af">No calling needed — categorize, check service area, and forward to client.</div>
           </div>
         </div>`:''}
+        ${renderSuggestedUpdates(deal)}
         <div class="form-grid">
           ${["company:Company","contact:Contact Name","email:Email","phone:Business Phone","mobilePhone:Mobile Phone","website:Website","jobTitle:Job Title","location:Address",...(isAdmin()?["value:Deal Value ($)"]:[])].map(f=>{
             const[k,label]=f.split(":");
@@ -431,6 +531,24 @@ export function renderDealModal(deal){
               <input id="deal-email2" placeholder="Email 2" value="${esc(String(deal.email2||''))}" oninput="updateDealField('email2',this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
               <input id="deal-email3" placeholder="Email 3" value="${esc(String(deal.email3||''))}" oninput="updateDealField('email3',this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
               <input id="deal-email4" placeholder="Email 4" value="${esc(String(deal.email4||''))}" oninput="updateDealField('email4',this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+            </div>
+          </div>
+          <div class="form-group form-span2" style="margin-top:0">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+              <label style="margin:0;font-size:11px;font-weight:600;color:var(--text-muted)">Additional Contacts</label>
+              ${!(deal.contact2||deal.contact3||deal.phone2||deal.phone3)?`<button onclick="document.getElementById('extra-contacts').style.display='flex';this.style.display='none'" style="background:none;border:1px solid var(--border);border-radius:4px;font-size:11px;color:#2563eb;cursor:pointer;padding:1px 8px;font-weight:600">+ Add</button>`:''}
+            </div>
+            <div id="extra-contacts" style="display:${(deal.contact2||deal.contact3||deal.phone2||deal.phone3)?'flex':'none'};flex-direction:column;gap:6px">
+              <div style="display:flex;gap:4px">
+                <input id="deal-contact2" placeholder="Contact 2" value="${esc(String(deal.contact2||''))}" oninput="updateDealField('contact2',this.value)" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+                <input id="deal-title2" placeholder="Title" value="${esc(String(deal.title2||''))}" oninput="updateDealField('title2',this.value)" style="width:120px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+              </div>
+              <input id="deal-phone2" placeholder="Phone 2" value="${esc(String(deal.phone2||''))}" oninput="updateDealField('phone2',this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+              <div style="display:flex;gap:4px;margin-top:4px">
+                <input id="deal-contact3" placeholder="Contact 3" value="${esc(String(deal.contact3||''))}" oninput="updateDealField('contact3',this.value)" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+                <input id="deal-title3" placeholder="Title" value="${esc(String(deal.title3||''))}" oninput="updateDealField('title3',this.value)" style="width:120px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+              </div>
+              <input id="deal-phone3" placeholder="Phone 3" value="${esc(String(deal.phone3||''))}" oninput="updateDealField('phone3',this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
             </div>
           </div>
           <div class="form-group">
