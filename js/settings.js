@@ -5,7 +5,7 @@ import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSe
          settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js';
 import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS } from './config.js';
 import { render } from './render.js';
-import { apiPost, apiGet, sbBatchUpdateClients, camelToSnake } from './api.js';
+import { apiPost, apiGet, sbBatchUpdateClients, camelToSnake, supabase } from './api.js';
 import { esc, str, svgIcon } from './utils.js';
 import { isAdmin, currentUser, loadAllUsers, updateUserRole, updateUserClient, db } from './auth.js';
 import { lookupClientInfo } from './client-info.js';
@@ -166,6 +166,7 @@ export function renderSettingsPanel(){
     <button class="settings-tab ${settingsTab==='users'?'active':''}" onclick="settingsTab='users';refreshSettingsBody()">Users</button>
     <button class="settings-tab ${settingsTab==='campaigns'?'active':''}" onclick="settingsTab='campaigns';refreshSettingsBody()">Campaigns</button>
     <button class="settings-tab ${settingsTab==='dialer'?'active':''}" onclick="settingsTab='dialer';refreshSettingsBody()">Dialer</button>
+    <button class="settings-tab ${settingsTab==='ai'?'active':''}" onclick="settingsTab='ai';refreshSettingsBody()">AI</button>
   </div>
   <div class="settings-body">`;
 
@@ -176,6 +177,7 @@ export function renderSettingsPanel(){
   else if(settingsTab==='users') h+=renderUsersSettings();
   else if(settingsTab==='campaigns') h+=renderCampaignAssignSettings();
   else if(settingsTab==='dialer') h+=renderDialerSettings();
+  else if(settingsTab==='ai') h+=renderAISettings();
 
   h+=`</div>
   <div class="settings-footer">
@@ -215,11 +217,13 @@ export function refreshSettingsBody(){
   else if(settingsTab==='users') h=renderUsersSettings();
   else if(settingsTab==='campaigns') h=renderCampaignAssignSettings();
   else if(settingsTab==='dialer') h=renderDialerSettings();
+  else if(settingsTab==='ai') h=renderAISettings();
   body.innerHTML=h;
   body.scrollTop=0;
   setupSettingsDrag();
   if(settingsTab==='users') loadUsersIntoPanel();
   if(settingsTab==='campaigns') fetchAcquisitionCampaigns();
+  if(settingsTab==='ai') loadAISettings();
 }
 
 function renderStagesSettings(){
@@ -905,6 +909,84 @@ Object.defineProperty(window, 'settingsTab', {
   set(v){ setSettingsTab(v); },
   configurable: true
 });
+// ── AI Settings ──────────────────────────────────────────
+const DEFAULT_PASSOFF_TEMPLATE = `You are writing lead passoff instructions for a landscaping lead generation company (The Headline Theory) to send to their client.
+
+Given the lead's information, email conversation, and call transcript (if available), write clear instructions for the client on what to do with this lead. Some leads are set up entirely through email with no phone call — use whatever context is available.
+
+IMPORTANT: Always carefully read email signatures in the thread. Extract the sender's full name, title, phone numbers, and any other contact details from signatures. If the deal card is missing this info or has it wrong, use the signature data instead.
+
+Output format (follow exactly):
+
+Hey [clientFirstName], just scheduled a quote request for [appointment details] with [Business Name]. The address, phone, contact info and instructions are all included below. I've also added you to the email thread. Please check your spam folder if you are not seeing it.
+
+Business: [company name]
+Website: [website URL]
+Address: [full address]
+Email: [lead email]
+Contact: [contact name]
+Business Phone: [phone]
+Mobile Phone: [mobile phone, only if available]
+Instructions: [Write 2-4 sentences synthesizing what the lead wants based on the email thread and call transcript. Include: what service they're looking for, any specific details about the property or job, scheduling preferences, and any special notes. Be specific and actionable.]
+
+Good luck!
+
+— The Headline Theory Team`;
+
+let _aiPassoffTemplate = '';
+
+function renderAISettings(){
+  return `
+  <div style="padding:12px 0">
+    <h3 style="margin:0 0 4px;font-size:14px;font-weight:600;color:var(--text)">Passoff Instructions Template</h3>
+    <p style="margin:0 0 12px;font-size:11px;color:#6b7280">This prompt tells the AI how to generate passoff instructions. Use placeholders like [clientFirstName], [Business Name], etc. The AI receives the deal data, email thread, and call transcript automatically.</p>
+    <textarea id="ai-passoff-template" style="width:100%;min-height:320px;padding:10px;font-size:12px;font-family:monospace;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);resize:vertical;line-height:1.5"
+      oninput="window._aiPassoffDirty=true">${esc(_aiPassoffTemplate || DEFAULT_PASSOFF_TEMPLATE)}</textarea>
+    <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+      <button class="btn btn-primary" onclick="saveAIPassoffTemplate()" style="font-size:12px">Save Template</button>
+      <button class="btn" style="font-size:12px;background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="resetAIPassoffTemplate()">Reset to Default</button>
+      <span id="ai-save-status" style="font-size:11px;color:#9ca3af"></span>
+    </div>
+  </div>`;
+}
+
+async function loadAISettings(){
+  try {
+    const { data } = await supabase.from('crm_settings').select('value').eq('key','passoff_template').single();
+    if(data && data.value) _aiPassoffTemplate = data.value;
+    else _aiPassoffTemplate = DEFAULT_PASSOFF_TEMPLATE;
+    const el = document.getElementById('ai-passoff-template');
+    if(el) el.value = _aiPassoffTemplate;
+  } catch(e){ console.warn('[AI Settings] load failed:', e); }
+}
+
+async function saveAIPassoffTemplate(){
+  const el = document.getElementById('ai-passoff-template');
+  if(!el) return;
+  const val = el.value.trim();
+  const status = document.getElementById('ai-save-status');
+  if(status) status.textContent = 'Saving...';
+  try {
+    await supabase.from('crm_settings').upsert({ key: 'passoff_template', value: val, updated_at: new Date().toISOString() });
+    _aiPassoffTemplate = val;
+    window._aiPassoffDirty = false;
+    if(status) status.textContent = '✓ Saved';
+    setTimeout(()=>{ if(status) status.textContent=''; }, 3000);
+  } catch(e){
+    if(status) status.textContent = 'Error saving';
+    console.error('[AI Settings] save failed:', e);
+  }
+}
+
+function resetAIPassoffTemplate(){
+  const el = document.getElementById('ai-passoff-template');
+  if(el) el.value = DEFAULT_PASSOFF_TEMPLATE;
+  window._aiPassoffDirty = true;
+}
+
+window.saveAIPassoffTemplate = saveAIPassoffTemplate;
+window.resetAIPassoffTemplate = resetAIPassoffTemplate;
+
 window.openSettings = openSettings;
 window.closeSettings = closeSettings;
 window.debouncedAutoSave = debouncedAutoSave;
