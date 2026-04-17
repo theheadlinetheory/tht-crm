@@ -19,6 +19,7 @@ import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWa
 import { getStagesForPipeline } from './dashboard.js';
 import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal } from './maps.js';
 import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js';
+import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js';
 
 export function openDeal(id){
   const deal=state.deals.find(d=>d.id===id);
@@ -33,6 +34,7 @@ export function openDeal(id){
 }
 
 export function closeDealModal(){
+  stopTranscriptPolling();
   state.selectedDeal=null;
   state.showSop=false;
   flushRealtimeQueue();
@@ -293,6 +295,90 @@ window.doLostDrop = doLostDrop;
 window.doWonDrop = doWonDrop;
 window.toggleBadgeDropdown = toggleBadgeDropdown;
 window.refreshPushButton = refreshPushButton;
+window.startTranscriptPolling = startTranscriptPolling;
+
+// ─── Route Suggestion Handlers ───
+
+window._routeSuggestions = {};
+
+function renderRouteResults(dealId, data, clientName) {
+  if (data.error) return `<div style="padding:8px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;font-size:12px;color:#991b1b;margin-bottom:8px">Error: ${esc(data.error)}</div>`;
+  if (!data.suggestions || data.suggestions.length === 0) return '<div style="padding:8px;font-size:12px;color:var(--text-muted)">No suggestions available.</div>';
+  let h = '<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:700;color:#0369a1;margin-bottom:8px">SUGGESTED APPOINTMENT TIMES</div>';
+  data.suggestions.forEach(function(s) {
+    const effColor = s.routeEfficiency === 'high' ? '#059669' : s.routeEfficiency === 'medium' ? '#d97706' : '#dc2626';
+    const isTop = s.rank === 1;
+    const dateLabel = (()=>{ try { return new Date(s.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}); } catch(e) { return s.date; } })();
+    h += `<div style="padding:10px;margin-bottom:6px;background:${isTop?'#f0f9ff':'var(--bg)'};border:1px solid ${isTop?'#0ea5e9':'var(--border)'};border-radius:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div style="font-size:13px;font-weight:700;color:var(--text)">${isTop?'BEST: ':'#'+s.rank+': '}${dateLabel} at ${fmtTime12(s.suggestedTime)}</div>
+        <span style="font-size:10px;font-weight:600;color:${effColor};text-transform:uppercase">${esc(s.routeEfficiency)}</span>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">
+        ${s.driveFromPrevious?esc(s.driveFromPrevious)+' from prev':''} ${s.driveToNext&&s.driveToNext!=='N/A'?' · '+esc(s.driveToNext)+' to next':''}
+      </div>
+      <div style="font-size:11px;color:var(--text);margin-bottom:8px">${esc(s.reasoning)}</div>
+      <button class="btn btn-primary" style="font-size:11px;padding:5px 14px;background:#0ea5e9;border-color:#0ea5e9"
+        onclick="bookSuggestionClick('${esc(dealId)}','${esc(clientName)}','${esc(s.date)}','${esc(s.suggestedTime)}','${esc(s.estimatedDuration)}')">
+        Book This
+      </button>
+    </div>`;
+  });
+  return h + '</div>';
+}
+
+window.suggestScheduleClick = async function(dealId, clientName) {
+  const btn = document.getElementById('suggest-schedule-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = 'Analyzing routes for the next 7 days...'; }
+  const today = new Date();
+  const endDate = new Date(today);
+  endDate.setDate(endDate.getDate() + 7);
+  const fmt = d => d.toISOString().split('T')[0];
+  try {
+    const { apiPost } = await import('./api.js');
+    const result = await apiPost('suggest_schedule', {
+      clientName, leadDealId: dealId,
+      dateRangeStart: fmt(today), dateRangeEnd: fmt(endDate)
+    });
+    window._routeSuggestions[dealId] = result;
+    const container = document.getElementById('route-results-' + dealId);
+    if (container) { container.innerHTML = renderRouteResults(dealId, result, clientName); }
+    if (btn) { btn.disabled = false; btn.innerHTML = 'Suggest Schedule'; }
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.innerHTML = 'Suggest Schedule'; }
+    alert('Route suggestion failed: ' + e.message);
+  }
+};
+
+window.bookSuggestionClick = async function(dealId, clientName, date, time, duration) {
+  const dateLabel = (()=>{ try { return new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}); } catch(e) { return date; } })();
+  if (!confirm('Book ' + dateLabel + ' at ' + fmtTime12(time) + '?')) return;
+  const deal = state.deals.find(d => d.id === dealId);
+  if (!deal) return;
+  deal.bookedDate = date;
+  deal.bookedTime = time;
+  const { sbUpdateDeal: _sbUpd, invokeEdgeFunction: _ief, sbCreateAppointment: _sbAppt } = await import('./api.js');
+  await _sbUpd(dealId, { bookedDate: date, bookedTime: time });
+  try {
+    await _sbAppt({
+      client_name: clientName,
+      lead_name: deal.company || deal.contact || '',
+      appt_date: date,
+      appt_time: time,
+      address: deal.address || deal.location || '',
+      notes: 'Route-optimized booking (' + duration + ')'
+    });
+  } catch (apptErr) { console.warn('Appointment creation failed:', apptErr); }
+  try {
+    await _ief('create-calendar-event', {
+      dealId, clientName, date, time,
+      duration: parseInt(duration) || 60,
+      title: (deal.company || deal.contact || 'New Lead') + ' - Quote',
+      location: deal.address || deal.location || ''
+    });
+  } catch (calErr) { console.warn('Calendar event creation failed:', calErr); }
+  refreshModal();
+};
 
 // ─── Render Functions ───
 
@@ -385,6 +471,13 @@ export function renderDealModal(deal){
           <label>Notes</label>
           <textarea id="deal-notes" rows="2" oninput="updateDealField('notes',this.value)">${esc(deal.notes||'')}</textarea>
         </div>
+        ${(()=>{
+          if(deal.pipeline==='Client'){
+            const _mc=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
+            return _mc ? renderPassoffSection(deal, _mc.name) : '';
+          }
+          return '';
+        })()}
         <div class="form-group form-span2" style="margin-bottom:16px">
           <label>${svgIcon('calendar',14)} Meeting Date & Time</label>
           <div style="display:flex;gap:8px">
@@ -574,6 +667,17 @@ export function renderDealModal(deal){
             ${pushed?'<span style="color:#059669">Pushed to Lead Tracker</span>':svgIcon('upload',14)+' Push to Lead Tracker'}
           </button>
         </div>`;
+      }
+
+      // Route Optimization — Suggest Schedule (admin only, needs address)
+      if(isAdmin() && str(deal.address||deal.location).trim()){
+        h+=`<div style="margin:0 0 8px 0">
+          <button id="suggest-schedule-btn" class="btn btn-primary" style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#0ea5e9;border-color:#0ea5e9"
+            onclick="suggestScheduleClick('${esc(deal.id)}','${esc(matchedClient.name)}')">
+            Suggest Schedule
+          </button>
+        </div>
+        <div id="route-results-${esc(deal.id)}"></div>`;
       }
 
       // Legacy external map link

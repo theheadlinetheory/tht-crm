@@ -298,6 +298,13 @@ const FIELD_MAP = {
   rerun_date: 'rerunDate',
   job_title: 'jobTitle',
   linkedin_url: 'linkedinUrl',
+  passoff_instructions: 'passoffInstructions',
+  call_transcript: 'callTranscript',
+  passoff_sent_at: 'passoffSentAt',
+  home_base: 'homeBase',
+  calendar_id: 'calendarId',
+  work_start: 'workStart',
+  work_end: 'workEnd',
 };
 
 const REVERSE_FIELD_MAP = {};
