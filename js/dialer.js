@@ -169,6 +169,14 @@ async function onCallEnded(){
     // Refresh modal if open on this deal
     const { refreshModal } = await import('./render.js');
     if(state.selectedDeal === dealId) refreshModal();
+
+    // Start transcript polling for Client pipeline deals after answered calls
+    if(wasAnswered){
+      const deal = state.deals.find(d => d.id === dealId);
+      if(deal && deal.pipeline === 'Client' && phone){
+        window.startTranscriptPolling && window.startTranscriptPolling(dealId, phone);
+      }
+    }
   } catch(e){
     console.warn('[Dialer] Failed to log call outcome:', e);
   }

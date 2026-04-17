@@ -429,6 +429,36 @@ function renderClientsSettings(){
           style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
       </div>`:''}
 
+      <div style="margin-bottom:8px;padding:10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px">
+        <div style="font-size:10px;font-weight:700;color:#0369a1;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Route Optimization</div>
+        <div style="margin-bottom:6px">
+          <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Home Base Address</label>
+          <input type="text" placeholder="123 Main St, City, ST 12345" value="${esc(str(c.homeBase))}"
+            oninput="updateClientField('${esc(c.id)}','homeBase',this.value)"
+            style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+        </div>
+        <div style="margin-bottom:6px">
+          <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Google Calendar ID</label>
+          <input type="text" placeholder="email@example.com or 'primary'" value="${esc(str(c.calendarId))}"
+            oninput="updateClientField('${esc(c.id)}','calendarId',this.value)"
+            style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+        </div>
+        <div style="display:flex;gap:8px">
+          <div style="flex:1">
+            <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Work Start</label>
+            <input type="time" value="${esc(str(c.workStart)||'08:00')}"
+              onchange="updateClientField('${esc(c.id)}','workStart',this.value)"
+              style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+          </div>
+          <div style="flex:1">
+            <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Work End</label>
+            <input type="time" value="${esc(str(c.workEnd)||'17:00')}"
+              onchange="updateClientField('${esc(c.id)}','workEnd',this.value)"
+              style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+          </div>
+        </div>
+      </div>
+
       <div style="margin-bottom:8px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">\uD83D\uDDFA\uFE0F Service Area</label>
         ${(()=>{
