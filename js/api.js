@@ -296,6 +296,8 @@ const FIELD_MAP = {
   source_stage: 'sourceStage',
   queued_date: 'queuedDate',
   rerun_date: 'rerunDate',
+  job_title: 'jobTitle',
+  linkedin_url: 'linkedinUrl',
 };
 
 const REVERSE_FIELD_MAP = {};
