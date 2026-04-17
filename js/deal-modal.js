@@ -61,17 +61,23 @@ async function acceptSuggestion(dealId, index) {
   const su = deal.suggestedUpdates;
   const suggestion = su.suggestions[index];
   if (!suggestion) return;
+  // Apply the suggested value to the deal
   deal[suggestion.field] = suggestion.suggested;
-  pendingWrites.value++;
-  sbUpdateDeal(dealId, camelToSnake({ [suggestion.field]: suggestion.suggested }))
-    .finally(() => { pendingWrites.value--; });
+  // Remove this suggestion
   su.suggestions.splice(index, 1);
   const newSu = su.suggestions.length > 0 ? su : null;
   deal.suggestedUpdates = newSu;
+  // Also update selectedDeal so modal re-render sees the change
+  if (state.selectedDeal && state.selectedDeal.id === dealId) {
+    state.selectedDeal[suggestion.field] = suggestion.suggested;
+    state.selectedDeal.suggestedUpdates = newSu;
+  }
+  // Single DB call with both the field update and the suggestions update
+  const dbFields = camelToSnake({ [suggestion.field]: suggestion.suggested });
+  dbFields.suggested_updates = newSu;
   pendingWrites.value++;
-  sbUpdateDeal(dealId, { suggested_updates: newSu })
-    .finally(() => { pendingWrites.value--; });
-  refreshModal();
+  sbUpdateDeal(dealId, dbFields).finally(() => { pendingWrites.value--; });
+  refreshModal(true);
 }
 
 async function acceptAllSuggestions(dealId) {
@@ -84,11 +90,18 @@ async function acceptAllSuggestions(dealId) {
     fields[s.field] = s.suggested;
   }
   deal.suggestedUpdates = null;
-  fields.suggestedUpdates = null;
+  // Also update selectedDeal
+  if (state.selectedDeal && state.selectedDeal.id === dealId) {
+    for (const s of su.suggestions) {
+      state.selectedDeal[s.field] = s.suggested;
+    }
+    state.selectedDeal.suggestedUpdates = null;
+  }
+  const dbFields = camelToSnake(fields);
+  dbFields.suggested_updates = null;
   pendingWrites.value++;
-  sbUpdateDeal(dealId, camelToSnake(fields))
-    .finally(() => { pendingWrites.value--; });
-  refreshModal();
+  sbUpdateDeal(dealId, dbFields).finally(() => { pendingWrites.value--; });
+  refreshModal(true);
 }
 
 async function skipSuggestion(dealId, index) {
@@ -98,20 +111,24 @@ async function skipSuggestion(dealId, index) {
   su.suggestions.splice(index, 1);
   const newSu = su.suggestions.length > 0 ? su : null;
   deal.suggestedUpdates = newSu;
+  if (state.selectedDeal && state.selectedDeal.id === dealId) {
+    state.selectedDeal.suggestedUpdates = newSu;
+  }
   pendingWrites.value++;
-  sbUpdateDeal(dealId, { suggested_updates: newSu })
-    .finally(() => { pendingWrites.value--; });
-  refreshModal();
+  sbUpdateDeal(dealId, { suggested_updates: newSu }).finally(() => { pendingWrites.value--; });
+  refreshModal(true);
 }
 
 async function dismissSuggestions(dealId) {
   const deal = state.deals.find(d => d.id === dealId);
   if (!deal) return;
   deal.suggestedUpdates = null;
+  if (state.selectedDeal && state.selectedDeal.id === dealId) {
+    state.selectedDeal.suggestedUpdates = null;
+  }
   pendingWrites.value++;
-  sbUpdateDeal(dealId, { suggested_updates: null })
-    .finally(() => { pendingWrites.value--; });
-  refreshModal();
+  sbUpdateDeal(dealId, { suggested_updates: null }).finally(() => { pendingWrites.value--; });
+  refreshModal(true);
 }
 
 window.acceptSuggestion = acceptSuggestion;
