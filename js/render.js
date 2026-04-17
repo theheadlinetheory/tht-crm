@@ -125,6 +125,12 @@ export function render(){
     return;
   }
 
+  // ─── Error Screen ───
+  if(state.loadFailed){
+    app.innerHTML=`<div class="loading-screen"><div class="loading-logo" style="opacity:0.5"><span>T</span></div><div class="loading-text" style="color:#ef4444">Failed to load CRM</div><div style="font-size:12px;color:#6b7280;max-width:400px;text-align:center;margin-top:8px">${esc(state.loadError||'Unknown error')}</div><button onclick="location.reload()" style="margin-top:16px;padding:8px 20px;background:var(--purple);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">Retry</button></div>`;
+    return;
+  }
+
   // ─── Nurture Archive sub-tab ───
   if(state.pipeline==='nurture' && state.nurtureSubTab==='archive'){
     if(!state.archiveLoaded && !state._archiveLoadPending){

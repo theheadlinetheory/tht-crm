@@ -27,6 +27,7 @@ export const state = {
   synced: false,
   syncing: false,
   loadFailed: false,
+  loadError: '',
   searchQuery: "",
   searchResults: null,
   savedSettings: null,

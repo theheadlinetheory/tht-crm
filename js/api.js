@@ -408,6 +408,7 @@ export async function initialSync(isStartup) {
   } catch (e) {
     console.error('Initial sync failed:', e);
     state.loadFailed = true;
+    state.loadError = e?.message || String(e);
     state.synced = true;
     state.syncing = false;
     render();

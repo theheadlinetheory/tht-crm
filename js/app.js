@@ -122,45 +122,53 @@ let appInitialized=false;
 export async function initApp(){
   if(appInitialized) return;
   appInitialized=true;
-  // Apply cached settings immediately
-  try{
-    const { applySettings } = await import('./settings.js');
-    const cached=JSON.parse(localStorage.getItem('tht_settings'));
-    if(cached) applySettings(cached, true);
-  }catch(e){}
-  if(isClient()){
-    await loadClientPortalStages();
-    await loadClientArchive();
+  try {
+    // Apply cached settings immediately
+    try{
+      const { applySettings } = await import('./settings.js');
+      const cached=JSON.parse(localStorage.getItem('tht_settings'));
+      if(cached) applySettings(cached, true);
+    }catch(e){}
+    if(isClient()){
+      await loadClientPortalStages();
+      await loadClientArchive();
+    }
+    if(isAdmin()||isEmployee()){
+      await loadCampaignAssignments();
+      listenCampaignAssignments();
+    }
+    // Load client config from database (calendly URLs, services, warm call notes, etc.)
+    const { loadClientConfig } = await import('./client-info.js');
+    await loadClientConfig();
+    // Initialize service area polygon data from global script
+    if(window.SERVICE_AREA_POLYGONS){
+      const { setServiceAreaData } = await import('./maps.js');
+      setServiceAreaData(window.SERVICE_AREA_POLYGONS);
+    }
+    render();
+    await initialSync(true);
+    subscribeRealtime();
+    // Background sync every 30s — catches anything realtime missed (modal open, writes in flight, etc.)
+    setInterval(() => {
+      flushRealtimeQueue();
+      initialSync(false);
+    }, SYNC_INTERVAL);
+    if(isAdmin()||isEmployee()){
+      setInterval(pollReplyStatus, REPLY_CHECK_INTERVAL);
+      triggerBackendReplyCheck();
+      setInterval(triggerBackendReplyCheck, REPLY_BACKEND_POLL_INTERVAL);
+    }
+    if(!isClient()) initJustCallDialer();
+    if(!isClient()) import('./number-health.js').then(m => m.loadNumberHealth()).catch(e => console.warn('Number health load failed:', e));
+    if(!isClient()) import('./warm-call.js').catch(e => console.warn('Warm call module load failed:', e));
+    // Re-run queue removed; nurture tab defaults to board view
+  } catch(e) {
+    console.error('initApp failed:', e);
+    state.loadFailed = true;
+    state.loadError = e?.message || String(e);
+    state.synced = true;
+    render();
   }
-  if(isAdmin()||isEmployee()){
-    await loadCampaignAssignments();
-    listenCampaignAssignments();
-  }
-  // Load client config from database (calendly URLs, services, warm call notes, etc.)
-  const { loadClientConfig } = await import('./client-info.js');
-  await loadClientConfig();
-  // Initialize service area polygon data from global script
-  if(window.SERVICE_AREA_POLYGONS){
-    const { setServiceAreaData } = await import('./maps.js');
-    setServiceAreaData(window.SERVICE_AREA_POLYGONS);
-  }
-  render();
-  await initialSync(true);
-  subscribeRealtime();
-  // Background sync every 30s — catches anything realtime missed (modal open, writes in flight, etc.)
-  setInterval(() => {
-    flushRealtimeQueue();
-    initialSync(false);
-  }, SYNC_INTERVAL);
-  if(isAdmin()||isEmployee()){
-    setInterval(pollReplyStatus, REPLY_CHECK_INTERVAL);
-    triggerBackendReplyCheck();
-    setInterval(triggerBackendReplyCheck, REPLY_BACKEND_POLL_INTERVAL);
-  }
-  if(!isClient()) initJustCallDialer();
-  if(!isClient()) import('./number-health.js').then(m => m.loadNumberHealth()).catch(e => console.warn('Number health load failed:', e));
-  if(!isClient()) import('./warm-call.js').catch(e => console.warn('Warm call module load failed:', e));
-  // Re-run queue removed; nurture tab defaults to board view
 }
 
 // ─── Client Portal Archive View ───
