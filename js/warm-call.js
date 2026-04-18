@@ -313,7 +313,7 @@ export function openWarmCallSheet(dealId){
                 </div>
               </div>
               <div id="warm-call-property-map" style="height:400px;width:100%"></div>
-              <div id="warm-call-streetview" style="height:400px;width:100%;display:none"></div>
+              <div id="warm-call-streetview" data-address="${encodeURIComponent(propAddr)}" style="height:400px;width:100%;display:none"></div>
             </div>`;
           })()}
         </div>
@@ -659,36 +659,48 @@ function initStreetView() {
   const container = document.getElementById('warm-call-streetview');
   if (!container) return;
 
-  const lat = parseFloat(container.dataset.lat || '0');
-  const lng = parseFloat(container.dataset.lng || '0');
-  if (!lat && !lng) {
-    container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:13px">No address coordinates available</div>';
-    return;
-  }
+  container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:13px">Loading Street View...</div>';
 
-  import('./config.js').then(({ GOOGLE_MAPS_API_KEY }) => {
-    if (!GOOGLE_MAPS_API_KEY) {
-      container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:13px">Google Maps API key not configured</div>';
-      return;
-    }
-    loadGoogleMapsApi(GOOGLE_MAPS_API_KEY).then(() => {
-      const sv = new google.maps.StreetViewService();
-      sv.getPanorama({ location: { lat, lng }, radius: 100 }, (data, status) => {
-        if (status === google.maps.StreetViewStatus.OK) {
-          new google.maps.StreetViewPanorama(container, {
-            position: data.location.latLng,
-            pov: { heading: google.maps.geometry.spherical.computeHeading(data.location.latLng, new google.maps.LatLng(lat, lng)), pitch: 0 },
-            zoom: 1,
-            motionTracking: false,
-            motionTrackingControl: false
-          });
-        } else {
-          container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:13px">Street View not available for this address</div>';
-        }
+  // Get coordinates — either from satellite map geocode or geocode ourselves
+  let lat = parseFloat(container.dataset.lat || '0');
+  let lng = parseFloat(container.dataset.lng || '0');
+
+  const coordsReady = (lat && lng) ? Promise.resolve({ lat, lng }) :
+    fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + (container.dataset.address || ''))
+      .then(r => r.json())
+      .then(data => {
+        if (!data || !data[0]) throw new Error('Could not geocode address');
+        return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
       });
-    }).catch((err) => {
-      container.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:13px;gap:4px"><span>Failed to load Google Maps</span><span style="font-size:10px;opacity:.6">' + (err.message || '') + '</span></div>';
+
+  coordsReady.then(coords => {
+    import('./config.js').then(({ GOOGLE_MAPS_API_KEY }) => {
+      if (!GOOGLE_MAPS_API_KEY) {
+        container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:13px">Google Maps API key not configured</div>';
+        return;
+      }
+      loadGoogleMapsApi(GOOGLE_MAPS_API_KEY).then(() => {
+        const sv = new google.maps.StreetViewService();
+        sv.getPanorama({ location: coords, radius: 200 }, (data, status) => {
+          if (status === google.maps.StreetViewStatus.OK) {
+            container.innerHTML = '';
+            new google.maps.StreetViewPanorama(container, {
+              position: data.location.latLng,
+              pov: { heading: google.maps.geometry.spherical.computeHeading(data.location.latLng, new google.maps.LatLng(coords.lat, coords.lng)), pitch: 0 },
+              zoom: 1,
+              motionTracking: false,
+              motionTrackingControl: false
+            });
+          } else {
+            container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:13px">Street View not available for this address</div>';
+          }
+        });
+      }).catch((err) => {
+        container.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:13px;gap:4px"><span>Failed to load Google Maps</span><span style="font-size:10px;opacity:.6">' + (err.message || '') + '</span></div>';
+      });
     });
+  }).catch(() => {
+    container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:13px">Could not locate this address</div>';
   });
 }
 
