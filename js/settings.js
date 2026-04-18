@@ -71,7 +71,9 @@ export function debouncedAutoSave(){
         clientNotes:str(c.clientNotes||''),
         warmCallNotesText:str(c.warmCallNotesText||''),
         clientStanding:str(c.clientStanding||'neutral'),
-        timeZone:str(c.timeZone||'')
+        timeZone:str(c.timeZone||''),
+        ghlLocationId:str(c.ghlLocationId||''),
+        ghlApiKey:str(c.ghlApiKey||'')
       }));
       await Promise.all([
         apiPost('save_settings',{settings:settingsDraft}),
@@ -432,6 +434,24 @@ function renderClientsSettings(){
           oninput="updateClientField('${esc(c.id)}','calendlyUrl',this.value)"
           style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
       </div>`:''}
+
+      <div style="margin-bottom:8px;padding:10px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px">
+        <div style="font-size:10px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">GoHighLevel Integration</div>
+        <div style="margin-bottom:6px">
+          <label style="font-size:10px;font-weight:600;color:var(--text-muted)">GHL Location ID</label>
+          <input type="text" placeholder="e.g. ve9EPM428h8vShlRW1KT" value="${esc(str(c.ghlLocationId))}"
+            oninput="updateClientField('${esc(c.id)}','ghlLocationId',this.value)"
+            style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+        </div>
+        <div style="margin-bottom:2px;position:relative">
+          <label style="font-size:10px;font-weight:600;color:var(--text-muted)">GHL API Key</label>
+          <input type="password" id="ghl-key-${esc(c.id)}" placeholder="pit-..." value="${esc(str(c.ghlApiKey))}"
+            oninput="updateClientField('${esc(c.id)}','ghlApiKey',this.value)"
+            style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+          <button onclick="const i=document.getElementById('ghl-key-${esc(c.id)}');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'Show':'Hide'"
+            style="position:absolute;right:6px;top:20px;border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:10px;font-family:var(--font)">Show</button>
+        </div>
+      </div>
 
       <div style="margin-bottom:8px;padding:10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px">
         <div style="font-size:10px;font-weight:700;color:#0369a1;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Route Optimization</div>
@@ -801,7 +821,9 @@ export async function saveSettingsToSheet(){
       clientNotes:str(c.clientNotes||''),
       warmCallNotesText:str(c.warmCallNotesText||''),
       clientStanding:str(c.clientStanding||'neutral'),
-      timeZone:str(c.timeZone||'')
+      timeZone:str(c.timeZone||''),
+      ghlLocationId:str(c.ghlLocationId||''),
+      ghlApiKey:str(c.ghlApiKey||'')
     }));
     await Promise.all([
       apiPost('save_settings',{settings:settingsDraft}),

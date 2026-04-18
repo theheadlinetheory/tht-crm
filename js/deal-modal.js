@@ -809,6 +809,22 @@ export function renderDealModal(deal){
         </div>`;
       }
 
+      // Push to GHL button (admin only)
+      if(isAdmin()){
+        const ghlConfigured = str(matchedClient.ghlLocationId).trim() && str(matchedClient.ghlApiKey).trim();
+        const ghlPushed = deal.pushedToGhl;
+        const ghlDisabled = !ghlConfigured || ghlPushed;
+        const ghlTitle = !ghlConfigured ? 'GHL not configured for this client'
+          : ghlPushed ? 'Pushed on ' + new Date(deal.pushedToGhl).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})
+          : 'Push contact + opportunity to ' + esc(matchedClient.name) + "'s GoHighLevel";
+        h+=`<div style="margin:0 0 8px 0">
+          <button id="push-ghl-btn" class="btn ${ghlPushed?'btn-ghost':ghlConfigured?'btn-primary':'btn-ghost'}" style="width:100%;justify-content:center;gap:6px;font-size:13px${ghlDisabled?';opacity:0.5':''}"
+            onclick="${ghlDisabled?'':'pushToGhl(\''+deal.id+'\')'}" ${ghlDisabled?'disabled':''} title="${esc(ghlTitle)}">
+            ${ghlPushed?'<span style="color:#059669">\u2713 Pushed to GHL</span>':svgIcon('upload',14)+' Push to GHL'}
+          </button>
+        </div>`;
+      }
+
       // Route Optimization — Suggest Schedule (admin only, needs address)
       if(isAdmin() && str(deal.address||deal.location).trim()){
         h+=`<div style="margin:0 0 8px 0">
@@ -928,6 +944,7 @@ export function renderDealModal(deal){
     if(deal.forwardedAt) events.push({date:deal.forwardedAt,label:'Forwarded to client',icon:'📧'});
     if(deal.bookedDate) events.push({date:deal.bookedDate+'T'+(deal.bookedTime||'00:00'),label:'Meeting scheduled',icon:'📅'});
     if(deal.pushedToTracker) events.push({date:deal.pushedToTracker,label:'Pushed to Lead Tracker',icon:'📤'});
+    if(deal.pushedToGhl) events.push({date:deal.pushedToGhl,label:'Pushed to GHL',icon:'🔗'});
     if(deal.lastUpdated && deal.lastUpdated !== deal.createdDate) events.push({date:deal.lastUpdated,label:'Last updated',icon:'✏️'});
     events.sort((a,b)=>new Date(a.date)-new Date(b.date));
     if(events.length){
@@ -1195,3 +1212,28 @@ async function startAutoFollowUp(dealId){
   }
 }
 window.startAutoFollowUp = startAutoFollowUp;
+
+window.pushToGhl = async function(dealId) {
+  const btn = document.getElementById('push-ghl-btn');
+  if (!btn || btn.disabled) return;
+
+  const origText = btn.innerHTML;
+  btn.innerHTML = '<span style="width:14px;height:14px;border:2px solid #ccc;border-top-color:#333;border-radius:50%;animation:spin .6s linear infinite;display:inline-block"></span> Pushing...';
+  btn.disabled = true;
+
+  try {
+    await invokeEdgeFunction('push-to-ghl', { dealId });
+    const deal = state.deals.find(d => String(d.id) === String(dealId));
+    if (deal) {
+      deal.pushedToGhl = new Date().toISOString();
+    }
+    if (state.selectedDeal && String(state.selectedDeal.id) === String(dealId)) {
+      state.selectedDeal = deal;
+      refreshModal();
+    }
+  } catch (e) {
+    alert('GHL push failed: ' + (e.message || 'Unknown error'));
+    btn.innerHTML = origText;
+    btn.disabled = false;
+  }
+};

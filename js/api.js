@@ -248,6 +248,9 @@ const FIELD_MAP = {
   email_body: 'emailBody',
   mobile_phone: 'mobilePhone',
   pushed_to_tracker: 'pushedToTracker',
+  pushed_to_ghl: 'pushedToGhl',
+  ghl_location_id: 'ghlLocationId',
+  ghl_api_key: 'ghlApiKey',
   client_stage: 'clientStage',
   booked_date: 'bookedDate',
   booked_time: 'bookedTime',
@@ -337,7 +340,7 @@ export function normalizeRow(row) {
   return normalized;
 }
 
-const NULLABLE_COLS = new Set(['completed_at','scheduled_time','created_at','updated_at','forwarded_at','pushed_to_tracker','queued_at','rerun_after','sent_at','archived_at','value','lead_cost','rerun_days','booked_date','booked_time','follow_up_date']);
+const NULLABLE_COLS = new Set(['completed_at','scheduled_time','created_at','updated_at','forwarded_at','pushed_to_tracker','pushed_to_ghl','queued_at','rerun_after','sent_at','archived_at','value','lead_cost','rerun_days','booked_date','booked_time','follow_up_date']);
 
 export function camelToSnake(obj) {
   const result = {};
@@ -665,7 +668,7 @@ export const sbRestoreFromArchive = (id) => sbCall(async () => {
   // Remove archive-specific and non-column fields before inserting
   const exclude = new Set(['archivedAt','archiveStatus','clientName','done','dealId','dayLabel','scheduledTime','completedAt','createdDate']);
   // Valid deals table columns
-  const DEAL_COLS = new Set(['id','company','contact','email','phone','value','stage','pipeline','flag','notes','sl_lead_id','sl_campaign_id','campaign_name','lead_category','website','location','smartlead_url','forwarded_at','email_body','mobile_phone','pushed_to_tracker','address','client_stage','booked_date','booked_time','cal_name','cal_email','cal_notes','created_at','updated_at','owner_override','lead_hero_id','has_new_reply','reply_msg_count','email2','email3','email4','booked_for','prefill_name','prefill_email','prefill_notes','booked_timezone']);
+  const DEAL_COLS = new Set(['id','company','contact','email','phone','value','stage','pipeline','flag','notes','sl_lead_id','sl_campaign_id','campaign_name','lead_category','website','location','smartlead_url','forwarded_at','email_body','mobile_phone','pushed_to_tracker','pushed_to_ghl','address','client_stage','booked_date','booked_time','cal_name','cal_email','cal_notes','created_at','updated_at','owner_override','lead_hero_id','has_new_reply','reply_msg_count','email2','email3','email4','booked_for','prefill_name','prefill_email','prefill_notes','booked_timezone']);
   const insert = {};
   for (const [key, value] of Object.entries(dealData)) {
     if (exclude.has(key)) continue;
