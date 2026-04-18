@@ -71,6 +71,7 @@ export function debouncedAutoSave(){
         clientNotes:str(c.clientNotes||''),
         warmCallNotesText:str(c.warmCallNotesText||''),
         clientStanding:str(c.clientStanding||'neutral'),
+        homeBase:str(c.homeBase||''),
         timeZone:str(c.timeZone||''),
         ghlLocationId:str(c.ghlLocationId||''),
         ghlApiKey:str(c.ghlApiKey||'')
@@ -821,6 +822,7 @@ export async function saveSettingsToSheet(){
       clientNotes:str(c.clientNotes||''),
       warmCallNotesText:str(c.warmCallNotesText||''),
       clientStanding:str(c.clientStanding||'neutral'),
+      homeBase:str(c.homeBase||''),
       timeZone:str(c.timeZone||''),
       ghlLocationId:str(c.ghlLocationId||''),
       ghlApiKey:str(c.ghlApiKey||'')

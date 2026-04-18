@@ -124,6 +124,7 @@ export const CLIENT_INFO_SHEET_ID = '1y8AoGopplKltre5ZOP2v0tJPy6Jp0c6C8rqUBO30xF
 
 // ─── Geocodio ───
 export const GEOCODIO_KEY = 'c9ca6a4ab56ca94ca65ac2c66646952d69d2d6a';
+export const GOOGLE_MAPS_API_KEY = '';
 export const CA_PROVINCES = /\b(AB|BC|MB|NB|NL|NS|NT|NU|ON|PE|QC|SK|YT)\b/;
 export const CA_POSTAL = /\b[A-Za-z]\d[A-Za-z]\s?\d[A-Za-z]\d\b/;
 export const CA_CITIES = /\b(Vancouver|Toronto|Montreal|Ottawa|Calgary|Edmonton|Winnipeg|Halifax|Victoria|Surrey|Burnaby|Richmond|Mississauga|Brampton|Hamilton|Saskatoon|Regina|Kelowna|Nanaimo|Kamloops|Kitchener|Waterloo|Markham|Vaughan|Mount Albert|Quebec City)\b/i;
