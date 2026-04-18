@@ -309,6 +309,9 @@ const FIELD_MAP = {
   call_transcript: 'callTranscript',
   passoff_sent_at: 'passoffSentAt',
   home_base: 'homeBase',
+  campaign_keywords: 'campaignKeywords',
+  client_notes: 'clientNotes',
+  warm_call_notes_text: 'warmCallNotesText',
   calendar_id: 'calendarId',
   work_start: 'workStart',
   work_end: 'workEnd',
@@ -605,7 +608,10 @@ export const sbBatchUpdateClients = (updates) => sbCall(async () => {
   );
   const results = await Promise.all(promises);
   const failed = results.filter(r => r.error);
-  if (failed.length) throw new Error(`${failed.length} client updates failed`);
+  if (failed.length) {
+    console.error('Client update errors:', failed.map(r => r.error.message));
+    throw new Error(`${failed.length} client updates failed`);
+  }
 }, { label: 'Save client settings' });
 
 // Appointments
