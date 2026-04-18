@@ -296,6 +296,7 @@ const FIELD_MAP = {
   source_stage: 'sourceStage',
   queued_date: 'queuedDate',
   rerun_date: 'rerunDate',
+  follow_up_date: 'followUpDate',
   job_title: 'jobTitle',
   linkedin_url: 'linkedinUrl',
   passoff_instructions: 'passoffInstructions',
@@ -336,7 +337,7 @@ export function normalizeRow(row) {
   return normalized;
 }
 
-const NULLABLE_COLS = new Set(['completed_at','scheduled_time','created_at','updated_at','forwarded_at','pushed_to_tracker','queued_at','rerun_after','sent_at','archived_at','value','lead_cost','rerun_days','booked_date','booked_time']);
+const NULLABLE_COLS = new Set(['completed_at','scheduled_time','created_at','updated_at','forwarded_at','pushed_to_tracker','queued_at','rerun_after','sent_at','archived_at','value','lead_cost','rerun_days','booked_date','booked_time','follow_up_date']);
 
 export function camelToSnake(obj) {
   const result = {};
@@ -621,6 +622,23 @@ export const sbUpdateRerunStatus = (id, status) => sbCall(async () => {
   const { error } = await supabase.from('rerun_queue').update({ status }).eq('id', id);
   if (error) throw error;
 }, { label: 'Update rerun status' });
+
+export const sbUpdateRerunItem = (id, fields) => sbCall(async () => {
+  const { error } = await supabase.from('rerun_queue').update(fields).eq('id', id);
+  if (error) throw error;
+}, { label: 'Update rerun item' });
+
+export const sbGetDueNurtureItems = () => sbCall(async () => {
+  const today = new Date().toISOString().split('T')[0];
+  const { data, error } = await supabase
+    .from('rerun_queue')
+    .select('*')
+    .eq('status', 'active')
+    .eq('bucket', 'not_now')
+    .lte('follow_up_date', today);
+  if (error) throw error;
+  return data;
+}, { label: 'Load due nurture items' });
 
 // Market Settings
 export const sbGetMarketSettings = () => sbCall(async () => {
