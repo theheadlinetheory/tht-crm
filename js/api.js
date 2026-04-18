@@ -9,6 +9,9 @@ export { supabase };
 import { state, store, pendingWrites, failedWriteQueue, pendingDealFields, deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds } from './app.js';
 import { render, refreshModal } from './render.js';
 
+// Cached auth check — populated lazily on first initialSync to avoid circular import
+let _cachedIsAdmin = null;
+
 /** @deprecated Use Supabase CRUD helpers (sb*) for data operations. Kept for server-side operations that will become Edge Functions. */
 export async function apiGet(action){
   try {
@@ -368,6 +371,15 @@ export async function initialSync(isStartup) {
     state.deals = deals.map(normalizeRow);
     state.activities = activities.map(normalizeRow);
     state.clients = clients.map(normalizeRow);
+    // Cache isAdmin for use in synchronous realtime handler
+    if (!_cachedIsAdmin) {
+      const { isAdmin: _isAdmin } = await import('./auth.js');
+      _cachedIsAdmin = _isAdmin;
+    }
+    // Strip sensitive GHL credentials for non-admin users
+    if (!_cachedIsAdmin()) {
+      state.clients.forEach(c => { delete c.ghlApiKey; delete c.ghlLocationId; });
+    }
     state.appointments = (appointments || []).map(normalizeRow);
 
     // Normalize deal fields
@@ -490,6 +502,12 @@ function applyRealtimeEvent(table, payload) {
   const stateKey = table === 'rerun_queue' ? 'rerunQueue' : table;
   const list = state[stateKey];
   if (!list) return;
+
+  // Strip sensitive GHL credentials for non-admin users on client realtime events
+  if (table === 'clients' && newRow && _cachedIsAdmin && !_cachedIsAdmin()) {
+    delete newRow.ghlApiKey;
+    delete newRow.ghlLocationId;
+  }
 
   if (eventType === 'INSERT' && newRow) {
     if (!list.find(item => String(item.id) === String(newRow.id))) {
