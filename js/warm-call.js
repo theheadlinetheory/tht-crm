@@ -378,59 +378,6 @@ export function openWarmCallSheet(dealId){
           });
           L.marker([lat,lng],{icon:propIcon}).addTo(propMap)
             .bindPopup('<div style="font-size:13px;font-weight:700;color:#1e293b">'+(deal.company||deal.contact||'Property')+'</div><div style="font-size:12px;color:#475569;margin-top:4px">'+propAddr+'</div>',{maxWidth:280});
-          const radius=150;
-          const overpassQuery='[out:json][timeout:10];('
-            +'way["building"](around:'+radius+','+lat+','+lng+');'
-            +'relation["building"](around:'+radius+','+lat+','+lng+');'
-            +'way["landuse"](around:'+radius+','+lat+','+lng+');'
-            +'way["leisure"="park"](around:'+radius+','+lat+','+lng+');'
-            +'way["leisure"="garden"](around:'+radius+','+lat+','+lng+');'
-            +'way["natural"](around:'+radius+','+lat+','+lng+');'
-            +');out body;>;out skel qt;';
-          fetch('https://overpass-api.de/api/interpreter?data='+encodeURIComponent(overpassQuery))
-            .then(r=>r.json()).then(osm=>{
-              if(!osm||!osm.elements||!osm.elements.length){
-                L.circle([lat,lng],{radius:30,color:'#ef4444',weight:2,fillColor:'#ef4444',fillOpacity:0.15,dashArray:'6 4'}).addTo(propMap);
-                return;
-              }
-              const nodes={};
-              osm.elements.filter(e=>e.type==='node').forEach(n=>{nodes[n.id]={lat:n.lat,lon:n.lon};});
-              let closestDist=Infinity, closestWay=null;
-              const ways=osm.elements.filter(e=>e.type==='way'&&e.nodes&&e.nodes.length>2);
-              ways.forEach(w=>{
-                const pts=w.nodes.map(nid=>nodes[nid]).filter(Boolean);
-                if(!pts.length) return;
-                const cx=pts.reduce((s,p)=>s+p.lat,0)/pts.length;
-                const cy=pts.reduce((s,p)=>s+p.lon,0)/pts.length;
-                const dist=Math.sqrt(Math.pow(cx-lat,2)+Math.pow(cy-lng,2));
-                if(dist<closestDist){closestDist=dist;closestWay=w;}
-              });
-              ways.forEach(w=>{
-                const isBuilding=w.tags&&w.tags.building;
-                const pts=w.nodes.map(nid=>nodes[nid]).filter(Boolean);
-                if(pts.length<3) return;
-                const latlngs=pts.map(p=>[p.lat,p.lon]);
-                const isClosest=w===closestWay;
-                L.polygon(latlngs,{
-                  color:isClosest?'#ef4444':(isBuilding?'#fbbf24':'#60a5fa'),
-                  weight:isClosest?3:1.5,
-                  fillColor:isClosest?'#ef4444':(isBuilding?'#fbbf24':'#60a5fa'),
-                  fillOpacity:isClosest?0.25:0.1
-                }).addTo(propMap);
-              });
-              const buildingCount=ways.filter(w=>w.tags&&w.tags.building).length;
-              const landUseWays=ways.filter(w=>w.tags&&(w.tags.landuse||w.tags.leisure||w.tags.natural));
-              if(buildingCount||landUseWays.length){
-                const infoDiv=document.createElement('div');
-                infoDiv.style.cssText='padding:6px 10px;background:#1e293b;color:#fff;font-size:11px;border-top:1px solid #334155;display:flex;gap:12px';
-                infoDiv.innerHTML='<span><span style="display:inline-block;width:8px;height:8px;background:#ef4444;border-radius:2px;margin-right:4px"></span>Closest match</span>'
-                  +(buildingCount?'<span><span style="display:inline-block;width:8px;height:8px;background:#fbbf24;border-radius:2px;margin-right:4px"></span>Buildings ('+buildingCount+')</span>':'')
-                  +(landUseWays.length?'<span><span style="display:inline-block;width:8px;height:8px;background:#60a5fa;border-radius:2px;margin-right:4px"></span>Land boundaries ('+landUseWays.length+')</span>':'');
-                propMapEl.parentElement.appendChild(infoDiv);
-              }
-            }).catch(()=>{
-              L.circle([lat,lng],{radius:30,color:'#ef4444',weight:2,fillColor:'#ef4444',fillOpacity:0.15,dashArray:'6 4'}).addTo(propMap);
-            });
         }
       }).catch(()=>{});
   }
