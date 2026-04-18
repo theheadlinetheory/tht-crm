@@ -3,11 +3,10 @@
 // ═══════════════════════════════════════════════════════════
 import { state, store, pendingWrites } from './app.js';
 import { render } from './render.js';
-import { sbGetRerunQueue, sbAddToRerun, sbUpdateRerunItem, sbUpdateRerunStatus, sbUpdateDeal, camelToSnake, normalizeRow } from './api.js';
-import { esc, str, getToday, fmtDate, svgIcon, uid } from './utils.js';
+import { sbGetRerunQueue, sbAddToRerun, sbUpdateRerunItem, sbUpdateRerunStatus, sbUpdateDeal, sbUpdateActivity, sbArchiveDeal, sbDeleteDeal, camelToSnake, normalizeRow } from './api.js';
+import { esc, getToday, fmtDate, svgIcon } from './utils.js';
 import { registerActions } from './delegate.js';
 import { statCard, filterSelect, modalWrap, modalHeader, modalFooter } from './html-helpers.js';
-import { findClientForDeal } from './client-info.js';
 import { NURTURE_NOT_NOW_SEQUENCE, ACQUISITION_STAGES } from './config.js';
 import { isAdmin } from './auth.js';
 
@@ -130,6 +129,8 @@ export async function addToNurture(dealId, bucket, followUpDate, note) {
 
 export function createNurtureSequence(dealId, followUpDate) {
   if (!window.addActivity) return;
+  const deal = state.deals.find(d => String(d.id) === String(dealId));
+  const contactName = deal?.contact || deal?.company || '';
   const baseDate = followUpDate ? new Date(followUpDate + 'T00:00:00') : new Date();
   for (const step of NURTURE_NOT_NOW_SEQUENCE) {
     const dueDate = new Date(baseDate);
@@ -139,7 +140,7 @@ export function createNurtureSequence(dealId, followUpDate) {
       String(dueDate.getDate()).padStart(2, '0');
     window.addActivity(dealId, {
       type: step.type,
-      subject: step.subject,
+      subject: contactName ? `${step.subject} with ${contactName}` : step.subject,
       dueDate: dueDateStr,
       dayLabel: 'Nurture'
     });
@@ -147,16 +148,15 @@ export function createNurtureSequence(dealId, followUpDate) {
 }
 
 export function clearDealActivities(dealId) {
+  const activities = (state.activities || []).filter(a => String(a.dealId) === String(dealId) && !a.done);
   const now = new Date().toISOString();
-  const activities = state.activities.filter(a =>
-    String(a.dealId) === String(dealId) && !a.done
-  );
   for (const act of activities) {
     act.done = true;
     act.completedAt = now;
-    import('./api.js').then(({ sbUpdateActivity, camelToSnake: c2s }) => {
-      sbUpdateActivity(act.id, c2s({ done: true, completedAt: now }));
-    });
+    pendingWrites.value++;
+    sbUpdateActivity(act.id, camelToSnake({ done: true, completedAt: now }))
+      .catch(e => console.error('Failed to clear activity:', e))
+      .finally(() => { pendingWrites.value--; });
   }
 }
 
@@ -188,6 +188,22 @@ export function exportNurtureForSmartlead() {
   URL.revokeObjectURL(url);
 }
 
+// ─── Urgency Badge Helper ───
+
+function getUrgencyBadge(followUpDate, today) {
+  if (!followUpDate) return { label: '', color: '#6b7280', bg: '#f3f4f6' };
+  const followUp = followUpDate.replace(/-/g, '/');
+  if (followUp > today) {
+    return { label: 'Upcoming', color: '#16a34a', bg: '#f0fdf4' };
+  }
+  if (followUp === today) {
+    return { label: 'Due today', color: '#d97706', bg: '#fffbeb' };
+  }
+  const diffDays = Math.floor((new Date(today) - new Date(followUp)) / 86400000);
+  if (diffDays <= 3) return { label: `${diffDays}d overdue`, color: '#ea580c', bg: '#fff7ed' };
+  return { label: `${diffDays}d overdue`, color: '#dc2626', bg: '#fef2f2' };
+}
+
 // ─── Due Today Banner (Acquisition Pipeline) ───
 
 export function renderDueTodayBanner() {
@@ -199,21 +215,7 @@ export function renderDueTodayBanner() {
     <div style="font-weight:700;font-size:13px;margin-bottom:8px;color:#92400e">${svgIcon('bell', 14)} Nurture Follow-ups Due (${dueItems.length})</div>`;
 
   for (const item of dueItems) {
-    const followUp = item.followUpDate || '';
-    let urgencyLabel = 'Due today';
-    let urgencyColor = '#d97706'; // yellow-ish for today
-
-    if (followUp < today) {
-      const diffMs = new Date(today + 'T00:00:00') - new Date(followUp + 'T00:00:00');
-      const diffDays = Math.floor(diffMs / 86400000);
-      if (diffDays <= 3) {
-        urgencyLabel = `${diffDays}d overdue`;
-        urgencyColor = '#ea580c'; // orange
-      } else {
-        urgencyLabel = `${diffDays}d overdue`;
-        urgencyColor = '#dc2626'; // red
-      }
-    }
+    const { label: urgencyLabel, color: urgencyColor } = getUrgencyBadge(item.followUpDate, today);
 
     // Find first incomplete nurture activity for this deal
     const dealActivities = state.activities.filter(a =>
@@ -223,12 +225,16 @@ export function renderDueTodayBanner() {
       ? `${dealActivities[0].type}: ${dealActivities[0].subject}`
       : 'Re-engagement follow-up';
 
+    const deal = state.deals.find(d => String(d.id) === String(item.dealId));
+    const phone = deal?.phone || deal?.mobilePhone || '';
+
     h += `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #fde68a">
       <span style="font-size:10px;font-weight:700;color:${urgencyColor};min-width:80px">${esc(urgencyLabel)}</span>
       <span style="font-weight:600;font-size:12px;flex:1;cursor:pointer" data-action="openNurtureDeal" data-id="${esc(item.dealId)}">${esc(item.dealName || 'Unknown')}</span>
       <span style="font-size:11px;color:var(--text-muted)">${esc(nextTask)}</span>
       <span style="font-size:10px;color:var(--text-muted)">${esc(item.campaignName || '')}</span>
       <div style="display:flex;gap:4px">
+        ${phone ? `<a href="tel:${esc(phone)}" class="btn" style="font-size:10px;padding:2px 8px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;text-decoration:none;display:inline-flex;align-items:center" title="Call ${esc(phone)}">${svgIcon('phone', 10)}</a>` : ''}
         <button class="btn" style="font-size:10px;padding:2px 8px;background:#ecfdf5;color:#059669;border:1px solid #a7f3d0" data-action="completeNurtureActivity" data-deal-id="${esc(item.dealId)}" title="Complete activity">${svgIcon('check', 10)}</button>
         <button class="btn" style="font-size:10px;padding:2px 8px;background:#fef3c7;color:#d97706;border:1px solid #fde68a" data-action="snoozeNurtureDeal" data-id="${esc(item.id)}" data-deal-id="${esc(item.dealId)}" title="Snooze">${svgIcon('clock', 10)}</button>
         <button class="btn" style="font-size:10px;padding:2px 8px;background:#ede9fe;color:#7c3aed;border:1px solid #c4b5fd" data-action="reactivateNurtureDeal" data-id="${esc(item.id)}" data-deal-id="${esc(item.dealId)}" title="Re-activate">${svgIcon('refresh', 10)}</button>
@@ -283,15 +289,9 @@ export function renderNurtureTab() {
       const today = getToday();
       for (const r of notNowItems) {
         const followUp = r.followUpDate || '';
-        let statusLabel = 'Scheduled';
-        let statusColor = '#6b7280';
-        if (followUp && followUp <= today) {
-          const diffMs = new Date(today + 'T00:00:00') - new Date(followUp + 'T00:00:00');
-          const diffDays = Math.floor(diffMs / 86400000);
-          if (diffDays === 0) { statusLabel = 'Due today'; statusColor = '#d97706'; }
-          else if (diffDays <= 3) { statusLabel = `${diffDays}d overdue`; statusColor = '#ea580c'; }
-          else { statusLabel = `${diffDays}d overdue`; statusColor = '#dc2626'; }
-        }
+        const badge = getUrgencyBadge(followUp, today);
+        const statusLabel = badge.label || 'Scheduled';
+        const statusColor = badge.label ? badge.color : '#6b7280';
 
         h += `<tr>
           <td style="font-weight:600;cursor:pointer" data-action="openNurtureDeal" data-id="${esc(r.dealId)}">${esc(r.dealName || r.company || '')}</td>
@@ -360,7 +360,7 @@ export function renderNurtureTab() {
   h += `</div>`;
 
   // Modals
-  if (state._showNurtureEntryModal) {
+  if (state._nurtureEntryDealId) {
     h += renderNurtureEntryModal(state._nurtureEntryDealId);
   }
   if (state._showReactivateModal) {
@@ -378,7 +378,7 @@ export function renderNurtureTab() {
 export function renderNurtureEntryModal(dealId) {
   const deal = state.deals.find(d => String(d.id) === String(dealId));
   const dealName = deal ? (deal.company || deal.contact || 'Unknown') : 'Unknown';
-  const defaultDate = new Date(Date.now() + 30 * 86400000);
+  const defaultDate = new Date(Date.now() + 90 * 86400000);
   const defaultDateStr = defaultDate.getFullYear() + '-' +
     String(defaultDate.getMonth() + 1).padStart(2, '0') + '-' +
     String(defaultDate.getDate()).padStart(2, '0');
@@ -431,7 +431,7 @@ export function renderReactivateModal(nurtureId, dealId) {
 // ─── Snooze Modal ───
 
 export function renderSnoozeModal(nurtureId, dealId) {
-  const defaultDate = new Date(Date.now() + 30 * 86400000);
+  const defaultDate = new Date(Date.now() + 90 * 86400000);
   const defaultDateStr = defaultDate.getFullYear() + '-' +
     String(defaultDate.getMonth() + 1).padStart(2, '0') + '-' +
     String(defaultDate.getDate()).padStart(2, '0');
@@ -470,14 +470,12 @@ registerActions({
 
   // Nurture entry modal
   closeNurtureModal() {
-    state._showNurtureEntryModal = false;
     state._nurtureEntryDealId = null;
     state._nurtureEntryBucket = null;
     render();
   },
   dismissNurtureModal(el, e) {
     if (e.target === el) {
-      state._showNurtureEntryModal = false;
       state._nurtureEntryDealId = null;
       state._nurtureEntryBucket = null;
       render();
@@ -495,7 +493,6 @@ registerActions({
     const note = noteEl ? noteEl.value : '';
 
     // Close modal
-    state._showNurtureEntryModal = false;
     state._nurtureEntryDealId = null;
     state._nurtureEntryBucket = null;
 
@@ -685,7 +682,6 @@ registerActions({
     // Archive the deal
     const deal = state.deals.find(d => String(d.id) === String(dealId));
     if (deal) {
-      const { sbArchiveDeal, sbDeleteDeal } = await import('./api.js');
       pendingWrites.value++;
       try {
         await sbArchiveDeal(deal.id, JSON.stringify(deal));
@@ -738,12 +734,6 @@ registerActions({
     exportNurtureForSmartlead();
   },
 });
-
-// ─── Backward Compatibility ───
-// deals.js still imports addToRerunQueue — alias to addToNurture with default bucket
-export async function addToRerunQueue(dealId) {
-  return addToNurture(dealId, 'not_now', '', '');
-}
 
 // ─── Window Exports ───
 window.loadRerunData = loadNurtureData;
