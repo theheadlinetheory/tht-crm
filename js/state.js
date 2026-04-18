@@ -31,7 +31,6 @@ export const state = {
   searchQuery: "",
   searchResults: null,
   savedSettings: null,
-  nurtureSubTab: 'board',
   dashboardTab: 'client_leads',
   dashboardMonth: new Date().toISOString().slice(0,7),
   rerunQueue: [],

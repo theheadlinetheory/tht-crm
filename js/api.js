@@ -640,19 +640,6 @@ export const sbGetDueNurtureItems = () => sbCall(async () => {
   return data;
 }, { label: 'Load due nurture items' });
 
-// Market Settings
-export const sbGetMarketSettings = () => sbCall(async () => {
-  const { data, error } = await supabase.from('market_settings').select('*');
-  if (error) throw error;
-  return data;
-}, { label: 'Load market settings' });
-
-export const sbSaveMarketSetting = (fields) => sbCall(async () => {
-  const { error } = await supabase.from('market_settings')
-    .upsert(fields, { onConflict: 'state,city' });
-  if (error) throw error;
-}, { label: 'Save market setting' });
-
 // Archive
 export const sbGetArchive = () => sbCall(async () => {
   const { data, error } = await supabase.from('archive').select('*');
@@ -699,7 +686,7 @@ export const sbRestoreFromArchive = (id) => sbCall(async () => {
   if (pipeline === 'Acquisition') {
     insert.stage = 'Cold Email Response';
   } else if (pipeline === 'Nurture') {
-    insert.stage = 'Revisit';
+    insert.stage = 'Not Now';
   } else {
     insert.stage = 'Client Not Distributed';
   }
