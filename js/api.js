@@ -753,16 +753,18 @@ export const sbGetWebhookLog = () => sbCall(async () => {
 
 // ─── Edge Function Invoker ───
 
-export async function invokeEdgeFunction(fnName, body) {
+export async function invokeEdgeFunction(fnName, body, signal) {
   const url = `${SUPABASE_URL}/functions/v1/${fnName}`;
-  const resp = await fetch(url, {
+  const opts = {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
     },
     body: JSON.stringify(body)
-  });
+  };
+  if (signal) opts.signal = signal;
+  const resp = await fetch(url, opts);
   const data = await resp.json();
   if (!resp.ok && !data.ok) throw new Error(data.error || `Edge Function ${fnName} failed (${resp.status})`);
   return data;

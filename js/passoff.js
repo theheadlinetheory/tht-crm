@@ -63,7 +63,10 @@ async function generatePassoff(dealId, clientName) {
   if (btn) { btn.disabled = true; btn.textContent = 'Generating...'; }
 
   try {
-    const resp = await invokeEdgeFunction('generate-passoff', { dealId, clientName });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+    const resp = await invokeEdgeFunction('generate-passoff', { dealId, clientName }, controller.signal);
+    clearTimeout(timeout);
     if (resp.error) throw new Error(resp.error);
 
     const deal = state.deals.find(d => d.id === dealId);
@@ -72,8 +75,10 @@ async function generatePassoff(dealId, clientName) {
       if (state.selectedDeal === dealId) refreshModal();
     }
   } catch (e) {
-    if (btn) { btn.disabled = false; btn.textContent = 'Generate Passoff Instructions'; }
-    alert('Failed to generate passoff: ' + e.message);
+    const msg = e.name === 'AbortError' ? 'Request timed out — try again' : e.message;
+    const resetBtn = document.getElementById('passoff-generate-btn');
+    if (resetBtn) { resetBtn.disabled = false; resetBtn.textContent = 'Generate Passoff Instructions'; }
+    alert('Failed to generate passoff: ' + msg);
   }
 }
 
