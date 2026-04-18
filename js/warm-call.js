@@ -14,6 +14,7 @@ import { isAdmin, isEmployee } from './auth.js';
 
 export function openWarmCallSheet(dealId){
   try{
+  _streetViewInitialized = false;
   const deal=state.deals.find(d=>d.id===dealId);
   if(!deal){console.error('openWarmCallSheet: deal not found',dealId);return;}
   const mc=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
@@ -272,6 +273,7 @@ export function openWarmCallSheet(dealId){
                   style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;font-size:11px;color:#fff;background:#4285f4;padding:4px 10px;border-radius:4px;text-decoration:none;font-weight:600">
                   Open in Google Maps
                 </a>
+                ${str(mc.homeBase).trim()?'<div id="wc-distance-widget" style="margin-top:8px;font-size:12px;color:#6b7280;display:flex;align-items:center;gap:4px"><span style="color:#d1d5db">Calculating distance...</span></div>':''}
               </div>`:''}
 
               ${deal.website?`<div style="border-top:1px solid #f1f5f9;padding-top:12px">
@@ -302,10 +304,14 @@ export function openWarmCallSheet(dealId){
             if(!propAddr) return '';
             return `<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;margin-top:16px">
               <div style="background:#334155;padding:10px 16px;color:#fff;display:flex;justify-content:space-between;align-items:center">
-                <div style="font-size:13px;font-weight:700">Property View</div>
+                <div style="display:flex;align-items:center;gap:2px">
+                  <button id="wc-tab-satellite" onclick="switchPropertyTab('satellite')" style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:4px;border:none;cursor:pointer;background:rgba(255,255,255,.2);color:#fff">Satellite</button>
+                  <button id="wc-tab-streetview" onclick="switchPropertyTab('streetview')" style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:4px;border:none;cursor:pointer;background:transparent;color:rgba(255,255,255,.5)">Street View</button>
+                </div>
                 <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(propAddr)}" target="_blank" rel="noopener" style="font-size:10px;color:#93c5fd;text-decoration:none;font-weight:600">Open Full Map &rarr;</a>
               </div>
               <div id="warm-call-property-map" style="height:400px;width:100%"></div>
+              <div id="warm-call-streetview" style="height:400px;width:100%;display:none"></div>
             </div>`;
           })()}
         </div>
@@ -334,6 +340,31 @@ export function openWarmCallSheet(dealId){
   </div>`;
 
   document.body.insertAdjacentHTML('beforeend',h);
+
+  // Calculate distance from client homebase
+  const _distWidget=document.getElementById('wc-distance-widget');
+  const _dealAddr=str(deal.address||deal.location||'').trim();
+  const _homeAddr=str(mc.homeBase||'').trim();
+  if(_distWidget && _dealAddr && _homeAddr){
+    Promise.all([
+      fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(_dealAddr)).then(r=>r.json()),
+      fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(_homeAddr)).then(r=>r.json())
+    ]).then(([dealGeo, homeGeo])=>{
+      if(!dealGeo[0]||!homeGeo[0]){ _distWidget.innerHTML='<span style="color:#9ca3af">Distance unavailable</span>'; return; }
+      const dlat=dealGeo[0].lat,dlng=dealGeo[0].lon,hlat=homeGeo[0].lat,hlng=homeGeo[0].lon;
+      return fetch('https://router.project-osrm.org/route/v1/driving/'+dlng+','+dlat+';'+hlng+','+hlat+'?overview=false').then(r=>r.json());
+    }).then(route=>{
+      if(!route||!route.routes||!route.routes[0]){ _distWidget.innerHTML='<span style="color:#9ca3af">Distance unavailable</span>'; return; }
+      const dur=route.routes[0].duration;
+      const dist=route.routes[0].distance;
+      const mins=Math.round(dur/60);
+      const miles=(dist/1609.34).toFixed(1);
+      const timeLabel=mins>=60?Math.floor(mins/60)+'h '+mins%60+'m':mins+' min';
+      _distWidget.innerHTML='<span style="font-size:14px">\u{1F4CD}</span> <span style="font-weight:600;color:#1e293b">'+timeLabel+' \u00b7 '+miles+' mi</span> <span style="color:#9ca3af">from homebase</span>';
+    }).catch(()=>{
+      _distWidget.innerHTML='<span style="color:#9ca3af">Distance unavailable</span>';
+    });
+  }
 
   // Initialize appointment map
   const mapEl=document.getElementById('warm-call-map');
@@ -398,6 +429,8 @@ export function openWarmCallSheet(dealId){
         if(data&&data[0]){
           const lat=parseFloat(data[0].lat),lng=parseFloat(data[0].lon);
           propMap.setView([lat,lng],18);
+          const _svContainer=document.getElementById('warm-call-streetview');
+          if(_svContainer){_svContainer.dataset.lat=String(lat);_svContainer.dataset.lng=String(lng);}
           const propIcon=L.divIcon({
             className:'',
             html:'<div style="background:#ef4444;color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4);white-space:nowrap">'+(deal.company||'Property')+'</div>',
@@ -706,3 +739,85 @@ window.doCopyLeadInfo = doCopyLeadInfo;
 window.deriveTimezone = deriveTimezone;
 window.initWcCalendlyInline = initWcCalendlyInline;
 window.refreshWcCalendlyInline = refreshWcCalendlyInline;
+
+// ─── Property View Tab Switching ───
+
+let _streetViewInitialized = false;
+
+window.switchPropertyTab = function(tab) {
+  const satEl = document.getElementById('warm-call-property-map');
+  const svEl = document.getElementById('warm-call-streetview');
+  const satBtn = document.getElementById('wc-tab-satellite');
+  const svBtn = document.getElementById('wc-tab-streetview');
+  if (!satEl || !svEl) return;
+
+  if (tab === 'satellite') {
+    satEl.style.display = 'block';
+    svEl.style.display = 'none';
+    if (satBtn) { satBtn.style.background = 'rgba(255,255,255,.2)'; satBtn.style.color = '#fff'; }
+    if (svBtn) { svBtn.style.background = 'transparent'; svBtn.style.color = 'rgba(255,255,255,.5)'; }
+  } else {
+    satEl.style.display = 'none';
+    svEl.style.display = 'block';
+    if (satBtn) { satBtn.style.background = 'transparent'; satBtn.style.color = 'rgba(255,255,255,.5)'; }
+    if (svBtn) { svBtn.style.background = 'rgba(255,255,255,.2)'; svBtn.style.color = '#fff'; }
+    if (!_streetViewInitialized) {
+      _streetViewInitialized = true;
+      initStreetView();
+    }
+  }
+};
+
+function initStreetView() {
+  const container = document.getElementById('warm-call-streetview');
+  if (!container) return;
+
+  const lat = parseFloat(container.dataset.lat || '0');
+  const lng = parseFloat(container.dataset.lng || '0');
+  if (!lat && !lng) {
+    container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:13px">No address coordinates available</div>';
+    return;
+  }
+
+  import('./config.js').then(({ GOOGLE_MAPS_API_KEY }) => {
+    if (!GOOGLE_MAPS_API_KEY) {
+      container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:13px">Google Maps API key not configured</div>';
+      return;
+    }
+    loadGoogleMapsApi(GOOGLE_MAPS_API_KEY).then(() => {
+      const sv = new google.maps.StreetViewService();
+      sv.getPanorama({ location: { lat, lng }, radius: 100 }, (data, status) => {
+        if (status === google.maps.StreetViewStatus.OK) {
+          new google.maps.StreetViewPanorama(container, {
+            position: data.location.latLng,
+            pov: { heading: google.maps.geometry.spherical.computeHeading(data.location.latLng, new google.maps.LatLng(lat, lng)), pitch: 0 },
+            zoom: 1,
+            motionTracking: false,
+            motionTrackingControl: false
+          });
+        } else {
+          container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:13px">Street View not available for this address</div>';
+        }
+      });
+    }).catch(() => {
+      container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:13px">Failed to load Google Maps</div>';
+    });
+  });
+}
+
+let _googleMapsLoaded = false;
+let _googleMapsPromise = null;
+
+function loadGoogleMapsApi(apiKey) {
+  if (_googleMapsLoaded) return Promise.resolve();
+  if (_googleMapsPromise) return _googleMapsPromise;
+  _googleMapsPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(apiKey) + '&libraries=geometry&loading=async';
+    script.async = true;
+    script.onload = () => { _googleMapsLoaded = true; resolve(); };
+    script.onerror = () => reject(new Error('Google Maps script failed to load'));
+    document.head.appendChild(script);
+  });
+  return _googleMapsPromise;
+}
