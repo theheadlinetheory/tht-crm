@@ -414,7 +414,7 @@ export function openWarmCallSheet(dealId){
   const propMapEl=document.getElementById('warm-call-property-map');
   const propAddr=str(deal.address||deal.location||'').trim();
   if(propMapEl && typeof L!=='undefined' && propAddr){
-    const propMap=L.map(propMapEl,{scrollWheelZoom:true}).setView([39.8,-98.5],17);
+    const propMap=L.map(propMapEl,{scrollWheelZoom:true,zoomControl:false,attributionControl:false}).setView([39.8,-98.5],17);
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
       attribution:'Esri, Maxar, Earthstar Geographics',maxZoom:20
     }).addTo(propMap);
@@ -812,11 +812,12 @@ function loadGoogleMapsApi(apiKey) {
   if (_googleMapsLoaded) return Promise.resolve();
   if (_googleMapsPromise) return _googleMapsPromise;
   _googleMapsPromise = new Promise((resolve, reject) => {
+    const cbName = '_gmapsReady' + Date.now();
+    window[cbName] = () => { _googleMapsLoaded = true; delete window[cbName]; resolve(); };
     const script = document.createElement('script');
-    script.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(apiKey) + '&libraries=geometry&loading=async';
+    script.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(apiKey) + '&libraries=geometry&callback=' + cbName;
     script.async = true;
-    script.onload = () => { _googleMapsLoaded = true; resolve(); };
-    script.onerror = () => reject(new Error('Google Maps script failed to load'));
+    script.onerror = () => { _googleMapsPromise = null; delete window[cbName]; reject(new Error('Google Maps script failed to load')); };
     document.head.appendChild(script);
   });
   return _googleMapsPromise;
