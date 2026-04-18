@@ -273,7 +273,6 @@ export function openWarmCallSheet(dealId){
                   style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;font-size:11px;color:#fff;background:#4285f4;padding:4px 10px;border-radius:4px;text-decoration:none;font-weight:600">
                   Open in Google Maps
                 </a>
-                ${str(mc.homeBase).trim()?'<div id="wc-distance-widget" style="margin-top:8px;font-size:12px;color:#6b7280;display:flex;align-items:center;gap:4px"><span style="color:#d1d5db">Calculating distance...</span></div>':''}
               </div>`:''}
 
               ${deal.website?`<div style="border-top:1px solid #f1f5f9;padding-top:12px">
@@ -308,7 +307,10 @@ export function openWarmCallSheet(dealId){
                   <button id="wc-tab-satellite" onclick="switchPropertyTab('satellite')" style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:4px;border:none;cursor:pointer;background:rgba(255,255,255,.2);color:#fff">Satellite</button>
                   <button id="wc-tab-streetview" onclick="switchPropertyTab('streetview')" style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:4px;border:none;cursor:pointer;background:transparent;color:rgba(255,255,255,.5)">Street View</button>
                 </div>
-                <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(propAddr)}" target="_blank" rel="noopener" style="font-size:10px;color:#93c5fd;text-decoration:none;font-weight:600">Open Full Map &rarr;</a>
+                <div style="display:flex;align-items:center;gap:12px">
+                  <div id="wc-distance-widget" style="font-size:11px;color:#93c5fd;display:flex;align-items:center;gap:4px"></div>
+                  <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(propAddr)}" target="_blank" rel="noopener" style="font-size:10px;color:#93c5fd;text-decoration:none;font-weight:600">Open Full Map &rarr;</a>
+                </div>
               </div>
               <div id="warm-call-property-map" style="height:400px;width:100%"></div>
               <div id="warm-call-streetview" style="height:400px;width:100%;display:none"></div>
@@ -318,23 +320,6 @@ export function openWarmCallSheet(dealId){
 
       </div>
 
-      ${(()=>{
-        const mapAppts=upcoming.filter(m=>{
-          const d=state.deals.find(dd=>dd.id===m.dealId);
-          const a=(state.appointments||[]).find(aa=>aa.leadName===m.name&&aa.apptDate===m.date);
-          const addr=d?str(d.address||d.location||'').trim():(a?str(a.address||'').trim():'');
-          return !!addr;
-        });
-        const currentAddr=str(deal.address||deal.location||'').trim();
-        if(!mapAppts.length && !currentAddr) return '';
-        return `<div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;margin-top:20px">
-          <div style="background:#1e293b;padding:10px 16px;color:#fff;display:flex;justify-content:space-between;align-items:center">
-            <div style="font-size:13px;font-weight:700">Appointment Locations</div>
-            ${info.timeZone?'<div style="font-size:11px;font-weight:600;background:rgba(255,255,255,.15);padding:2px 8px;border-radius:10px">'+esc(info.timeZone)+'</div>':''}
-          </div>
-          <div id="warm-call-map" style="height:350px;width:100%"></div>
-        </div>`;
-      })()}
 
     </div>
   </div>`;
@@ -350,64 +335,19 @@ export function openWarmCallSheet(dealId){
       fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(_dealAddr)).then(r=>r.json()),
       fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(_homeAddr)).then(r=>r.json())
     ]).then(([dealGeo, homeGeo])=>{
-      if(!dealGeo[0]||!homeGeo[0]){ _distWidget.innerHTML='<span style="color:#9ca3af">Distance unavailable</span>'; return; }
+      if(!dealGeo[0]||!homeGeo[0]) return;
       const dlat=dealGeo[0].lat,dlng=dealGeo[0].lon,hlat=homeGeo[0].lat,hlng=homeGeo[0].lon;
       return fetch('https://router.project-osrm.org/route/v1/driving/'+dlng+','+dlat+';'+hlng+','+hlat+'?overview=false').then(r=>r.json());
     }).then(route=>{
-      if(!route||!route.routes||!route.routes[0]){ _distWidget.innerHTML='<span style="color:#9ca3af">Distance unavailable</span>'; return; }
+      if(!route||!route.routes||!route.routes[0]) return;
       const dur=route.routes[0].duration;
       const dist=route.routes[0].distance;
       const mins=Math.round(dur/60);
       const miles=(dist/1609.34).toFixed(1);
       const timeLabel=mins>=60?Math.floor(mins/60)+'h '+mins%60+'m':mins+' min';
-      _distWidget.innerHTML='<span style="font-size:14px">\u{1F4CD}</span> <span style="font-weight:600;color:#1e293b">'+timeLabel+' \u00b7 '+miles+' mi</span> <span style="color:#9ca3af">from homebase</span>';
-    }).catch(()=>{
-      _distWidget.innerHTML='<span style="color:#9ca3af">Distance unavailable</span>';
-    });
-  }
-
-  // Initialize appointment map
-  const mapEl=document.getElementById('warm-call-map');
-  if(mapEl && typeof L!=='undefined'){
-    const map=L.map(mapEl,{scrollWheelZoom:true}).setView([39.8,-98.5],4);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-      attribution:'&copy; OpenStreetMap',maxZoom:18
-    }).addTo(map);
-    const pins=[];
-    const currentAddr=str(deal.address||deal.location||'').trim();
-    if(currentAddr){
-      pins.push({name:deal.company||deal.contact||'This Lead',time:'Current Lead',addr:currentAddr,isCurrent:true});
-    }
-    upcoming.forEach(m=>{
-      const d=state.deals.find(dd=>dd.id===m.dealId);
-      const a=(state.appointments||[]).find(aa=>aa.leadName===m.name&&aa.apptDate===m.date);
-      const addr=d?str(d.address||d.location||'').trim():(a?str(a.address||'').trim():'');
-      if(!addr) return;
-      const timeDisp=m.time?m.parsed.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'TBD';
-      const dateDisp=m.parsed.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-      pins.push({name:m.name,time:dateDisp+' @ '+timeDisp,addr:addr,isCurrent:false});
-    });
-    const bounds=[];
-    let pending=pins.length;
-    if(!pending){ map.setView([39.8,-98.5],4); }
-    pins.forEach(p=>{
-      fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(p.addr))
-        .then(r=>r.json()).then(data=>{
-          if(data&&data[0]){
-            const lat=parseFloat(data[0].lat),lng=parseFloat(data[0].lon);
-            const marker=L.marker([lat,lng]).addTo(map);
-            const color=p.isCurrent?'#3b82f6':'#059669';
-            marker.bindPopup('<div style="font-size:13px;font-weight:700;color:'+color+'">'+p.name+'</div><div style="font-size:11px;color:#475569;margin-top:2px">'+p.time+'</div><div style="font-size:11px;color:#6b7280;margin-top:2px">'+p.addr+'</div>',{maxWidth:250});
-            bounds.push([lat,lng]);
-          }
-        }).catch(()=>{}).finally(()=>{
-          pending--;
-          if(pending<=0 && bounds.length){
-            if(bounds.length===1) map.setView(bounds[0],13);
-            else map.fitBounds(bounds,{padding:[30,30]});
-          }
-        });
-    });
+      _distWidget.innerHTML='\u{1F4CD} <span style="font-weight:600;color:#fff">'+timeLabel+' \u00b7 '+miles+' mi</span> <span style="opacity:.6">from homebase</span>';
+    }).catch(()=>{});
+    // Don't show error — just leave widget empty if it fails
   }
 
   // Initialize property satellite view
@@ -799,8 +739,8 @@ function initStreetView() {
           container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:13px">Street View not available for this address</div>';
         }
       });
-    }).catch(() => {
-      container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:13px">Failed to load Google Maps</div>';
+    }).catch((err) => {
+      container.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:13px;gap:4px"><span>Failed to load Google Maps</span><span style="font-size:10px;opacity:.6">' + (err.message || '') + '</span></div>';
     });
   });
 }
