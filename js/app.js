@@ -161,7 +161,10 @@ export async function initApp(){
     if(!isClient()) initJustCallDialer();
     if(!isClient()) import('./number-health.js').then(m => m.loadNumberHealth()).catch(e => console.warn('Number health load failed:', e));
     if(!isClient()) import('./warm-call.js').catch(e => console.warn('Warm call module load failed:', e));
-    // Re-run queue removed; nurture tab defaults to board view
+    // Load nurture data for Due Today banner
+    if(!isClient()){
+      import('./rerun.js').then(m => m.loadNurtureData()).catch(e => console.warn('Nurture data load failed:', e));
+    }
   } catch(e) {
     console.error('initApp failed:', e);
     state.loadFailed = true;

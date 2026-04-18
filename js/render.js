@@ -19,6 +19,7 @@ import { serviceAreaResults } from './maps.js';
 import { lookupClientInfo, isRetainerClient, openClientInfoPanel, removeClient } from './client-info.js';
 import { openCalendlyEmbed, removeAppointment, addManualAppointment } from './calendly.js';
 import { doDragOver, doDragLeave, clearAllDragOver, doDrop } from './deals.js';
+import { renderDueTodayBanner, renderNurtureTab, renderNurtureEntryModal, renderReactivateModal, renderSnoozeModal, loadNurtureData } from './rerun.js';
 
 // ─── renderListView ───
 function renderListView(deals,stages){
@@ -131,13 +132,11 @@ export function render(){
     return;
   }
 
-  // ─── Nurture Archive sub-tab ───
-  if(state.pipeline==='nurture' && state.nurtureSubTab==='archive'){
-    if(!state.archiveLoaded && !state._archiveLoadPending){
-      state._archiveLoadPending=true;
-      loadArchive().finally(()=>{ state._archiveLoadPending=false; });
+  // ─── Nurture Tab ───
+  if(state.pipeline==='nurture'){
+    if(!state.rerunQueue.length && !state.rerunLoading){
+      loadNurtureData();
     }
-    const tabStyle=(active)=>`padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;color:${active?'var(--purple)':'var(--text-muted)'};border-bottom:2px solid ${active?'var(--purple)':'transparent'};margin-bottom:-2px`;
     let html=`
     <div class="topbar">
       <div style="display:flex;align-items:center;">
@@ -146,17 +145,14 @@ export function render(){
         </div>
       </div>
       <div class="topbar-right">
-        <span class="topbar-stat">${state.archiveData.length} archived</span>
-        <button class="btn btn-ghost" onclick="state.archiveLoaded=false;loadArchive()" style="display:inline-flex;align-items:center;gap:4px">${svgIcon('refresh-cw',12)} Refresh</button>
         ${renderUserMenu()}
       </div>
-    </div>
-    <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin:0 20px;">
-      <button onclick="switchNurtureTab('board')" style="${tabStyle(false)}">Board</button>
-      <button onclick="switchNurtureTab('archive')" style="${tabStyle(true)}">Archive</button>
     </div>`;
-    html+=renderArchiveTab();
-    app.innerHTML=html;
+    html += renderNurtureTab();
+    if(state._showReactivateModal) html += renderReactivateModal(state._reactivateNurtureId, state._reactivateDealId);
+    if(state._showSnoozeModal) html += renderSnoozeModal(state._snoozeNurtureId, state._snoozeDealId);
+    if(state._nurtureEntryDealId) html += renderNurtureEntryModal(state._nurtureEntryDealId);
+    app.innerHTML = html;
     return;
   }
 
@@ -225,11 +221,9 @@ export function render(){
       ${renderUserMenu()}
     </div>
   </div>
-  ${state.pipeline==='nurture'?`<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin:0 20px;">
-    <button onclick="switchNurtureTab('board')" style="padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;color:var(--purple);border-bottom:2px solid var(--purple);margin-bottom:-2px">Board</button>
-    <button onclick="switchNurtureTab('archive')" style="padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;color:var(--text-muted);border-bottom:2px solid transparent;margin-bottom:-2px">Archive</button>
-  </div>`:''}
+  ${state.pipeline==='nurture'?'':''}
   ${renderOverdueBanner()}
+  ${state.pipeline==='acquisition' ? renderDueTodayBanner() : ''}
   ${renderBookedMeetingsBanner()}`;
 
   // ─── Acquisition Owner Filter Dropdown ───
@@ -499,6 +493,17 @@ export function render(){
   if(state.showNew) html+=renderNewDealModal(stages);
   if(state.showAddClient) html+=renderAddClientModal();
   if(state.showActivateClient) html+=renderActivateClientModal();
+
+  // Nurture modals (from banner actions on non-nurture tabs)
+  if(state._nurtureEntryDealId && state.pipeline !== 'nurture'){
+    html += renderNurtureEntryModal(state._nurtureEntryDealId);
+  }
+  if(state._showReactivateModal && state.pipeline !== 'nurture'){
+    html += renderReactivateModal(state._reactivateNurtureId, state._reactivateDealId);
+  }
+  if(state._showSnoozeModal && state.pipeline !== 'nurture'){
+    html += renderSnoozeModal(state._snoozeNurtureId, state._snoozeDealId);
+  }
 
   app.innerHTML=html;
   // Restore scroll position

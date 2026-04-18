@@ -165,16 +165,21 @@ export function openAddClient(){ state.showAddClient=true; render(); }
 export function changeDealPipeline(newPipeline){
   const deal = state.selectedDeal;
   if(!deal) return;
+
+  // If moving to Nurture, show the nurture entry modal instead of instant switch
+  if(newPipeline === 'Nurture'){
+    state._nurtureEntryDealId = deal.id;
+    state.selectedDeal = null;
+    render();
+    return;
+  }
+
   deal.pipeline = newPipeline;
-  // Set stage to first stage of the new pipeline
   if(newPipeline === 'Acquisition'){
     deal.stage = ACQUISITION_STAGES[0]?.id || 'Cold Email Response';
-  } else if(newPipeline === 'Nurture'){
-    deal.stage = NURTURE_STAGES[0]?.id || 'Revisit';
   } else if(newPipeline === 'Client'){
     deal.stage = 'Client Not Distributed';
   }
-  // Save to Supabase
   pendingWrites.value++;
   sbUpdateDeal(deal.id, camelToSnake({ pipeline: deal.pipeline, stage: deal.stage }))
     .catch(e => console.error('Update deal pipeline failed:', e))

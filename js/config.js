@@ -40,7 +40,7 @@ export const ACQUISITION_STAGES = [
 ];
 
 export const NURTURE_STAGES = [
-  { id: "Revisit", label: "Revisit", color: "#34d399" },
+  { id: "Not Now", label: "Not Now", color: "#34d399" },
   { id: "Service Area Taken", label: "Service Area Taken", color: "#f97316" },
 ];
 
@@ -79,6 +79,12 @@ export const CLIENT_SOP_DAYS = {
   "Day 2": [{type:"Call",subject:"Morning call"},{type:"Text",subject:"Follow-up text"},{type:"Email",subject:"Follow-up email"}],
   "Day 3": [{type:"Call",subject:"Morning call"},{type:"Email",subject:"Follow-up email"}],
 };
+
+export const NURTURE_NOT_NOW_SEQUENCE = [
+  { dayOffset: 0, type: 'Call', subject: 'Re-engagement call' },
+  { dayOffset: 3, type: 'Email', subject: 'Follow-up email' },
+  { dayOffset: 7, type: 'Call', subject: 'Final follow-up attempt' },
+];
 
 // ─── Default Client Portal Stages ───
 export const DEFAULT_CLIENT_STAGES = [

@@ -61,10 +61,6 @@ export async function moveDeal(dealId,newStage){
     if(pending && pending.stage===newStage) delete pending.stage;
     if(pending && Object.keys(pending).length===0) delete pendingDealFields[String(dealId)];
   } finally { pendingWrites.value--; }
-  if(d && (newStage==='Service Area Taken' || newStage==='Revisit')){
-    const { addToRerunQueue } = await import('./rerun.js');
-    addToRerunQueue(dealId).catch(e=>console.warn('Re-run queue auto-add failed:',e));
-  }
   if(d && (newStage==='Discovery Scheduled' || newStage==='Demo Scheduled') && d.bookedDate && /^\d{4}-\d{2}-\d{2}$/.test(d.bookedDate)){
     const { generateAppointmentSequence } = await import('./activities.js');
     generateAppointmentSequence(d);
