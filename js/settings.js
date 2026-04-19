@@ -514,13 +514,27 @@ function renderClientsSettings(){
             oninput="updateClientField('${esc(c.id)}','ghlLocationId',this.value)"
             style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
         </div>
-        <div style="margin-bottom:2px;position:relative">
+        <div style="margin-bottom:6px;position:relative">
           <label style="font-size:10px;font-weight:600;color:var(--text-muted)">GHL API Key</label>
           <input type="password" id="ghl-key-${esc(c.id)}" placeholder="pit-..." value="${esc(str(c.ghlApiKey))}"
             oninput="updateClientField('${esc(c.id)}','ghlApiKey',this.value)"
             style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
           <button onclick="const i=document.getElementById('ghl-key-${esc(c.id)}');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'Show':'Hide'"
             style="position:absolute;right:6px;top:20px;border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:10px;font-family:var(--font)">Show</button>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:2px">
+          <div style="flex:1">
+            <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Pipeline ID</label>
+            <input type="text" placeholder="e.g. abc123..." value="${esc(str(c.ghlPipelineId))}"
+              oninput="updateClientField('${esc(c.id)}','ghlPipelineId',this.value)"
+              style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+          </div>
+          <div style="flex:1">
+            <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Stage ID</label>
+            <input type="text" placeholder="e.g. xyz789..." value="${esc(str(c.ghlStageId))}"
+              oninput="updateClientField('${esc(c.id)}','ghlStageId',this.value)"
+              style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+          </div>
         </div>
       </div>
 
@@ -898,7 +912,9 @@ export async function saveSettingsToSheet(){
       homeBase:str(c.homeBase||''),
       timeZone:str(c.timeZone||''),
       ghlLocationId:str(c.ghlLocationId||''),
-      ghlApiKey:str(c.ghlApiKey||'')
+      ghlApiKey:str(c.ghlApiKey||''),
+      ghlPipelineId:str(c.ghlPipelineId||''),
+      ghlStageId:str(c.ghlStageId||'')
     }));
     await Promise.all([
       apiPost('save_settings',{settings:settingsDraft}),
