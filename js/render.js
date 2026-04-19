@@ -134,7 +134,8 @@ export function render(){
 
   // ─── Nurture Tab ───
   if(state.pipeline==='nurture'){
-    if(!state.rerunQueue.length && !state.rerunLoading){
+    if(!state._nurtureLoaded && !state.rerunLoading){
+      state._nurtureLoaded = true;
       loadNurtureData();
     }
     let html=`
@@ -552,7 +553,7 @@ function switchPipeline(id){
   state.selectedDeal = null;
   // Ensure nurture sub-tab is valid (board or archive)
   if(state.nurtureSubTab!=='board' && state.nurtureSubTab!=='archive') state.nurtureSubTab='board';
-  if(id!=='nurture') state.nurtureSubTab='board';
+  if(id!=='nurture'){ state.nurtureSubTab='board'; state._nurtureLoaded=false; }
   render();
 }
 
