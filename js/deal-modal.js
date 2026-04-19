@@ -730,14 +730,14 @@ export function renderDealModal(deal){
       if(isAdmin()){
         const ghlConfigured = str(matchedClient.ghlLocationId).trim() && str(matchedClient.ghlApiKey).trim();
         const ghlPushed = deal.pushedToGhl;
-        const ghlDisabled = !ghlConfigured || ghlPushed;
+        const ghlDisabled = !ghlConfigured;
         const ghlTitle = !ghlConfigured ? 'GHL not configured for this client'
-          : ghlPushed ? 'Pushed on ' + new Date(deal.pushedToGhl).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})
+          : ghlPushed ? 'Last pushed ' + new Date(deal.pushedToGhl).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) + ' — click to re-push'
           : 'Push contact + opportunity to ' + esc(matchedClient.name) + "'s GoHighLevel";
         h+=`<div style="margin:0 0 8px 0">
           <button id="push-ghl-btn" class="btn ${ghlPushed?'btn-ghost':ghlConfigured?'btn-primary':'btn-ghost'}" style="width:100%;justify-content:center;gap:6px;font-size:13px${ghlDisabled?';opacity:0.5':''}"
             onclick="${ghlDisabled?'':'pushToGhl(\''+deal.id+'\')'}" ${ghlDisabled?'disabled':''} title="${esc(ghlTitle)}">
-            ${ghlPushed?'<span style="color:#059669">\u2713 Pushed to GHL</span>':svgIcon('upload',14)+' Push to GHL'}
+            ${ghlPushed?'<span style="color:#059669">\u2713 Pushed to GHL</span> <span style="font-size:11px;color:#6b7280">(re-push)</span>':svgIcon('upload',14)+' Push to GHL'}
           </button>
         </div>`;
       }
@@ -1112,6 +1112,11 @@ window.startAutoFollowUp = startAutoFollowUp;
 window.pushToGhl = async function(dealId) {
   const btn = document.getElementById('push-ghl-btn');
   if (!btn || btn.disabled) return;
+
+  const deal = state.deals.find(d => String(d.id) === String(dealId));
+  if (deal && deal.pushedToGhl) {
+    if (!confirm('This deal was already pushed to GHL. Push again? (Contact will be updated, a new opportunity will be created)')) return;
+  }
 
   const origText = btn.innerHTML;
   btn.innerHTML = '<span style="width:14px;height:14px;border:2px solid #ccc;border-top-color:#333;border-radius:50%;animation:spin .6s linear infinite;display:inline-block"></span> Pushing...';
