@@ -1118,7 +1118,10 @@ window.pushToGhl = async function(dealId) {
   btn.disabled = true;
 
   try {
-    await invokeEdgeFunction('push-to-ghl', { dealId });
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 25000);
+    await invokeEdgeFunction('push-to-ghl', { dealId }, ctrl.signal);
+    clearTimeout(timer);
     const deal = state.deals.find(d => String(d.id) === String(dealId));
     if (deal) {
       deal.pushedToGhl = new Date().toISOString();
@@ -1128,7 +1131,8 @@ window.pushToGhl = async function(dealId) {
       refreshModal();
     }
   } catch (e) {
-    alert('GHL push failed: ' + (e.message || 'Unknown error'));
+    const msg = e.name === 'AbortError' ? 'Request timed out — the push may have still succeeded. Refresh to check.' : (e.message || 'Unknown error');
+    alert('GHL push failed: ' + msg);
     btn.innerHTML = origText;
     btn.disabled = false;
   }
