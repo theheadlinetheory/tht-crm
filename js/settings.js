@@ -48,6 +48,19 @@ export function closeSettings(){
 
 let _autoSaveTimer = null;
 let _expandedClientId = null;
+let _expandedPipelineSections = { stages: false, activities: false, sop: false };
+
+window.togglePipelineSection = function(section){
+  _expandedPipelineSections[section] = !_expandedPipelineSections[section];
+  const container = document.getElementById('pipeline-section-'+section);
+  const chevron = document.getElementById('pipeline-chevron-'+section);
+  if(container){
+    container.style.display = _expandedPipelineSections[section] ? 'block' : 'none';
+  }
+  if(chevron){
+    chevron.textContent = _expandedPipelineSections[section] ? '\u25BE' : '\u25B8';
+  }
+};
 
 window.toggleClientAccordion = function(clientId){
   _expandedClientId = (_expandedClientId === clientId) ? null : clientId;
@@ -183,9 +196,7 @@ export function renderSettingsPanel(){
     <button class="modal-close" onclick="closeSettings()">\u00D7</button>
   </div>
   <div class="settings-tab-bar">
-    <button class="settings-tab ${settingsTab==='stages'?'active':''}" onclick="settingsTab='stages';refreshSettingsBody()">Pipeline Stages</button>
-    <button class="settings-tab ${settingsTab==='activities'?'active':''}" onclick="settingsTab='activities';refreshSettingsBody()">Activity Types</button>
-    <button class="settings-tab ${settingsTab==='sop'?'active':''}" onclick="settingsTab='sop';refreshSettingsBody()">SOP Sequences</button>
+    <button class="settings-tab ${settingsTab==='pipeline'?'active':''}" onclick="settingsTab='pipeline';refreshSettingsBody()">Pipeline Config</button>
     <button class="settings-tab ${settingsTab==='clients'?'active':''}" onclick="settingsTab='clients';refreshSettingsBody()">Clients</button>
     <button class="settings-tab ${settingsTab==='users'?'active':''}" onclick="settingsTab='users';refreshSettingsBody()">Users</button>
     <button class="settings-tab ${settingsTab==='campaigns'?'active':''}" onclick="settingsTab='campaigns';refreshSettingsBody()">Campaigns</button>
@@ -194,9 +205,7 @@ export function renderSettingsPanel(){
   </div>
   <div class="settings-body">`;
 
-  if(settingsTab==='stages') h+=renderStagesSettings();
-  else if(settingsTab==='activities') h+=renderActivityTypesSettings();
-  else if(settingsTab==='sop') h+=renderSopSettings();
+  if(settingsTab==='pipeline') h+=renderPipelineConfigSettings();
   else if(settingsTab==='clients') h+=renderClientsSettings();
   else if(settingsTab==='users') h+=renderUsersSettings();
   else if(settingsTab==='campaigns') h+=renderCampaignAssignSettings();
@@ -228,15 +237,13 @@ export function refreshSettingsBody(){
   if(!panel){ renderSettingsPanel(); return; }
   panel.querySelectorAll('.settings-tab').forEach(btn=>{
     const tab=btn.textContent.trim().toLowerCase();
-    const map={'pipeline stages':'stages','activity types':'activities','sop sequences':'sop','clients':'clients','users':'users','campaigns':'campaigns','dialer':'dialer'};
+    const map={'pipeline config':'pipeline','clients':'clients','users':'users','campaigns':'campaigns','dialer':'dialer','ai':'ai'};
     btn.classList.toggle('active', map[tab]===settingsTab);
   });
   const body=panel.querySelector('.settings-body');
   if(!body){ renderSettingsPanel(); return; }
   let h='';
-  if(settingsTab==='stages') h=renderStagesSettings();
-  else if(settingsTab==='activities') h=renderActivityTypesSettings();
-  else if(settingsTab==='sop') h=renderSopSettings();
+  if(settingsTab==='pipeline') h=renderPipelineConfigSettings();
   else if(settingsTab==='clients') h=renderClientsSettings();
   else if(settingsTab==='users') h=renderUsersSettings();
   else if(settingsTab==='campaigns') h=renderCampaignAssignSettings();
@@ -248,6 +255,34 @@ export function refreshSettingsBody(){
   if(settingsTab==='users') loadUsersIntoPanel();
   if(settingsTab==='campaigns') fetchAcquisitionCampaigns();
   if(settingsTab==='ai') loadAISettings();
+}
+
+function renderPipelineConfigSettings(){
+  const sections = [
+    { key: 'stages', label: 'Pipeline Stages', icon: 'bar-chart', count: (settingsDraft.acquisition_stages||[]).length + (settingsDraft.nurture_stages||[]).length + ' stages' },
+    { key: 'activities', label: 'Activity Types', icon: 'clipboard', count: (settingsDraft.activity_types||[]).length + ' types' },
+    { key: 'sop', label: 'SOP Sequences', icon: 'bar-chart', count: ((settingsDraft.sop_acquisition||[]).length + (settingsDraft.sop_client||[]).length) + ' sequences' }
+  ];
+  let h = '';
+  for(const s of sections){
+    const isOpen = _expandedPipelineSections[s.key];
+    h += `<div style="margin-bottom:8px;background:var(--bg);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <div onclick="togglePipelineSection('${s.key}')" style="display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;user-select:none;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:8px">
+          ${svgIcon(s.icon,14)}
+          <span style="font-size:13px;font-weight:700;color:var(--text)">${s.label}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:10px;color:var(--text-muted)">${s.count}</span>
+          <span id="pipeline-chevron-${s.key}" style="font-size:12px;color:var(--text-muted)">${isOpen?'\u25BE':'\u25B8'}</span>
+        </div>
+      </div>
+      <div id="pipeline-section-${s.key}" style="display:${isOpen?'block':'none'};padding:0 14px 14px">
+        ${s.key==='stages'?renderStagesSettings():s.key==='activities'?renderActivityTypesSettings():renderSopSettings()}
+      </div>
+    </div>`;
+  }
+  return h;
 }
 
 function renderStagesSettings(){
