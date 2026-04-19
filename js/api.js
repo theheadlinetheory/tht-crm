@@ -254,6 +254,8 @@ const FIELD_MAP = {
   pushed_to_ghl: 'pushedToGhl',
   ghl_location_id: 'ghlLocationId',
   ghl_api_key: 'ghlApiKey',
+  ghl_pipeline_id: 'ghlPipelineId',
+  ghl_stage_id: 'ghlStageId',
   client_stage: 'clientStage',
   booked_date: 'bookedDate',
   booked_time: 'bookedTime',
