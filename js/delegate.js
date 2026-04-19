@@ -29,6 +29,9 @@ function getActionEl(target) {
 function handleEvent(e) {
   const el = getActionEl(e.target);
   if (!el) return;
+  // Skip click events on select/input — they should only fire on change/input
+  const tag = el.tagName;
+  if (e.type === 'click' && (tag === 'SELECT' || tag === 'INPUT')) return;
   const action = el.dataset.action;
   const fn = _actions[action];
   if (!fn) return;
