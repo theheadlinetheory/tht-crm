@@ -47,6 +47,27 @@ export function closeSettings(){
 }
 
 let _autoSaveTimer = null;
+let _expandedClientId = null;
+
+window.toggleClientAccordion = function(clientId){
+  _expandedClientId = (_expandedClientId === clientId) ? null : clientId;
+  const container = document.getElementById('settings-clients-container');
+  if(!container) return;
+  // Update all cards without full re-render to preserve form state
+  container.querySelectorAll('.client-card-accordion').forEach(card => {
+    const cid = card.dataset.clientId;
+    const body = card.querySelector('.client-body');
+    const chevron = card.querySelector('.client-chevron');
+    if(cid === _expandedClientId){
+      body.style.display = 'block';
+      if(chevron) chevron.textContent = '\u25BE';
+    } else {
+      body.style.display = 'none';
+      if(chevron) chevron.textContent = '\u25B8';
+    }
+  });
+};
+
 export function debouncedAutoSave(){
   clearTimeout(_autoSaveTimer);
   const statusEl = document.getElementById('settings-autosave-status');
@@ -354,21 +375,35 @@ function renderClientsSettings(){
     return h;
   }
 
+  h+=`<div id="settings-clients-container">`;
+
   for(const c of state.clients){
     const isOn=(field)=>str(c[field]).toUpperCase()==='TRUE';
-    h+=`<div style="margin-bottom:16px;padding:14px;background:var(--bg);border:1px solid var(--border);border-radius:10px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;justify-content:space-between">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="width:12px;height:12px;border-radius:50%;background:${c.color||'#818cf8'};flex-shrink:0"></span>
-          <span style="font-size:14px;font-weight:700;color:var(--text)">${esc(c.name)}</span>
+    const toggleCount = ['enableForward','enableCalendly','enableCopyInfo','enableTracker','enableAutoForward'].filter(f=>isOn(f)).length;
+    const isExpanded = _expandedClientId === c.id;
+    const standing = str(c.clientStanding).toLowerCase();
+    const standingColor = standing==='happy'?'#22c55e':standing==='unhappy'?'#ef4444':'#eab308';
+    const standingBg = standing==='happy'?'#f0fdf4':standing==='unhappy'?'#fef2f2':'#fefce8';
+
+    h+=`<div class="client-card-accordion" data-client-id="${esc(c.id)}" style="margin-bottom:8px;background:var(--bg);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <div class="client-header" onclick="toggleClientAccordion('${esc(c.id)}')"
+        style="display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;user-select:none;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+          <span style="width:10px;height:10px;border-radius:50%;background:${c.color||'#818cf8'};flex-shrink:0"></span>
+          <span style="font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.name)}</span>
         </div>
-        <select onchange="updateClientField('${esc(c.id)}','clientStanding',this.value);debouncedAutoSave()"
-          style="padding:4px 8px;border-radius:6px;font-size:11px;font-weight:700;font-family:var(--font);cursor:pointer;border:1px solid ${str(c.clientStanding).toLowerCase()==='happy'?'#22c55e':str(c.clientStanding).toLowerCase()==='unhappy'?'#ef4444':'#eab308'};color:${str(c.clientStanding).toLowerCase()==='happy'?'#22c55e':str(c.clientStanding).toLowerCase()==='unhappy'?'#ef4444':'#eab308'};background:${str(c.clientStanding).toLowerCase()==='happy'?'#f0fdf4':str(c.clientStanding).toLowerCase()==='unhappy'?'#fef2f2':'#fefce8'}">
-          <option value="happy" ${str(c.clientStanding).toLowerCase()==='happy'?'selected':''}>Happy</option>
-          <option value="neutral" ${str(c.clientStanding).toLowerCase()==='neutral'||!str(c.clientStanding).trim()?'selected':''}>Neutral</option>
-          <option value="unhappy" ${str(c.clientStanding).toLowerCase()==='unhappy'?'selected':''}>Unhappy</option>
-        </select>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+          <select onclick="event.stopPropagation()" onchange="updateClientField('${esc(c.id)}','clientStanding',this.value);debouncedAutoSave()"
+            style="padding:3px 6px;border-radius:5px;font-size:10px;font-weight:700;font-family:var(--font);cursor:pointer;border:1px solid ${standingColor};color:${standingColor};background:${standingBg}">
+            <option value="happy" ${standing==='happy'?'selected':''}>Happy</option>
+            <option value="neutral" ${standing==='neutral'||!standing.trim()?'selected':''}>Neutral</option>
+            <option value="unhappy" ${standing==='unhappy'?'selected':''}>Unhappy</option>
+          </select>
+          <span style="font-size:10px;color:var(--text-muted);white-space:nowrap">${toggleCount} action${toggleCount!==1?'s':''}</span>
+          <span class="client-chevron" style="font-size:12px;color:var(--text-muted)">${isExpanded?'\u25BE':'\u25B8'}</span>
+        </div>
       </div>
+      <div class="client-body" style="display:${isExpanded?'block':'none'};padding:0 14px 14px">
 
       <div style="margin-bottom:10px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Campaign Keywords</label>
@@ -526,8 +561,11 @@ function renderClientsSettings(){
       </div>`;
       })()}
 
+      </div>
     </div>`;
   }
+
+  h+=`</div>`;
 
   h+=`<div style="padding:10px 12px;background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.15);border-radius:8px">
     <p style="font-size:11px;color:var(--text-muted);margin:0"><strong style="color:var(--text)">\uD83D\uDCA1 How it works:</strong> Toggle the actions each client needs. Only enabled actions show up on deal cards. Campaign keywords match against Smartlead campaign names to auto-assign leads to clients.</p>
