@@ -149,9 +149,6 @@ export function render(){
       </div>
     </div>`;
     html += renderNurtureTab();
-    if(state._showReactivateModal) html += renderReactivateModal(state._reactivateNurtureId, state._reactivateDealId);
-    if(state._showSnoozeModal) html += renderSnoozeModal(state._snoozeNurtureId, state._snoozeDealId);
-    if(state._nurtureEntryDealId) html += renderNurtureEntryModal(state._nurtureEntryDealId);
     app.innerHTML = html;
     return;
   }
@@ -542,6 +539,17 @@ export function render(){
 function switchPipeline(id){
   state.pipeline=id;
   location.hash=id;
+  // Clear any stuck nurture modals
+  state._nurtureEntryDealId = null;
+  state._nurtureEntryBucket = null;
+  state._showReactivateModal = false;
+  state._reactivateNurtureId = null;
+  state._reactivateDealId = null;
+  state._showSnoozeModal = false;
+  state._snoozeNurtureId = null;
+  state._snoozeDealId = null;
+  // Close deal modal if open
+  state.selectedDeal = null;
   // Ensure nurture sub-tab is valid (board or archive)
   if(state.nurtureSubTab!=='board' && state.nurtureSubTab!=='archive') state.nurtureSubTab='board';
   if(id!=='nurture') state.nurtureSubTab='board';
