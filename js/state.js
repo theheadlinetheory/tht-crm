@@ -73,7 +73,7 @@ export function setSavedScrollLeft(v){ savedScrollLeft = v; }
 // ─── Settings state ───
 export let settingsOpen = false;
 export function setSettingsOpen(v){ settingsOpen = v; }
-export let settingsTab = 'stages';
+export let settingsTab = 'pipeline';
 export function setSettingsTab(v){ settingsTab = v; }
 export let clientsSubTab = 'notifications';
 export function setClientsSubTab(v){ clientsSubTab = v; }
