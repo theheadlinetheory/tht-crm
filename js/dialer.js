@@ -134,15 +134,20 @@ async function onCallEnded(){
   currentCallNumber = null;
   currentCallPhone = null;
 
-  // Wait for JustCall to log the call
-  await new Promise(r => setTimeout(r, 3000));
+  // Wait for JustCall to log the call, then retry up to 3 times if not found
+  await new Promise(r => setTimeout(r, 5000));
 
   try {
-    const result = await invokeEdgeFunction('justcall-dialer', {
-      action: 'call-log',
-      phone: phone,
-    });
-    const call = result?.call;
+    let call = null;
+    for(let attempt = 0; attempt < 3; attempt++){
+      if(attempt > 0) await new Promise(r => setTimeout(r, 4000));
+      const result = await invokeEdgeFunction('justcall-dialer', {
+        action: 'call-log',
+        phone: phone,
+      });
+      call = result?.call;
+      if(call?.type && call.type !== 'unknown') break;
+    }
     const wasAnswered = call?.type === 'answered';
     const duration = call?.duration || 0;
     const outcome = call?.type || 'unknown';
