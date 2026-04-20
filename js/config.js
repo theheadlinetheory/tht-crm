@@ -7,7 +7,7 @@ export const API_URL = "https://script.google.com/macros/s/AKfycbwd4j6VLMVeLGJep
 // Supabase
 export const SUPABASE_URL = 'https://vjwkafnlgqidftxbeqjp.supabase.co';
 export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZqd2thZm5sZ3FpZGZ0eGJlcWpwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NTM3MzcsImV4cCI6MjA5MTQyOTczN30.27x_IdhtcJaAr0wdx6RhoWr1d6_o3zfzEPk9uneq1h8';
-export const SYNC_INTERVAL = 30000;
+export const SYNC_INTERVAL = 120000; // 2 min (Realtime handles live updates)
 export const REPLY_CHECK_INTERVAL = 15000;
 export const REPLY_BACKEND_POLL_INTERVAL = 300000; // 5 min
 

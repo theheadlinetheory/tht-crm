@@ -10,7 +10,7 @@ import { state, pendingWrites, pendingDealFields } from './app.js';
 import { flushRealtimeQueue } from './api.js';
 import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 import { render, refreshModal } from './render.js';
-import { apiGet, invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js';
+import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js';
 import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml } from './utils.js';
 import { isAdmin, isClient, isEmployee } from './auth.js';
 import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js';
@@ -146,6 +146,17 @@ export function openDeal(id){
   }
   state.selectedDeal=deal;
   render();
+  // Lazy-load heavy fields (email_body, call_transcript) if not already cached
+  if(!deal._heavyLoaded){
+    sbGetDealHeavyFields(id).then(heavy => {
+      if(!heavy) return;
+      if(heavy.email_body) deal.emailBody = heavy.email_body;
+      if(heavy.call_transcript) deal.callTranscript = heavy.call_transcript;
+      deal._heavyLoaded = true;
+      // Re-render modal if still viewing this deal
+      if(state.selectedDeal && String(state.selectedDeal.id) === String(id)) refreshModal();
+    }).catch(() => {});
+  }
 }
 
 export function closeDealModal(){
