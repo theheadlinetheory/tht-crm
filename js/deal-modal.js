@@ -726,8 +726,8 @@ export function renderDealModal(deal){
         </div>`;
       }
 
-      // Push to GHL button (admin only)
-      if(isAdmin()){
+      // Push to GHL button (all roles)
+      {
         const ghlConfigured = str(matchedClient.ghlLocationId).trim() && str(matchedClient.ghlApiKey).trim();
         const ghlPushed = deal.pushedToGhl;
         const ghlDisabled = !ghlConfigured;
