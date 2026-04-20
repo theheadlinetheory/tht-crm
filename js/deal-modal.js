@@ -156,6 +156,14 @@ export function closeDealModal(){
   render();
 }
 
+window.markDealUnread = function(dealId){
+  const deal = state.deals.find(d => String(d.id) === String(dealId));
+  if(!deal) return;
+  deal.hasNewReply = true;
+  sbUpdateDeal(dealId, { has_new_reply: true });
+  closeDealModal();
+};
+
 // SmartLead thread viewer and client thread sender moved to threads.js
 // Re-exported above for backward compatibility
 
@@ -934,8 +942,11 @@ export function renderDealModal(deal){
   } // end !isClient() activities block
 
   h+=`<div class="modal-footer">
-      ${isAdmin()||isEmployee()?`<button class="btn btn-danger" onclick="if(confirm('Archive this deal?'))deleteDeal('${deal.id}','Deleted/Lost')">Archive</button>`:''}
-      ${isClient()?`<button class="btn btn-danger" onclick="if(confirm('Archive this lead?'))archiveDeal('${deal.id}','manual')">Archive</button>`:''}
+      <div style="display:flex;gap:8px;align-items:center">
+        ${isAdmin()||isEmployee()?`<button class="btn btn-danger" onclick="if(confirm('Archive this deal?'))deleteDeal('${deal.id}','Deleted/Lost')">Archive</button>`:''}
+        ${isClient()?`<button class="btn btn-danger" onclick="if(confirm('Archive this lead?'))archiveDeal('${deal.id}','manual')">Archive</button>`:''}
+        <button class="btn" style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;font-size:12px" onclick="markDealUnread('${deal.id}')" title="Mark as unread so the blue highlight comes back">${svgIcon('mail',12,'#2563eb')} Mark Unread</button>
+      </div>
       <div style="display:flex;gap:8px">
         <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="closeDealModal()">Close</button>
         <button class="btn btn-primary" onclick="doSaveDeal('${deal.id}')">Save</button>
