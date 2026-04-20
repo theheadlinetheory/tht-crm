@@ -5,10 +5,10 @@ import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSe
          settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js';
 import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS } from './config.js';
 import { render } from './render.js';
-import { apiPost, apiGet, sbBatchUpdateClients, camelToSnake, supabase } from './api.js';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClientConfig, camelToSnake, supabase } from './api.js';
 import { esc, str, svgIcon } from './utils.js';
 import { isAdmin, currentUser, loadAllUsers, updateUserRole, updateUserClient, db } from './auth.js';
-import { lookupClientInfo } from './client-info.js';
+import { lookupClientInfo, getClientConfig, loadClientConfig } from './client-info.js';
 import { findPolygonForClient } from './maps.js';
 
 export function getDefaultSettings(){
@@ -492,6 +492,42 @@ function renderClientsSettings(){
           style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
       </div>
 
+      ${(()=>{
+        const cfg = getClientConfig(c.name) || {};
+        const inputStyle = 'width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px';
+        return `<div style="margin-bottom:8px;padding:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px">
+          <div style="font-size:10px;font-weight:700;color:#16a34a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Client Contact Info</div>
+          <div style="display:flex;gap:6px;margin-bottom:6px">
+            <div style="flex:1">
+              <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Contact Name</label>
+              <input type="text" placeholder="e.g. James" value="${esc(cfg.primary_contact||str(c.contactFirstName))}"
+                oninput="updateClientConfig('${esc(c.name)}','primary_contact',this.value)"
+                style="${inputStyle}">
+            </div>
+            <div style="flex:1">
+              <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Contact Email</label>
+              <input type="text" placeholder="e.g. book@company.com" value="${esc(cfg.primary_email||'')}"
+                oninput="updateClientConfig('${esc(c.name)}','primary_email',this.value)"
+                style="${inputStyle}">
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;margin-bottom:6px">
+            <div style="flex:1">
+              <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Phone</label>
+              <input type="text" placeholder="(555) 123-4567" value="${esc(cfg.phone||'')}"
+                oninput="updateClientConfig('${esc(c.name)}','phone',this.value)"
+                style="${inputStyle}">
+            </div>
+            <div style="flex:1">
+              <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Forward Email</label>
+              <input type="text" placeholder="Same as contact or different" value="${esc(cfg.forward_email||cfg.primary_email||'')}"
+                oninput="updateClientConfig('${esc(c.name)}','forward_email',this.value)"
+                style="${inputStyle}">
+            </div>
+          </div>
+        </div>`;
+      })()}
+
       <div style="margin-bottom:8px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Lead Cost ($)</label>
         <input type="text" placeholder="e.g. 200" value="${esc(str(c.leadCost))}"
@@ -866,6 +902,33 @@ export function updateClientField(clientId, field, value){
   const c=state.clients.find(x=>str(x.id)===str(clientId));
   if(c) c[field]=value;
 }
+
+// ─── Client Config (client_config table) edits with debounced save ───
+const _pendingConfigUpdates = {};
+let _configSaveTimer = null;
+
+function updateClientConfig(clientName, field, value) {
+  if (!_pendingConfigUpdates[clientName]) _pendingConfigUpdates[clientName] = {};
+  _pendingConfigUpdates[clientName][field] = value;
+  if (_configSaveTimer) clearTimeout(_configSaveTimer);
+  _configSaveTimer = setTimeout(flushClientConfigUpdates, 1500);
+}
+
+async function flushClientConfigUpdates() {
+  const updates = { ..._pendingConfigUpdates };
+  for (const k of Object.keys(_pendingConfigUpdates)) delete _pendingConfigUpdates[k];
+  for (const [clientName, fields] of Object.entries(updates)) {
+    try {
+      await sbUpdateClientConfig(clientName, fields);
+    } catch (e) {
+      console.error('Failed to update client config for', clientName, e);
+    }
+  }
+  // Refresh cache so Client Info modal reflects changes immediately
+  await loadClientConfig();
+}
+
+window.updateClientConfig = updateClientConfig;
 
 export function toggleClientField(clientId, field, checked){
   captureClientInputs();
