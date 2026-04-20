@@ -437,7 +437,6 @@ export function render(){
           </div>
           ${deal.contact?`<div class="deal-detail">${esc(deal.contact)}${deal.jobTitle?' · <span style="color:var(--text-muted)">'+esc(deal.jobTitle)+'</span>':''}</div>`:''}
           ${deal.email?`<div class="deal-detail">${esc(deal.email)}</div>`:''}
-          ${deal.linkedinUrl?`<div class="deal-detail"><a href="${esc(deal.linkedinUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;background:#0a66c2;color:#fff;border-radius:4px;font-size:10px;font-weight:600;text-decoration:none">${svgIcon('external-link',9,'#fff')} LinkedIn</a></div>`:''}
           ${deal.bookedDate&&deal.bookedDate.match(/^\d{4}-\d{2}-\d{2}$/)?`<div class="deal-detail" style="color:#2563eb;font-weight:600">${new Date(deal.bookedDate+'T'+(deal.bookedTime||'00:00')).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}${deal.bookedTime?' @ '+fmtTime12(deal.bookedTime):''}</div>`:''}
           <div class="deal-bottom">
             <span style="display:flex;align-items:center;gap:4px">
