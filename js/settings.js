@@ -5,7 +5,7 @@ import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSe
          settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js';
 import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS } from './config.js';
 import { render } from './render.js';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClientConfig, camelToSnake, supabase } from './api.js';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClientConfig, camelToSnake, supabase, invokeEdgeFunction } from './api.js';
 import { esc, str, svgIcon } from './utils.js';
 import { isAdmin, currentUser, loadAllUsers, updateUserRole, updateUserClient, db } from './auth.js';
 import { lookupClientInfo, getClientConfig, loadClientConfig } from './client-info.js';
@@ -201,6 +201,7 @@ export function renderSettingsPanel(){
     <button class="settings-tab ${settingsTab==='users'?'active':''}" onclick="settingsTab='users';refreshSettingsBody()">Users</button>
     <button class="settings-tab ${settingsTab==='campaigns'?'active':''}" onclick="settingsTab='campaigns';refreshSettingsBody()">Campaigns</button>
     <button class="settings-tab ${settingsTab==='dialer'?'active':''}" onclick="settingsTab='dialer';refreshSettingsBody()">Dialer</button>
+    <button class="settings-tab ${settingsTab==='billing'?'active':''}" onclick="settingsTab='billing';refreshSettingsBody()">Billing</button>
     <button class="settings-tab ${settingsTab==='ai'?'active':''}" onclick="settingsTab='ai';refreshSettingsBody()">AI</button>
   </div>
   <div class="settings-body">`;
@@ -210,6 +211,7 @@ export function renderSettingsPanel(){
   else if(settingsTab==='users') h+=renderUsersSettings();
   else if(settingsTab==='campaigns') h+=renderCampaignAssignSettings();
   else if(settingsTab==='dialer') h+=renderDialerSettings();
+  else if(settingsTab==='billing') h+=renderBillingSettings();
   else if(settingsTab==='ai') h+=renderAISettings();
 
   h+=`</div>
@@ -237,7 +239,7 @@ export function refreshSettingsBody(){
   if(!panel){ renderSettingsPanel(); return; }
   panel.querySelectorAll('.settings-tab').forEach(btn=>{
     const tab=btn.textContent.trim().toLowerCase();
-    const map={'pipeline config':'pipeline','clients':'clients','users':'users','campaigns':'campaigns','dialer':'dialer','ai':'ai'};
+    const map={'pipeline config':'pipeline','clients':'clients','users':'users','campaigns':'campaigns','dialer':'dialer','billing':'billing','ai':'ai'};
     btn.classList.toggle('active', map[tab]===settingsTab);
   });
   const body=panel.querySelector('.settings-body');
@@ -248,12 +250,14 @@ export function refreshSettingsBody(){
   else if(settingsTab==='users') h=renderUsersSettings();
   else if(settingsTab==='campaigns') h=renderCampaignAssignSettings();
   else if(settingsTab==='dialer') h=renderDialerSettings();
+  else if(settingsTab==='billing') h=renderBillingSettings();
   else if(settingsTab==='ai') h=renderAISettings();
   body.innerHTML=h;
   body.scrollTop=0;
   setupSettingsDrag();
   if(settingsTab==='users') loadUsersIntoPanel();
   if(settingsTab==='campaigns') fetchAcquisitionCampaigns();
+  if(settingsTab==='billing') loadUnpaidLeads();
   if(settingsTab==='ai') loadAISettings();
 }
 
@@ -1188,3 +1192,88 @@ Object.defineProperty(window, '_fetchedCampaigns', {
   set(v){ _fetchedCampaigns = v; },
   configurable: true
 });
+
+// ─── Billing / Lead Tracker Payment Tracking ───
+
+let _unpaidLeads = null;
+let _unpaidLoading = false;
+
+function renderBillingSettings(){
+  let h=`<div style="padding:16px">
+    <h4 style="margin:0 0 12px;font-size:15px;font-weight:700;color:var(--text)">Unpaid Leads</h4>
+    <p style="font-size:12px;color:var(--text-muted);margin:0 0 16px">Select leads to mark as paid on the Lead Tracker sheet.</p>
+    <div id="billing-unpaid-list">`;
+
+  if(_unpaidLoading){
+    h+=`<div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">Loading unpaid leads...</div>`;
+  } else if(!_unpaidLeads || _unpaidLeads.length===0){
+    h+=`<div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">All leads are paid!</div>`;
+  } else {
+    // Group by client
+    const grouped = {};
+    for(const lead of _unpaidLeads){
+      if(!grouped[lead.client]) grouped[lead.client]=[];
+      grouped[lead.client].push(lead);
+    }
+    const totalUnpaid = _unpaidLeads.reduce((sum,l) => sum + parseFloat((l.cost||'$0').replace(/[^0-9.]/g,'') || '0'), 0);
+    h+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-size:13px;color:var(--text)"><strong>${_unpaidLeads.length}</strong> unpaid leads — <strong>$${totalUnpaid.toLocaleString()}</strong> total</div>
+      <div style="display:flex;gap:6px">
+        <button class="btn" style="font-size:11px;padding:4px 10px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0" onclick="selectAllUnpaid()">Select All</button>
+        <button class="btn" style="font-size:11px;padding:4px 10px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0" onclick="markSelectedPaid()">Mark Selected Paid</button>
+      </div>
+    </div>`;
+
+    for(const [client, leads] of Object.entries(grouped)){
+      const clientTotal = leads.reduce((sum,l) => sum + parseFloat((l.cost||'$0').replace(/[^0-9.]/g,'') || '0'), 0);
+      h+=`<div style="margin-bottom:12px">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">${esc(client)} <span style="font-weight:400;color:var(--text-muted)">(${leads.length} leads — $${clientTotal.toLocaleString()})</span></div>`;
+      for(const lead of leads){
+        h+=`<label style="display:flex;align-items:center;gap:8px;padding:4px 8px;font-size:12px;color:var(--text);cursor:pointer;border-radius:4px;transition:background .1s" onmouseover="this.style.background='var(--hover)'" onmouseout="this.style.background='transparent'">
+          <input type="checkbox" class="unpaid-check" data-row="${lead.row}" style="cursor:pointer">
+          <span style="flex:1">${esc(lead.lead)}</span>
+          <span style="color:var(--text-muted);min-width:60px">${esc(lead.date)}</span>
+          <span style="font-weight:600;min-width:50px;text-align:right">${esc(lead.cost)}</span>
+        </label>`;
+      }
+      h+=`</div>`;
+    }
+  }
+
+  h+=`</div></div>`;
+  return h;
+}
+
+async function loadUnpaidLeads(){
+  _unpaidLoading = true;
+  const el = document.getElementById('billing-unpaid-list');
+  if(el) el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">Loading unpaid leads...</div>';
+  try{
+    const resp = await invokeEdgeFunction('push-lead-tracker', { action: 'get-unpaid' });
+    _unpaidLeads = resp.unpaid || [];
+  }catch(e){
+    _unpaidLeads = [];
+    console.error('Failed to load unpaid leads:', e);
+  }
+  _unpaidLoading = false;
+  refreshSettingsBody();
+}
+
+window.selectAllUnpaid = function(){
+  document.querySelectorAll('.unpaid-check').forEach(cb => cb.checked = true);
+};
+
+window.markSelectedPaid = async function(){
+  const checked = [...document.querySelectorAll('.unpaid-check:checked')];
+  if(!checked.length){ alert('No leads selected'); return; }
+  if(!confirm(`Mark ${checked.length} lead(s) as paid?`)) return;
+
+  const rows = checked.map(cb => parseInt(cb.dataset.row));
+  try{
+    await invokeEdgeFunction('push-lead-tracker', { action: 'mark-paid', rows });
+    alert(`${rows.length} leads marked as paid!`);
+    await loadUnpaidLeads();
+  }catch(e){
+    alert('Failed to mark paid: ' + (e.message || 'Unknown error'));
+  }
+};
