@@ -512,17 +512,10 @@ export function renderDealModal(deal){
             </select>
           </div>`:''}
         </div>
-        ${deal.linkedinUrl?`<div class="form-group form-span2" style="margin-bottom:8px">
-          <label style="font-size:11px;font-weight:600;color:var(--text-muted)">LinkedIn</label>
-          <div style="display:flex;align-items:center;gap:8px">
-            <input id="deal-linkedinUrl" value="${esc(deal.linkedinUrl||'')}" oninput="updateDealField('linkedinUrl',this.value)"
-              style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
-            <a href="${esc(deal.linkedinUrl)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;padding:6px 12px;background:#0a66c2;color:#fff;border-radius:6px;font-size:11px;font-weight:600;text-decoration:none;white-space:nowrap">${svgIcon('external-link',12,'#fff')} Open</a>
-          </div>
-        </div>`:`<div class="form-group form-span2" style="margin-bottom:8px">
-          <label style="font-size:11px;font-weight:600;color:var(--text-muted)">LinkedIn</label>
-          <input id="deal-linkedinUrl" value="" placeholder="LinkedIn profile URL" oninput="updateDealField('linkedinUrl',this.value)"
-            style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+        <div class="form-group form-span2" style="margin-bottom:8px">
+          ${deal.linkedinUrl?`<a href="${esc(deal.linkedinUrl)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:#0a66c2;color:#fff;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none">${svgIcon('external-link',12,'#fff')} LinkedIn Profile</a>`
+          :`<input id="deal-linkedinUrl" value="" placeholder="LinkedIn profile URL" oninput="updateDealField('linkedinUrl',this.value)"
+            style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font);width:100%;box-sizing:border-box">`}
         </div>`}
         <div class="form-group form-span2" style="margin-bottom:16px">
           <label>Notes</label>
