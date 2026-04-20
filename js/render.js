@@ -446,7 +446,7 @@ export function render(){
               ${(()=>{ const ow=getOwnerForDeal(deal); return ow?`<span class="owner-tag ${ow.cls}">${esc(ow.label)}</span>`:''; })()}
             </span>
           </div>
-          ${deal.emailBody?`<div class="deal-reply-snippet" title="${esc(stripHtml(deal.emailBody))}">${esc(stripHtml(deal.emailBody).substring(0,80))}${stripHtml(deal.emailBody).length>80?'…':''}</div>`:''}
+          ${deal.replySnippet?`<div class="deal-reply-snippet" title="${esc(deal.replySnippet)}">${esc(deal.replySnippet.substring(0,80))}${deal.replySnippet.length>80?'…':''}</div>`:''}
         </div>`;
       }
     }

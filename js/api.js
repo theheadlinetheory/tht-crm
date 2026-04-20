@@ -499,8 +499,15 @@ export function subscribeRealtime() {
     .subscribe();
 }
 
+// Heavy fields to strip from realtime payloads to save memory
+const HEAVY_FIELDS = ['email_body', 'call_transcript'];
+
 function applyRealtimeEvent(table, payload) {
   const { eventType } = payload;
+  // Strip heavy fields from realtime deal updates to save bandwidth/memory
+  if (table === 'deals' && payload.new) {
+    for (const f of HEAVY_FIELDS) delete payload.new[f];
+  }
   const newRow = payload.new ? normalizeRow(payload.new) : null;
   const oldRow = payload.old ? normalizeRow(payload.old) : null;
 
@@ -535,12 +542,22 @@ function applyRealtimeEvent(table, payload) {
 
 // ─── Supabase CRUD Helpers ───
 
-// Deals
+// Deals — exclude heavy fields (email_body, call_transcript) to reduce bandwidth
+// These are loaded on-demand when opening a deal modal
+const DEALS_LIGHT_COLS = 'id,company,contact,email,phone,value,stage,pipeline,flag,notes,sl_lead_id,sl_campaign_id,campaign_name,lead_category,created_at,updated_at,website,location,smartlead_url,forwarded_at,mobile_phone,pushed_to_tracker,pushed_to_ghl,address,client_stage,booked_date,booked_time,booked_for,booked_timezone,cal_name,cal_email,cal_notes,has_new_reply,owner_override,job_title,linkedin_url,passoff_instructions,passoff_sent_at,suggested_updates,contact2,contact3,phone2,phone3,title2,title3,reply_snippet';
+
 export const sbGetDeals = () => sbCall(async () => {
-  const { data, error } = await supabase.from('deals').select('*');
+  const { data, error } = await supabase.from('deals').select(DEALS_LIGHT_COLS);
   if (error) throw error;
   return data;
 }, { label: 'Load deals' });
+
+// Fetch heavy fields on demand (email_body, call_transcript)
+export const sbGetDealHeavyFields = (id) => sbCall(async () => {
+  const { data, error } = await supabase.from('deals').select('email_body,call_transcript').eq('id', id).single();
+  if (error) throw error;
+  return data;
+}, { label: 'Load deal body' });
 
 export const sbCreateDeal = (fields) => sbCall(async () => {
   const { data, error } = await supabase.from('deals').insert(fields).select().single();
