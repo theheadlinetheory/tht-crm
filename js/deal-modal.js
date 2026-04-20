@@ -516,7 +516,7 @@ export function renderDealModal(deal){
           ${deal.linkedinUrl?`<a href="${esc(deal.linkedinUrl)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:#0a66c2;color:#fff;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none">${svgIcon('external-link',12,'#fff')} LinkedIn Profile</a>`
           :`<input id="deal-linkedinUrl" value="" placeholder="LinkedIn profile URL" oninput="updateDealField('linkedinUrl',this.value)"
             style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font);width:100%;box-sizing:border-box">`}
-        </div>`}
+        </div>
         <div class="form-group form-span2" style="margin-bottom:16px">
           <label>Notes</label>
           <textarea id="deal-notes" rows="2" oninput="updateDealField('notes',this.value)">${esc(deal.notes||'')}</textarea>
