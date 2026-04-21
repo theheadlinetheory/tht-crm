@@ -763,7 +763,7 @@ async function fetchAcquisitionCampaigns(){
   if(!usersListCache || usersListCache.length===0){
     try { usersListCache = await loadAllUsers(); } catch(e){}
   }
-  const adminUsers = (usersListCache||[]).filter(u => u.role==='admin').map(u => u.name||u.email);
+  const adminUsers = (usersListCache||[]).filter(u => u.role==='admin' || u.role==='employee').map(u => u.name||u.email);
   if(!_fetchedCampaigns){
     container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px">Fetching campaigns from SmartLead...</div>';
     try {
