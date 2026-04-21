@@ -79,7 +79,7 @@ export function lookupClientInfo(name){
     fallback = {
       timeZone:sc.timeZone||'',
       location:parsedLocation||str(sc.location).trim()||'',
-      primaryContact:str(sc.contactFirstName).trim()||'',
+      primaryContact:[str(sc.contactFirstName).trim(),str(sc.contactLastName).trim()].filter(Boolean).join(' ')||'',
       primaryEmail:str(sc.notifyEmail).trim()||'',
       forwardEmail:str(sc.notifyEmail).trim()||'',
       phone:'',

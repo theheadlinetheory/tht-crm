@@ -94,6 +94,7 @@ export function debouncedAutoSave(){
         notifyEmail:str(c.notifyEmails),
         campaignKeywords:str(c.campaignKeywords),
         contactFirstName:str(c.contactFirstName),
+        contactLastName:str(c.contactLastName),
         calendlyUrl:str(c.calendlyUrl),
         enableForward:str(c.enableForward),
         enableCalendly:str(c.enableCalendly),
@@ -451,11 +452,19 @@ function renderClientsSettings(){
           style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
       </div>
 
-      <div style="margin-bottom:10px">
-        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Contact First Name</label>
-        <input type="text" placeholder="e.g. Joel, Jake" value="${esc(str(c.contactFirstName))}"
-          oninput="updateClientField('${esc(c.id)}','contactFirstName',this.value)"
-          style="width:160px;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <div style="flex:1">
+          <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Contact First Name</label>
+          <input type="text" placeholder="e.g. Joel" value="${esc(str(c.contactFirstName))}"
+            oninput="updateClientField('${esc(c.id)}','contactFirstName',this.value)"
+            style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+        </div>
+        <div style="flex:1">
+          <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Contact Last Name</label>
+          <input type="text" placeholder="e.g. Smith" value="${esc(str(c.contactLastName))}"
+            oninput="updateClientField('${esc(c.id)}','contactLastName',this.value)"
+            style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+        </div>
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">
@@ -965,6 +974,7 @@ export async function saveSettingsToSheet(){
       notifyEmail:str(c.notifyEmails),
       campaignKeywords:str(c.campaignKeywords),
       contactFirstName:str(c.contactFirstName),
+      contactLastName:str(c.contactLastName),
       calendlyUrl:str(c.calendlyUrl),
       enableForward:str(c.enableForward),
       enableCalendly:str(c.enableCalendly),
