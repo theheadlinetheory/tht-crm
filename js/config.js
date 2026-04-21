@@ -25,7 +25,7 @@ export const firebaseConfig = {
 // ─── Role Definitions ───
 export const ROLES = {
   admin: { label: 'Admin', pipelines: 'all', settings: true, manageUsers: true },
-  employee: { label: 'Employee', pipelines: ['client_leads'], settings: false, manageUsers: false },
+  employee: { label: 'Employee', pipelines: ['acquisition', 'client_leads'], settings: false, manageUsers: false },
   client: { label: 'Client', pipelines: ['client_leads'], settings: false, manageUsers: false }
 };
 

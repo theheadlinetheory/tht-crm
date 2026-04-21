@@ -93,13 +93,13 @@ export function getPipelineDeals(){
 // ─── Visible Pipelines ───
 export function getVisiblePipelines(){
   if(isClient()) return ALL_PIPELINES.filter(p => p.id === 'client_leads');
-  if(isEmployee()) return ALL_PIPELINES.filter(p => p.id === 'client_leads');
+  if(isEmployee()) return ALL_PIPELINES.filter(p => p.id === 'client_leads' || p.id === 'acquisition');
   return ALL_PIPELINES.filter(p => p.id !== 'archive');
 }
 
 export function getVisiblePipelinesWithArchive(){
   if(isClient()) return ALL_PIPELINES.filter(p => p.id === 'client_leads');
-  if(isEmployee()) return ALL_PIPELINES.filter(p => p.id === 'client_leads');
+  if(isEmployee()) return ALL_PIPELINES.filter(p => p.id === 'client_leads' || p.id === 'acquisition');
   return ALL_PIPELINES;
 }
 
