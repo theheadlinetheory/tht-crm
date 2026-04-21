@@ -17,7 +17,7 @@ export function buildCalendlyUrl(baseUrl, deal){
       if(deal.email) url.searchParams.set('email', deal.email);
       if(deal.company) url.searchParams.set('a1', deal.company);
     }
-    return url.toString();
+    return url.toString().replace(/\+/g,'%20');
   } catch(e){ return baseUrl; }
 }
 
@@ -88,10 +88,12 @@ export function openCalendlyEmbed(dealId, baseCalUrl, clientName, overrideName, 
     if(notes) url.searchParams.set('a1', notes);
     if(ianaTz) url.searchParams.set('timezone', ianaTz);
 
+    // Replace + with %20 — URLSearchParams encodes spaces as + but Calendly reads them literally
+    const finalUrl=url.toString().replace(/\+/g,'%20');
     if(window.Calendly){
-      window.Calendly.initPopupWidget({url:url.toString()});
+      window.Calendly.initPopupWidget({url:finalUrl});
     } else {
-      window.open(url.toString(),'_blank');
+      window.open(finalUrl,'_blank');
     }
   } catch(e){
     // Fallback if URL parsing fails
