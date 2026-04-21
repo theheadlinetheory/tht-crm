@@ -273,6 +273,7 @@ const FIELD_MAP = {
   enable_auto_forward: 'enableAutoForward',
   lead_cost: 'leadCost',
   contact_first_name: 'contactFirstName',
+  contact_last_name: 'contactLastName',
   service_area_url: 'serviceAreaUrl',
   enable_forward: 'enableForward',
   enable_calendly: 'enableCalendly',
