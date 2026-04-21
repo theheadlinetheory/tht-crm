@@ -1111,7 +1111,7 @@ async function startAutoFollowUp(dealId){
 
     if(resp.ok && result.status === 'ok'){
       deal.leadCategory = 'HT Subsequence FU';
-      refreshModal();
+      refreshModal(true);
       if(result.alreadyActive) console.log('[Subseq] Lead was already in subsequence — marked active');
     } else {
       throw new Error(result.error || `SmartLead returned ${resp.status}`);
