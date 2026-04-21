@@ -382,9 +382,12 @@ export async function initialSync(isStartup) {
       const { isAdmin: _isAdmin } = await import('./auth.js');
       _cachedIsAdmin = _isAdmin;
     }
-    // Strip sensitive GHL credentials for non-admin users
+    // Strip sensitive GHL credentials for non-admin users but preserve a flag
     if (!_cachedIsAdmin()) {
-      state.clients.forEach(c => { delete c.ghlApiKey; delete c.ghlLocationId; });
+      state.clients.forEach(c => {
+        c.ghlConfigured = !!(c.ghlApiKey && c.ghlLocationId);
+        delete c.ghlApiKey; delete c.ghlLocationId;
+      });
     }
     state.appointments = (appointments || []).map(normalizeRow);
 
@@ -518,6 +521,7 @@ function applyRealtimeEvent(table, payload) {
 
   // Strip sensitive GHL credentials for non-admin users on client realtime events
   if (table === 'clients' && newRow && _cachedIsAdmin && !_cachedIsAdmin()) {
+    newRow.ghlConfigured = !!(newRow.ghlApiKey && newRow.ghlLocationId);
     delete newRow.ghlApiKey;
     delete newRow.ghlLocationId;
   }
