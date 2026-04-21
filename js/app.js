@@ -137,15 +137,20 @@ export async function initApp(){
       await loadCampaignAssignments();
       listenCampaignAssignments();
     }
+    // First render — show loading screen immediately so #app is never blank
+    render();
     // Load client config from database (calendly URLs, services, warm call notes, etc.)
-    const { loadClientConfig } = await import('./client-info.js');
-    await loadClientConfig();
+    try {
+      const { loadClientConfig } = await import('./client-info.js');
+      await loadClientConfig();
+    } catch(e){ console.warn('loadClientConfig failed:', e); }
     // Initialize service area polygon data from global script
     if(window.SERVICE_AREA_POLYGONS){
-      const { setServiceAreaData } = await import('./maps.js');
-      setServiceAreaData(window.SERVICE_AREA_POLYGONS);
+      try {
+        const { setServiceAreaData } = await import('./maps.js');
+        setServiceAreaData(window.SERVICE_AREA_POLYGONS);
+      } catch(e){ console.warn('setServiceAreaData failed:', e); }
     }
-    render();
     await initialSync(true);
     subscribeRealtime();
     // Background sync every 30s — catches anything realtime missed (modal open, writes in flight, etc.)
