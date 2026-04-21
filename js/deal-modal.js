@@ -1086,7 +1086,8 @@ window.skipScheduleAndCopy = skipScheduleAndCopy;
 async function startAutoFollowUp(dealId){
   const deal = state.deals.find(d => d.id === dealId);
   if(!deal){ console.error('[Subseq] Deal not found:', dealId); return; }
-  if(!deal.slLeadId || !deal.slCampaignId){ console.error('[Subseq] Missing SmartLead IDs:', {slLeadId:deal.slLeadId, slCampaignId:deal.slCampaignId}); return; }
+  if(!deal.email){ alert('Cannot start auto follow-up — deal has no email address.'); return; }
+  if(!deal.slLeadId || !deal.slCampaignId){ alert('Cannot start auto follow-up — missing SmartLead campaign data.'); return; }
   if(!confirm('Start automated email follow-up sequence for this lead?\n\nSmartLead will send follow-up emails automatically until they reply.')) return;
 
   const btn = document.querySelector('.sl-subseq-btn');
@@ -1111,6 +1112,7 @@ async function startAutoFollowUp(dealId){
     if(resp.ok && result.status === 'ok'){
       deal.leadCategory = 'HT Subsequence FU';
       refreshModal();
+      if(result.alreadyActive) console.log('[Subseq] Lead was already in subsequence — marked active');
     } else {
       throw new Error(result.error || `SmartLead returned ${resp.status}`);
     }
