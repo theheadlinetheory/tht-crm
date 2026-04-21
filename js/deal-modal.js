@@ -740,7 +740,7 @@ export function renderDealModal(deal){
 
       // Push to GHL button (all roles)
       {
-        const ghlConfigured = str(matchedClient.ghlLocationId).trim() && str(matchedClient.ghlApiKey).trim();
+        const ghlConfigured = matchedClient.ghlConfigured || (str(matchedClient.ghlLocationId).trim() && str(matchedClient.ghlApiKey).trim());
         const ghlPushed = deal.pushedToGhl;
         const ghlDisabled = !ghlConfigured;
         const ghlTitle = !ghlConfigured ? 'GHL not configured for this client'
