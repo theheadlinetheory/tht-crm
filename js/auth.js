@@ -322,9 +322,12 @@ export function setupAuthListener(onLogin){
       document.getElementById('login-screen').style.display='none';
       showTransitionScreen('Loading your CRM...');
 
-      if(isClient() || isEmployee()){
+      if(isClient()){
         state.pipeline = 'client_leads';
         location.hash = 'client_leads';
+      } else if(isEmployee()){
+        const hash = location.hash.replace('#','');
+        state.pipeline = hash && ['acquisition','client_leads'].includes(hash) ? hash : 'client_leads';
       } else if(isAdmin()){
         const hash = location.hash.replace('#','');
         state.pipeline = hash && ['dashboard','acquisition','client_leads','nurture'].includes(hash) ? hash : 'client_leads';

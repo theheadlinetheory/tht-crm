@@ -981,7 +981,7 @@ export function renderNewDealModal(stages){
             const[k,label]=f.split(":");
             return`<div class="form-group"><label>${label}</label><input id="new-${k}"></div>`;
           }).join("")}
-          ${!isClientView?`<div class="form-group"><label>Deal Value ($)</label><input id="new-value" type="number" value="${defVal}"></div>`:''}
+          ${isAdmin()?`<div class="form-group"><label>Deal Value ($)</label><input id="new-value" type="number" value="${defVal}"></div>`:''}
           ${!isClientView?`<div class="form-group form-span2">
             <label>Stage</label>
             <select id="new-stage">${stages.map(s=>`<option value="${esc(s.id)}">${esc(s.label)}</option>`).join("")}</select>
