@@ -388,24 +388,29 @@ export async function doWonDrop(){
   const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
   const clientName=client?client.name:deal.stage;
 
-  // Acquisition Won → Client Tracker (new client onboarding)
-  // Client Won → Lead Entry (syncs to admin Lead Tracker)
+  // Acquisition Won → auto-create CRM client + Client Info + dropdowns
+  // Client Won → push to Lead Tracker
+  let wonSuccess = false;
   try {
     if(deal.pipeline==='Acquisition'){
-      const { pushToClientInfo } = await import('./warm-call.js');
-      await pushToClientInfo(deal.id);
+      const { autoCreateClient } = await import('./client-info.js');
+      const result = await autoCreateClient(deal);
+      wonSuccess = true; // Even if user skipped duplicate, still archive
     } else {
       const { autoPushToTracker } = await import('./email.js');
       await autoPushToTracker(deal);
+      wonSuccess = true;
     }
   } catch(e){
-    console.error('Push on won failed:', e);
+    console.error('Won drop action failed:', e);
     const { showToast } = await import('./api.js');
-    showToast('Lead tracker push failed: ' + e.message, 'error');
+    showToast('Won action failed: ' + e.message, 'error');
   }
 
-  const { deleteDeal } = await import('./deals.js');
-  deleteDeal(id, 'Closed Won', clientName);
+  if(wonSuccess) {
+    const { deleteDeal } = await import('./deals.js');
+    deleteDeal(id, 'Closed Won', clientName);
+  }
 }
 
 

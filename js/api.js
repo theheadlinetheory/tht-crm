@@ -99,7 +99,6 @@ export async function syncFromSheet(){
   if(state.selectedDeal) return;
   if(state.showNew) return;
   if(state.showAddClient) return;
-  if(state.activateClientLoading) return;
   if(pendingWrites.value > 0) return;
   await retryFailedWrites();
   state.syncing=true; render();
@@ -256,6 +255,8 @@ const FIELD_MAP = {
   ghl_api_key: 'ghlApiKey',
   ghl_pipeline_id: 'ghlPipelineId',
   ghl_stage_id: 'ghlStageId',
+  onboarding_doc_url: 'onboardingDocUrl',
+  onboarding_parsed_at: 'onboardingParsedAt',
   client_stage: 'clientStage',
   booked_date: 'bookedDate',
   booked_time: 'bookedTime',
@@ -349,7 +350,7 @@ export function normalizeRow(row) {
   return normalized;
 }
 
-const NULLABLE_COLS = new Set(['completed_at','scheduled_time','created_at','updated_at','forwarded_at','pushed_to_tracker','pushed_to_ghl','queued_at','rerun_after','sent_at','archived_at','value','lead_cost','rerun_days','booked_date','booked_time','follow_up_date']);
+const NULLABLE_COLS = new Set(['completed_at','scheduled_time','created_at','updated_at','forwarded_at','pushed_to_tracker','pushed_to_ghl','queued_at','rerun_after','sent_at','archived_at','value','lead_cost','rerun_days','booked_date','booked_time','follow_up_date','onboarding_parsed_at']);
 
 export function camelToSnake(obj) {
   const result = {};

@@ -2,10 +2,10 @@
 // CLIENT-INFO — Client data, thread IDs, lookup functions
 // ═══════════════════════════════════════════════════════════
 import { state, store, pendingWrites, deletedClientIds } from './app.js';
-import { CLIENT_PALETTE } from './config.js';
+import { CLIENT_PALETTE, CLIENT_INFO_SHEET_ID } from './config.js';
 import { render } from './render.js';
 import { str, uid, esc, isValidDate, getToday, svgIcon } from './utils.js';
-import { sbCreateClient, sbDeleteClient, camelToSnake } from './api.js';
+import { sbCreateClient, sbDeleteClient, camelToSnake, apiPost, invokeEdgeFunction, showToast } from './api.js';
 import { isClient, isAdmin } from './auth.js';
 
 // ─── Client Config (loaded from Supabase client_config table) ───
@@ -198,6 +198,101 @@ export function removeClient(name){
   }
   store.removeClient(name);
 }
+
+// ─── Timezone Derivation ───
+function deriveTimezone(location) {
+  const l = (location || '').toUpperCase();
+  const eastern = /\b(NY|NJ|CT|MA|PA|FL|GA|NC|SC|VA|MD|DE|ME|NH|VT|RI|OH|MI|IN|WV|DC)\b/;
+  const central = /\b(TX|IL|MN|WI|MO|LA|AR|MS|AL|TN|KY|IA|KS|NE|ND|SD|OK)\b/;
+  const mountain = /\b(CO|AZ|NM|UT|MT|WY|ID)\b/;
+  const pacific = /\b(CA|WA|OR|NV)\b/;
+  if (eastern.test(l)) return 'EST';
+  if (central.test(l)) return 'CST';
+  if (mountain.test(l)) return 'MST';
+  if (pacific.test(l)) return 'PST';
+  return '';
+}
+
+// ─── Auto-Create Client from Won Deal ───
+export async function autoCreateClient(deal) {
+  const clientName = str(deal.company || deal.contact || '').trim();
+  if (!clientName) throw new Error('Deal has no company or contact name');
+
+  // Duplicate check — fuzzy match against existing clients
+  const normName = clientName.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+  const existing = state.clients.find(c => {
+    const norm = str(c.name).toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+    return norm === normName || norm.includes(normName) || normName.includes(norm);
+  });
+  if (existing) {
+    const ok = confirm(`Client "${existing.name}" already exists. Create "${clientName}" anyway?`);
+    if (!ok) return { ok: false, skipped: true, clientName };
+  }
+
+  // 1. Create CRM client in Supabase
+  const contactFirst = str(deal.contact || '').trim().split(' ')[0] || '';
+  const c = {
+    id: uid(),
+    name: clientName,
+    color: CLIENT_PALETTE[state.clients.length % CLIENT_PALETTE.length],
+    contactFirstName: contactFirst,
+    notifyEmail: str(deal.email || ''),
+    notifyPhone: str(deal.phone || ''),
+    calendlyUrl: '',
+    campaignKeywords: '',
+    notifyEmails: '',
+    serviceAreaUrl: '',
+    enableForward: 'FALSE',
+    enableCalendly: 'FALSE',
+    enableCopyInfo: 'FALSE',
+    enableTracker: 'FALSE',
+    leadCost: '',
+  };
+  store.addClient(c);
+  pendingWrites.value++;
+  try {
+    const resp = await sbCreateClient(camelToSnake(c));
+    if (resp && resp.id) c.id = resp.id;
+  } finally {
+    pendingWrites.value--;
+  }
+
+  // 2. Add to Lead Tracker + Lead Entry dropdowns (fire-and-forget)
+  apiPost('add_client_to_dropdowns', { clientName }).catch(e => {
+    console.error('Dropdown update failed:', e);
+    showToast('Warning: Lead Tracker dropdown update failed — add manually in Settings', 'warning');
+  });
+
+  // 3. Push row to Client Info Sheet
+  const tz = deriveTimezone(str(deal.location || deal.address || ''));
+  const otherContacts = [deal.email2, deal.email3, deal.email4]
+    .filter(e => e && str(e).trim()).join(', ');
+  const row = [
+    clientName,
+    str(deal.contact || ''),
+    str(deal.email || ''),
+    otherContacts,
+    str(deal.location || deal.address || ''),
+    tz,
+    '',
+    str(deal.phone || deal.mobilePhone || ''),
+    '',
+    str(deal.email || ''),
+  ];
+  invokeEdgeFunction('push-lead-tracker', {
+    sheetId: CLIENT_INFO_SHEET_ID,
+    sheetName: 'Client Tracker',
+    row,
+  }).catch(e => {
+    console.error('Client Info sheet push failed:', e);
+    showToast('Warning: Client Info sheet push failed — add row manually', 'warning');
+  });
+
+  showToast(`Client "${clientName}" created — pipeline stage + Lead Tracker updated`, 'success');
+  return { ok: true, clientName };
+}
+
+window.autoCreateClient = autoCreateClient;
 
 // ─── Client Info Panel (opened from column header click) ───
 export function openClientInfoPanel(clientName){
