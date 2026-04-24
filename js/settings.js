@@ -83,6 +83,8 @@ window.toggleClientAccordion = function(clientId){
 
 export function debouncedAutoSave(){
   clearTimeout(_autoSaveTimer);
+  // Don't auto-save while onboarding modal is open — its fields live in DOM, not state
+  if(state.onboardingModal) return;
   const statusEl = document.getElementById('settings-autosave-status');
   if(statusEl) statusEl.textContent = 'Unsaved changes...';
   _autoSaveTimer = setTimeout(async ()=>{
