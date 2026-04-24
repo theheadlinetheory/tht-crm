@@ -122,11 +122,6 @@ export function resetAppState(){
   state.selectedDeal = null;
   state.showNew = false;
   state.showAddClient = false;
-  state.showActivateClient = false;
-  state.activateClientLoading = false;
-  state.unactivatedClients = [];
-  state.activateClientsLoading = false;
-  state.activateSelectedClient = null;
   state.showEmployeeArchive = false;
   state.archiveSearch = '';
   state.archiveLoaded = false;

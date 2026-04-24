@@ -3,9 +3,9 @@
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
          settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS } from './config.js';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID } from './config.js';
 import { render } from './render.js';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClientConfig, camelToSnake, supabase, invokeEdgeFunction } from './api.js';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClientConfig, camelToSnake, supabase, invokeEdgeFunction, showToast } from './api.js';
 import { esc, str, svgIcon } from './utils.js';
 import { isAdmin, currentUser, loadAllUsers, updateUserRole, updateUserClient, db } from './auth.js';
 import { lookupClientInfo, getClientConfig, loadClientConfig } from './client-info.js';
@@ -109,7 +109,9 @@ export function debouncedAutoSave(){
         homeBase:str(c.homeBase||''),
         timeZone:str(c.timeZone||''),
         ghlLocationId:str(c.ghlLocationId||''),
-        ghlApiKey:str(c.ghlApiKey||'')
+        ghlApiKey:str(c.ghlApiKey||''),
+        onboardingDocUrl:str(c.onboardingDocUrl||''),
+        onboardingParsedAt:c.onboardingParsedAt||null
       }));
       await Promise.all([
         apiPost('save_settings',{settings:settingsDraft}),
@@ -407,7 +409,6 @@ function renderClientsSettings(){
     <p style="font-size:11px;color:var(--text-muted);margin:0 0 12px">Set up how each client's leads are handled. Toggle actions on/off and fill in the details.</p>
     <div style="display:flex;gap:8px;margin-bottom:16px">
       <button class="btn btn-ghost" style="font-size:12px;padding:7px 16px;flex:1" onclick="closeSettings();openAddClient()">+ Add Client</button>
-      <button class="btn btn-primary" style="font-size:12px;padding:7px 16px;flex:1" onclick="closeSettings();openActivateClient()">\u26A1 Activate Client</button>
     </div>`;
 
   if(state.clients.length===0){
@@ -554,6 +555,20 @@ function renderClientsSettings(){
           oninput="updateClientField('${esc(c.id)}','calendlyUrl',this.value)"
           style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
       </div>`:''}
+
+      <div style="margin-bottom:8px;padding:10px;background:#fefce8;border:1px solid #fde68a;border-radius:8px">
+        <div style="font-size:10px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Onboarding</div>
+        <div style="display:flex;gap:6px;align-items:end">
+          <div style="flex:1">
+            <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Google Doc URL</label>
+            <input type="text" id="onboarding-url-${esc(c.id)}" placeholder="https://docs.google.com/document/d/..." value="${esc(str(c.onboardingDocUrl))}"
+              oninput="updateClientField('${esc(c.id)}','onboardingDocUrl',this.value)"
+              style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+          </div>
+          <button onclick="parseOnboardingDoc('${esc(c.id)}')" style="padding:6px 12px;background:#92400e;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;margin-bottom:1px">Parse Doc</button>
+        </div>
+        ${c.onboardingParsedAt?`<div style="font-size:10px;color:#6b7280;margin-top:4px">Last parsed: ${new Date(c.onboardingParsedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})}</div>`:''}
+      </div>
 
       <div style="margin-bottom:8px;padding:10px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px">
         <div style="font-size:10px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">GoHighLevel Integration</div>
@@ -991,7 +1006,9 @@ export async function saveSettingsToSheet(){
       ghlLocationId:str(c.ghlLocationId||''),
       ghlApiKey:str(c.ghlApiKey||''),
       ghlPipelineId:str(c.ghlPipelineId||''),
-      ghlStageId:str(c.ghlStageId||'')
+      ghlStageId:str(c.ghlStageId||''),
+      onboardingDocUrl:str(c.onboardingDocUrl||''),
+      onboardingParsedAt:c.onboardingParsedAt||null
     }));
     await Promise.all([
       apiPost('save_settings',{settings:settingsDraft}),
@@ -1287,3 +1304,253 @@ window.markSelectedPaid = async function(){
     alert('Failed to mark paid: ' + (e.message || 'Unknown error'));
   }
 };
+
+// ─── Onboarding Doc Parse + Confirmation Modal ───
+
+async function parseOnboardingDoc(clientId) {
+  const urlInput = document.getElementById('onboarding-url-' + clientId);
+  if (!urlInput || !urlInput.value.trim()) {
+    showToast('Paste a Google Doc URL first', 'error');
+    return;
+  }
+  const docUrl = urlInput.value.trim();
+  if (!docUrl.includes('docs.google.com/document/d/')) {
+    showToast('Not a valid Google Docs URL', 'error');
+    return;
+  }
+
+  const btn = urlInput.parentElement.nextElementSibling;
+  const origText = btn.textContent;
+  btn.textContent = 'Parsing...';
+  btn.disabled = true;
+
+  try {
+    const resp = await invokeEdgeFunction('parse-onboarding-doc', { clientId, docUrl });
+    if (resp.error) throw new Error(resp.error);
+
+    state.onboardingModal = {
+      clientId,
+      clientName: state.clients.find(c => c.id === clientId)?.name || '',
+      parsed: resp.parsed || {},
+      confidence: resp.confidence || 'low',
+      saving: false,
+    };
+    render();
+  } catch (e) {
+    showToast('Parse failed: ' + e.message, 'error');
+  } finally {
+    btn.textContent = origText;
+    btn.disabled = false;
+  }
+}
+
+function renderOnboardingModal() {
+  const m = state.onboardingModal;
+  if (!m) return '';
+
+  const p = m.parsed;
+  const confColor = m.confidence === 'high' ? '#059669' : m.confidence === 'medium' ? '#d97706' : '#dc2626';
+  const confBg = m.confidence === 'high' ? '#f0fdf4' : m.confidence === 'medium' ? '#fffbeb' : '#fef2f2';
+
+  const field = (label, key, value, type = 'text') => {
+    const val = esc(str(value || ''));
+    const empty = !value;
+    const border = empty ? 'border:2px solid #fde68a' : 'border:1px solid var(--border)';
+    if (type === 'textarea') {
+      return `<div style="margin-bottom:8px">
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted)">${label}${empty?' <span style="color:#d97706">(not found)</span>':''}</label>
+        <textarea id="ob-${key}" rows="3" style="width:100%;box-sizing:border-box;padding:6px 10px;${border};border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px;resize:vertical">${val}</textarea>
+      </div>`;
+    }
+    return `<div style="margin-bottom:8px">
+      <label style="font-size:11px;font-weight:600;color:var(--text-muted)">${label}${empty?' <span style="color:#d97706">(not found)</span>':''}</label>
+      <input type="${type}" id="ob-${key}" value="${val}" style="width:100%;box-sizing:border-box;padding:6px 10px;${border};border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+    </div>`;
+  };
+
+  return `<div class="modal-overlay" onmousedown="this._mdownTarget=event.target" onclick="if(event.target===this&&this._mdownTarget===this&&!state.onboardingModal.saving){state.onboardingModal=null;render()}">
+    <div class="modal" style="width:560px;max-height:90vh;overflow-y:auto" onclick="event.stopPropagation()">
+      <div style="padding:20px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+          <h3 style="margin:0;font-size:16px;font-weight:800">Onboarding: ${esc(m.clientName)}</h3>
+          <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:${confBg};color:${confColor};text-transform:uppercase">${m.confidence} confidence</span>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px">
+          ${field('Services Offered', 'servicesOffered', p.servicesOffered, 'textarea')}
+          ${field('Service Area', 'serviceArea', p.serviceArea, 'textarea')}
+          ${field('Pricing Model', 'pricingModel', p.pricingModel)}
+          ${field('Cost', 'cost', p.cost)}
+          ${field('Payment Period', 'paymentPeriod', p.paymentPeriod)}
+          ${field('Calendly URL', 'calendlyUrl', p.calendlyUrl)}
+          ${field('Forwarding Email', 'forwardingEmail', p.forwardingEmail)}
+          ${field('Forwarding Name', 'forwardingName', p.forwardingName)}
+          ${field('Timezone', 'timezone', p.timezone)}
+          ${field('Website', 'websiteUrl', p.websiteUrl)}
+          ${field('GHL Location ID', 'ghlLocationId', p.ghlLocationId)}
+        </div>
+        ${field('Passoff Instructions', 'passoffInstructions', p.passoffInstructions, 'textarea')}
+        ${field('Warm Call Notes', 'warmCallNotes', p.warmCallNotes, 'textarea')}
+
+        ${!state.clients.find(c=>c.id===m.clientId)?.ghlLocationId ? `
+        <label style="display:flex;align-items:center;gap:6px;margin-top:12px;font-size:12px;color:var(--text);cursor:pointer">
+          <input type="checkbox" id="ob-createGhl" checked style="width:14px;height:14px">
+          Create GHL Sub-Account
+          <span style="font-size:10px;color:#6b7280">(forwarding + PIT token configured manually in GHL after)</span>
+        </label>` : `
+        <div style="margin-top:12px;font-size:11px;color:#059669">GHL sub-account already configured</div>`}
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+          <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="state.onboardingModal=null;render()" ${m.saving?'disabled':''}>Cancel</button>
+          <button class="btn btn-primary" onclick="saveOnboardingData()" ${m.saving?'disabled':''}>${m.saving?'Saving...':'Save Onboarding Data'}</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function saveOnboardingData() {
+  const m = state.onboardingModal;
+  if (!m || m.saving) return;
+  m.saving = true;
+  render();
+
+  try {
+    const val = (id) => (document.getElementById('ob-' + id)?.value || '').trim();
+
+    const servicesOffered = val('servicesOffered');
+    const serviceArea = val('serviceArea');
+    const pricingModel = val('pricingModel');
+    const cost = val('cost');
+    const paymentPeriod = val('paymentPeriod');
+    const calendlyUrl = val('calendlyUrl');
+    const forwardingEmail = val('forwardingEmail');
+    const forwardingName = val('forwardingName');
+    const timezone = val('timezone');
+    const websiteUrl = val('websiteUrl');
+    const ghlLocationId = val('ghlLocationId');
+    const passoffInstructions = val('passoffInstructions');
+    const warmCallNotes = val('warmCallNotes');
+
+    // Build client notes from structured fields
+    const notesParts = [];
+    if (pricingModel || cost || paymentPeriod) {
+      notesParts.push('Pricing');
+      notesParts.push([cost, pricingModel, paymentPeriod].filter(Boolean).join(' | '));
+    }
+    if (servicesOffered) {
+      notesParts.push('');
+      notesParts.push('Services');
+      notesParts.push(servicesOffered);
+    }
+    if (serviceArea) {
+      notesParts.push('');
+      notesParts.push('Service Area');
+      notesParts.push(serviceArea);
+    }
+    if (websiteUrl) {
+      notesParts.push('');
+      notesParts.push('Website: ' + websiteUrl);
+    }
+    const clientNotes = notesParts.join('\n');
+
+    // Build update payload
+    const updates = {
+      id: m.clientId,
+      clientNotes,
+      warmCallNotesText: warmCallNotes,
+      passoffInstructions,
+      timeZone: timezone,
+    };
+    if (calendlyUrl) {
+      updates.calendlyUrl = calendlyUrl;
+      updates.enableCalendly = 'TRUE';
+    }
+    if (forwardingEmail) {
+      updates.notifyEmail = forwardingEmail;
+      updates.enableForward = 'TRUE';
+    }
+    if (forwardingName) {
+      updates.contactFirstName = forwardingName.split(' ')[0];
+    }
+    if (ghlLocationId) {
+      updates.ghlLocationId = ghlLocationId;
+    }
+    if (cost) {
+      updates.leadCost = cost.replace(/[^0-9.]/g, '');
+    }
+
+    // Update local state
+    const client = state.clients.find(c => c.id === m.clientId);
+    if (client) Object.assign(client, updates);
+
+    // Save to Supabase
+    pendingWrites.value++;
+    try {
+      await sbBatchUpdateClients([{ id: m.clientId, ...camelToSnake(updates) }]);
+    } finally {
+      pendingWrites.value--;
+    }
+
+    // Create GHL sub-account if checkbox checked and no existing location
+    const createGhl = document.getElementById('ob-createGhl')?.checked;
+    if (createGhl && client && !client.ghlLocationId) {
+      try {
+        const contactParts = (val('forwardingName') || str(client.contactFirstName || '')).split(' ');
+        const ghlResult = await invokeEdgeFunction('create-ghl-subaccount', {
+          clientId: m.clientId,
+          name: m.clientName,
+          phone: str(client.notifyPhone || ''),
+          address: '',
+          city: '',
+          state: '',
+          website: val('websiteUrl'),
+          timezone: val('timezone'),
+          contactFirstName: contactParts[0] || '',
+          contactLastName: contactParts.slice(1).join(' ') || '',
+          contactEmail: val('forwardingEmail') || str(client.notifyEmail || ''),
+        });
+        if (ghlResult.locationId) {
+          client.ghlLocationId = ghlResult.locationId;
+          if (ghlResult.pipelineId) client.ghlPipelineId = ghlResult.pipelineId;
+          if (ghlResult.stageId) client.ghlStageId = ghlResult.stageId;
+          showToast('GHL sub-account created — configure forwarding + PIT token in GHL', 'success');
+        }
+      } catch (e) {
+        showToast('GHL sub-account creation failed: ' + e.message, 'warning');
+      }
+    }
+
+    // Push enriched data to Client Info Sheet (fire-and-forget)
+    if (client) {
+      const row = [
+        str(client.name),
+        str(forwardingName || client.contactFirstName || ''),
+        str(forwardingEmail || client.notifyEmail || ''),
+        '',
+        '',
+        timezone,
+        serviceArea,
+        '',
+        calendlyUrl,
+        str(forwardingEmail || client.notifyEmail || ''),
+      ];
+      invokeEdgeFunction('push-lead-tracker', {
+        sheetId: CLIENT_INFO_SHEET_ID,
+        sheetName: 'Client Tracker',
+        row,
+      }).catch(e => console.error('Client Info sheet update failed:', e));
+    }
+
+    state.onboardingModal = null;
+    showToast('Onboarding data saved for ' + m.clientName, 'success');
+    render();
+  } catch (e) {
+    m.saving = false;
+    render();
+    showToast('Save failed: ' + e.message, 'error');
+  }
+}
+
+window.parseOnboardingDoc = parseOnboardingDoc;
+window.renderOnboardingModal = renderOnboardingModal;
+window.saveOnboardingData = saveOnboardingData;

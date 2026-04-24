@@ -9,7 +9,6 @@ import { isAdmin, isClient, isEmployee, renderUserMenu, getOwnerForDeal } from '
 import { initialSync as syncFromSheet } from './api.js';
 import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js';
 import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWonDrop, renderDealModal, renderNewDealModal, renderAddClientModal, toggleBadgeDropdown } from './deal-modal.js';
-import { renderActivateClientModal } from './activate-client.js';
 import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from './activities.js';
 import { renderDashboard } from './dashboard.js';
 import { loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js';
@@ -489,7 +488,7 @@ export function render(){
   if(state.selectedDeal) html+=renderDealModal(state.selectedDeal);
   if(state.showNew) html+=renderNewDealModal(stages);
   if(state.showAddClient) html+=renderAddClientModal();
-  if(state.showActivateClient) html+=renderActivateClientModal();
+  if(state.onboardingModal && window.renderOnboardingModal) html+=window.renderOnboardingModal();
 
   // Nurture modals (from banner actions on non-nurture tabs)
   if(state._nurtureEntryDealId && state.pipeline !== 'nurture'){
