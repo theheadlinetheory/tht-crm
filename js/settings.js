@@ -1535,6 +1535,7 @@ async function saveOnboardingData() {
         str(forwardingEmail || client.notifyEmail || ''),
       ];
       invokeEdgeFunction('push-lead-tracker', {
+        action: 'write-row',
         sheetId: CLIENT_INFO_SHEET_ID,
         sheetName: 'Client Tracker',
         row,
