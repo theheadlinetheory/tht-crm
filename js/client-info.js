@@ -263,8 +263,34 @@ export async function autoCreateClient(deal) {
     showToast('Warning: Lead Tracker dropdown update failed — add manually in Settings', 'warning');
   });
 
-  // 3. Push row to Client Info Sheet
+  // 3. Create GHL sub-account (fire-and-forget)
   const tz = deriveTimezone(str(deal.location || deal.address || ''));
+  const contactParts = str(deal.contact || '').trim().split(' ');
+  invokeEdgeFunction('create-ghl-subaccount', {
+    clientId: c.id,
+    name: clientName,
+    phone: str(deal.phone || ''),
+    address: '',
+    city: '',
+    state: '',
+    website: str(deal.website || ''),
+    timezone: tz,
+    contactFirstName: contactParts[0] || '',
+    contactLastName: contactParts.slice(1).join(' ') || '',
+    contactEmail: str(deal.email || ''),
+  }).then(result => {
+    if (result.locationId) {
+      c.ghlLocationId = result.locationId;
+      if (result.pipelineId) c.ghlPipelineId = result.pipelineId;
+      if (result.stageId) c.ghlStageId = result.stageId;
+      showToast('GHL sub-account created for ' + clientName, 'success');
+    }
+  }).catch(e => {
+    console.error('GHL sub-account creation failed:', e);
+    showToast('Warning: GHL sub-account creation failed — create manually', 'warning');
+  });
+
+  // 4. Push row to Client Info Sheet
   const otherContacts = [deal.email2, deal.email3, deal.email4]
     .filter(e => e && str(e).trim()).join(', ');
   const row = [
