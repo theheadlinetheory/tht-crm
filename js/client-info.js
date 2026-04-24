@@ -280,6 +280,7 @@ export async function autoCreateClient(deal) {
     str(deal.email || ''),
   ];
   invokeEdgeFunction('push-lead-tracker', {
+    action: 'write-row',
     sheetId: CLIENT_INFO_SHEET_ID,
     sheetName: 'Client Tracker',
     row,
