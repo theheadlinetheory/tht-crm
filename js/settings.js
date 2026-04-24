@@ -1396,13 +1396,9 @@ function renderOnboardingModal() {
         ${field('Passoff Instructions', 'passoffInstructions', p.passoffInstructions, 'textarea')}
         ${field('Warm Call Notes', 'warmCallNotes', p.warmCallNotes, 'textarea')}
 
-        ${!state.clients.find(c=>c.id===m.clientId)?.ghlLocationId ? `
-        <label style="display:flex;align-items:center;gap:6px;margin-top:12px;font-size:12px;color:var(--text);cursor:pointer">
-          <input type="checkbox" id="ob-createGhl" checked style="width:14px;height:14px">
-          Create GHL Sub-Account
-          <span style="font-size:10px;color:#6b7280">(forwarding + PIT token configured manually in GHL after)</span>
-        </label>` : `
-        <div style="margin-top:12px;font-size:11px;color:#059669">GHL sub-account already configured</div>`}
+        ${state.clients.find(c=>c.id===m.clientId)?.ghlLocationId ?
+        `<div style="margin-top:12px;font-size:11px;color:#059669">GHL sub-account configured</div>` :
+        `<div style="margin-top:12px;font-size:11px;color:#d97706">GHL sub-account pending — created automatically on Won drop</div>`}
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
           <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="state.onboardingModal=null;render()" ${m.saving?'disabled':''}>Cancel</button>
           <button class="btn btn-primary" onclick="saveOnboardingData()" ${m.saving?'disabled':''}>${m.saving?'Saving...':'Save Onboarding Data'}</button>
@@ -1493,35 +1489,6 @@ async function saveOnboardingData() {
       await sbBatchUpdateClients([{ id: m.clientId, ...camelToSnake(updates) }]);
     } finally {
       pendingWrites.value--;
-    }
-
-    // Create GHL sub-account if checkbox checked and no existing location
-    const createGhl = document.getElementById('ob-createGhl')?.checked;
-    if (createGhl && client && !client.ghlLocationId) {
-      try {
-        const contactParts = (val('forwardingName') || str(client.contactFirstName || '')).split(' ');
-        const ghlResult = await invokeEdgeFunction('create-ghl-subaccount', {
-          clientId: m.clientId,
-          name: m.clientName,
-          phone: str(client.notifyPhone || ''),
-          address: '',
-          city: '',
-          state: '',
-          website: val('websiteUrl'),
-          timezone: val('timezone'),
-          contactFirstName: contactParts[0] || '',
-          contactLastName: contactParts.slice(1).join(' ') || '',
-          contactEmail: val('forwardingEmail') || str(client.notifyEmail || ''),
-        });
-        if (ghlResult.locationId) {
-          client.ghlLocationId = ghlResult.locationId;
-          if (ghlResult.pipelineId) client.ghlPipelineId = ghlResult.pipelineId;
-          if (ghlResult.stageId) client.ghlStageId = ghlResult.stageId;
-          showToast('GHL sub-account created — configure forwarding + PIT token in GHL', 'success');
-        }
-      } catch (e) {
-        showToast('GHL sub-account creation failed: ' + e.message, 'warning');
-      }
     }
 
     // Push enriched data to Client Info Sheet (fire-and-forget)
