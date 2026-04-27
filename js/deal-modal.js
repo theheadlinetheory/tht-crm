@@ -12,7 +12,7 @@ import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_
 import { render, refreshModal } from './render.js';
 import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js';
 import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml } from './utils.js';
-import { isAdmin, isClient, isEmployee } from './auth.js';
+import { isAdmin, isClient, isEmployee, loadAssignableUsers } from './auth.js';
 import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js';
 import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence } from './activities.js';
 import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js';
@@ -445,6 +445,7 @@ window.startTranscriptPolling = startTranscriptPolling;
 // ─── Render Functions ───
 
 export function renderDealModal(deal){
+  if(deal.pipeline==='Acquisition' && state.assignableUsers.length === 0) loadAssignableUsers().then(() => refreshModal());
   const stages=getStagesForPipeline(deal.pipeline||'Client');
   const dealActs=state.activities.filter(a=>a.dealId===deal.id);
   const pending=dealActs.filter(a=>!a.done&&String(a.done)!=="TRUE");
@@ -532,7 +533,7 @@ export function renderDealModal(deal){
             <label>Owner</label>
             <select id="deal-owner" onchange="changeDealOwner(this.value)">
               <option value="" ${!deal.ownerOverride?'selected':''}>Campaign Default${(()=>{const o=state.campaignAssignments[deal.campaignName];return o?' ('+o+')':'';})()}</option>
-              ${[...new Set(Object.values(state.campaignAssignments))].filter(Boolean).sort().map(o=>`<option value="${esc(o)}" ${deal.ownerOverride===o?'selected':''}>${esc(o)}</option>`).join('')}
+              ${state.assignableUsers.map(u=>`<option value="${esc(u.name)}" ${deal.ownerOverride===u.name?'selected':''}>${esc(u.name)}</option>`).join('')}
             </select>
           </div>`:''}
         </div>

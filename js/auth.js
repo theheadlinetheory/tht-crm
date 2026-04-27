@@ -210,6 +210,17 @@ export async function loadAllUsers(){
   } catch(e){ console.error('loadAllUsers error:',e); return []; }
 }
 
+export async function loadAssignableUsers(){
+  if(state.assignableUsers.length > 0) return state.assignableUsers;
+  try {
+    const snap = await db.collection('users').get();
+    state.assignableUsers = snap.docs
+      .map(d => ({ uid: d.id, ...d.data() }))
+      .filter(u => u.role === 'admin' || u.role === 'employee');
+  } catch(e){ console.warn('Failed to load assignable users:', e); }
+  return state.assignableUsers;
+}
+
 export async function updateUserRole(uid, newRole){
   try { await db.collection('users').doc(uid).update({ role: newRole }); }
   catch(e){ alert('Failed to update role: '+e.message); }
