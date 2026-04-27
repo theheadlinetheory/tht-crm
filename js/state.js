@@ -12,7 +12,7 @@ export const state = {
   activities: [],
   clients: [],
   appointments: [],
-  pipeline: (() => { try { const h=location.hash.replace('#',''); if(h==='archive'){location.hash='nurture';return 'nurture';} return ['dashboard','acquisition','client_leads','nurture'].includes(h)?h:'dashboard'; } catch(e){ return 'acquisition'; } })(),
+  pipeline: (() => { try { const h=location.hash.replace('#',''); if(h==='archive'||h==='nurture'){location.hash='acquisition';return 'acquisition';} return ['dashboard','acquisition','client_leads'].includes(h)?h:'dashboard'; } catch(e){ return 'acquisition'; } })(),
   selectedDeal: null,
   showNew: false,
   showAddClient: false,
@@ -49,6 +49,9 @@ export const state = {
   campaignAssignments: {},
   acquisitionFilter: '',
   showAcqFilterDropdown: false,
+  acquisitionSubTab: 'pipeline',
+  assignableUsers: [],
+  myDealsFilter: false,
 };
 
 // ─── Pending writes guard ───

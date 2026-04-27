@@ -5,7 +5,7 @@
 import { state, savedScrollLeft, setSavedScrollLeft, clientArchivedDeals } from './app.js';
 import { ACQUISITION_STAGES, NURTURE_STAGES, ACTIVITY_ICONS } from './config.js';
 import { esc, svgIcon, getToday, fmtDate, fmtTime12, str, stripHtml } from './utils.js';
-import { isAdmin, isClient, isEmployee, currentUser, renderUserMenu, getOwnerForDeal } from './auth.js';
+import { isAdmin, isClient, isEmployee, currentUser, renderUserMenu, getOwnerForDeal, getOwnerNameForDeal, loadAssignableUsers } from './auth.js';
 import { initialSync as syncFromSheet } from './api.js';
 import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js';
 import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWonDrop, renderDealModal, renderNewDealModal, renderAddClientModal, toggleBadgeDropdown } from './deal-modal.js';
@@ -23,6 +23,7 @@ import { renderDueTodayBanner, renderNurtureTab, renderNurtureEntryModal, render
 
 // ─── renderListView ───
 function renderListView(deals,stages){
+  if(state.myDealsFilter && state.pipeline==='acquisition') deals = deals.filter(d => getOwnerNameForDeal(d) === currentUser.name);
   let h=`<div style="padding:16px 20px">
     <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;background:var(--card)">
       <table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -132,28 +133,6 @@ export function render(){
     return;
   }
 
-  // ─── Nurture Tab ───
-  if(state.pipeline==='nurture'){
-    if(!state._nurtureLoaded && !state.rerunLoading){
-      state._nurtureLoaded = true;
-      loadNurtureData();
-    }
-    let html=`
-    <div class="topbar">
-      <div style="display:flex;align-items:center;">
-        <div class="topbar-tabs">
-          ${pipelineTabsHtml()}
-        </div>
-      </div>
-      <div class="topbar-right">
-        ${renderUserMenu()}
-      </div>
-    </div>`;
-    html += renderNurtureTab();
-    app.innerHTML = html;
-    return;
-  }
-
   // ─── Dashboard Tab ───
   if(state.pipeline==='dashboard'){
     let html=`
@@ -219,14 +198,42 @@ export function render(){
       ${renderUserMenu()}
     </div>
   </div>
-  ${state.pipeline==='nurture'?'':''}
   ${renderOverdueBanner()}
   ${state.pipeline==='acquisition' ? renderDueTodayBanner() : ''}
   ${renderBookedMeetingsBanner()}`;
 
+  // ─── Acquisition Sub-Tabs (Pipeline / Nurture) ───
+  if(state.pipeline==='acquisition'){
+    if(state.assignableUsers.length === 0) loadAssignableUsers().then(() => render());
+    const subTab = state.acquisitionSubTab || 'pipeline';
+    const subCs = 'padding:6px 16px;font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;border-radius:6px;margin-right:4px';
+    html += `<div style="padding:0 20px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;gap:4px">
+        <button onclick="state.acquisitionSubTab='pipeline';render()" style="${subCs};background:${subTab==='pipeline'?'var(--purple)':'#f3f4f6'};color:${subTab==='pipeline'?'#fff':'var(--text-muted)'}">Pipeline</button>
+        <button onclick="state.acquisitionSubTab='nurture';render()" style="${subCs};background:${subTab==='nurture'?'var(--purple)':'#f3f4f6'};color:${subTab==='nurture'?'#fff':'var(--text-muted)'}">Nurture</button>
+      </div>
+      ${subTab==='pipeline'?`<button onclick="state.myDealsFilter=!state.myDealsFilter;render()" style="padding:4px 12px;font-size:11px;font-weight:600;font-family:var(--font);cursor:pointer;border:1px solid ${state.myDealsFilter?'var(--purple)':'var(--border)'};border-radius:6px;background:${state.myDealsFilter?'#f3e8ff':'#fff'};color:${state.myDealsFilter?'var(--purple)':'var(--text-muted)'}">
+        ${state.myDealsFilter?'★ My Deals':'☆ My Deals'}
+      </button>`:''}
+    </div>`;
+
+    // If nurture sub-tab is selected, render nurture content and return
+    if(subTab === 'nurture'){
+      if(!state._nurtureLoaded && !state.rerunLoading){
+        state._nurtureLoaded = true;
+        loadNurtureData();
+      }
+      html += renderNurtureTab();
+      app.innerHTML = html;
+      return;
+    }
+  }
+
   // ─── Acquisition Owner Filter Dropdown ───
-  if(state.pipeline==='acquisition' && (isAdmin()||isEmployee())){
-    const owners = [...new Set(Object.values(state.campaignAssignments))].filter(Boolean);
+  if(state.pipeline==='acquisition' && (isAdmin()||isEmployee()) && state.acquisitionSubTab !== 'nurture'){
+    const campaignOwners = [...new Set(Object.values(state.campaignAssignments))].filter(Boolean);
+    const userOwners = state.assignableUsers.map(u => u.name).filter(Boolean);
+    const owners = [...new Set([...campaignOwners, ...userOwners])].sort();
     if(owners.length > 0){
       const hasFilter = state.acquisitionFilter !== '';
       const filterLabel = hasFilter ? state.acquisitionFilter : 'All';
@@ -340,7 +347,8 @@ export function render(){
 
   for(const stage of stages){
     // For client portal, filter by clientStage instead of stage
-    const sd = isClient() ? deals.filter(d=>d.clientStage===stage.id) : deals.filter(d=>d.stage===stage.id);
+    let sd = isClient() ? deals.filter(d=>d.clientStage===stage.id) : deals.filter(d=>d.stage===stage.id);
+    if(state.myDealsFilter && state.pipeline==='acquisition') sd = sd.filter(d => getOwnerNameForDeal(d) === currentUser.name);
     const sv=sd.reduce((s,d)=>s+(Number(d.value)||0),0);
     const stageKey=btoa(unescape(encodeURIComponent(stage.id)));
 
@@ -503,13 +511,13 @@ export function render(){
   if(state.onboardingModal && window.renderOnboardingModal) html+=window.renderOnboardingModal();
 
   // Nurture modals (from banner actions on non-nurture tabs)
-  if(state._nurtureEntryDealId && state.pipeline !== 'nurture'){
+  if(state._nurtureEntryDealId){
     html += renderNurtureEntryModal(state._nurtureEntryDealId);
   }
-  if(state._showReactivateModal && state.pipeline !== 'nurture'){
+  if(state._showReactivateModal){
     html += renderReactivateModal(state._reactivateNurtureId, state._reactivateDealId);
   }
-  if(state._showSnoozeModal && state.pipeline !== 'nurture'){
+  if(state._showSnoozeModal){
     html += renderSnoozeModal(state._snoozeNurtureId, state._snoozeDealId);
   }
 
@@ -569,7 +577,7 @@ function switchPipeline(id){
   state.selectedDeal = null;
   // Ensure nurture sub-tab is valid (board or archive)
   if(state.nurtureSubTab!=='board' && state.nurtureSubTab!=='archive') state.nurtureSubTab='board';
-  if(id!=='nurture'){ state.nurtureSubTab='board'; state._nurtureLoaded=false; }
+  if(id!=='acquisition'){ state.nurtureSubTab='board'; state._nurtureLoaded=false; state.acquisitionSubTab='pipeline'; }
   render();
 }
 
