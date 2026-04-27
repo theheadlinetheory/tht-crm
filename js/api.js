@@ -371,6 +371,8 @@ export async function initialSync(isStartup) {
   }
   try {
     state.syncing = true;
+    // Clear dashboard archive cache so it refreshes on next render
+    import('./dashboard.js').then(m => m.clearDashboardArchiveCache && m.clearDashboardArchiveCache()).catch(() => {});
     render();
     const [deals, activities, clients, appointments] = await Promise.all([
       sbGetDeals(), sbGetActivities(), sbGetClients(), sbGetAppointments()
@@ -764,6 +766,19 @@ export const sbGetArchive = () => sbCall(async () => {
   if (error) throw error;
   return data;
 }, { label: 'Load archive' });
+
+export const sbGetArchivedDeals = () => sbCall(async () => {
+  const { data, error } = await supabase.from('archive').select('*');
+  if (error) throw error;
+  return (data || []).map(row => {
+    let deal = { id: row.id, archivedAt: row.archived_at };
+    try {
+      const orig = typeof row.original_data === 'string' ? JSON.parse(row.original_data) : row.original_data;
+      Object.assign(deal, orig);
+    } catch(e) {}
+    return deal;
+  });
+}, { label: 'Load archived deals for dashboard' });
 
 export const sbArchiveDeal = (id, originalData) => sbCall(async () => {
   const { error } = await supabase.from('archive').insert({ id, original_data: originalData });
