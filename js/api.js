@@ -639,6 +639,72 @@ export const sbBatchUpdateClients = (updates) => sbCall(async () => {
   }
 }, { label: 'Save client settings' });
 
+// ─── Client Folders ───
+
+export const sbListFolders = (clientId) => sbCall(async () => {
+  const { data, error } = await supabase.from('client_folders').select('*').eq('client_id', clientId).order('sort_order');
+  if (error) throw error;
+  return data;
+}, { label: 'Load folders' });
+
+export const sbCreateFolder = (clientId, name, sortOrder = 0) => sbCall(async () => {
+  const { data, error } = await supabase.from('client_folders').insert({ client_id: clientId, name, sort_order: sortOrder }).select().single();
+  if (error) throw error;
+  return data;
+}, { label: 'Create folder' });
+
+export const sbUpdateFolder = (folderId, fields) => sbCall(async () => {
+  const { error } = await supabase.from('client_folders').update(fields).eq('id', folderId);
+  if (error) throw error;
+}, { label: 'Update folder' });
+
+export const sbDeleteFolder = (folderId) => sbCall(async () => {
+  const { error } = await supabase.from('client_folders').delete().eq('id', folderId);
+  if (error) throw error;
+}, { label: 'Delete folder' });
+
+// ─── Client Documents ───
+
+export const sbListDocuments = (clientId, folderId) => sbCall(async () => {
+  let query = supabase.from('client_documents').select('*').eq('client_id', clientId).order('created_at', { ascending: false });
+  if (folderId === 'unfiled') query = query.is('folder_id', null);
+  else if (folderId) query = query.eq('folder_id', folderId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data;
+}, { label: 'Load documents' });
+
+export const sbCreateDocument = (fields) => sbCall(async () => {
+  const { data, error } = await supabase.from('client_documents').insert(fields).select().single();
+  if (error) throw error;
+  return data;
+}, { label: 'Create document record' });
+
+export const sbDeleteDocument = (docId) => sbCall(async () => {
+  const { error } = await supabase.from('client_documents').delete().eq('id', docId);
+  if (error) throw error;
+}, { label: 'Delete document record' });
+
+export const sbUploadFile = (filePath, file) => sbCall(async () => {
+  const { data, error } = await supabase.storage.from('client-documents').upload(filePath, file, {
+    cacheControl: '3600',
+    upsert: false
+  });
+  if (error) throw error;
+  return data;
+}, { label: 'Upload file' });
+
+export const sbDeleteFile = (filePath) => sbCall(async () => {
+  const { error } = await supabase.storage.from('client-documents').remove([filePath]);
+  if (error) throw error;
+}, { label: 'Delete file' });
+
+export const sbGetSignedUrl = (filePath, expiresIn = 60) => sbCall(async () => {
+  const { data, error } = await supabase.storage.from('client-documents').createSignedUrl(filePath, expiresIn);
+  if (error) throw error;
+  return data.signedUrl;
+}, { label: 'Get download URL' });
+
 // Appointments
 export const sbGetAppointments = () => sbCall(async () => {
   const { data, error } = await supabase.from('appointments').select('*');

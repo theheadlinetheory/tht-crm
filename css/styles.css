@@ -314,3 +314,9 @@ details > summary::-webkit-details-marker { display:none; }
 .sa-result-banner.sa-in-banner { background:#dcfce7; color:#166534; border:1px solid #86efac; }
 .sa-result-banner.sa-out-banner { background:#fef2f2; color:#dc2626; border:1px solid #fecaca; }
 .sa-result-banner.sa-unknown-banner { background:#f3f4f6; color:#6b7280; border:1px solid #e5e7eb; }
+
+/* ─── Documents ─── */
+#doc-lightbox { animation: docFadeIn .2s ease }
+@keyframes docFadeIn { from { opacity: 0 } to { opacity: 1 } }
+.doc-thumb { transition: transform .15s; }
+.doc-thumb:hover { transform: scale(1.05); }

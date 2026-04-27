@@ -5,13 +5,14 @@
 import { state, savedScrollLeft, setSavedScrollLeft, clientArchivedDeals } from './app.js';
 import { ACQUISITION_STAGES, NURTURE_STAGES, ACTIVITY_ICONS } from './config.js';
 import { esc, svgIcon, getToday, fmtDate, fmtTime12, str, stripHtml } from './utils.js';
-import { isAdmin, isClient, isEmployee, renderUserMenu, getOwnerForDeal } from './auth.js';
+import { isAdmin, isClient, isEmployee, currentUser, renderUserMenu, getOwnerForDeal } from './auth.js';
 import { initialSync as syncFromSheet } from './api.js';
 import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js';
 import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWonDrop, renderDealModal, renderNewDealModal, renderAddClientModal, toggleBadgeDropdown } from './deal-modal.js';
 import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from './activities.js';
 import { renderDashboard } from './dashboard.js';
 import { loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js';
 import { toggleBulkMode, bulkMoveStage, bulkSelectAll, bulkArchive, bulkAddActivity, toggleBulkSelect } from './deals.js';
 import { openSettings } from './settings.js';
 import { serviceAreaResults } from './maps.js';
@@ -467,6 +468,17 @@ export function render(){
   </div>`;
   } // end board view
 
+  // Client portal documents section
+  if (isClient()) {
+    const clientObj = state.clients.find(c => c.name === currentUser.clientName);
+    if (clientObj) {
+      html += `<div style="padding:16px 20px;max-width:900px;margin:0 auto">
+        <h3 style="font-size:15px;font-weight:700;margin:0 0 8px;color:var(--text)">Documents</h3>
+        ${renderDocumentsSection(clientObj)}
+      </div>`;
+    }
+  }
+
   // Bulk action bar
   if(state.bulkMode && state.bulkSelected.size>0){
     const allStages=[...ACQUISITION_STAGES,...NURTURE_STAGES,...state.clients.map(c=>({id:c.name,label:c.name}))];
@@ -530,6 +542,12 @@ export function render(){
   if(state.archiveSearch){
     const ai=document.getElementById('archive-search-input');
     if(ai){ai.focus();ai.setSelectionRange(ai.value.length,ai.value.length);}
+  }
+  // Client portal: init document handlers and lazy-load
+  if (isClient()) {
+    initDocumentHandlers();
+    const clientObj = state.clients.find(c => c.name === currentUser.clientName);
+    if (clientObj) setTimeout(() => { if (window.docLoadForClient) window.docLoadForClient(clientObj.id); }, 100);
   }
   }catch(err){console.error('Render error:',err,err.stack);}
 }
