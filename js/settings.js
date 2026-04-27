@@ -10,6 +10,7 @@ import { esc, str, svgIcon } from './utils.js';
 import { isAdmin, currentUser, loadAllUsers, updateUserRole, updateUserClient, db } from './auth.js';
 import { lookupClientInfo, getClientConfig, loadClientConfig } from './client-info.js';
 import { findPolygonForClient } from './maps.js';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js';
 
 export function getDefaultSettings(){
   return {
@@ -74,6 +75,7 @@ window.toggleClientAccordion = function(clientId){
     if(cid === _expandedClientId){
       body.style.display = 'block';
       if(chevron) chevron.textContent = '\u25BE';
+      if(window.docLoadForClient) window.docLoadForClient(cid);
     } else {
       body.style.display = 'none';
       if(chevron) chevron.textContent = '\u25B8';
@@ -229,6 +231,7 @@ export function renderSettingsPanel(){
 
   panel.innerHTML=h;
   document.body.appendChild(panel);
+  initDocumentHandlers();
   if(savedScroll > 0){
     const body = panel.querySelector('.settings-body');
     if(body) body.scrollTop = savedScroll;
@@ -677,6 +680,7 @@ function renderClientsSettings(){
       </div>`;
       })()}
 
+      ${renderDocumentsSection(c)}
       </div>
     </div>`;
   }
