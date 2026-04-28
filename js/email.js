@@ -4,7 +4,7 @@
 import { state, pendingWrites } from './app.js';
 import { render, refreshModal } from './render.js';
 import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js';
-import { esc, str, svgIcon } from './utils.js';
+import { esc, str, svgIcon, stripHtml } from './utils.js';
 import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js';
 
 export async function forwardDealToClient(dealId){
@@ -186,7 +186,12 @@ export function buildLeadMessage(deal, clientName){
     if(deal.mobilePhone) lines.push('Mobile Phone: '+deal.mobilePhone);
     if(str(deal.notes).trim()) lines.push('Instructions: '+deal.notes);
   }
-  if(str(deal.emailBody).trim()) lines.push('\nTheir Reply:\n'+deal.emailBody);
+  if(str(deal.emailBody).trim()){
+    let reply = stripHtml(deal.emailBody);
+    // Remove base64 blocks (MIME-encoded attachments/images that leak into email body)
+    reply = reply.replace(/[A-Za-z0-9+/=]{50,}/g, '').replace(/\s{2,}/g, ' ').trim();
+    if(reply) lines.push('\nTheir Reply:\n'+reply);
+  }
   return lines.join('\n');
 }
 
