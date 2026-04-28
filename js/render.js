@@ -204,7 +204,10 @@ export function render(){
 
   // ─── Acquisition Sub-Tabs (Pipeline / Nurture) ───
   if(state.pipeline==='acquisition'){
-    if(state.assignableUsers.length === 0) loadAssignableUsers().then(() => render());
+    if(state.assignableUsers.length === 0 && !state._loadingAssignableUsers){
+      state._loadingAssignableUsers = true;
+      loadAssignableUsers().then(() => { state._loadingAssignableUsers = false; render(); }).catch(() => { state._loadingAssignableUsers = false; });
+    }
     const subTab = state.acquisitionSubTab || 'pipeline';
     const subCs = 'padding:6px 16px;font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;border-radius:6px;margin-right:4px';
     html += `<div style="padding:0 20px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
