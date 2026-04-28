@@ -76,19 +76,15 @@ export async function callInJustCall(dealId, phoneField){
     : '+' + digits;
 
   // Smart number selection — picks healthiest number closest to lead's area code
+  // Falls back to default JustCall number if health data isn't loaded
   const bestNumber = getBestNumberForLead(formatted);
-  if(!bestNumber){
-    alert('No healthy dialer numbers available. Check Settings \u2192 Dialer.');
-    return;
-  }
-  const outboundNumber = bestNumber.number;
+  const outboundNumber = bestNumber ? bestNumber.number : null;
 
   // Show the widget
   const widget = document.getElementById('justcall-widget');
   const title = document.getElementById('justcall-widget-title');
   const dialerEl = document.getElementById('justcall-dialer');
-  const last4 = outboundNumber.slice(-4);
-  const formattedOutbound = outboundNumber.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, '($1) $2-$3');
+  const formattedOutbound = outboundNumber ? outboundNumber.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, '($1) $2-$3') : '';
 
   title.textContent = deal.contact || deal.company || formatted;
   widget.style.display = 'flex';
@@ -96,7 +92,7 @@ export async function callInJustCall(dealId, phoneField){
   dialerEl.style.display = '';
 
   const regionBadge = document.getElementById('justcall-region-badge');
-  if(regionBadge) regionBadge.textContent = 'From: ' + formattedOutbound + (bestNumber.region ? ' (' + bestNumber.region + ')' : '');
+  if(regionBadge) regionBadge.textContent = outboundNumber ? 'From: ' + formattedOutbound + (bestNumber && bestNumber.region ? ' (' + bestNumber.region + ')' : '') : '';
 
   // Track current call for outcome logging
   currentCallDealId = dealId;
@@ -104,8 +100,8 @@ export async function callInJustCall(dealId, phoneField){
   currentCallPhone = formatted;
 
   // Build dialer URL with destination + caller ID pre-selected
-  let dialerSrc = DIALER_URL + '?numbers=' + encodeURIComponent(formatted)
-    + '&caller_id=' + encodeURIComponent(outboundNumber);
+  let dialerSrc = DIALER_URL + '?numbers=' + encodeURIComponent(formatted);
+  if(outboundNumber) dialerSrc += '&caller_id=' + encodeURIComponent(outboundNumber);
   const jcAgentId = currentUser && currentUser.email ? JUSTCALL_USER_MAP[currentUser.email.toLowerCase()] : null;
   if(jcAgentId) dialerSrc += '&agent_id=' + jcAgentId;
 
