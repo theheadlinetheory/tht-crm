@@ -445,7 +445,10 @@ window.startTranscriptPolling = startTranscriptPolling;
 // ─── Render Functions ───
 
 export function renderDealModal(deal){
-  if(deal.pipeline==='Acquisition' && state.assignableUsers.length === 0) loadAssignableUsers().then(() => refreshModal());
+  if(deal.pipeline==='Acquisition' && state.assignableUsers.length === 0 && !state._loadingAssignableUsers){
+    state._loadingAssignableUsers = true;
+    loadAssignableUsers().then(() => { state._loadingAssignableUsers = false; refreshModal(); }).catch(() => { state._loadingAssignableUsers = false; });
+  }
   const stages=getStagesForPipeline(deal.pipeline||'Client');
   const dealActs=state.activities.filter(a=>a.dealId===deal.id);
   const pending=dealActs.filter(a=>!a.done&&String(a.done)!=="TRUE");
