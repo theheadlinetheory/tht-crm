@@ -7,7 +7,7 @@ import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY
 import { render } from './render.js';
 import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClientConfig, camelToSnake, supabase, invokeEdgeFunction, showToast } from './api.js';
 import { esc, str, svgIcon } from './utils.js';
-import { isAdmin, currentUser, loadAllUsers, updateUserRole, updateUserClient, db } from './auth.js';
+import { isAdmin, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, deleteFirebaseUser, db } from './auth.js';
 import { lookupClientInfo, getClientConfig, loadClientConfig } from './client-info.js';
 import { findPolygonForClient } from './maps.js';
 import { renderDocumentsSection, initDocumentHandlers } from './documents.js';
@@ -742,23 +742,35 @@ async function loadUsersIntoPanel(){
     for(const u of users){
       const isSelf = u.uid === currentUser.uid;
       const roleColor = u.role==='admin' ? '#059669' : u.role==='employee' ? '#f59e0b' : '#2563eb';
-      h += `<div style="display:flex;align-items:center;gap:10px;padding:10px;margin-bottom:6px;background:#f9fafb;border:1px solid var(--border);border-radius:8px">
-        <div style="width:36px;height:36px;border-radius:50%;background:${roleColor};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;flex-shrink:0">${esc((u.name||u.email||'?')[0].toUpperCase())}</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.name||'Unnamed')}${isSelf?' <span style="font-size:10px;color:var(--text-muted)">(you)</span>':''}</div>
-          <div style="font-size:11px;color:var(--text-muted)">${esc(u.email||'')}</div>
-          ${u.clientName?`<div style="font-size:10px;color:#2563eb;margin-top:2px">Assigned: ${esc(u.clientName)}</div>`:''}
+      const photoUrl = u.photoURL || '';
+      h += `<div style="display:flex;align-items:flex-start;gap:10px;padding:10px;margin-bottom:6px;background:#f9fafb;border:1px solid var(--border);border-radius:8px">
+        <div style="position:relative;flex-shrink:0">
+          ${photoUrl
+            ? `<img src="${esc(photoUrl)}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid ${roleColor}">`
+            : `<div style="width:40px;height:40px;border-radius:50%;background:${roleColor};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px">${esc((u.name||u.email||'?')[0].toUpperCase())}</div>`}
+          <label style="position:absolute;bottom:-2px;right:-2px;width:18px;height:18px;border-radius:50%;background:#fff;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:10px" title="Change photo">
+            <input type="file" accept="image/*" style="display:none" onchange="handleUserPhoto('${u.uid}',this)">
+            &#9998;
+          </label>
         </div>
-        <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
-          <select onchange="changeUserRole('${u.uid}',this.value)" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:var(--font)"${isSelf?' disabled':''}>
-            <option value="admin"${u.role==='admin'?' selected':''}>Admin</option>
-            <option value="employee"${u.role==='employee'?' selected':''}>Employee</option>
-            <option value="client"${u.role==='client'?' selected':''}>Client</option>
-          </select>
-          <select onchange="changeUserClient('${u.uid}',this.value)" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:var(--font)">
-            <option value=""${!u.clientName?' selected':''}>None</option>
-            ${state.clients.map(c=>`<option value="${esc(c.name)}"${u.clientName===c.name?' selected':''}>${esc(c.name)}</option>`).join('')}
-          </select>
+        <div style="flex:1;min-width:0">
+          <input type="text" value="${esc(u.name||'')}" placeholder="Enter name" onkeydown="if(event.key==='Enter')this.blur()" style="font-size:13px;font-weight:600;border:1px solid transparent;background:transparent;padding:2px 6px;border-radius:4px;font-family:var(--font);width:100%;box-sizing:border-box" onfocus="this.style.borderColor='var(--border)';this.style.background='#fff'" onblur="this.style.borderColor='transparent';this.style.background='transparent';saveUserName('${u.uid}',this.value)">${isSelf?' <span style="font-size:10px;color:var(--text-muted)">(you)</span>':''}
+          <div style="font-size:11px;color:var(--text-muted);padding-left:6px">${esc(u.email||'')}</div>
+          ${u.clientName?`<div style="font-size:10px;color:#2563eb;margin-top:2px;padding-left:6px">Assigned: ${esc(u.clientName)}</div>`:''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex-shrink:0">
+          <div style="display:flex;gap:6px;align-items:center">
+            <select onchange="changeUserRole('${u.uid}',this.value)" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:var(--font)"${isSelf?' disabled':''}>
+              <option value="admin"${u.role==='admin'?' selected':''}>Admin</option>
+              <option value="employee"${u.role==='employee'?' selected':''}>Employee</option>
+              <option value="client"${u.role==='client'?' selected':''}>Client</option>
+            </select>
+            <select onchange="changeUserClient('${u.uid}',this.value)" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:var(--font)">
+              <option value=""${!u.clientName?' selected':''}>None</option>
+              ${state.clients.map(c=>`<option value="${esc(c.name)}"${u.clientName===c.name?' selected':''}>${esc(c.name)}</option>`).join('')}
+            </select>
+          </div>
+          ${!isSelf?`<button onclick="deleteUser('${u.uid}','${esc(u.name||u.email||'')}')" style="font-size:10px;color:#ef4444;background:none;border:none;cursor:pointer;padding:2px 6px;font-family:var(--font)">Remove</button>`:''}
         </div>
       </div>`;
     }
@@ -774,6 +786,39 @@ async function changeUserClient(uid, clientName){
   await updateUserClient(uid, clientName);
   loadUsersIntoPanel();
 }
+async function saveUserName(uid, name){
+  const trimmed = name.trim();
+  if(!trimmed) return;
+  const cached = usersListCache && usersListCache.find(u => u.uid === uid);
+  if(cached && cached.name === trimmed) return;
+  await updateUserName(uid, trimmed);
+  if(cached) cached.name = trimmed;
+  // Clear assignable users cache so owner dropdowns pick up the new name
+  state.assignableUsers = [];
+}
+async function deleteUser(uid, name){
+  if(!confirm('Remove user "'+name+'" from the CRM? This only removes their Firestore profile — their Firebase Auth account will remain.')) return;
+  await deleteFirebaseUser(uid);
+  loadUsersIntoPanel();
+  state.assignableUsers = [];
+}
+async function handleUserPhoto(uid, input){
+  const file = input.files && input.files[0];
+  if(!file) return;
+  if(file.size > 2*1024*1024){ alert('Photo must be under 2MB'); return; }
+  const reader = new FileReader();
+  reader.onload = async function(){
+    const dataUrl = reader.result;
+    try {
+      await db.collection('users').doc(uid).update({ photoURL: dataUrl });
+      loadUsersIntoPanel();
+    } catch(e){ alert('Failed to save photo: '+e.message); }
+  };
+  reader.readAsDataURL(file);
+}
+window.saveUserName = saveUserName;
+window.deleteUser = deleteUser;
+window.handleUserPhoto = handleUserPhoto;
 
 // ─── Campaign Assignment Settings ───
 let _fetchedCampaigns = null;
