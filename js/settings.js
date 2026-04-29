@@ -805,16 +805,22 @@ async function deleteUser(uid, name){
 async function handleUserPhoto(uid, input){
   const file = input.files && input.files[0];
   if(!file) return;
-  if(file.size > 2*1024*1024){ alert('Photo must be under 2MB'); return; }
-  const reader = new FileReader();
-  reader.onload = async function(){
-    const dataUrl = reader.result;
+  const img = new Image();
+  img.onload = async function(){
+    const canvas = document.createElement('canvas');
+    const MAX = 128;
+    let w = img.width, h = img.height;
+    if(w > h){ h = Math.round(h * MAX / w); w = MAX; }
+    else { w = Math.round(w * MAX / h); h = MAX; }
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
     try {
       await db.collection('users').doc(uid).update({ photoURL: dataUrl });
       loadUsersIntoPanel();
     } catch(e){ alert('Failed to save photo: '+e.message); }
   };
-  reader.readAsDataURL(file);
+  img.src = URL.createObjectURL(file);
 }
 window.saveUserName = saveUserName;
 window.deleteUser = deleteUser;
