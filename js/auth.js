@@ -221,6 +221,11 @@ export async function loadAssignableUsers(){
   return state.assignableUsers;
 }
 
+export async function updateUserName(uid, name){
+  try { await db.collection('users').doc(uid).update({ name }); }
+  catch(e){ alert('Failed to update name: '+e.message); }
+}
+
 export async function updateUserRole(uid, newRole){
   try { await db.collection('users').doc(uid).update({ role: newRole }); }
   catch(e){ alert('Failed to update role: '+e.message); }
