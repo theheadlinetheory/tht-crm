@@ -7,6 +7,7 @@ import { syncFromSheet, pollReplyStatus, triggerBackendReplyCheck, initialSync, 
 import { isAdmin, isClient, isEmployee, currentUser, loadCampaignAssignments, listenCampaignAssignments, setupAuthListener, db } from './auth.js';
 import { initJustCallDialer } from './dialer.js';
 import { esc, svgIcon } from './utils.js';
+import './email.js'; // Static import to register window.forwardDealToClient etc.
 
 // ─── Re-export state from centralized module ───
 export {
