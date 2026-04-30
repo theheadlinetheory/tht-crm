@@ -606,18 +606,9 @@ export const sbDeleteDeal = (id) => sbCall(async () => {
 
 // Activities
 export const sbGetActivities = () => sbCall(async () => {
-  // Supabase default limit is 1000 rows — paginate to get all activities
-  const all = [];
-  const PAGE = 1000;
-  let from = 0;
-  while (true) {
-    const { data, error } = await supabase.from('activities').select('*').range(from, from + PAGE - 1);
-    if (error) throw error;
-    all.push(...data);
-    if (data.length < PAGE) break;
-    from += PAGE;
-  }
-  return all;
+  const { data, error } = await supabase.from('activities').select('*').limit(5000);
+  if (error) throw error;
+  return data;
 }, { label: 'Load activities' });
 
 export const sbCreateActivity = (fields) => sbCall(async () => {
