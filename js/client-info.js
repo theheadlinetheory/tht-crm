@@ -8,6 +8,17 @@ import { str, uid, esc, isValidDate, getToday, svgIcon } from './utils.js';
 import { sbCreateClient, sbDeleteClient, camelToSnake, apiPost, invokeEdgeFunction, showToast } from './api.js';
 import { isClient, isAdmin } from './auth.js';
 
+// ─── Derive campaign keyword from client name ───
+const SKIP_PREFIXES = /^(the|a|an)\s+/i;
+const STRIP_SUFFIXES = /[,.]?\s+(inc\.?|llc|corp\.?|co\.?|ltd\.?|company|services|landscaping|lawn\s+care|landscape|property\s+services|construction)\.?$/i;
+
+function deriveKeyword(name) {
+  let s = (name || '').trim();
+  s = s.replace(STRIP_SUFFIXES, '');
+  s = s.replace(SKIP_PREFIXES, '');
+  return (s.split(/\s/)[0] || name.split(/\s/)[0] || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
 // ─── Client Config (loaded from Supabase client_config table) ───
 let _clientConfigCache = [];
 let _clientConfigLoaded = false;
@@ -169,8 +180,8 @@ export async function addClient(name, extra={}){
     id:uid(),name,
     color:CLIENT_PALETTE[state.clients.length%CLIENT_PALETTE.length],
     calendlyUrl:extra.calendlyUrl||'',
-    campaignName:extra.campaignName||name.split(/\s/)[0].toLowerCase(),
-    campaignKeywords:extra.campaignKeywords||name.split(/\s/)[0].toLowerCase(),
+    campaignName:extra.campaignName||deriveKeyword(name),
+    campaignKeywords:extra.campaignKeywords||deriveKeyword(name),
     contactFirstName:extra.contactFirstName||'',
     notifyEmails:extra.notifyEmails||'',
     serviceAreaUrl:extra.serviceAreaUrl||'',
@@ -240,11 +251,12 @@ export async function autoCreateClient(deal) {
     notifyEmail: str(deal.email || ''),
     notifyPhone: str(deal.phone || ''),
     calendlyUrl: '',
-    campaignName: clientName.split(/\s/)[0].toLowerCase(),
-    campaignKeywords: clientName.split(/\s/)[0].toLowerCase(),
-    notifyEmails: '',
+    campaignName: deriveKeyword(clientName),
+    campaignKeywords: deriveKeyword(clientName),
+    notifyEmails: str(deal.email || ''),
     serviceAreaUrl: '',
-    enableForward: 'FALSE',
+    enableAutoForward: deal.email ? 'TRUE' : 'FALSE',
+    enableForward: deal.email ? 'TRUE' : 'FALSE',
     enableCalendly: 'FALSE',
     enableCopyInfo: 'FALSE',
     enableTracker: 'FALSE',
