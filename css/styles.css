@@ -320,3 +320,20 @@ details > summary::-webkit-details-marker { display:none; }
 @keyframes docFadeIn { from { opacity: 0 } to { opacity: 1 } }
 .doc-thumb { transition: transform .15s; }
 .doc-thumb:hover { transform: scale(1.05); }
+
+/* ─── Lead Tracker Grid ─── */
+.tracker-container{padding:16px 24px;}
+.tracker-filters{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
+.tracker-table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:8px;}
+.tracker-table{width:100%;border-collapse:collapse;font-size:12px;}
+.tracker-table th{position:sticky;top:0;background:#f8fafc;padding:8px 10px;text-align:left;font-weight:600;font-size:11px;color:var(--text-muted);border-bottom:2px solid var(--border);white-space:nowrap;}
+.tracker-table td{padding:6px 10px;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+.tracker-table tbody tr:hover{background:#f8fafc;}
+.tracker-cell-editable{cursor:pointer;min-width:60px;}
+.tracker-cell-editable:hover{background:#eef2ff;border-radius:4px;}
+.tracker-cell-input{width:100%;padding:4px 6px;border:1.5px solid var(--purple);border-radius:4px;font-size:12px;font-family:var(--font);outline:none;box-sizing:border-box;}
+.tracker-row-calledback{opacity:0.4;}
+.tracker-actions{display:flex;gap:4px;}
+.tracker-action-btn{padding:2px 8px;font-size:10px;border:1px solid var(--border);border-radius:4px;background:#fff;cursor:pointer;white-space:nowrap;}
+.tracker-action-btn:hover{background:#f1f5f9;}
+.tracker-action-btn.active{background:#dcfce7;border-color:#86efac;color:#166534;}
