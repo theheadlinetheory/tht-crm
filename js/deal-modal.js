@@ -439,7 +439,7 @@ async function enrichLead(dealId) {
   if (!confirm('Use 1 AI Ark credit to find phone numbers for ' + name + '?')) return;
 
   const btn = document.getElementById('enrich-btn');
-  if (btn) { btn.disabled = true; btn.innerHTML = svgIcon('loader',14,'#7c3aed') + ' Enriching...'; }
+  if (btn) { btn.disabled = true; btn.innerHTML = svgIcon('loader',12,'#7c3aed') + ' Enriching...'; }
 
   try {
     const result = await invokeEdgeFunction('enrich-lead', { dealId });
@@ -452,15 +452,15 @@ async function enrichLead(dealId) {
       refreshModal();
     } else if (result.ok) {
       showToast('No phone numbers found for ' + name, 'warning');
-      if (btn) { btn.disabled = false; btn.innerHTML = svgIcon('search',14,'#7c3aed') + ' Enrich — Find Phone Numbers'; }
+      if (btn) { btn.disabled = false; btn.innerHTML = svgIcon('search',12,'#7c3aed') + ' Enrich — Find Phone'; }
     } else {
       showToast(result.error || 'Enrichment failed', 'error');
-      if (btn) { btn.disabled = false; btn.innerHTML = svgIcon('search',14,'#7c3aed') + ' Enrich — Find Phone Numbers'; }
+      if (btn) { btn.disabled = false; btn.innerHTML = svgIcon('search',12,'#7c3aed') + ' Enrich — Find Phone'; }
     }
   } catch (e) {
     const { showToast } = await import('./api.js');
     showToast('Enrichment failed: ' + e.message, 'error');
-    if (btn) { btn.disabled = false; btn.innerHTML = svgIcon('search',14,'#7c3aed') + ' Enrich — Find Phone Numbers'; }
+    if (btn) { btn.disabled = false; btn.innerHTML = svgIcon('search',12,'#7c3aed') + ' Enrich — Find Phone'; }
   }
 }
 
@@ -574,7 +574,7 @@ export function renderDealModal(deal){
             const hasContact=deal.contact&&str(deal.contact).trim();
             const canEnrich=hasLinkedin||(hasContact&&hasWebsite);
             const reason=!canEnrich?'Needs a LinkedIn URL or company name + website to enrich':'';
-            return '<div class="form-group form-span2" style="margin-top:0"><button id="enrich-btn" onclick="enrichLead(\''+esc(deal.id)+'\')" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:'+(canEnrich?'pointer':'not-allowed')+';border:1px solid '+(canEnrich?'#7c3aed':'#d1d5db')+';background:'+(canEnrich?'#f5f3ff':'#f9fafb')+';color:'+(canEnrich?'#7c3aed':'#9ca3af')+'" '+(canEnrich?'':'title="'+reason+'" ')+'>'+svgIcon('search',14,canEnrich?'#7c3aed':'#9ca3af')+' Enrich — Find Phone Numbers</button></div>';
+            return '<div class="form-group form-span2" style="margin-top:0"><button id="enrich-btn" onclick="enrichLead(\''+esc(deal.id)+'\')" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:'+(canEnrich?'pointer':'not-allowed')+';border:1px solid '+(canEnrich?'#7c3aed':'#d1d5db')+';background:'+(canEnrich?'#f5f3ff':'#f9fafb')+';color:'+(canEnrich?'#7c3aed':'#9ca3af')+'" '+(canEnrich?'':'title="'+reason+'" ')+'>'+svgIcon('search',12,canEnrich?'#7c3aed':'#9ca3af')+' Enrich — Find Phone</button></div>';
           })()}
           <div class="form-group">
             <label>Pipeline</label>
