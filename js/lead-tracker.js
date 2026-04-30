@@ -29,14 +29,19 @@ function getVisibleColumns() {
 }
 
 // ─── Load Tracker Data ───
+let _trackerLoading = false;
 export async function loadTrackerEntries() {
-  if (state.trackerLoaded) return;
+  if (state.trackerLoaded || _trackerLoading) return;
+  _trackerLoading = true;
   try {
     const data = await sbGetTrackerEntries();
     state.trackerEntries = data.map(normalizeRow);
     state.trackerLoaded = true;
   } catch (e) {
     console.error('Failed to load tracker entries:', e);
+    state.trackerLoaded = true; // prevent infinite retry loop
+  } finally {
+    _trackerLoading = false;
   }
 }
 
