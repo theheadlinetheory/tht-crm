@@ -419,7 +419,53 @@ export function toggleBadgeDropdown(dealId){
   if(el) el.style.display=el.style.display==='block'?'none':'block';
 }
 
+// ─── Enrich Lead (AI Ark Phone Finder) ───
+async function enrichLead(dealId) {
+  const deal = state.deals.find(d => d.id === dealId);
+  if (!deal) return;
+
+  const hasLinkedin = deal.linkedinUrl && str(deal.linkedinUrl).trim();
+  const hasWebsite = deal.website && str(deal.website).trim();
+  const hasContact = deal.contact && str(deal.contact).trim();
+  const canEnrich = hasLinkedin || (hasContact && hasWebsite);
+
+  if (!canEnrich) {
+    const { showToast } = await import('./api.js');
+    showToast('Needs a LinkedIn URL or company name + website to enrich', 'warning');
+    return;
+  }
+
+  const name = str(deal.contact || deal.company || '');
+  if (!confirm('Use 1 AI Ark credit to find phone numbers for ' + name + '?')) return;
+
+  const btn = document.getElementById('enrich-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = svgIcon('loader',14,'#7c3aed') + ' Enriching...'; }
+
+  try {
+    const result = await invokeEdgeFunction('enrich-lead', { dealId });
+    const { showToast } = await import('./api.js');
+
+    if (result.ok && result.phones && result.phones.length > 0) {
+      if (result.updated.phone) { deal.phone = result.updated.phone; pendingDealFields[dealId] = { ...pendingDealFields[dealId], phone: result.updated.phone }; }
+      if (result.updated.mobile_phone) { deal.mobilePhone = result.updated.mobile_phone; pendingDealFields[dealId] = { ...pendingDealFields[dealId], mobilePhone: result.updated.mobile_phone }; }
+      showToast('Found ' + result.phones.length + ' phone number(s) for ' + name, 'success');
+      refreshModal();
+    } else if (result.ok) {
+      showToast('No phone numbers found for ' + name, 'warning');
+      if (btn) { btn.disabled = false; btn.innerHTML = svgIcon('search',14,'#7c3aed') + ' Enrich — Find Phone Numbers'; }
+    } else {
+      showToast(result.error || 'Enrichment failed', 'error');
+      if (btn) { btn.disabled = false; btn.innerHTML = svgIcon('search',14,'#7c3aed') + ' Enrich — Find Phone Numbers'; }
+    }
+  } catch (e) {
+    const { showToast } = await import('./api.js');
+    showToast('Enrichment failed: ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.innerHTML = svgIcon('search',14,'#7c3aed') + ' Enrich — Find Phone Numbers'; }
+  }
+}
+
 // Expose to inline HTML handlers
+window.enrichLead = enrichLead;
 window.openDeal = openDeal;
 window.closeDealModal = closeDealModal;
 window.openNewDeal = openNewDeal;
@@ -518,6 +564,18 @@ export function renderDealModal(deal){
               <input id="deal-phone3" placeholder="Phone 3" value="${esc(String(deal.phone3||''))}" oninput="updateDealField('phone3',this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
             </div>
           </div>
+          ${(()=>{
+            if(!isAdmin()) return '';
+            const hasPhone=deal.phone&&str(deal.phone).trim();
+            const hasMobile=deal.mobilePhone&&str(deal.mobilePhone).trim();
+            if(hasPhone&&hasMobile) return '';
+            const hasLinkedin=deal.linkedinUrl&&str(deal.linkedinUrl).trim();
+            const hasWebsite=deal.website&&str(deal.website).trim();
+            const hasContact=deal.contact&&str(deal.contact).trim();
+            const canEnrich=hasLinkedin||(hasContact&&hasWebsite);
+            const reason=!canEnrich?'Needs a LinkedIn URL or company name + website to enrich':'';
+            return '<div class="form-group form-span2" style="margin-top:0"><button id="enrich-btn" onclick="enrichLead(\''+esc(deal.id)+'\')" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:'+(canEnrich?'pointer':'not-allowed')+';border:1px solid '+(canEnrich?'#7c3aed':'#d1d5db')+';background:'+(canEnrich?'#f5f3ff':'#f9fafb')+';color:'+(canEnrich?'#7c3aed':'#9ca3af')+'" '+(canEnrich?'':'title="'+reason+'" ')+'>'+svgIcon('search',14,canEnrich?'#7c3aed':'#9ca3af')+' Enrich — Find Phone Numbers</button></div>';
+          })()}
           <div class="form-group">
             <label>Pipeline</label>
             <select id="deal-pipeline" onchange="changeDealPipeline(this.value)">
