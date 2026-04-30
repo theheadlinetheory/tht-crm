@@ -326,6 +326,12 @@ const FIELD_MAP = {
   phone3: 'phone3',
   title2: 'title2',
   title3: 'title3',
+  date_added: 'dateAdded',
+  paid_status: 'paidStatus',
+  date_paid: 'datePaid',
+  payment_link: 'paymentLink',
+  callback_status: 'callbackStatus',
+  sheet_row: 'sheetRow',
 };
 
 const REVERSE_FIELD_MAP = {};
@@ -350,7 +356,7 @@ export function normalizeRow(row) {
   return normalized;
 }
 
-const NULLABLE_COLS = new Set(['completed_at','scheduled_time','created_at','updated_at','forwarded_at','pushed_to_tracker','pushed_to_ghl','queued_at','rerun_after','sent_at','archived_at','value','lead_cost','rerun_days','booked_date','booked_time','follow_up_date','onboarding_parsed_at']);
+const NULLABLE_COLS = new Set(['completed_at','scheduled_time','created_at','updated_at','forwarded_at','pushed_to_tracker','pushed_to_ghl','queued_at','rerun_after','sent_at','archived_at','value','lead_cost','rerun_days','booked_date','booked_time','follow_up_date','onboarding_parsed_at','date_paid','sheet_row']);
 
 export function camelToSnake(obj) {
   const result = {};
@@ -504,6 +510,13 @@ export function subscribeRealtime() {
       debouncedRealtimeRender();
     })
     .subscribe();
+
+  supabase.channel('tracker-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'lead_tracker' }, payload => {
+      applyRealtimeEvent('lead_tracker', payload);
+      debouncedRealtimeRender();
+    })
+    .subscribe();
 }
 
 // Heavy fields to strip from realtime payloads to save memory
@@ -518,7 +531,7 @@ function applyRealtimeEvent(table, payload) {
   const newRow = payload.new ? normalizeRow(payload.new) : null;
   const oldRow = payload.old ? normalizeRow(payload.old) : null;
 
-  const stateKey = table === 'rerun_queue' ? 'rerunQueue' : table;
+  const stateKey = table === 'rerun_queue' ? 'rerunQueue' : table === 'lead_tracker' ? 'trackerEntries' : table;
   const list = state[stateKey];
   if (!list) return;
 
@@ -767,6 +780,24 @@ export const sbGetDueNurtureItems = () => sbCall(async () => {
   if (error) throw error;
   return data;
 }, { label: 'Load due nurture items' });
+
+// ─── Lead Tracker ───
+export const sbGetTrackerEntries = () => sbCall(async () => {
+  const { data, error } = await supabase.from('lead_tracker').select('*').order('created_at', { ascending: false });
+  if (error) throw error;
+  return data;
+}, { label: 'Load tracker entries' });
+
+export const sbCreateTrackerEntry = (fields) => sbCall(async () => {
+  const { data, error } = await supabase.from('lead_tracker').insert(fields).select().single();
+  if (error) throw error;
+  return data;
+}, { label: 'Create tracker entry' });
+
+export const sbUpdateTrackerEntry = (id, fields) => sbCall(async () => {
+  const { error } = await supabase.from('lead_tracker').update(fields).eq('id', id);
+  if (error) throw error;
+}, { label: 'Update tracker entry' });
 
 // Archive
 export const sbGetArchive = () => sbCall(async () => {

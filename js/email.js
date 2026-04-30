@@ -137,16 +137,42 @@ export async function autoPushToTracker(deal){
   if(!clientName){console.warn('No client name for tracker push');return;}
   const leadName=deal.company||deal.contact||'Unknown';
   const leadEmail=deal.email||'';
-  const resp=await invokeEdgeFunction('push-lead-tracker',{clientName,leadName,leadEmail,dealId:deal.id});
-  if(resp && resp.ok){
-    deal.pushedToTracker=new Date().toISOString();
-    pendingWrites.value++;
-    sbUpdateDeal(deal.id, camelToSnake({pushedToTracker:deal.pushedToTracker})).catch(e=>console.error('Update deal failed:',e)).finally(()=>{pendingWrites.value--;});
-    console.log('Lead Tracker push success:',leadName,'\u2192',clientName);
-  } else {
-    console.error('Lead Tracker push response:',resp);
-    throw new Error(resp?resp.error:'Push failed');
+
+  // Generate month and date strings
+  const now = new Date();
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const month = `${months[now.getMonth()]}/${String(now.getFullYear()).slice(-2)}`;
+  const dateAdded = `${now.getMonth()+1}/${now.getDate()}/${String(now.getFullYear()).slice(-2)}`;
+
+  // Look up lead cost from client record
+  const leadCost = client && str(client.leadCost).trim() ? `$${str(client.leadCost).replace(/[^0-9.]/g,'')}` : '$0';
+
+  // Insert into lead_tracker table
+  const { sbCreateTrackerEntry, normalizeRow } = await import('./api.js');
+  const entry = await sbCreateTrackerEntry({
+    deal_id: deal.id,
+    client_name: clientName,
+    month: month,
+    lead_name: leadName,
+    lead_email: leadEmail,
+    date_added: dateAdded,
+    lead_cost: leadCost,
+  });
+
+  // Update deal
+  deal.pushedToTracker=new Date().toISOString();
+  pendingWrites.value++;
+  sbUpdateDeal(deal.id, camelToSnake({pushedToTracker:deal.pushedToTracker})).catch(e=>console.error('Update deal failed:',e)).finally(()=>{pendingWrites.value--;});
+
+  // Add to local state if tracker is loaded
+  if(state.trackerLoaded && entry){
+    state.trackerEntries.unshift(normalizeRow(entry));
   }
+
+  // Fire-and-forget sheet sync
+  invokeEdgeFunction('sync-lead-tracker',{action:'sync-row',entryId:entry.id}).catch(e=>console.warn('Sheet sync failed:',e));
+
+  console.log('Lead Tracker push success:',leadName,'→',clientName);
 }
 
 export function buildLeadMessage(deal, clientName){
