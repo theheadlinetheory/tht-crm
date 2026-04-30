@@ -836,6 +836,8 @@ export const sbRestoreFromArchive = (id) => sbCall(async () => {
   insert.forwarded_at = null;
   insert.lead_status = 'active';
 
+  // Remove any stale deal row with same ID (prevents duplicate key error)
+  await supabase.from('deals').delete().eq('id', insert.id || id);
   const { error: insertErr } = await supabase.from('deals').insert(insert);
   if (insertErr) throw insertErr;
 
