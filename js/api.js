@@ -530,10 +530,18 @@ function applyRealtimeEvent(table, payload) {
   }
 
   if (eventType === 'INSERT' && newRow) {
+    // Skip non-active deals (soft-deleted)
+    if (table === 'deals' && newRow.leadStatus && newRow.leadStatus !== 'active') return;
     if (!list.find(item => String(item.id) === String(newRow.id))) {
       list.push(newRow);
     }
   } else if (eventType === 'UPDATE' && newRow) {
+    // If deal was soft-deleted, remove from state
+    if (table === 'deals' && newRow.leadStatus && newRow.leadStatus !== 'active') {
+      const idx = list.findIndex(item => String(item.id) === String(newRow.id));
+      if (idx >= 0) list.splice(idx, 1);
+      return;
+    }
     const idx = list.findIndex(item => String(item.id) === String(newRow.id));
     if (idx >= 0) {
       list[idx] = newRow;
@@ -555,7 +563,7 @@ function applyRealtimeEvent(table, payload) {
 const DEALS_LIGHT_COLS = 'id,company,contact,email,phone,value,stage,pipeline,flag,notes,sl_lead_id,sl_campaign_id,campaign_name,lead_category,created_at,updated_at,website,location,smartlead_url,forwarded_at,mobile_phone,pushed_to_tracker,pushed_to_ghl,address,client_stage,booked_date,booked_time,booked_for,booked_timezone,cal_name,cal_email,cal_notes,has_new_reply,owner_override,job_title,linkedin_url,passoff_instructions,passoff_sent_at,suggested_updates,contact2,contact3,phone2,phone3,title2,title3,reply_snippet';
 
 export const sbGetDeals = () => sbCall(async () => {
-  const { data, error } = await supabase.from('deals').select(DEALS_LIGHT_COLS);
+  const { data, error } = await supabase.from('deals').select(DEALS_LIGHT_COLS).eq('lead_status', 'active');
   if (error) throw error;
   return data;
 }, { label: 'Load deals' });
@@ -579,9 +587,9 @@ export const sbUpdateDeal = (id, fields) => sbCall(async () => {
 }, { label: 'Update deal' });
 
 export const sbDeleteDeal = (id) => sbCall(async () => {
-  const { error } = await supabase.from('deals').delete().eq('id', id);
+  const { error } = await supabase.from('deals').update({ lead_status: 'cancelled' }).eq('id', id);
   if (error) throw error;
-}, { label: 'Delete deal' });
+}, { label: 'Cancel deal (soft-delete)' });
 
 // Activities
 export const sbGetActivities = () => sbCall(async () => {
@@ -798,7 +806,7 @@ export const sbRestoreFromArchive = (id) => sbCall(async () => {
   // Remove archive-specific and non-column fields before inserting
   const exclude = new Set(['archivedAt','archiveStatus','clientName','done','dealId','dayLabel','scheduledTime','completedAt','createdDate']);
   // Valid deals table columns
-  const DEAL_COLS = new Set(['id','company','contact','email','phone','value','stage','pipeline','flag','notes','sl_lead_id','sl_campaign_id','campaign_name','lead_category','website','location','smartlead_url','forwarded_at','email_body','mobile_phone','pushed_to_tracker','pushed_to_ghl','address','client_stage','booked_date','booked_time','cal_name','cal_email','cal_notes','created_at','updated_at','owner_override','lead_hero_id','has_new_reply','reply_msg_count','email2','email3','email4','booked_for','prefill_name','prefill_email','prefill_notes','booked_timezone']);
+  const DEAL_COLS = new Set(['id','company','contact','email','phone','value','stage','pipeline','flag','notes','sl_lead_id','sl_campaign_id','campaign_name','lead_category','website','location','smartlead_url','forwarded_at','email_body','mobile_phone','pushed_to_tracker','pushed_to_ghl','address','client_stage','booked_date','booked_time','cal_name','cal_email','cal_notes','created_at','updated_at','owner_override','lead_hero_id','has_new_reply','reply_msg_count','email2','email3','email4','booked_for','prefill_name','prefill_email','prefill_notes','booked_timezone','lead_status']);
   const insert = {};
   for (const [key, value] of Object.entries(dealData)) {
     if (exclude.has(key)) continue;
@@ -826,6 +834,7 @@ export const sbRestoreFromArchive = (id) => sbCall(async () => {
   // Clear tracking fields on restore
   insert.pushed_to_tracker = null;
   insert.forwarded_at = null;
+  insert.lead_status = 'active';
 
   const { error: insertErr } = await supabase.from('deals').insert(insert);
   if (insertErr) throw insertErr;
