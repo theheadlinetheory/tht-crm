@@ -13,7 +13,6 @@ import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from '.
 import { renderDashboard } from './dashboard.js';
 import { loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js';
 import { renderDocumentsSection, initDocumentHandlers } from './documents.js';
-import { renderLeadTracker, loadTrackerEntries } from './lead-tracker.js';
 import { toggleBulkMode, bulkMoveStage, bulkSelectAll, bulkArchive, bulkAddActivity, toggleBulkSelect } from './deals.js';
 import { openSettings } from './settings.js';
 import { serviceAreaResults } from './maps.js';
@@ -155,27 +154,29 @@ export function render(){
 
   // ─── Lead Tracker Tab ───
   if(state.pipeline==='lead_tracker'){
-    if(!state.trackerLoaded) loadTrackerEntries().then(()=>render());
-    let html=`
-    <div class="topbar">
-      <div style="display:flex;align-items:center;">
-        <div class="topbar-tabs">
-          ${pipelineTabsHtml()}
+    import('./lead-tracker.js').then(({ renderLeadTracker, loadTrackerEntries }) => {
+      if(!state.trackerLoaded) { loadTrackerEntries().then(()=>render()); }
+      let html=`
+      <div class="topbar">
+        <div style="display:flex;align-items:center;">
+          <div class="topbar-tabs">
+            ${pipelineTabsHtml()}
+          </div>
         </div>
-      </div>
-      <div class="topbar-right">
-        <button class="btn btn-ghost" onclick="syncFromSheet()" style="display:inline-flex;align-items:center;gap:4px">${svgIcon('refresh-cw',12)} Sync</button>
-        ${renderUserMenu()}
-      </div>
-    </div>`;
-    html+=state.trackerLoaded ? renderLeadTracker() : '<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading tracker...</div>';
-    app.innerHTML=html;
-    if(state.trackerEditingCell){
-      setTimeout(()=>{
-        const input=document.querySelector('.tracker-cell-input');
-        if(input){input.focus();input.select();}
-      },0);
-    }
+        <div class="topbar-right">
+          <button class="btn btn-ghost" onclick="syncFromSheet()" style="display:inline-flex;align-items:center;gap:4px">${svgIcon('refresh-cw',12)} Sync</button>
+          ${renderUserMenu()}
+        </div>
+      </div>`;
+      html+=state.trackerLoaded ? renderLeadTracker() : '<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading tracker...</div>';
+      app.innerHTML=html;
+      if(state.trackerEditingCell){
+        setTimeout(()=>{
+          const input=document.querySelector('.tracker-cell-input');
+          if(input){input.focus();input.select();}
+        },0);
+      }
+    });
     return;
   }
 
