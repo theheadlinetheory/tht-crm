@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 import { state, store, pendingWrites } from './app.js';
 import { render } from './render.js';
-import { sbGetRerunQueue, sbAddToRerun, sbUpdateRerunItem, sbUpdateRerunStatus, sbUpdateDeal, sbUpdateActivity, sbArchiveDeal, sbDeleteDeal, camelToSnake, normalizeRow } from './api.js';
+import { sbGetRerunQueue, sbAddToRerun, sbUpdateRerunItem, sbUpdateRerunStatus, sbUpdateDeal, sbUpdateActivity, sbArchiveDeal, sbDeleteDeal, camelToSnake, normalizeRow, invokeEdgeFunction } from './api.js';
 import { esc, getToday, fmtDate, svgIcon } from './utils.js';
 import { registerActions } from './delegate.js';
 import { statCard, filterSelect, modalWrap, modalHeader, modalFooter } from './html-helpers.js';
@@ -686,6 +686,7 @@ registerActions({
       try {
         await sbArchiveDeal(deal.id, JSON.stringify(deal));
         await sbDeleteDeal(deal.id);
+        invokeEdgeFunction('push-lead-tracker',{action:'remove-lead',dealId:deal.id}).catch(e=>console.warn('Sheet removal:',e.message));
         store.removeDeal(deal.id, { silent: true });
       } catch (e) { console.error('Failed to archive deal:', e); }
       finally { pendingWrites.value--; }

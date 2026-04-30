@@ -137,7 +137,7 @@ export async function autoPushToTracker(deal){
   if(!clientName){console.warn('No client name for tracker push');return;}
   const leadName=deal.company||deal.contact||'Unknown';
   const leadEmail=deal.email||'';
-  const resp=await invokeEdgeFunction('push-lead-tracker',{clientName,leadName,leadEmail});
+  const resp=await invokeEdgeFunction('push-lead-tracker',{clientName,leadName,leadEmail,dealId:deal.id});
   if(resp && resp.ok){
     deal.pushedToTracker=new Date().toISOString();
     pendingWrites.value++;

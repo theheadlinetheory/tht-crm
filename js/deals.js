@@ -4,7 +4,7 @@
 import { state, store, pendingWrites, pendingDealFields, deletedDealIds, clientPortalStages } from './app.js';
 import { ACQUISITION_STAGES } from './config.js';
 import { render } from './render.js';
-import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbArchiveDeal, sbRestoreFromArchive, sbCreateActivity, camelToSnake } from './api.js';
+import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbArchiveDeal, sbRestoreFromArchive, sbCreateActivity, camelToSnake, invokeEdgeFunction } from './api.js';
 import { uid, getToday, str } from './utils.js';
 import { isClient, currentUser } from './auth.js';
 
@@ -41,8 +41,8 @@ export async function deleteDeal(id, archiveStatus, clientName){
   store.removeActivitiesForDeal(id, {silent: true});
   store.set({selectedDeal: null});
   pendingWrites.value++;
-  try { await sbArchiveDeal(id, JSON.stringify({...deal, archiveStatus:status, pipeline, clientName:cName})); await sbDeleteDeal(id); }
-  catch(e){ console.error('Archive failed, falling back to delete:',e); try { await sbDeleteDeal(id); } catch(e2){} }
+  try { await sbArchiveDeal(id, JSON.stringify({...deal, archiveStatus:status, pipeline, clientName:cName})); await sbDeleteDeal(id); invokeEdgeFunction('push-lead-tracker',{action:'remove-lead',dealId:id}).catch(e=>console.warn('Sheet removal:',e.message)); }
+  catch(e){ console.error('Archive failed, falling back to cancel:',e); try { await sbDeleteDeal(id); } catch(e2){} }
   finally { pendingWrites.value--; }
 }
 
@@ -144,7 +144,7 @@ export async function bulkArchive(){
   store.set({bulkSelected: new Set(), bulkMode: false});
   pendingWrites.value++;
   try{
-    for(const id of ids){ const d=state.deals.find(x=>x.id===id); await sbArchiveDeal(id, JSON.stringify({...d, archiveStatus:'Deleted/Lost'})); await sbDeleteDeal(id); }
+    for(const id of ids){ const d=state.deals.find(x=>x.id===id); await sbArchiveDeal(id, JSON.stringify({...d, archiveStatus:'Deleted/Lost'})); await sbDeleteDeal(id); invokeEdgeFunction('push-lead-tracker',{action:'remove-lead',dealId:id}).catch(e=>console.warn('Sheet removal:',e.message)); }
   }finally{ pendingWrites.value--; }
 }
 
