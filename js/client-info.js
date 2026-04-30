@@ -304,7 +304,21 @@ export async function autoCreateClient(deal) {
     showToast('Warning: GHL sub-account creation failed — create manually', 'warning');
   });
 
-  // 4. Push row to Client Info Sheet
+  // 4. Create SmartLead client (fire-and-forget)
+  invokeEdgeFunction('create-smartlead-client', {
+    clientId: c.id,
+    clientName,
+    clientEmail: str(deal.email || ''),
+  }).then(result => {
+    if (result.smartleadClientId) {
+      showToast('SmartLead client created for ' + clientName, 'success');
+    }
+  }).catch(e => {
+    console.error('SmartLead client creation failed:', e);
+    showToast('Warning: SmartLead client creation failed — create manually', 'warning');
+  });
+
+  // 5. Push row to Client Info Sheet
   const otherContacts = [deal.email2, deal.email3, deal.email4]
     .filter(e => e && str(e).trim()).join(', ');
   const row = [
