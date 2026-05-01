@@ -294,17 +294,18 @@ window.trackerToggleCallback = (id) => toggleCallback(id);
 window.trackerAddRow = async () => {
   const today = new Date();
   const dateAdded = `${today.getMonth()+1}/${today.getDate()}/${String(today.getFullYear()).slice(-2)}`;
-  const newEntry = { id: crypto.randomUUID(), clientName: '', month: '', leadName: '', leadEmail: '', dateAdded, leadCost: '', invoice: '', paidStatus: '', datePaid: '', notes: '', paymentLink: '', callbackStatus: '' };
-  state.trackerEntries.push(newEntry);
-  render();
+  const fields = { dealId: '', clientName: '', month: '', leadName: '', leadEmail: '', dateAdded, leadCost: '', invoice: '', paidStatus: '', datePaid: '', notes: '', paymentLink: '', callbackStatus: '' };
   pendingWrites.value++;
   try {
-    const snakeFields = camelToSnake(newEntry);
-    await sbCreateTrackerEntry(snakeFields);
+    const snakeFields = camelToSnake(fields);
+    const created = await sbCreateTrackerEntry(snakeFields);
+    if (created) {
+      state.trackerEntries.push(normalizeRow(created));
+      render();
+    }
   } catch (e) {
     console.error('Failed to add tracker row:', e);
-    state.trackerEntries = state.trackerEntries.filter(e2 => e2.id !== newEntry.id);
-    render();
+    alert('Failed to add row: ' + e.message);
   } finally {
     pendingWrites.value--;
   }
