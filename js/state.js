@@ -58,6 +58,9 @@ export const state = {
   trackerSort: { field: 'dateAdded', dir: 'asc' },
   trackerEditingCell: null,
   trackerView: 'entries',
+  trackerSelected: new Set(),
+  trackerBulkField: '',
+  trackerBulkValue: '',
   invoiceModal: null,
 };
 

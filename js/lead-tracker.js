@@ -174,6 +174,9 @@ export function renderLeadTracker() {
 
   let html = `<div class="tracker-container">`;
 
+  const sel = state.trackerSelected;
+  const selCount = sel.size;
+
   // Filter bar
   html += `<div class="tracker-filters">
     <select onchange="trackerFilterClient(this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
@@ -195,11 +198,31 @@ export function renderLeadTracker() {
     ${isAdmin() ? `<button id="tracker-reconcile-btn" class="btn btn-ghost" style="font-size:11px;padding:4px 10px" onclick="reconcileSheet()">Reconcile Sheet</button>` : ''}
   </div>`;
 
+  // Bulk edit bar (shown when rows are selected)
+  if (isAdmin() && selCount > 0) {
+    const editableCols = COLUMNS.filter(c => c.editable);
+    html += `<div class="tracker-bulk-bar">
+      <span style="font-weight:600;font-size:12px">${selCount} selected</span>
+      <select id="tracker-bulk-field" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font)" onchange="trackerBulkFieldChange(this.value)">
+        <option value="">Set field...</option>
+        ${editableCols.map(c => `<option value="${c.key}" ${state.trackerBulkField === c.key ? 'selected' : ''}>${esc(c.label)}</option>`).join('')}
+      </select>
+      ${state.trackerBulkField ? `<input id="tracker-bulk-value" type="text" placeholder="New value" value="${esc(state.trackerBulkValue)}" oninput="trackerBulkValueChange(this.value)" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;width:140px;font-family:var(--font)">
+      <button class="btn btn-primary" style="font-size:11px;padding:4px 12px" onclick="trackerBulkApply()">Apply</button>` : ''}
+      <button class="btn btn-ghost" style="font-size:11px;padding:4px 8px" onclick="trackerBulkClear()">Clear Selection</button>
+    </div>`;
+  }
+
   // Table
   html += `<div class="tracker-table-wrap"><table class="tracker-table">`;
 
   // Header
+  const admin = isAdmin();
   html += `<thead><tr>`;
+  if (admin) {
+    const allChecked = entries.length > 0 && entries.every(e => sel.has(e.id));
+    html += `<th style="width:30px;text-align:center"><input type="checkbox" ${allChecked ? 'checked' : ''} onchange="trackerSelectAll(this.checked)"></th>`;
+  }
   for (const col of cols) {
     const isSorted = state.trackerSort.field === col.key;
     const arrow = isSorted ? (state.trackerSort.dir === 'asc' ? ' ↑' : ' ↓') : '';
@@ -214,6 +237,9 @@ export function renderLeadTracker() {
     const rowClass = isCalledBack ? 'tracker-row-calledback' : '';
 
     html += `<tr class="${rowClass}">`;
+    if (admin) {
+      html += `<td style="text-align:center"><input type="checkbox" ${sel.has(entry.id) ? 'checked' : ''} onchange="trackerToggleSelect('${entry.id}')"></td>`;
+    }
     for (const col of cols) {
       const val = str(entry[col.key]);
       const isEditing = state.trackerEditingCell && state.trackerEditingCell.id === entry.id && state.trackerEditingCell.field === col.key;
@@ -284,3 +310,48 @@ window.trackerAddRow = async () => {
   }
 };
 window.reconcileSheet = reconcileSheet;
+window.trackerToggleSelect = (id) => {
+  if (state.trackerSelected.has(id)) state.trackerSelected.delete(id);
+  else state.trackerSelected.add(id);
+  render();
+};
+window.trackerSelectAll = (checked) => {
+  const entries = getFilteredEntries();
+  if (checked) entries.forEach(e => state.trackerSelected.add(e.id));
+  else state.trackerSelected.clear();
+  render();
+};
+window.trackerBulkFieldChange = (field) => { state.trackerBulkField = field; state.trackerBulkValue = ''; render(); };
+window.trackerBulkValueChange = (val) => { state.trackerBulkValue = val; };
+window.trackerBulkClear = () => { state.trackerSelected.clear(); state.trackerBulkField = ''; state.trackerBulkValue = ''; render(); };
+window.trackerBulkApply = async () => {
+  const field = state.trackerBulkField;
+  const value = state.trackerBulkValue;
+  if (!field) return;
+
+  const ids = [...state.trackerSelected];
+  if (!ids.length) return;
+  if (!confirm(`Set "${field}" to "${value}" for ${ids.length} entries?`)) return;
+
+  // Update local state immediately
+  for (const id of ids) {
+    const entry = state.trackerEntries.find(e => e.id === id);
+    if (entry) entry[field] = value;
+  }
+  state.trackerSelected.clear();
+  state.trackerBulkField = '';
+  state.trackerBulkValue = '';
+  render();
+
+  // Save to DB
+  pendingWrites.value++;
+  try {
+    const snakeFields = camelToSnake({ [field]: value });
+    await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, snakeFields)));
+  } catch (e) {
+    console.error('Bulk update failed:', e);
+    alert('Some updates may have failed. Please check the data.');
+  } finally {
+    pendingWrites.value--;
+  }
+};
