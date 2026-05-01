@@ -222,7 +222,17 @@ export function render(){
         });
       }
     }
+    // Save tracker scroll position before replacing DOM
+    const trackerWrap=document.querySelector('.tracker-table-wrap');
+    const savedTrackerScrollTop=trackerWrap?trackerWrap.scrollTop:0;
+    const savedTrackerScrollLeft=trackerWrap?trackerWrap.scrollLeft:0;
     app.innerHTML=html;
+    // Restore tracker scroll position
+    const newTrackerWrap=document.querySelector('.tracker-table-wrap');
+    if(newTrackerWrap){
+      newTrackerWrap.scrollTop=savedTrackerScrollTop;
+      newTrackerWrap.scrollLeft=savedTrackerScrollLeft;
+    }
     // Post-render hooks
     if(state.trackerView==='trends' && window._trendsModule){
       setTimeout(()=>window._trendsModule.drawTrendsChart(),0);

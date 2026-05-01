@@ -4,7 +4,7 @@
 import { state, store, pendingWrites } from './app.js';
 import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow } from './api.js';
 import { isAdmin } from './auth.js';
-import { esc, svgIcon, str, uid } from './utils.js';
+import { esc, svgIcon, str } from './utils.js';
 import { render } from './render.js';
 
 // ─── Column Definitions ───
@@ -91,6 +91,17 @@ function getFilteredEntries() {
   return entries;
 }
 
+// ─── Save status flash ───
+function flashSaveStatus(ok) {
+  const el = document.getElementById('tracker-save-status');
+  if (!el) return;
+  el.textContent = ok ? '✓ Saved' : '✗ Failed';
+  el.style.color = ok ? '#16a34a' : '#dc2626';
+  el.style.opacity = '1';
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => { el.style.opacity = '0'; }, 1500);
+}
+
 // ─── Inline Edit Helpers ───
 async function saveTrackerCell(entryId, field, value) {
   const entry = state.trackerEntries.find(e => e.id === entryId);
@@ -106,10 +117,12 @@ async function saveTrackerCell(entryId, field, value) {
   try {
     const snakeFields = camelToSnake({ [field]: value });
     await sbUpdateTrackerEntry(entryId, snakeFields);
+    flashSaveStatus(true);
     invokeEdgeFunction('sync-lead-tracker', { action: 'sync-row', entryId }).catch(e => console.warn('Sheet sync failed:', e));
   } catch (e) {
     entry[field] = oldValue;
     render();
+    flashSaveStatus(false);
     console.error('Tracker update failed:', e);
   } finally {
     pendingWrites.value--;
@@ -132,8 +145,8 @@ function markPaid(entryId) {
   pendingWrites.value++;
   const snakeFields = camelToSnake({ paidStatus: newStatus, datePaid: newDate });
   sbUpdateTrackerEntry(entryId, snakeFields)
-    .then(() => invokeEdgeFunction('sync-lead-tracker', { action: 'sync-row', entryId }).catch(() => {}))
-    .catch(e => console.error('Mark paid failed:', e))
+    .then(() => { flashSaveStatus(true); invokeEdgeFunction('sync-lead-tracker', { action: 'sync-row', entryId }).catch(() => {}); })
+    .catch(e => { flashSaveStatus(false); console.error('Mark paid failed:', e); })
     .finally(() => { pendingWrites.value--; });
 }
 
@@ -148,8 +161,8 @@ function toggleCallback(entryId) {
   pendingWrites.value++;
   const snakeFields = camelToSnake({ callbackStatus: newStatus });
   sbUpdateTrackerEntry(entryId, snakeFields)
-    .then(() => invokeEdgeFunction('sync-lead-tracker', { action: 'sync-row', entryId }).catch(() => {}))
-    .catch(e => console.error('Toggle callback failed:', e))
+    .then(() => { flashSaveStatus(true); invokeEdgeFunction('sync-lead-tracker', { action: 'sync-row', entryId }).catch(() => {}); })
+    .catch(e => { flashSaveStatus(false); console.error('Toggle callback failed:', e); })
     .finally(() => { pendingWrites.value--; });
 }
 
@@ -166,11 +179,21 @@ async function reconcileSheet() {
 }
 
 // ─── Render ───
+// ─── Client color map ───
+function getClientColorMap() {
+  const map = {};
+  for (const c of state.clients) {
+    if (c.name && c.color) map[c.name] = c.color;
+  }
+  return map;
+}
+
 export function renderLeadTracker() {
   const cols = getVisibleColumns();
   const entries = getFilteredEntries();
   const clients = [...new Set(state.trackerEntries.map(e => e.clientName))].sort();
   const f = state.trackerFilters;
+  const clientColors = getClientColorMap();
 
   let html = `<div class="tracker-container">`;
 
@@ -192,6 +215,7 @@ export function renderLeadTracker() {
       <input type="checkbox" ${f.hideCalledBack ? 'checked' : ''} onchange="trackerFilterCallback(this.checked)"> Hide called back
     </label>
     <span style="flex:1"></span>
+    <span id="tracker-save-status" style="font-size:11px;font-weight:600;opacity:0;transition:opacity 0.3s"></span>
     <span style="font-size:12px;color:var(--text-muted)">${entries.length} entries</span>
     ${isAdmin() ? `<button class="btn btn-primary" style="font-size:11px;padding:4px 12px" onclick="openInvoiceModal()">Generate Invoice</button>` : ''}
     ${isAdmin() ? `<button class="btn btn-ghost" style="font-size:11px;padding:4px 10px" onclick="trackerAddRow()">+ Add Row</button>` : ''}
@@ -235,14 +259,18 @@ export function renderLeadTracker() {
   for (const entry of entries) {
     const isCalledBack = str(entry.callbackStatus).toLowerCase() === 'called back';
     const rowClass = isCalledBack ? 'tracker-row-calledback' : '';
+    const clientColor = clientColors[str(entry.clientName)] || '';
+    const rowStyle = clientColor ? `border-left:4px solid ${clientColor}` : '';
 
-    html += `<tr class="${rowClass}">`;
+    html += `<tr class="${rowClass}" style="${rowStyle}">`;
     if (admin) {
       html += `<td style="text-align:center"><input type="checkbox" ${sel.has(entry.id) ? 'checked' : ''} onchange="trackerToggleSelect('${entry.id}')"></td>`;
     }
     for (const col of cols) {
       const val = str(entry[col.key]);
       const isEditing = state.trackerEditingCell && state.trackerEditingCell.id === entry.id && state.trackerEditingCell.field === col.key;
+      // Color the client name cell with client color
+      const cellColorStyle = (col.key === 'clientName' && clientColor) ? `color:${clientColor};font-weight:600;` : '';
 
       if (col.editable && isEditing) {
         html += `<td><input class="tracker-cell-input" type="text" value="${esc(val)}"
@@ -250,13 +278,13 @@ export function renderLeadTracker() {
           onkeydown="if(event.key==='Enter'){this.blur();}"
           autofocus></td>`;
       } else if (col.editable && !isCalledBack) {
-        html += `<td class="tracker-cell-editable" onclick="trackerEditCell('${entry.id}','${col.key}')">${val ? esc(val) : '<span style="color:#d1d5db">—</span>'}</td>`;
+        html += `<td class="tracker-cell-editable" style="${cellColorStyle}" onclick="trackerEditCell('${entry.id}','${col.key}')">${val ? esc(val) : '<span style="color:#d1d5db">—</span>'}</td>`;
       } else if (isCalledBack) {
         html += `<td><s style="color:#ef4444">${esc(val)}</s></td>`;
       } else if (col.key === 'leadEmail' && val) {
         html += `<td><a href="mailto:${esc(val)}" style="color:var(--purple);text-decoration:none;font-size:12px">${esc(val)}</a></td>`;
       } else {
-        html += `<td>${esc(val)}</td>`;
+        html += `<td style="${cellColorStyle}">${esc(val)}</td>`;
       }
     }
 
