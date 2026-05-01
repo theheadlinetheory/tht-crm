@@ -154,29 +154,38 @@ export function render(){
 
   // ─── Lead Tracker Tab ───
   if(state.pipeline==='lead_tracker'){
-    import('./lead-tracker.js').then(({ renderLeadTracker, loadTrackerEntries }) => {
-      if(!state.trackerLoaded) { loadTrackerEntries().then(()=>render()); }
-      let html=`
-      <div class="topbar">
-        <div style="display:flex;align-items:center;">
-          <div class="topbar-tabs">
-            ${pipelineTabsHtml()}
-          </div>
+    let html=`
+    <div class="topbar">
+      <div style="display:flex;align-items:center;">
+        <div class="topbar-tabs">
+          ${pipelineTabsHtml()}
         </div>
-        <div class="topbar-right">
-          <button class="btn btn-ghost" onclick="syncFromSheet()" style="display:inline-flex;align-items:center;gap:4px">${svgIcon('refresh-cw',12)} Sync</button>
-          ${renderUserMenu()}
-        </div>
-      </div>`;
-      html+=state.trackerLoaded ? renderLeadTracker() : '<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading tracker...</div>';
-      app.innerHTML=html;
-      if(state.trackerEditingCell){
-        setTimeout(()=>{
-          const input=document.querySelector('.tracker-cell-input');
-          if(input){input.focus();input.select();}
-        },0);
+      </div>
+      <div class="topbar-right">
+        <button class="btn btn-ghost" onclick="syncFromSheet()" style="display:inline-flex;align-items:center;gap:4px">${svgIcon('refresh-cw',12)} Sync</button>
+        ${renderUserMenu()}
+      </div>
+    </div>`;
+    if(state.trackerLoaded && window._trackerModule){
+      html+=window._trackerModule.renderLeadTracker();
+    } else {
+      html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading tracker...</div>';
+      if(!window._trackerLoading){
+        window._trackerLoading=true;
+        import('./lead-tracker.js').then(m=>{
+          window._trackerModule=m;
+          if(!state.trackerLoaded){ m.loadTrackerEntries().then(()=>render()); }
+          else render();
+        });
       }
-    });
+    }
+    app.innerHTML=html;
+    if(state.trackerEditingCell){
+      setTimeout(()=>{
+        const input=document.querySelector('.tracker-cell-input');
+        if(input){input.focus();input.select();}
+      },0);
+    }
     return;
   }
 
