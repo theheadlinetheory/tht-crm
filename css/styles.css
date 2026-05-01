@@ -340,6 +340,10 @@ details > summary::-webkit-details-marker { display:none; }
 .tracker-action-btn:hover{background:#e9ecef;}
 .tracker-action-btn.active{background:#dcfce7;border-color:#86efac;color:#166534;}
 
+/* ─── Tracker Fill Down Button ─── */
+.tracker-fill-btn{position:absolute;right:2px;top:50%;transform:translateY(-50%);width:18px;height:18px;padding:0;border:1px solid #93c5fd;border-radius:3px;background:#dbeafe;color:#2563eb;font-size:12px;line-height:16px;text-align:center;cursor:pointer;z-index:1;}
+.tracker-fill-btn:hover{background:#93c5fd;}
+
 /* ─── Tracker Bulk Edit Bar ─── */
 .tracker-bulk-bar{display:flex;align-items:center;gap:8px;padding:6px 10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;margin-bottom:6px;}
 
