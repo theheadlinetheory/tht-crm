@@ -52,7 +52,8 @@ function parseDateMDY(s) {
   if (parts.length !== 3) return 0;
   const m = parseInt(parts[0], 10);
   const d = parseInt(parts[1], 10);
-  const y = parseInt(parts[2], 10) + 2000;
+  let y = parseInt(parts[2], 10);
+  if (y < 100) y += 2000; // handle 2-digit years (26 → 2026)
   return y * 10000 + m * 100 + d; // numeric sortable: 20260408
 }
 
