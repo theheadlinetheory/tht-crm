@@ -4,7 +4,7 @@
 import { state, store, pendingWrites } from './app.js';
 import { sbGetTrackerEntries, sbUpdateTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow } from './api.js';
 import { isAdmin } from './auth.js';
-import { esc, svgIcon, str } from './utils.js';
+import { esc, svgIcon, str, uid } from './utils.js';
 import { render } from './render.js';
 
 // ─── Column Definitions ───
@@ -190,6 +190,7 @@ export function renderLeadTracker() {
     </label>
     <span style="flex:1"></span>
     <span style="font-size:12px;color:var(--text-muted)">${entries.length} entries</span>
+    ${isAdmin() ? `<button class="btn btn-ghost" style="font-size:11px;padding:4px 10px" onclick="trackerAddRow()">+ Add Row</button>` : ''}
     ${isAdmin() ? `<button id="tracker-reconcile-btn" class="btn btn-ghost" style="font-size:11px;padding:4px 10px" onclick="reconcileSheet()">Reconcile Sheet</button>` : ''}
   </div>`;
 
@@ -263,4 +264,22 @@ window.trackerEditCell = (id, field) => { state.trackerEditingCell = { id, field
 window.trackerSaveCell = (id, field, value) => saveTrackerCell(id, field, value);
 window.trackerMarkPaid = (id) => markPaid(id);
 window.trackerToggleCallback = (id) => toggleCallback(id);
+window.trackerAddRow = async () => {
+  const today = new Date();
+  const dateAdded = `${today.getMonth()+1}/${today.getDate()}/${String(today.getFullYear()).slice(-2)}`;
+  const newEntry = { id: uid(), clientName: '', month: '', leadName: '', leadEmail: '', dateAdded, leadCost: '', invoice: '', paidStatus: '', datePaid: '', notes: '', paymentLink: '', callbackStatus: '' };
+  state.trackerEntries.push(newEntry);
+  render();
+  pendingWrites.value++;
+  try {
+    const snakeFields = camelToSnake(newEntry);
+    await sbCreateTrackerEntry(snakeFields);
+  } catch (e) {
+    console.error('Failed to add tracker row:', e);
+    state.trackerEntries = state.trackerEntries.filter(e2 => e2.id !== newEntry.id);
+    render();
+  } finally {
+    pendingWrites.value--;
+  }
+};
 window.reconcileSheet = reconcileSheet;
