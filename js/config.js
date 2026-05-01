@@ -62,16 +62,15 @@ export const CLIENT_PALETTE = ["#2563eb","#059669","#0891b2","#10b981","#d97706"
 
 // ─── SOP Sequences ───
 export const SOP_DAYS = {
-  "Day 1": [{type:"Text",subject:"Initial text - immediate"},{type:"Call",subject:"Call #1 - immediate"},{type:"Text",subject:"Post-call text"},{type:"Email",subject:"Initial email"},{type:"Call",subject:"Call #2 - EOD"}],
-  "Day 2": [{type:"Call",subject:"Morning call"},{type:"Text",subject:"Follow-up text"},{type:"Email",subject:"Follow-up email"},{type:"Call",subject:"Evening call"}],
-  "Day 3": [{type:"Call",subject:"Morning call"},{type:"Text",subject:"Follow-up text"},{type:"Email",subject:"Follow-up email"},{type:"Call",subject:"Evening call"}],
-  "Day 4": [{type:"Call",subject:"Morning call"},{type:"Email",subject:"Follow-up email"},{type:"Call",subject:"Evening call"}],
-  "Day 5": [{type:"Email",subject:"Follow-up email"}],
-  "Day 6": [{type:"Email",subject:"Follow-up email"},{type:"Call",subject:"Check-in call"}],
-  "Day 8": [{type:"Email",subject:"Follow-up email"}],
-  "Day 9": [{type:"Call",subject:"Check-in call"}],
-  "Day 10": [{type:"Email",subject:"Final email"}],
-  "Day 30": [{type:"Email",subject:"Last attempt email"},{type:"Call",subject:"Last attempt call"}],
+  "Day 1": [{type:"Call",subject:"Call #1 — immediate"},{type:"Email",subject:"Manual email (Mechanism/Info, Meeting, or Price)"},{type:"Call",subject:"Call #2 — end of day"},{type:"Text",subject:"Day 1 text (if no answer)"}],
+  "Day 2": [{type:"Call",subject:"Morning call"},{type:"Call",subject:"Afternoon call"},{type:"Email",subject:"⚡ Auto email (Sub-Seq Stage 1)"}],
+  "Day 3": [{type:"Call",subject:"Call"},{type:"Email",subject:"⚡ Auto email (Sub-Seq Stage 2)"},{type:"Text",subject:"⚡ Auto text"}],
+  "Day 4": [{type:"Call",subject:"Call"}],
+  "Day 5": [{type:"Call",subject:"Call"},{type:"Email",subject:"⚡ Auto email (Sub-Seq Stage 3)"}],
+  "Day 7": [{type:"Call",subject:"Call"},{type:"Text",subject:"⚡ Auto text"}],
+  "Day 8": [{type:"Email",subject:"⚡ Auto email (Sub-Seq Stage 4)"}],
+  "Day 9": [{type:"Call",subject:"Call"}],
+  "Day 11": [{type:"Call",subject:"Final call"},{type:"Email",subject:"⚡ Auto email (Sub-Seq Stage 5)"},{type:"Text",subject:"⚡ Auto text (breakup)"}],
 };
 
 export const CLIENT_SOP_DAYS = {
