@@ -294,7 +294,7 @@ window.trackerToggleCallback = (id) => toggleCallback(id);
 window.trackerAddRow = async () => {
   const today = new Date();
   const dateAdded = `${today.getMonth()+1}/${today.getDate()}/${String(today.getFullYear()).slice(-2)}`;
-  const newEntry = { id: uid(), clientName: '', month: '', leadName: '', leadEmail: '', dateAdded, leadCost: '', invoice: '', paidStatus: '', datePaid: '', notes: '', paymentLink: '', callbackStatus: '' };
+  const newEntry = { id: crypto.randomUUID(), clientName: '', month: '', leadName: '', leadEmail: '', dateAdded, leadCost: '', invoice: '', paidStatus: '', datePaid: '', notes: '', paymentLink: '', callbackStatus: '' };
   state.trackerEntries.push(newEntry);
   render();
   pendingWrites.value++;
