@@ -9,15 +9,15 @@ import { render } from './render.js';
 
 // ─── Column Definitions ───
 const COLUMNS = [
-  { key: 'clientName',      label: 'Client',         editable: false,     adminOnly: false },
-  { key: 'month',           label: 'Month',          editable: false,     adminOnly: false },
-  { key: 'leadName',        label: 'Lead Name',      editable: false,     adminOnly: false },
-  { key: 'leadEmail',       label: 'Email',           editable: false,     adminOnly: false },
-  { key: 'dateAdded',       label: 'Date',            editable: false,     adminOnly: false },
+  { key: 'clientName',      label: 'Client',         editable: true,      adminOnly: false },
+  { key: 'month',           label: 'Month',          editable: true,      adminOnly: false },
+  { key: 'leadName',        label: 'Lead Name',      editable: true,      adminOnly: false },
+  { key: 'leadEmail',       label: 'Email',           editable: true,      adminOnly: false },
+  { key: 'dateAdded',       label: 'Date',            editable: true,      adminOnly: false },
   { key: 'leadCost',        label: 'Lead Cost',       editable: true,      adminOnly: true },
   { key: 'invoice',         label: 'Invoice',         editable: true,      adminOnly: true },
   { key: 'paidStatus',      label: 'Paid',            editable: false,     adminOnly: true },
-  { key: 'datePaid',        label: 'Date Paid',       editable: false,     adminOnly: true },
+  { key: 'datePaid',        label: 'Date Paid',       editable: true,      adminOnly: true },
   { key: 'notes',           label: 'Notes',           editable: true,      adminOnly: false },
   { key: 'paymentLink',     label: 'Payment Link',    editable: true,      adminOnly: true },
   { key: 'callbackStatus',  label: 'Callback',        editable: false,     adminOnly: false },
@@ -45,6 +45,17 @@ export async function loadTrackerEntries() {
   }
 }
 
+// ─── Date parsing for M/D/YY format ───
+function parseDateMDY(s) {
+  if (!s) return 0;
+  const parts = s.split('/');
+  if (parts.length !== 3) return 0;
+  const m = parseInt(parts[0], 10);
+  const d = parseInt(parts[1], 10);
+  const y = parseInt(parts[2], 10) + 2000;
+  return y * 10000 + m * 100 + d; // numeric sortable: 20260408
+}
+
 // ─── Filtering & Sorting ───
 function getFilteredEntries() {
   let entries = [...state.trackerEntries];
@@ -63,10 +74,16 @@ function getFilteredEntries() {
   }
 
   const { field, dir } = state.trackerSort;
+  const isDateField = field === 'dateAdded' || field === 'datePaid';
   entries.sort((a, b) => {
-    const av = str(a[field]).toLowerCase();
-    const bv = str(b[field]).toLowerCase();
-    const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+    let cmp;
+    if (isDateField) {
+      cmp = parseDateMDY(str(a[field])) - parseDateMDY(str(b[field]));
+    } else {
+      const av = str(a[field]).toLowerCase();
+      const bv = str(b[field]).toLowerCase();
+      cmp = av < bv ? -1 : av > bv ? 1 : 0;
+    }
     return dir === 'asc' ? cmp : -cmp;
   });
 
@@ -203,10 +220,10 @@ export function renderLeadTracker() {
           onblur="trackerSaveCell('${entry.id}','${col.key}',this.value)"
           onkeydown="if(event.key==='Enter'){this.blur();}"
           autofocus></td>`;
-      } else if (col.editable) {
+      } else if (col.editable && !isCalledBack) {
         html += `<td class="tracker-cell-editable" onclick="trackerEditCell('${entry.id}','${col.key}')">${val ? esc(val) : '<span style="color:#d1d5db">—</span>'}</td>`;
-      } else if (col.key === 'leadName' && isCalledBack) {
-        html += `<td><s style="color:var(--text-muted)">${esc(val)}</s></td>`;
+      } else if (isCalledBack) {
+        html += `<td><s style="color:#ef4444">${esc(val)}</s></td>`;
       } else if (col.key === 'leadEmail' && val) {
         html += `<td><a href="mailto:${esc(val)}" style="color:var(--purple);text-decoration:none;font-size:12px">${esc(val)}</a></td>`;
       } else {

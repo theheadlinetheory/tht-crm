@@ -332,7 +332,7 @@ details > summary::-webkit-details-marker { display:none; }
 .tracker-cell-editable{cursor:pointer;min-width:60px;}
 .tracker-cell-editable:hover{background:#eef2ff;border-radius:4px;}
 .tracker-cell-input{width:100%;padding:4px 6px;border:1.5px solid var(--purple);border-radius:4px;font-size:12px;font-family:var(--font);outline:none;box-sizing:border-box;}
-.tracker-row-calledback{opacity:0.4;}
+.tracker-row-calledback{background:#fef2f2;}
 .tracker-actions{display:flex;gap:4px;}
 .tracker-action-btn{padding:2px 8px;font-size:10px;border:1px solid var(--border);border-radius:4px;background:#fff;cursor:pointer;white-space:nowrap;}
 .tracker-action-btn:hover{background:#f1f5f9;}
