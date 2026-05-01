@@ -57,6 +57,8 @@ export const state = {
   trackerFilters: { client: '', paidStatus: '', hideCalledBack: false },
   trackerSort: { field: 'dateAdded', dir: 'asc' },
   trackerEditingCell: null,
+  trackerView: 'entries',
+  invoiceModal: null,
 };
 
 // ─── Pending writes guard ───

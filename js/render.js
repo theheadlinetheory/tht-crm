@@ -166,20 +166,67 @@ export function render(){
         ${renderUserMenu()}
       </div>
     </div>`;
-    if(state.trackerLoaded && window._trackerModule){
-      html+=window._trackerModule.renderLeadTracker();
+    // Sub-tabs: Entries / Trends
+    html+=`<div style="display:flex;gap:0;border-bottom:1px solid var(--border);padding:0 12px">
+      <button class="topbar-tab ${state.trackerView==='entries'?'active':''}" onclick="switchTrackerView('entries')">Entries</button>
+      <button class="topbar-tab ${state.trackerView==='trends'?'active':''}" onclick="switchTrackerView('trends')">Trends</button>
+    </div>`;
+
+    if(state.trackerView==='trends'){
+      // Trends view
+      if(state.trackerLoaded && window._trendsModule){
+        html+=window._trendsModule.renderTrends();
+      } else {
+        html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading trends...</div>';
+        if(!window._trendsLoading){
+          window._trendsLoading=true;
+          import('./trends.js').then(m=>{ window._trendsModule=m; render(); });
+        }
+        // Ensure tracker data is loaded
+        if(!state.trackerLoaded && !window._trackerLoading){
+          window._trackerLoading=true;
+          import('./lead-tracker.js').then(m=>{
+            window._trackerModule=m;
+            m.loadTrackerEntries().then(()=>render());
+          });
+        }
+      }
     } else {
-      html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading tracker...</div>';
-      if(!window._trackerLoading){
-        window._trackerLoading=true;
-        import('./lead-tracker.js').then(m=>{
-          window._trackerModule=m;
-          if(!state.trackerLoaded){ m.loadTrackerEntries().then(()=>render()); }
-          else render();
+      // Entries view
+      if(state.trackerLoaded && window._trackerModule){
+        html+=window._trackerModule.renderLeadTracker();
+      } else {
+        html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading tracker...</div>';
+        if(!window._trackerLoading){
+          window._trackerLoading=true;
+          import('./lead-tracker.js').then(m=>{
+            window._trackerModule=m;
+            if(!state.trackerLoaded){ m.loadTrackerEntries().then(()=>render()); }
+            else render();
+          });
+          // Preload invoice module so window handlers are registered
+          if(!window._invoiceLoading){
+            window._invoiceLoading=true;
+            import('./invoice.js').then(m=>{ window._invoiceModule=m; });
+          }
+        }
+      }
+      // Invoice modal overlay (rendered on top)
+      if(state.invoiceModal && window._invoiceModule){
+        html+=window._invoiceModule.renderInvoiceModal();
+      } else if(state.invoiceModal && !window._invoiceLoading){
+        window._invoiceLoading=true;
+        import('./invoice.js').then(m=>{
+          window._invoiceModule=m;
+          render();
         });
       }
     }
     app.innerHTML=html;
+    // Post-render hooks
+    if(state.trackerView==='trends' && window._trendsModule){
+      setTimeout(()=>window._trendsModule.drawTrendsChart(),0);
+    }
     if(state.trackerEditingCell){
       setTimeout(()=>{
         const input=document.querySelector('.tracker-cell-input');
@@ -640,3 +687,4 @@ window.render = render;
 window.refreshModal = refreshModal;
 window.switchPipeline = switchPipeline;
 window.switchNurtureTab = switchNurtureTab;
+window.switchTrackerView = (view) => { state.trackerView = view; render(); };

@@ -2,7 +2,7 @@
 // LEAD TRACKER — Editable grid view for lead billing & status
 // ═══════════════════════════════════════════════════════════
 import { state, store, pendingWrites } from './app.js';
-import { sbGetTrackerEntries, sbUpdateTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow } from './api.js';
+import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow } from './api.js';
 import { isAdmin } from './auth.js';
 import { esc, svgIcon, str, uid } from './utils.js';
 import { render } from './render.js';
@@ -190,6 +190,7 @@ export function renderLeadTracker() {
     </label>
     <span style="flex:1"></span>
     <span style="font-size:12px;color:var(--text-muted)">${entries.length} entries</span>
+    ${isAdmin() ? `<button class="btn btn-primary" style="font-size:11px;padding:4px 12px" onclick="openInvoiceModal()">Generate Invoice</button>` : ''}
     ${isAdmin() ? `<button class="btn btn-ghost" style="font-size:11px;padding:4px 10px" onclick="trackerAddRow()">+ Add Row</button>` : ''}
     ${isAdmin() ? `<button id="tracker-reconcile-btn" class="btn btn-ghost" style="font-size:11px;padding:4px 10px" onclick="reconcileSheet()">Reconcile Sheet</button>` : ''}
   </div>`;
