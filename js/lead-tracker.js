@@ -2,7 +2,7 @@
 // LEAD TRACKER — Editable grid view for lead billing & status
 // ═══════════════════════════════════════════════════════════
 import { state, store, pendingWrites } from './app.js';
-import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow } from './api.js';
+import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow } from './api.js';
 import { isAdmin } from './auth.js';
 import { esc, svgIcon, str } from './utils.js';
 import { render } from './render.js';
@@ -234,6 +234,8 @@ export function renderLeadTracker() {
       ${state.trackerBulkField ? `<input id="tracker-bulk-value" type="text" placeholder="New value" value="${esc(state.trackerBulkValue)}" oninput="trackerBulkValueChange(this.value)" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;width:140px;font-family:var(--font)">
       <button class="btn btn-primary" style="font-size:11px;padding:4px 12px" onclick="trackerBulkApply()">Apply</button>` : ''}
       <button class="btn btn-ghost" style="font-size:11px;padding:4px 8px" onclick="trackerBulkClear()">Clear Selection</button>
+      <span style="flex:1"></span>
+      <button class="btn btn-ghost" style="font-size:11px;padding:4px 8px;color:#dc2626;border-color:#fca5a5" onclick="trackerBulkDelete()">Delete Selected</button>
     </div>`;
   }
 
@@ -273,10 +275,10 @@ export function renderLeadTracker() {
       const cellColorStyle = (col.key === 'clientName' && clientColor) ? `color:${clientColor};font-weight:600;` : '';
 
       if (col.editable && isEditing) {
-        html += `<td><input class="tracker-cell-input" type="text" value="${esc(val)}"
+        html += `<td style="position:relative"><input class="tracker-cell-input" type="text" value="${esc(val)}"
           onblur="trackerSaveCell('${entry.id}','${col.key}',this.value)"
-          onkeydown="if(event.key==='Enter'){this.blur();}"
-          autofocus></td>`;
+          onkeydown="if(event.key==='Enter'){this.blur();} if(event.key==='d'&&(event.ctrlKey||event.metaKey)){event.preventDefault();trackerFillDown('${entry.id}','${col.key}',this.value);}"
+          autofocus><button class="tracker-fill-btn" onmousedown="event.preventDefault();trackerFillDown('${entry.id}','${col.key}',document.querySelector('.tracker-cell-input').value)" title="Fill down (Cmd+D)">↓</button></td>`;
       } else if (col.editable && !isCalledBack) {
         html += `<td class="tracker-cell-editable" style="${cellColorStyle}" onclick="trackerEditCell('${entry.id}','${col.key}')">${val ? esc(val) : '<span style="color:#d1d5db">—</span>'}</td>`;
       } else if (isCalledBack) {
@@ -377,9 +379,60 @@ window.trackerBulkApply = async () => {
   try {
     const snakeFields = camelToSnake({ [field]: value });
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, snakeFields)));
+    flashSaveStatus(true);
   } catch (e) {
     console.error('Bulk update failed:', e);
+    flashSaveStatus(false);
     alert('Some updates may have failed. Please check the data.');
+  } finally {
+    pendingWrites.value--;
+  }
+};
+window.trackerBulkDelete = async () => {
+  const ids = [...state.trackerSelected];
+  if (!ids.length) return;
+  if (!confirm(`Delete ${ids.length} entries? This cannot be undone.`)) return;
+
+  state.trackerEntries = state.trackerEntries.filter(e => !state.trackerSelected.has(e.id));
+  state.trackerSelected.clear();
+  state.trackerBulkField = '';
+  state.trackerBulkValue = '';
+  render();
+
+  pendingWrites.value++;
+  try {
+    await Promise.all(ids.map(id => sbDeleteTrackerEntry(id)));
+    flashSaveStatus(true);
+  } catch (e) {
+    console.error('Bulk delete failed:', e);
+    flashSaveStatus(false);
+    alert('Some deletes may have failed. Reload to verify.');
+  } finally {
+    pendingWrites.value--;
+  }
+};
+window.trackerFillDown = async (fromId, field, value) => {
+  const entries = getFilteredEntries();
+  const fromIdx = entries.findIndex(e => e.id === fromId);
+  if (fromIdx < 0) return;
+
+  // Fill from current row down to end of visible list
+  const toFill = entries.slice(fromIdx);
+  if (toFill.length <= 1) return;
+  if (!confirm(`Fill "${value}" down to ${toFill.length} rows for ${field}?`)) return;
+
+  state.trackerEditingCell = null;
+  for (const entry of toFill) entry[field] = value;
+  render();
+
+  pendingWrites.value++;
+  try {
+    const snakeFields = camelToSnake({ [field]: value });
+    await Promise.all(toFill.map(e => sbUpdateTrackerEntry(e.id, snakeFields)));
+    flashSaveStatus(true);
+  } catch (e) {
+    console.error('Fill down failed:', e);
+    flashSaveStatus(false);
   } finally {
     pendingWrites.value--;
   }

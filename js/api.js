@@ -805,6 +805,11 @@ export const sbUpdateTrackerEntry = (id, fields) => sbCall(async () => {
   if (error) throw error;
 }, { label: 'Update tracker entry' });
 
+export const sbDeleteTrackerEntry = (id) => sbCall(async () => {
+  const { error } = await supabase.from('lead_tracker').delete().eq('id', id);
+  if (error) throw error;
+}, { label: 'Delete tracker entry' });
+
 // Archive
 export const sbGetArchive = () => sbCall(async () => {
   const { data, error } = await supabase.from('archive').select('*');
