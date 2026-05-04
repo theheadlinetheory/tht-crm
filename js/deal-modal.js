@@ -22,6 +22,19 @@ import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggle
 import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js';
 import './blooio.js';
 
+function actTypeClass(type){
+  const t=(type||'').toLowerCase();
+  if(t==='call') return 'act-call';
+  if(t==='text') return 'act-text';
+  if(t==='email') return 'act-email';
+  if(t==='task') return 'act-task';
+  if(t==='discovery call') return 'act-discovery';
+  if(t==='demo') return 'act-demo';
+  if(t==='meeting') return 'act-meeting';
+  if(t==='follow-up') return 'act-followup';
+  return '';
+}
+
 function renderSuggestedUpdates(deal) {
   const su = deal.suggestedUpdates;
   if (!su || !su.suggestions || su.suggestions.length === 0) return '';
@@ -990,7 +1003,7 @@ export function renderDealModal(deal){
     const cls=overdue?'overdue':dueToday?'today':'future';
     const timeLabel=a.scheduledTime?fmtTime12(a.scheduledTime):'';
     const createdStr=a.createdDate?'<span style="font-size:9px;color:#b0b0b0;margin-left:4px" title="Created '+fmtTimestamp(a.createdDate)+'">'+fmtTimestamp(a.createdDate)+'</span>':'';
-    h+=`<div class="act-item ${cls}">
+    h+=`<div class="act-item ${cls} ${actTypeClass(a.type)}">
       <input type="checkbox" onchange="toggleActivity('${a.id}')">
       <span style="font-size:13px">${ACTIVITY_ICONS[a.type]||"✓"}</span>
       <span class="act-subject">${esc(a.subject||a.type)}${timeLabel?'<span style="font-size:10px;color:'+(timeOverdue?'#ef4444':overdue?'#ef4444':'#6b7280')+';margin-left:4px;font-weight:600">by '+timeLabel+'</span>':''}</span>
@@ -1006,7 +1019,7 @@ export function renderDealModal(deal){
     h+=`<details style="margin-top:8px"><summary class="completed-toggle">Completed (${completed.length})</summary>`;
     for(const a of completed){
       const completedStr=a.completedAt?'<span style="font-size:9px;color:#22c55e;margin-left:6px">✓ '+fmtTimestamp(a.completedAt)+'</span>':'';
-      h+=`<div class="completed-item">
+      h+=`<div class="completed-item ${actTypeClass(a.type)}">
         <input type="checkbox" checked onchange="toggleActivity('${a.id}')">
         <span style="font-size:13px">${ACTIVITY_ICONS[a.type]||"✓"}</span>
         <span class="act-subject">${esc(a.subject||a.type)}${completedStr}</span>
