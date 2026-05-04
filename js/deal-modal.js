@@ -20,6 +20,7 @@ import { getStagesForPipeline } from './dashboard.js';
 import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal } from './maps.js';
 import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js';
 import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js';
+import './blooio.js';
 
 function renderSuggestedUpdates(deal) {
   const su = deal.suggestedUpdates;
@@ -520,7 +521,7 @@ export function renderDealModal(deal){
               const ph=String(deal[k]).replace(/[^0-9+]/g,'');
               extra='<div id="phone-btns-'+k+'" style="margin-top:4px;display:flex;gap:6px">'
                 +(!isClient()?'<button onclick="callInJustCall(\''+esc(deal.id)+'\',\''+k+'\');event.stopPropagation()" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#f97316;color:#fff;border-color:#f97316;cursor:pointer;font-weight:600">'+svgIcon('phone',14,'#fff')+' Call</button>':'')
-                +'<a href="sms:'+esc(ph)+'" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;color:#166534;border-color:#86efac">'+svgIcon('message-circle',14)+' Text</a>'
+                +'<button onclick="openBlooioModal(\''+esc(deal.id)+'\',\''+k+'\');event.stopPropagation()" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#059669;color:#fff;border-color:#059669;cursor:pointer;font-weight:600">'+svgIcon('message-circle',14,'#fff')+' Text</button>'
                 +'</div>';
             }
             if(k==='website'&&deal[k]){

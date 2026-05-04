@@ -62,15 +62,47 @@ export const CLIENT_PALETTE = ["#2563eb","#059669","#0891b2","#10b981","#d97706"
 
 // ─── SOP Sequences ───
 export const SOP_DAYS = {
-  "Day 1": [{type:"Call",subject:"Call #1 — immediate"},{type:"Email",subject:"Manual email (Mechanism/Info, Meeting, or Price)"},{type:"Call",subject:"Call #2 — end of day"},{type:"Text",subject:"Day 1 text (if no answer)"}],
-  "Day 2": [{type:"Call",subject:"Morning call"},{type:"Call",subject:"Afternoon call"},{type:"Email",subject:"⚡ Auto email (Sub-Seq Stage 1)"}],
-  "Day 3": [{type:"Call",subject:"Call"},{type:"Email",subject:"⚡ Auto email (Sub-Seq Stage 2)"},{type:"Text",subject:"⚡ Auto text"}],
-  "Day 4": [{type:"Call",subject:"Call"}],
-  "Day 5": [{type:"Call",subject:"Call"},{type:"Email",subject:"⚡ Auto email (Sub-Seq Stage 3)"}],
-  "Day 7": [{type:"Call",subject:"Call"},{type:"Text",subject:"⚡ Auto text"}],
-  "Day 8": [{type:"Email",subject:"⚡ Auto email (Sub-Seq Stage 4)"}],
-  "Day 9": [{type:"Call",subject:"Call"}],
-  "Day 11": [{type:"Call",subject:"Final call"},{type:"Email",subject:"⚡ Auto email (Sub-Seq Stage 5)"},{type:"Text",subject:"⚡ Auto text (breakup)"}],
+  "Day 1": [
+    {type:"Call",subject:"Call #1 — immediate"},
+    {type:"Email",subject:"Manual email (Mechanism/Info, Meeting, or Price)"},
+    {type:"Text",subject:"Day 1 text"},
+    {type:"Call",subject:"Call #2 — end of day"},
+    {type:"Task",subject:"Click Sub-Sequence button (starts auto emails tomorrow)"}
+  ],
+  "Day 2": [
+    {type:"Call",subject:"Morning call"},
+    {type:"Text",subject:"Text if no answer"},
+    {type:"Call",subject:"Afternoon call"},
+    {type:"Email",subject:"⚡ Auto email (Sub-Seq Stage 1)"}
+  ],
+  "Day 3": [
+    {type:"Call",subject:"Call"},
+    {type:"Email",subject:"⚡ Auto email (Sub-Seq Stage 2)"},
+    {type:"Text",subject:"⚡ Auto text"}
+  ],
+  "Day 4": [
+    {type:"Call",subject:"Call"},
+    {type:"Text",subject:"Text if no answer"}
+  ],
+  "Day 5": [
+    {type:"Call",subject:"Call"},
+    {type:"Email",subject:"⚡ Auto email (Sub-Seq Stage 3)"}
+  ],
+  "Day 7": [
+    {type:"Call",subject:"Call"},
+    {type:"Text",subject:"Text if no answer"}
+  ],
+  "Day 8": [
+    {type:"Email",subject:"⚡ Auto email (Sub-Seq Stage 4)"}
+  ],
+  "Day 9": [
+    {type:"Call",subject:"Call"}
+  ],
+  "Day 11": [
+    {type:"Call",subject:"Final call"},
+    {type:"Email",subject:"⚡ Auto email (Sub-Seq Stage 5)"},
+    {type:"Text",subject:"Breakup text"}
+  ],
 };
 
 export const CLIENT_SOP_DAYS = {
@@ -83,6 +115,16 @@ export const NURTURE_NOT_NOW_SEQUENCE = [
   { dayOffset: 0, type: 'Call', subject: 'Re-engagement call' },
   { dayOffset: 3, type: 'Email', subject: 'Follow-up email' },
   { dayOffset: 7, type: 'Call', subject: 'Final follow-up attempt' },
+];
+
+export const PRE_CALL_SEQUENCE = [
+  { offset: 'scheduling_day', type: 'Text', subject: '{type}: Post-booking confirmation text' },
+  { offset: -3, type: 'Text', subject: '{type}: Quick reminder text' },
+  { offset: -1, type: 'Call', subject: '{type}: Confirm attendance' },
+  { offset: -1, type: 'Text', subject: '{type}: Confirmation text' },
+  { offset: -1, type: 'Email', subject: '⚡ Calendly reminder email (case studies + info)' },
+  { offset: 0, type: 'Text', subject: '{type}: Day-of reminder text' },
+  { offset: 0, type: 'Email', subject: '⚡ Calendly day-of reminder email' },
 ];
 
 // ─── Default Client Portal Stages ───
@@ -127,6 +169,10 @@ export const GOOGLE_MAPS_API_KEY = 'AIzaSyDeVLh36Ms4R7WaHZA0mIT8fXIHylk1eKk';
 export const CA_PROVINCES = /\b(AB|BC|MB|NB|NL|NS|NT|NU|ON|PE|QC|SK|YT)\b/;
 export const CA_POSTAL = /\b[A-Za-z]\d[A-Za-z]\s?\d[A-Za-z]\d\b/;
 export const CA_CITIES = /\b(Vancouver|Toronto|Montreal|Ottawa|Calgary|Edmonton|Winnipeg|Halifax|Victoria|Surrey|Burnaby|Richmond|Mississauga|Brampton|Hamilton|Saskatoon|Regina|Kelowna|Nanaimo|Kamloops|Kitchener|Waterloo|Markham|Vaughan|Mount Albert|Quebec City)\b/i;
+
+// ─── Blooio ───
+export const BLOOIO_BASE_URL = 'https://backend.blooio.com/v2/api';
+export const BLOOIO_API_KEY = 'api_8EpbWHdYWa1Vh7wrDQmW0';
 
 // ─── Test Data ───
 export function getTestData() {

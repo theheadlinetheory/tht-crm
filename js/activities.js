@@ -2,7 +2,7 @@
 // ACTIVITIES — Activity CRUD, SOP sequences, overdue tracking
 // ═══════════════════════════════════════════════════════════
 import { state, store, pendingWrites, completedActivityIds, deletedActivityIds } from './app.js';
-import { SOP_DAYS, CLIENT_SOP_DAYS } from './config.js';
+import { SOP_DAYS, CLIENT_SOP_DAYS, PRE_CALL_SEQUENCE } from './config.js';
 import { render, refreshModal } from './render.js';
 import { sbCreateActivity, sbUpdateActivity, sbDeleteActivity, camelToSnake } from './api.js';
 import { uid, getToday, isValidDate, fmtTime12 } from './utils.js';
@@ -141,24 +141,39 @@ export function generateAppointmentSequence(deal){
   const bookedDate=new Date(deal.bookedDate+'T00:00:00');
   const today=new Date(getToday()+'T00:00:00');
   const daysUntil=Math.floor((bookedDate-today)/(1000*60*60*24));
-  // Clear existing appointment-related activities
-  const existingApptActs=state.activities.filter(a=>a.dealId===deal.id && (a.subject||'').toLowerCase().includes('appointment'));
-  for(const a of existingApptActs){
+
+  // Clear existing pre-call activities
+  const existingActs=state.activities.filter(a=>a.dealId===deal.id &&
+    ((a.subject||'').includes('Discovery:')||(a.subject||'').includes('Demo:')||
+     (a.subject||'').toLowerCase().includes('appointment')||(a.subject||'').includes('Calendly')));
+  for(const a of existingActs){
     store.removeActivity(a.id, {silent: true});
     pendingWrites.value++;
     sbDeleteActivity(a.id).catch(e=>console.error('Delete activity failed:',e)).finally(()=>{pendingWrites.value--;});
   }
 
-  // Day before: reminder call + confirmation text
-  if(daysUntil>=1){
-    const dayBefore=new Date(bookedDate);
-    dayBefore.setDate(dayBefore.getDate()-1);
-    const dbStr=dayBefore.toISOString().split('T')[0];
-    addActivity(deal.id,{type:'Call',subject:'Appointment reminder call (tomorrow)',dueDate:dbStr,dayLabel:'Pre-Appt'});
-    addActivity(deal.id,{type:'Text',subject:'Appointment confirmation text (tomorrow)',dueDate:dbStr,dayLabel:'Pre-Appt'});
+  const typeLabel=deal.stage==='Demo Scheduled'?'Demo':'Discovery';
+
+  for(const step of PRE_CALL_SEQUENCE){
+    let targetDate;
+    if(step.offset==='scheduling_day'){
+      if(daysUntil<=3) continue;
+      targetDate=getToday();
+    } else {
+      const offsetDate=new Date(bookedDate);
+      offsetDate.setDate(offsetDate.getDate()+step.offset);
+      const offsetStr=offsetDate.toISOString().split('T')[0];
+      if(offsetStr<getToday()) continue;
+      targetDate=offsetStr;
+    }
+
+    const subject=step.subject.replace('{type}',typeLabel);
+    const dayLabel=step.offset==='scheduling_day'?'Booking Day'
+      :step.offset===0?'Meeting Day'
+      :Math.abs(step.offset)+'d before';
+
+    addActivity(deal.id,{type:step.type,subject,dueDate:targetDate,dayLabel});
   }
-  // Day of: pre-meeting prep
-  addActivity(deal.id,{type:'Task',subject:'Pre-meeting prep',dueDate:deal.bookedDate,dayLabel:'Appt Day'});
 }
 
 // Expose to inline HTML handlers
