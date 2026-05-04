@@ -44,11 +44,16 @@ async function getFromNumber(){
     const res = await fetch(BLOOIO_BASE_URL + '/me/numbers', {
       headers: { 'Authorization': 'Bearer ' + BLOOIO_API_KEY }
     });
-    if(!res.ok) throw new Error('Failed to fetch numbers');
+    if(!res.ok){
+      console.error('[Blooio] /me/numbers returned', res.status, await res.text().catch(()=>''));
+      throw new Error('Failed to fetch numbers');
+    }
     const data = await res.json();
+    console.log('[Blooio] /me/numbers response:', JSON.stringify(data));
     const numbers = data.numbers || data;
     if(Array.isArray(numbers) && numbers.length > 0){
       cachedFromNumber = numbers[0].phone_number || numbers[0].number || numbers[0];
+      console.log('[Blooio] Using from-number:', cachedFromNumber);
       return cachedFromNumber;
     }
   } catch(e){
@@ -86,6 +91,7 @@ async function sendBlooioText(phone, message){
   const body = { text: message };
   if(fromNumber) body.from_number = fromNumber;
 
+  console.log('[Blooio] Sending to', e164, 'from', fromNumber, 'body:', JSON.stringify(body));
   const res = await fetch(BLOOIO_BASE_URL + '/chats/' + encoded + '/messages', {
     method: 'POST',
     headers: {
@@ -96,8 +102,11 @@ async function sendBlooioText(phone, message){
   });
 
   if(!res.ok){
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Send failed (' + res.status + ')');
+    const errText = await res.text().catch(() => '');
+    console.error('[Blooio] Send failed:', res.status, errText);
+    let errMsg;
+    try { errMsg = JSON.parse(errText).error || JSON.parse(errText).message; } catch(_){}
+    throw new Error(errMsg || 'Send failed (HTTP ' + res.status + '). Check browser console for details.');
   }
   return await res.json();
 }
@@ -177,7 +186,7 @@ export function openBlooioModal(dealId, phoneField){
       </div>
       <div style="border-top:1px solid #e5e7eb;padding:12px 16px;background:#fff;flex-shrink:0">
         <div style="display:flex;gap:8px;align-items:flex-end">
-          <textarea id="blooio-msg" rows="2" placeholder="Type a message..." style="flex:1;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;font-family:inherit;resize:none;box-sizing:border-box;max-height:80px"></textarea>
+          <textarea id="blooio-msg" rows="4" placeholder="Type a message..." style="flex:1;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;min-height:80px;max-height:160px"></textarea>
           <button id="blooio-send" style="padding:8px 16px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;height:36px">Send</button>
         </div>
         <div id="blooio-error" style="color:#dc2626;font-size:11px;margin-top:4px;display:none"></div>
@@ -244,7 +253,8 @@ export function openBlooioModal(dealId, phoneField){
       if(state.selectedDeal && state.selectedDeal.id === dealId) refreshModal();
 
     } catch(e){
-      errEl.textContent = e.message || 'Failed to send';
+      console.error('[Blooio] Send error:', e);
+      errEl.textContent = e.message || 'Failed to send text. Check browser console.';
       errEl.style.display = '';
     }
     sendBtn.disabled = false;
