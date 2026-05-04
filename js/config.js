@@ -76,7 +76,6 @@ export const SOP_DAYS = {
   ],
   "Day 3": [
     {type:"Call",subject:"Call"},
-    {type:"Text",subject:"Text"},
   ],
   "Day 4": [
     {type:"Call",subject:"Call"},
