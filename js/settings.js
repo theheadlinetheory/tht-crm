@@ -151,18 +151,7 @@ export function applySettings(s, skipCache){
       ACTIVITY_ICONS[t.name]=t.icon||'\u2713';
     });
   }
-  if(s.sop_acquisition){
-    Object.keys(SOP_DAYS).forEach(k=>delete SOP_DAYS[k]);
-    s.sop_acquisition.forEach(seq=>{
-      SOP_DAYS[seq.name]=seq.activities.map(a=>({type:a.type,subject:a.subject}));
-    });
-  }
-  if(s.sop_client){
-    Object.keys(CLIENT_SOP_DAYS).forEach(k=>delete CLIENT_SOP_DAYS[k]);
-    s.sop_client.forEach(seq=>{
-      CLIENT_SOP_DAYS[seq.name]=seq.activities.map(a=>({type:a.type,subject:a.subject}));
-    });
-  }
+  // SOP sequences are defined in config.js (source of truth) — never override from saved settings
   if(s.clientCalendlyUrls){
     try{
       const urls=typeof s.clientCalendlyUrls==='string'?JSON.parse(s.clientCalendlyUrls):s.clientCalendlyUrls;
