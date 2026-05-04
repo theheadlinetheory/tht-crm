@@ -434,6 +434,21 @@ export function toggleBadgeDropdown(dealId){
 }
 
 // ─── Enrich Lead (AI Ark Phone Finder) ───
+function showEnrichOverlay(show, msg) {
+  let ov = document.getElementById('enrich-overlay');
+  if (show) {
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'enrich-overlay';
+      ov.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(255,255,255,.85);backdrop-filter:blur(3px)';
+      document.body.appendChild(ov);
+    }
+    ov.innerHTML = '<div style="text-align:center"><div class="pulse-spinner" style="width:40px;height:40px;border:3px solid #e9d5ff;border-top-color:#7c3aed;border-radius:50%;margin:0 auto 12px;animation:spin .8s linear infinite"></div><div style="font-size:15px;font-weight:700;color:#5b21b6">' + (msg || 'Searching for phone numbers...') + '</div><div style="font-size:12px;color:#6b7280;margin-top:4px">This usually takes 5–10 seconds</div></div>';
+  } else if (ov) {
+    ov.remove();
+  }
+}
+
 async function enrichLead(dealId) {
   const deal = state.deals.find(d => d.id === dealId);
   if (!deal) return;
@@ -452,29 +467,32 @@ async function enrichLead(dealId) {
   const name = str(deal.contact || deal.company || '');
   if (!confirm('Use 1 AI Ark credit to find phone numbers for ' + name + '?')) return;
 
-  const btn = document.getElementById('enrich-btn');
-  if (btn) { btn.disabled = true; btn.innerHTML = svgIcon('loader',12,'#7c3aed') + ' Enriching...'; }
+  showEnrichOverlay(true, 'Finding phone numbers for ' + name + '...');
 
   try {
     const result = await invokeEdgeFunction('enrich-lead', { dealId });
     const { showToast } = await import('./api.js');
+    console.log('[enrich-lead] Response:', JSON.stringify(result));
 
     if (result.ok && result.phones && result.phones.length > 0) {
       if (result.updated.phone) { deal.phone = result.updated.phone; pendingDealFields[dealId] = { ...pendingDealFields[dealId], phone: result.updated.phone }; }
       if (result.updated.mobile_phone) { deal.mobilePhone = result.updated.mobile_phone; pendingDealFields[dealId] = { ...pendingDealFields[dealId], mobilePhone: result.updated.mobile_phone }; }
+      showEnrichOverlay(false);
       showToast('Found ' + result.phones.length + ' phone number(s) for ' + name, 'success');
       refreshModal();
     } else if (result.ok) {
+      showEnrichOverlay(false);
       showToast('No phone numbers found for ' + name, 'warning');
-      if (btn) { btn.disabled = false; btn.innerHTML = svgIcon('search',12,'#7c3aed') + ' Enrich — Find Phone'; }
     } else {
+      showEnrichOverlay(false);
+      console.error('[enrich-lead] Error:', result.error);
       showToast(result.error || 'Enrichment failed', 'error');
-      if (btn) { btn.disabled = false; btn.innerHTML = svgIcon('search',12,'#7c3aed') + ' Enrich — Find Phone'; }
     }
   } catch (e) {
+    showEnrichOverlay(false);
     const { showToast } = await import('./api.js');
+    console.error('[enrich-lead] Exception:', e);
     showToast('Enrichment failed: ' + e.message, 'error');
-    if (btn) { btn.disabled = false; btn.innerHTML = svgIcon('search',12,'#7c3aed') + ' Enrich — Find Phone'; }
   }
 }
 
@@ -579,7 +597,7 @@ export function renderDealModal(deal){
             </div>
           </div>
           ${(()=>{
-            if(!isAdmin()) return '';
+            if(isClient()) return '';
             const hasPhone=deal.phone&&str(deal.phone).trim();
             const hasMobile=deal.mobilePhone&&str(deal.mobilePhone).trim();
             if(hasPhone&&hasMobile) return '';
