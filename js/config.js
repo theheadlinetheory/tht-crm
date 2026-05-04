@@ -67,18 +67,16 @@ export const SOP_DAYS = {
     {type:"Email",subject:"Manual email (Mechanism/Info, Meeting, or Price)"},
     {type:"Text",subject:"Day 1 text"},
     {type:"Call",subject:"Call #2 — end of day"},
-    {type:"Task",subject:"Click Sub-Sequence button (starts auto emails tomorrow)"}
+    {type:"Task",subject:"Start auto follow-up sequence"}
   ],
   "Day 2": [
     {type:"Call",subject:"Morning call"},
     {type:"Text",subject:"Text if no answer"},
     {type:"Call",subject:"Afternoon call"},
-    {type:"Email",subject:"⚡ Auto email (Sub-Seq Stage 1)"}
   ],
   "Day 3": [
     {type:"Call",subject:"Call"},
-    {type:"Email",subject:"⚡ Auto email (Sub-Seq Stage 2)"},
-    {type:"Text",subject:"⚡ Auto text"}
+    {type:"Text",subject:"Text"},
   ],
   "Day 4": [
     {type:"Call",subject:"Call"},
@@ -86,21 +84,16 @@ export const SOP_DAYS = {
   ],
   "Day 5": [
     {type:"Call",subject:"Call"},
-    {type:"Email",subject:"⚡ Auto email (Sub-Seq Stage 3)"}
   ],
   "Day 7": [
     {type:"Call",subject:"Call"},
     {type:"Text",subject:"Text if no answer"}
-  ],
-  "Day 8": [
-    {type:"Email",subject:"⚡ Auto email (Sub-Seq Stage 4)"}
   ],
   "Day 9": [
     {type:"Call",subject:"Call"}
   ],
   "Day 11": [
     {type:"Call",subject:"Final call"},
-    {type:"Email",subject:"⚡ Auto email (Sub-Seq Stage 5)"},
     {type:"Text",subject:"Breakup text"}
   ],
 };
