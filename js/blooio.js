@@ -213,7 +213,9 @@ export function openBlooioModal(dealId, phoneField){
 
   // Close handlers
   document.getElementById('blooio-close').onclick = () => modal.remove();
-  modal.onclick = (e) => { if(e.target === modal) modal.remove(); };
+  let mouseDownTarget = null;
+  modal.onmousedown = (e) => { mouseDownTarget = e.target; };
+  modal.onmouseup = (e) => { if(e.target === modal && mouseDownTarget === modal) modal.remove(); mouseDownTarget = null; };
 
   // Enter to send (Shift+Enter for newline)
   msgEl.onkeydown = (e) => {
