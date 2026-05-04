@@ -8,6 +8,7 @@ import { isAdmin, isClient, isEmployee, currentUser, loadCampaignAssignments, li
 import { initJustCallDialer } from './dialer.js';
 import { esc, svgIcon } from './utils.js';
 import './email.js'; // Static import to register window.forwardDealToClient etc.
+import './blooio.js'; // Blooio texting modal
 
 // ─── Re-export state from centralized module ───
 export {
