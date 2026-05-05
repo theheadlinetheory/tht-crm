@@ -188,7 +188,7 @@ export async function addClient(name, extra={}){
     enableForward:extra.notifyEmails?'TRUE':'FALSE',
     enableCalendly:extra.calendlyUrl?'TRUE':'FALSE',
     enableCopyInfo:'FALSE',
-    enableTracker:'FALSE',
+    enableTracker:'TRUE',
     leadCost:''
   };
   store.addClient(c);
@@ -259,7 +259,7 @@ export async function autoCreateClient(deal) {
     enableForward: deal.email ? 'TRUE' : 'FALSE',
     enableCalendly: 'FALSE',
     enableCopyInfo: 'FALSE',
-    enableTracker: 'FALSE',
+    enableTracker: 'TRUE',
     leadCost: '',
   };
   store.addClient(c);
