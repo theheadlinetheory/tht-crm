@@ -170,7 +170,7 @@ export function openBlooioModal(dealId, phoneField){
   modal.id = 'blooio-modal';
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100000;display:flex;align-items:center;justify-content:center';
   modal.innerHTML = `
-    <div style="background:#fff;border-radius:12px;width:440px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden;display:flex;flex-direction:column;max-height:85vh">
+    <div style="background:#fff;border-radius:12px;width:560px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden;display:flex;flex-direction:column;max-height:90vh">
       <div style="padding:14px 20px;background:#059669;color:#fff;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
         <div>
           <div style="font-weight:700;font-size:15px">Text — ${esc(contactName)}</div>
@@ -181,12 +181,12 @@ export function openBlooioModal(dealId, phoneField){
           <button id="blooio-close" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:0 4px">&times;</button>
         </div>
       </div>
-      <div id="blooio-thread" style="flex:1;overflow-y:auto;padding:16px;min-height:200px;max-height:50vh;background:#fafafa">
+      <div id="blooio-thread" style="flex:1;overflow-y:auto;padding:16px;min-height:280px;max-height:60vh;background:#fafafa">
         <div style="text-align:center;padding:40px;color:#9ca3af;font-size:13px">Loading messages...</div>
       </div>
       <div style="border-top:1px solid #e5e7eb;padding:12px 16px;background:#fff;flex-shrink:0">
         <div style="display:flex;gap:8px;align-items:flex-end">
-          <textarea id="blooio-msg" rows="4" placeholder="Type a message..." style="flex:1;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;min-height:80px;max-height:160px"></textarea>
+          <textarea id="blooio-msg" rows="5" placeholder="Type a message..." style="flex:1;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;min-height:100px;max-height:200px"></textarea>
           <button id="blooio-send" style="padding:8px 16px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;height:36px">Send</button>
         </div>
         <div id="blooio-error" style="color:#dc2626;font-size:11px;margin-top:4px;display:none"></div>
