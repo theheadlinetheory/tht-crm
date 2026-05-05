@@ -167,10 +167,7 @@ export async function syncFromSheet(){
         sbDeleteAppointment(p.id).catch(()=>{});
       }
     }
-    if(data.settings && typeof data.settings==='object' && Object.keys(data.settings).length>0){
-      const { applySettings } = await import('./settings.js');
-      applySettings(data.settings);
-    }
+    // Settings now loaded from Supabase in initialSync() — skip Apps Script settings
     // Prune deleted-ID caches
     if(data.deals && deletedDealIds.size){
       const serverDealIds=new Set(data.deals.map(d=>String(d.id)));
@@ -388,9 +385,14 @@ export async function initialSync(isStartup) {
     // Clear dashboard archive cache so it refreshes on next render
     import('./dashboard.js').then(m => m.clearDashboardArchiveCache && m.clearDashboardArchiveCache()).catch(() => {});
     render();
-    const [deals, activities, clients, appointments, trackerEntries] = await Promise.all([
-      sbGetDeals(), sbGetActivities(), sbGetClients(), sbGetAppointments(), sbGetTrackerEntries()
+    const [deals, activities, clients, appointments, trackerEntries, savedSettings] = await Promise.all([
+      sbGetDeals(), sbGetActivities(), sbGetClients(), sbGetAppointments(), sbGetTrackerEntries(), sbLoadSettings()
     ]);
+    // Apply settings from Supabase if available
+    if (savedSettings && Object.keys(savedSettings).length > 0) {
+      const { applySettings } = await import('./settings.js');
+      applySettings(savedSettings);
+    }
     state.deals = deals.map(normalizeRow);
     state.activities = activities.map(normalizeRow);
     state.clients = clients.map(normalizeRow);
@@ -812,6 +814,27 @@ export const sbDeleteTrackerEntry = (id) => sbCall(async () => {
   const { error } = await supabase.from('lead_tracker').delete().eq('id', id);
   if (error) throw error;
 }, { label: 'Delete tracker entry' });
+
+// ─── CRM Settings (Supabase key-value) ───
+export const sbLoadSettings = () => sbCall(async () => {
+  const { data, error } = await supabase.from('crm_settings').select('key, value');
+  if (error) throw error;
+  const result = {};
+  for (const row of (data || [])) {
+    try { result[row.key] = JSON.parse(row.value); } catch(e) { result[row.key] = row.value; }
+  }
+  return result;
+}, { label: 'Load CRM settings' });
+
+export const sbSaveSettings = (settings) => sbCall(async () => {
+  const rows = Object.entries(settings).map(([key, value]) => ({
+    key,
+    value: JSON.stringify(value),
+    updated_at: new Date().toISOString()
+  }));
+  const { error } = await supabase.from('crm_settings').upsert(rows, { onConflict: 'key' });
+  if (error) throw error;
+}, { label: 'Save CRM settings' });
 
 // Archive
 export const sbGetArchive = () => sbCall(async () => {
