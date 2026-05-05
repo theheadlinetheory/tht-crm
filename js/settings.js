@@ -106,6 +106,7 @@ export function debouncedAutoSave(){
         enableCopyInfo:str(c.enableCopyInfo),
         enableTracker:str(c.enableTracker),
         leadCost:str(c.leadCost),
+        paymentTerms:str(c.paymentTerms||'Net 7'),
         serviceAreaUrl:str(c.serviceAreaUrl),
         clientNotes:str(c.clientNotes||''),
         warmCallNotesText:str(c.warmCallNotesText||''),
@@ -542,6 +543,16 @@ function renderClientsSettings(){
         <input type="text" placeholder="e.g. 200" value="${esc(str(c.leadCost))}"
           oninput="updateClientField('${esc(c.id)}','leadCost',this.value)"
           style="width:120px;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+      </div>
+
+      <div style="margin-bottom:8px">
+        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Payment Terms</label>
+        <select oninput="updateClientField('${esc(c.id)}','paymentTerms',this.value)"
+          style="width:120px;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+          <option value="Net 7" ${str(c.paymentTerms||'Net 7')==='Net 7'?'selected':''}>Net 7</option>
+          <option value="Net 15" ${str(c.paymentTerms||'Net 7')==='Net 15'?'selected':''}>Net 15</option>
+          <option value="Net 30" ${str(c.paymentTerms||'Net 7')==='Net 30'?'selected':''}>Net 30</option>
+        </select>
       </div>
 
       ${isOn('enableCalendly')?`<div style="margin-bottom:8px">
@@ -1044,6 +1055,7 @@ export async function saveSettingsToSheet(){
       enableCopyInfo:str(c.enableCopyInfo),
       enableTracker:str(c.enableTracker),
       leadCost:str(c.leadCost),
+      paymentTerms:str(c.paymentTerms||'Net 7'),
       serviceAreaUrl:str(c.serviceAreaUrl),
       clientNotes:str(c.clientNotes||''),
       warmCallNotesText:str(c.warmCallNotesText||''),
