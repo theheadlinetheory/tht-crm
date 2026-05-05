@@ -226,6 +226,11 @@ export async function updateUserName(uid, name){
   catch(e){ alert('Failed to update name: '+e.message); }
 }
 
+export async function updateUserEmail(uid, email){
+  try { await db.collection('users').doc(uid).update({ email }); }
+  catch(e){ alert('Failed to update email: '+e.message); }
+}
+
 export async function updateUserRole(uid, newRole){
   try { await db.collection('users').doc(uid).update({ role: newRole }); }
   catch(e){ alert('Failed to update role: '+e.message); }

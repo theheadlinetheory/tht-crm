@@ -7,7 +7,7 @@ import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY
 import { render } from './render.js';
 import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClientConfig, camelToSnake, supabase, invokeEdgeFunction, showToast } from './api.js';
 import { esc, str, svgIcon } from './utils.js';
-import { isAdmin, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, deleteFirebaseUser, db } from './auth.js';
+import { isAdmin, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, db } from './auth.js';
 import { lookupClientInfo, getClientConfig, loadClientConfig } from './client-info.js';
 import { findPolygonForClient } from './maps.js';
 import { renderDocumentsSection, initDocumentHandlers } from './documents.js';
@@ -748,14 +748,14 @@ async function loadUsersIntoPanel(){
           ${photoUrl
             ? `<img src="${esc(photoUrl)}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid ${roleColor}">`
             : `<div style="width:40px;height:40px;border-radius:50%;background:${roleColor};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px">${esc((u.name||u.email||'?')[0].toUpperCase())}</div>`}
-          <label style="position:absolute;bottom:-2px;right:-2px;width:18px;height:18px;border-radius:50%;background:#fff;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:10px" title="Change photo">
+          <label style="position:absolute;bottom:-3px;right:-3px;width:22px;height:22px;border-radius:50%;background:#059669;border:2px solid #fff;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:11px;color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)" title="Change photo">
             <input type="file" accept="image/*" style="display:none" onchange="handleUserPhoto('${u.uid}',this)">
             &#9998;
           </label>
         </div>
         <div style="flex:1;min-width:0">
           <input type="text" value="${esc(u.name||'')}" placeholder="Enter name" onkeydown="if(event.key==='Enter')this.blur()" style="font-size:13px;font-weight:600;border:1px solid transparent;background:transparent;padding:2px 6px;border-radius:4px;font-family:var(--font);width:100%;box-sizing:border-box" onfocus="this.style.borderColor='var(--border)';this.style.background='#fff'" onblur="this.style.borderColor='transparent';this.style.background='transparent';saveUserName('${u.uid}',this.value)">${isSelf?' <span style="font-size:10px;color:var(--text-muted)">(you)</span>':''}
-          <div style="font-size:11px;color:var(--text-muted);padding-left:6px">${esc(u.email||'')}</div>
+          <input type="text" value="${esc(u.email||'')}" placeholder="Email address" onkeydown="if(event.key==='Enter')this.blur()" style="font-size:11px;color:var(--text-muted);border:1px solid transparent;background:transparent;padding:2px 6px;border-radius:4px;font-family:var(--font);width:100%;box-sizing:border-box" onfocus="this.style.borderColor='var(--border)';this.style.background='#fff'" onblur="this.style.borderColor='transparent';this.style.background='transparent';saveUserEmail('${u.uid}',this.value)">
           ${u.clientName?`<div style="font-size:10px;color:#2563eb;margin-top:2px;padding-left:6px">Assigned: ${esc(u.clientName)}</div>`:''}
         </div>
         <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex-shrink:0">
@@ -793,8 +793,15 @@ async function saveUserName(uid, name){
   if(cached && cached.name === trimmed) return;
   await updateUserName(uid, trimmed);
   if(cached) cached.name = trimmed;
-  // Clear assignable users cache so owner dropdowns pick up the new name
   state.assignableUsers = [];
+}
+async function saveUserEmail(uid, email){
+  const trimmed = email.trim();
+  if(!trimmed) return;
+  const cached = usersListCache && usersListCache.find(u => u.uid === uid);
+  if(cached && cached.email === trimmed) return;
+  await updateUserEmail(uid, trimmed);
+  if(cached) cached.email = trimmed;
 }
 async function deleteUser(uid, name){
   if(!confirm('Remove user "'+name+'" from the CRM? This only removes their Firestore profile — their Firebase Auth account will remain.')) return;
@@ -823,6 +830,7 @@ async function handleUserPhoto(uid, input){
   img.src = URL.createObjectURL(file);
 }
 window.saveUserName = saveUserName;
+window.saveUserEmail = saveUserEmail;
 window.deleteUser = deleteUser;
 window.handleUserPhoto = handleUserPhoto;
 
