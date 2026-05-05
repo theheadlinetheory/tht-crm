@@ -7,7 +7,7 @@ import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY
 import { render } from './render.js';
 import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClientConfig, camelToSnake, supabase, invokeEdgeFunction, showToast } from './api.js';
 import { esc, str, svgIcon } from './utils.js';
-import { isAdmin, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, db } from './auth.js';
+import { isAdmin, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js';
 import { lookupClientInfo, getClientConfig, loadClientConfig } from './client-info.js';
 import { findPolygonForClient } from './maps.js';
 import { renderDocumentsSection, initDocumentHandlers } from './documents.js';
@@ -770,6 +770,10 @@ async function loadUsersIntoPanel(){
               ${state.clients.map(c=>`<option value="${esc(c.name)}"${u.clientName===c.name?' selected':''}>${esc(c.name)}</option>`).join('')}
             </select>
           </div>
+          <div style="display:flex;gap:3px;align-items:center">
+            <span style="font-size:9px;color:var(--text-muted);margin-right:2px">Tag:</span>
+            ${TAG_PALETTE.map(c => `<button onclick="saveUserTagColor('${u.uid}','${c}')" style="width:16px;height:16px;border-radius:50%;border:2px solid ${(u.tagColor||TAG_PALETTE[0])===c?'#111':'transparent'};background:${c};cursor:pointer;padding:0;flex-shrink:0" title="${c}"></button>`).join('')}
+          </div>
           ${!isSelf?`<button onclick="deleteUser('${u.uid}','${esc(u.name||u.email||'')}')" style="font-size:10px;color:#ef4444;background:none;border:none;cursor:pointer;padding:2px 6px;font-family:var(--font)">Remove</button>`:''}
         </div>
       </div>`;
@@ -803,6 +807,15 @@ async function saveUserEmail(uid, email){
   await updateUserEmail(uid, trimmed);
   if(cached) cached.email = trimmed;
 }
+async function saveUserTagColor(uid, color){
+  try {
+    await db.collection('users').doc(uid).update({ tagColor: color });
+    const cached = usersListCache && usersListCache.find(u => u.uid === uid);
+    if(cached) cached.tagColor = color;
+    state.assignableUsers = [];
+    loadUsersIntoPanel();
+  } catch(e){ alert('Failed to update tag color: '+e.message); }
+}
 async function deleteUser(uid, name){
   if(!confirm('Remove user "'+name+'" from the CRM? This only removes their Firestore profile — their Firebase Auth account will remain.')) return;
   await deleteFirebaseUser(uid);
@@ -831,6 +844,7 @@ async function handleUserPhoto(uid, input){
 }
 window.saveUserName = saveUserName;
 window.saveUserEmail = saveUserEmail;
+window.saveUserTagColor = saveUserTagColor;
 window.deleteUser = deleteUser;
 window.handleUserPhoto = handleUserPhoto;
 
@@ -890,7 +904,7 @@ async function fetchAcquisitionCampaigns(){
           <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(camp.name)}</div>
           <div style="font-size:10px;color:var(--text-muted)">${esc(camp.status||'')}</div>
         </div>
-        ${ownerInfo?`<span class="owner-tag ${ownerInfo.cls}">${esc(assigned)}</span>`:''}
+        ${ownerInfo?`<span class="owner-tag" style="background:${ownerInfo.bg};color:${ownerInfo.fg}">${esc(assigned)}</span>`:''}
         <select onchange="assignCampaignOwner('${esc(camp.name).replace(/'/g,"\\'")}',this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:var(--font);min-width:120px">
           <option value=""${!assigned?' selected':''}>Unassigned</option>
           ${adminUsers.map(u => `<option value="${esc(u)}"${assigned===u?' selected':''}>${esc(u)}</option>`).join('')}
@@ -913,13 +927,7 @@ async function fetchAcquisitionCampaigns(){
 }
 
 function getOwnerColor(name){
-  const OWNER_COLORS = [
-    {cls:'owner-a',label:'A'},{cls:'owner-b',label:'B'},{cls:'owner-c',label:'C'},
-    {cls:'owner-d',label:'D'},{cls:'owner-e',label:'E'}
-  ];
-  const owners = [...new Set(Object.values(state.campaignAssignments))].filter(Boolean).sort();
-  const idx = owners.indexOf(name);
-  return idx>=0 ? {cls:OWNER_COLORS[idx%OWNER_COLORS.length].cls, label:name} : {cls:'owner-a', label:name};
+  return authGetOwnerColor(name);
 }
 
 function renderDialerSettings(){

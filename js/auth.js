@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // AUTH — Firebase Auth, user management, campaign assignments
 // ═══════════════════════════════════════════════════════════
-import { firebaseConfig, ROLES, OWNER_COLORS_MAP } from './config.js';
+import { firebaseConfig, ROLES } from './config.js';
 import { state } from './app.js';
 import { render } from './render.js';
 import { esc, svgIcon, str } from './utils.js';
@@ -247,13 +247,36 @@ export async function deleteFirebaseUser(uid){
 }
 
 // ─── Campaign Assignments (Firestore) ───
+const TAG_PALETTE = ['#2563eb','#d97706','#059669','#dc2626','#7c3aed','#0891b2','#c026d3','#ea580c'];
+const TAG_COLOR_MAP = {
+  '#2563eb': { bg: '#dbeafe', fg: '#1d4ed8' },
+  '#d97706': { bg: '#fef3c7', fg: '#92400e' },
+  '#059669': { bg: '#d1fae5', fg: '#065f46' },
+  '#dc2626': { bg: '#fee2e2', fg: '#991b1b' },
+  '#7c3aed': { bg: '#ede9fe', fg: '#5b21b6' },
+  '#0891b2': { bg: '#cffafe', fg: '#155e75' },
+  '#c026d3': { bg: '#fae8ff', fg: '#86198f' },
+  '#ea580c': { bg: '#ffedd5', fg: '#9a3412' },
+};
+
+export { TAG_PALETTE };
+
+function hexToTagStyle(hex) {
+  const mapped = TAG_COLOR_MAP[hex];
+  if (mapped) return mapped;
+  return { bg: hex + '22', fg: hex };
+}
+
 export function getOwnerColor(name){
   if(!name) return null;
-  const lower = name.toLowerCase();
-  if(OWNER_COLORS_MAP[lower]) return { ...OWNER_COLORS_MAP[lower], label: name };
-  const first = lower.split(/\s+/)[0];
-  if(OWNER_COLORS_MAP[first]) return { ...OWNER_COLORS_MAP[first], label: name };
-  return { cls: 'owner-tag-blue', label: name };
+  const lower = name.toLowerCase().trim();
+  const user = state.assignableUsers.find(u =>
+    (u.name || '').toLowerCase().trim() === lower ||
+    (u.name || '').toLowerCase().split(/\s+/)[0] === lower
+  );
+  const hex = (user && user.tagColor) || TAG_PALETTE[0];
+  const style = hexToTagStyle(hex);
+  return { label: name, bg: style.bg, fg: style.fg };
 }
 
 export async function loadCampaignAssignments(){

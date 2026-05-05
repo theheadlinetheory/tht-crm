@@ -55,7 +55,7 @@ function renderListView(deals,stages){
       <td style="padding:8px 10px;color:var(--text-muted)">${esc(d.location||'')}</td>
       <td style="padding:8px 10px">${badge?`<span style="display:inline-flex;align-items:center;gap:3px"><span style="width:7px;height:7px;border-radius:50%;background:${badge.color};display:inline-block"></span><span style="color:${badge.color};font-weight:600;font-size:11px">${badge.count} ${badge.label}</span></span>`:''}</td>
       <td style="padding:8px 10px;color:var(--text-muted);white-space:nowrap">${created}</td>
-      ${state.pipeline==='acquisition'?`<td style="padding:8px 10px">${(()=>{ const ow=getOwnerForDeal(d); return ow?`<span class="owner-tag ${ow.cls}">${esc(ow.label)}</span>`:''; })()}</td>`:''}
+      ${state.pipeline==='acquisition'?`<td style="padding:8px 10px">${(()=>{ const ow=getOwnerForDeal(d); return ow?`<span class="owner-tag" style="background:${ow.bg};color:${ow.fg}">${esc(ow.label)}</span>`:''; })()}</td>`:''}
     </tr>`;
   }
   h+=`</tbody></table></div></div>`;
@@ -547,7 +547,7 @@ export function render(){
               ${(()=>{const sa=serviceAreaResults[deal.id];if(!sa||sa.inArea===undefined)return'';if(sa.inArea===true)return'<span class="sa-badge sa-in" title="In service area">&#10003;</span>';if(sa.inArea===false)return'<span class="sa-badge sa-out" title="Outside service area">&#10007;</span>';return'<span class="sa-badge sa-unknown" title="Service area unknown">?</span>';})()}
               ${leadAgeBadge(deal)}
               ${deal.leadCategory?`<span class="deal-tag">${esc(deal.leadCategory)}</span>`:''}
-              ${(()=>{ const ow=getOwnerForDeal(deal); return ow?`<span class="owner-tag ${ow.cls}">${esc(ow.label)}</span>`:''; })()}
+              ${(()=>{ const ow=getOwnerForDeal(deal); return ow?`<span class="owner-tag" style="background:${ow.bg};color:${ow.fg}">${esc(ow.label)}</span>`:''; })()}
             </span>
           </div>
           ${deal.replySnippet?`<div class="deal-reply-snippet" title="${esc(deal.replySnippet)}">${esc(deal.replySnippet.substring(0,80))}${deal.replySnippet.length>80?'…':''}</div>`:''}
