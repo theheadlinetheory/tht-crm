@@ -147,6 +147,16 @@ export async function autoPushToTracker(deal){
   // Look up lead cost from client record
   const leadCost = client && str(client.leadCost).trim() ? `$${str(client.leadCost).replace(/[^0-9.]/g,'')}` : '$0';
 
+  // Build appointment time from deal's booked date/time
+  let apptTime = '';
+  if (deal.bookedDate && /^\d{4}-\d{2}-\d{2}$/.test(deal.bookedDate)) {
+    const dt = new Date(deal.bookedDate + 'T' + (deal.bookedTime || '12:00'));
+    const dayName = dt.toLocaleDateString('en-US', { weekday: 'long' });
+    const datePart = dt.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+    const timePart = deal.bookedTime ? dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+    apptTime = timePart ? `${dayName}, ${datePart}, ${timePart}` : `${dayName}, ${datePart}`;
+  }
+
   // Insert into lead_tracker table
   const { sbCreateTrackerEntry, normalizeRow } = await import('./api.js');
   const entry = await sbCreateTrackerEntry({
@@ -157,6 +167,7 @@ export async function autoPushToTracker(deal){
     lead_email: leadEmail,
     date_added: dateAdded,
     lead_cost: leadCost,
+    appt_time: apptTime,
   });
 
   // Update deal
