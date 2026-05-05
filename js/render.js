@@ -291,9 +291,14 @@ export function render(){
       ${renderUserMenu()}
     </div>
   </div>
-  ${renderOverdueBanner()}
-  ${state.pipeline==='acquisition' ? renderDueTodayBanner() : ''}
-  ${renderBookedMeetingsBanner()}`;
+  ${(() => {
+    const overdue = renderOverdueBanner();
+    const booked = renderBookedMeetingsBanner();
+    const parts = [overdue, booked].filter(Boolean);
+    const strip = parts.length ? `<div style="padding:5px 16px;background:#fafafa;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;overflow-x:auto">${parts.join('<span style="color:#d1d5db">|</span>')}</div>` : '';
+    const nurture = state.pipeline==='acquisition' ? renderDueTodayBanner() : '';
+    return strip + nurture;
+  })()}`;
 
   // ─── Acquisition Sub-Tabs (Pipeline / Nurture) ───
   if(state.pipeline==='acquisition'){

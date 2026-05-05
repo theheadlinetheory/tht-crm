@@ -49,23 +49,20 @@ export function getOverdueActivities(){
 export function renderOverdueBanner(){
   const overdue=getOverdueActivities();
   if(!overdue.length) return '';
-  return `<div class="overdue-banner" style="padding:8px 16px;background:#fef2f2;border-bottom:1px solid #fecaca;display:flex;align-items:center;gap:8px;font-size:12px;color:#dc2626;font-weight:600">
-    <span>\u26A0\uFE0F ${overdue.length} overdue activit${overdue.length===1?'y':'ies'}</span>
-  </div>`;
+  return `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#dc2626;font-weight:600">\u26A0 ${overdue.length} overdue</span>`;
 }
 
 export function renderBookedMeetingsBanner(){
   const today=getToday();
   const booked=state.deals.filter(d=>isValidDate(d.bookedDate) && d.bookedDate>=today).sort((a,b)=>a.bookedDate.localeCompare(b.bookedDate));
   if(!booked.length) return '';
-  const shown=booked.slice(0,3);
-  let h=`<div style="padding:6px 16px;background:#fffbeb;border-bottom:1px solid #fde68a;display:flex;align-items:center;gap:12px;font-size:11px;overflow-x:auto">
-    <span style="font-weight:700;color:#92400e;white-space:nowrap">\u{1F4C5} Upcoming:</span>`;
+  const shown=booked.slice(0,2);
+  let h=`<span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#78350f">\u{1F4C5}`;
   for(const d of shown){
-    h+=`<span style="white-space:nowrap;color:#78350f;cursor:pointer" onclick="openDeal('${d.id}')">${d.company||d.contact||'?'} \u2014 ${d.bookedDate}${d.bookedTime?' @ '+fmtTime12(d.bookedTime):''}</span>`;
+    h+=`<span style="white-space:nowrap;cursor:pointer" onclick="openDeal('${d.id}')">${d.company||d.contact||'?'}${d.bookedTime?' @ '+fmtTime12(d.bookedTime):''}</span>`;
   }
-  if(booked.length>3) h+=`<span style="color:#92400e">+${booked.length-3} more</span>`;
-  h+=`</div>`;
+  if(booked.length>2) h+=`<span style="color:#92400e">+${booked.length-2}</span>`;
+  h+=`</span>`;
   return h;
 }
 
