@@ -51,6 +51,11 @@ function formatDollars(cents) {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
+function getClientPaymentTerms(clientName) {
+  const client = state.clients.find(c => str(c.name) === clientName);
+  return str(client?.paymentTerms) || 'Net 7';
+}
+
 // ─── Render the invoice modal ───
 export function renderInvoiceModal() {
   const m = state.invoiceModal;
@@ -66,7 +71,7 @@ export function renderInvoiceModal() {
   } else if (m.step === 'sending') {
     html += `<div style="text-align:center;padding:40px">
       <div style="font-size:16px;font-weight:600;margin-bottom:12px">Creating Invoice...</div>
-      <div style="color:var(--text-muted);font-size:13px">Sending to Stripe and finalizing. This may take a moment.</div>
+      <div style="color:var(--text-muted);font-size:13px">Creating draft in Stripe. This may take a moment.</div>
     </div>`;
   } else if (m.step === 'done') {
     html += renderDoneStep(m);
@@ -152,15 +157,15 @@ function renderPreviewStep(m) {
         </div>
         <div style="display:flex;justify-content:space-between;margin-bottom:4px">
           <span style="color:var(--text-muted)">Payment Terms</span>
-          <span>Net 7</span>
+          <span>${esc(getClientPaymentTerms(m.client))}</span>
         </div>
         <div style="display:flex;justify-content:space-between;font-weight:700;font-size:15px;margin-top:8px">
           <span>Total</span>
           <span>${formatDollars(subtotal)}</span>
         </div>
       </div>
-      <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="invoiceCreateAndSend()" ${included.length === 0 ? 'disabled' : ''}>
-        Create & Send Invoice (${formatDollars(subtotal)})
+      <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="invoiceCreateDraft()" ${included.length === 0 ? 'disabled' : ''}>
+        Create Draft Invoice (${formatDollars(subtotal)})
       </button>`
       }
     </div>`;
@@ -170,15 +175,15 @@ function renderDoneStep(m) {
   const r = m.result;
   return `
     <div class="invoice-header">
-      <h3 style="margin:0;font-size:16px;color:#059669">Invoice Sent</h3>
+      <h3 style="margin:0;font-size:16px;color:#059669">Draft Created</h3>
       <button class="btn btn-ghost" onclick="closeInvoiceModal()" style="padding:4px 8px">✕</button>
     </div>
     <div class="invoice-body" style="text-align:center">
       <div style="font-size:40px;margin:12px 0">✓</div>
-      <div style="font-size:14px;font-weight:600;margin-bottom:4px">${esc(r.invoiceNumber)}</div>
-      <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">${r.lineItems} line items sent to ${esc(m.client)}</div>
-      <a href="${esc(r.hostedUrl)}" target="_blank" class="btn btn-ghost" style="margin-bottom:8px;display:inline-flex;align-items:center;gap:4px">
-        View in Stripe ↗
+      <div style="font-size:14px;font-weight:600;margin-bottom:4px">Draft invoice created</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">${r.lineItems} line items for ${esc(m.client)} — ${esc(r.paymentTerms || 'Net 7')}</div>
+      <a href="https://dashboard.stripe.com/invoices/${encodeURIComponent(r.invoiceId)}" target="_blank" class="btn btn-ghost" style="margin-bottom:8px;display:inline-flex;align-items:center;gap:4px">
+        Review in Stripe ↗
       </a>
       <br>
       <button class="btn btn-primary" style="margin-top:8px" onclick="closeInvoiceModal()">Done</button>
@@ -235,14 +240,14 @@ window.invoiceToggleEntry = (id) => {
   render();
 };
 
-window.invoiceCreateAndSend = async () => {
+window.invoiceCreateDraft = async () => {
   const m = state.invoiceModal;
   if (!m) return;
 
   const included = m.entries.filter(e => !m.excluded.has(e.id));
   if (!included.length) return;
 
-  if (!confirm(`Send invoice to ${m.client} for ${included.length} leads?`)) return;
+  if (!confirm(`Create draft invoice for ${m.client} — ${included.length} leads?`)) return;
 
   m.step = 'sending';
   render();
@@ -254,11 +259,9 @@ window.invoiceCreateAndSend = async () => {
       entryIds: included.map(e => e.id),
     });
 
-    // Update local state to reflect invoiced status
     for (const entry of included) {
-      entry.paidStatus = 'Invoiced';
-      entry.invoice = result.invoiceNumber || '';
-      entry.paymentLink = result.hostedUrl || '';
+      entry.paidStatus = 'Draft';
+      entry.invoice = result.invoiceId || '';
       entry.stripeInvoiceId = result.invoiceId || '';
     }
 
