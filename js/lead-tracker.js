@@ -14,6 +14,7 @@ const COLUMNS = [
   { key: 'leadName',        label: 'Lead Name',      editable: true,      adminOnly: false },
   { key: 'leadEmail',       label: 'Email',           editable: true,      adminOnly: false },
   { key: 'dateAdded',       label: 'Date',            editable: true,      adminOnly: false },
+  { key: 'apptTime',        label: 'Appt Time',       editable: true,      adminOnly: false },
   { key: 'leadCost',        label: 'Lead Cost',       editable: true,      adminOnly: true },
   { key: 'invoice',         label: 'Invoice',         editable: true,      adminOnly: true },
   { key: 'paidStatus',      label: 'Paid',            editable: false,     adminOnly: true },
@@ -109,6 +110,11 @@ function getFilteredEntries() {
       const av = str(a[field]).toLowerCase();
       const bv = str(b[field]).toLowerCase();
       cmp = av < bv ? -1 : av > bv ? 1 : 0;
+    }
+    if (cmp === 0) {
+      const ca = str(a.createdAt);
+      const cb = str(b.createdAt);
+      cmp = ca < cb ? -1 : ca > cb ? 1 : 0;
     }
     return dir === 'asc' ? cmp : -cmp;
   });
@@ -362,7 +368,7 @@ window.trackerToggleCallback = (id) => toggleCallback(id);
 window.trackerAddRow = async () => {
   const today = new Date();
   const dateAdded = `${today.getMonth()+1}/${today.getDate()}/${String(today.getFullYear()).slice(-2)}`;
-  const fields = { dealId: '', clientName: '', month: '', leadName: '', leadEmail: '', dateAdded, leadCost: '', invoice: '', paidStatus: '', datePaid: '', notes: '', paymentLink: '', callbackStatus: '' };
+  const fields = { dealId: '', clientName: '', month: '', leadName: '', leadEmail: '', dateAdded, apptTime: '', leadCost: '', invoice: '', paidStatus: '', datePaid: '', notes: '', paymentLink: '', callbackStatus: '' };
   pendingWrites.value++;
   try {
     const snakeFields = camelToSnake(fields);
