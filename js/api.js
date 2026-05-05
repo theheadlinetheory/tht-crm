@@ -388,8 +388,8 @@ export async function initialSync(isStartup) {
     // Clear dashboard archive cache so it refreshes on next render
     import('./dashboard.js').then(m => m.clearDashboardArchiveCache && m.clearDashboardArchiveCache()).catch(() => {});
     render();
-    const [deals, activities, clients, appointments] = await Promise.all([
-      sbGetDeals(), sbGetActivities(), sbGetClients(), sbGetAppointments()
+    const [deals, activities, clients, appointments, trackerEntries] = await Promise.all([
+      sbGetDeals(), sbGetActivities(), sbGetClients(), sbGetAppointments(), sbGetTrackerEntries()
     ]);
     state.deals = deals.map(normalizeRow);
     state.activities = activities.map(normalizeRow);
@@ -407,6 +407,7 @@ export async function initialSync(isStartup) {
       });
     }
     state.appointments = (appointments || []).map(normalizeRow);
+    state.trackerEntries = (trackerEntries || []).map(normalizeRow);
 
     // Normalize deal fields
     for (const d of state.deals) {
