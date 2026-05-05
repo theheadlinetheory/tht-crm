@@ -297,7 +297,7 @@ export function renderLeadTracker() {
     if (isAdmin()) {
       html += `<button class="tracker-action-btn ${isPaid ? 'active' : ''}" onclick="trackerMarkPaid('${entry.id}')" title="${isPaid ? 'Unmark paid' : 'Mark as Paid'}">${isPaid ? '✓ Paid' : '$ Pay'}</button>`;
     }
-    html += `<button class="tracker-action-btn ${isCalledBackStatus ? 'active' : ''}" onclick="trackerToggleCallback('${entry.id}')" title="${isCalledBackStatus ? 'Undo callback' : 'Mark Called Back'}">${isCalledBackStatus ? '↩ Undo' : '📞 CB'}</button>`;
+    html += `<button class="tracker-action-btn ${isCalledBackStatus ? 'active' : ''}" onclick="trackerToggleCallback('${entry.id}')" title="${isCalledBackStatus ? 'Undo callback' : 'Flag as Bad Lead (not charged)'}">${isCalledBackStatus ? '↩ Undo' : '🚫 CB'}</button>`;
     html += `</td></tr>`;
   }
   html += `</tbody></table></div></div>`;
