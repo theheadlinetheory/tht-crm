@@ -252,6 +252,7 @@ export function renderLeadTracker() {
     <span id="tracker-save-status" style="font-size:11px;font-weight:600;opacity:0;transition:opacity 0.3s"></span>
     <span style="font-size:12px;color:var(--text-muted)">${entries.length} entries</span>
     ${isAdmin() ? `<button class="btn btn-primary" style="font-size:11px;padding:4px 12px" onclick="openInvoiceModal()">Generate Invoice</button>` : ''}
+    ${isAdmin() ? `<button class="btn btn-primary" style="font-size:11px;padding:4px 12px;background:#7c3aed" onclick="openPayoutReport()">Payout Report</button>` : ''}
     ${isAdmin() ? `<button class="btn btn-ghost" style="font-size:11px;padding:4px 10px" onclick="trackerAddRow()">+ Add Row</button>` : ''}
     ${isAdmin() ? `<button id="tracker-reconcile-btn" class="btn btn-ghost" style="font-size:11px;padding:4px 10px" onclick="reconcileSheet()">Reconcile Sheet</button>` : ''}
   </div>`;
@@ -474,3 +475,115 @@ window.trackerFillDown = async (fromId, field, value) => {
     pendingWrites.value--;
   }
 };
+
+// ─── Payout Report ───
+const PAYOUT_PER_LEAD = 27;
+const BIWEEKLY_BASE = 250;
+const MONTHLY_BASE = BIWEEKLY_BASE * 2;
+
+function getPayoutData(month, year) {
+  const entries = state.trackerEntries.filter(e => {
+    const d = str(e.dateAdded);
+    const parts = d.split('/');
+    if (parts.length !== 3) return false;
+    const m = parseInt(parts[0], 10);
+    let y = parseInt(parts[2], 10);
+    if (y < 100) y += 2000;
+    return m === month && y === year;
+  });
+
+  const total = entries.length;
+  const calledBack = entries.filter(e => str(e.callbackStatus).toLowerCase() === 'called back');
+  const good = total - calledBack.length;
+
+  const byClient = {};
+  for (const e of entries) {
+    const client = str(e.clientName) || 'Unknown';
+    if (!byClient[client]) byClient[client] = { total: 0, calledBack: 0, good: 0 };
+    byClient[client].total++;
+    if (str(e.callbackStatus).toLowerCase() === 'called back') byClient[client].calledBack++;
+    else byClient[client].good++;
+  }
+
+  return { total, calledBack: calledBack.length, good, commission: good * PAYOUT_PER_LEAD, base: MONTHLY_BASE, grandTotal: (good * PAYOUT_PER_LEAD) + MONTHLY_BASE, byClient };
+}
+
+function renderPayoutModal() {
+  const overlay = document.getElementById('payout-overlay');
+  if (!overlay) return;
+
+  const now = new Date();
+  const month = state._payoutMonth ?? now.getMonth() + 1;
+  const year = state._payoutYear ?? now.getFullYear();
+  const data = getPayoutData(month, year);
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  let h = `<div class="modal" style="width:520px;max-height:80vh" onclick="event.stopPropagation()">
+    <div class="modal-header"><h3>Payout Report — Ioannis</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button></div>
+    <div class="modal-body" style="max-height:60vh;overflow-y:auto">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px">
+        <select onchange="payoutSetMonth(+this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+          ${months.map((m, i) => `<option value="${i+1}" ${i+1===month?'selected':''}>${m}</option>`).join('')}
+        </select>
+        <select onchange="payoutSetYear(+this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+          ${[year-1, year, year+1].map(y => `<option value="${y}" ${y===year?'selected':''}>${y}</option>`).join('')}
+        </select>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:22px;font-weight:700;color:#16a34a">${data.good}</div>
+          <div style="font-size:11px;color:#4d7c0f">Good Leads</div>
+        </div>
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:22px;font-weight:700;color:#dc2626">${data.calledBack}</div>
+          <div style="font-size:11px;color:#991b1b">Called Back</div>
+        </div>
+        <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:22px;font-weight:700;color:#7c3aed">${data.total}</div>
+          <div style="font-size:11px;color:#5b21b6">Total</div>
+        </div>
+      </div>
+
+      <table style="width:100%;font-size:12px;border-collapse:collapse;margin-bottom:16px">
+        <thead><tr style="border-bottom:1px solid var(--border)">
+          <th style="text-align:left;padding:6px 8px">Client</th>
+          <th style="text-align:center;padding:6px 8px">Total</th>
+          <th style="text-align:center;padding:6px 8px;color:#dc2626">CB</th>
+          <th style="text-align:center;padding:6px 8px;color:#16a34a">Good</th>
+        </tr></thead>
+        <tbody>${Object.entries(data.byClient).sort((a,b) => b[1].good - a[1].good).map(([client, d]) =>
+          `<tr style="border-bottom:1px solid #f3f4f6"><td style="padding:6px 8px;font-weight:500">${esc(client)}</td><td style="text-align:center;padding:6px 8px">${d.total}</td><td style="text-align:center;padding:6px 8px;color:#dc2626">${d.calledBack || '—'}</td><td style="text-align:center;padding:6px 8px;color:#16a34a;font-weight:600">${d.good}</td></tr>`
+        ).join('')}</tbody>
+      </table>
+
+      <div style="background:#f9fafb;border:1px solid var(--border);border-radius:8px;padding:16px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px">
+          <span>Good leads × $${PAYOUT_PER_LEAD}</span><span>${data.good} × $${PAYOUT_PER_LEAD} = <b>$${data.commission}</b></span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px">
+          <span>Base pay ($${BIWEEKLY_BASE} × 2)</span><span><b>$${data.base}</b></span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding-top:10px;border-top:2px solid var(--border);font-size:15px;font-weight:700">
+          <span>Total Payout</span><span style="color:#7c3aed">$${data.grandTotal.toLocaleString()}</span>
+        </div>
+      </div>
+    </div>
+  </div>`;
+
+  overlay.innerHTML = h;
+}
+
+window.openPayoutReport = () => {
+  const now = new Date();
+  state._payoutMonth = now.getMonth() + 1;
+  state._payoutYear = now.getFullYear();
+  const overlay = document.createElement('div');
+  overlay.id = 'payout-overlay';
+  overlay.className = 'modal-overlay';
+  overlay.onclick = () => overlay.remove();
+  document.body.appendChild(overlay);
+  renderPayoutModal();
+};
+window.payoutSetMonth = (m) => { state._payoutMonth = m; renderPayoutModal(); };
+window.payoutSetYear = (y) => { state._payoutYear = y; renderPayoutModal(); };
