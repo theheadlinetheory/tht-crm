@@ -211,13 +211,12 @@ export function renderDueTodayBanner() {
   if (!dueItems.length) return '';
 
   const today = getToday();
-  let h = `<div class="nurture-banner" style="margin-bottom:16px;padding:12px 16px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px">
-    <div style="font-weight:700;font-size:13px;margin-bottom:8px;color:#92400e">${svgIcon('bell', 14)} Nurture Follow-ups Due (${dueItems.length})</div>`;
+  let h = `<div class="nurture-banner" style="margin:8px 16px;padding:10px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px">
+    <div style="font-weight:700;font-size:12px;margin-bottom:6px;color:#92400e">${svgIcon('bell', 12)} Nurture Follow-ups Due (${dueItems.length})</div>`;
 
   for (const item of dueItems) {
     const { label: urgencyLabel, color: urgencyColor } = getUrgencyBadge(item.followUpDate, today);
 
-    // Find first incomplete nurture activity for this deal
     const dealActivities = state.activities.filter(a =>
       String(a.dealId) === String(item.dealId) && !a.done && (a.dayLabel || '').toLowerCase() === 'nurture'
     );
@@ -228,16 +227,15 @@ export function renderDueTodayBanner() {
     const deal = state.deals.find(d => String(d.id) === String(item.dealId));
     const phone = deal?.phone || deal?.mobilePhone || '';
 
-    h += `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #fde68a">
-      <span style="font-size:10px;font-weight:700;color:${urgencyColor};min-width:80px">${esc(urgencyLabel)}</span>
-      <span style="font-weight:600;font-size:12px;flex:1;cursor:pointer" data-action="openNurtureDeal" data-id="${esc(item.dealId)}">${esc(item.dealName || 'Unknown')}</span>
-      <span style="font-size:11px;color:var(--text-muted)">${esc(nextTask)}</span>
-      <span style="font-size:10px;color:var(--text-muted)">${esc(item.campaignName || '')}</span>
-      <div style="display:flex;gap:4px">
-        ${phone ? `<a href="tel:${esc(phone)}" class="btn" style="font-size:10px;padding:2px 8px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;text-decoration:none;display:inline-flex;align-items:center" title="Call ${esc(phone)}">${svgIcon('phone', 10)}</a>` : ''}
-        <button class="btn" style="font-size:10px;padding:2px 8px;background:#ecfdf5;color:#059669;border:1px solid #a7f3d0" data-action="completeNurtureActivity" data-deal-id="${esc(item.dealId)}" title="Complete activity">${svgIcon('check', 10)}</button>
-        <button class="btn" style="font-size:10px;padding:2px 8px;background:#fef3c7;color:#d97706;border:1px solid #fde68a" data-action="snoozeNurtureDeal" data-id="${esc(item.id)}" data-deal-id="${esc(item.dealId)}" title="Snooze">${svgIcon('clock', 10)}</button>
-        <button class="btn" style="font-size:10px;padding:2px 8px;background:#ede9fe;color:#7c3aed;border:1px solid #c4b5fd" data-action="reactivateNurtureDeal" data-id="${esc(item.id)}" data-deal-id="${esc(item.dealId)}" title="Re-activate">${svgIcon('refresh', 10)}</button>
+    h += `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #fde68a">
+      <span style="font-size:10px;font-weight:700;color:${urgencyColor};min-width:60px">${esc(urgencyLabel)}</span>
+      <span style="font-weight:600;font-size:11px;min-width:120px;cursor:pointer" data-action="openNurtureDeal" data-id="${esc(item.dealId)}">${esc(item.dealName || 'Unknown')}</span>
+      <span style="font-size:10px;color:var(--text-muted);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(nextTask)}</span>
+      <div style="display:flex;gap:3px;flex-shrink:0">
+        ${phone ? `<a href="tel:${esc(phone)}" class="btn" style="font-size:10px;padding:2px 6px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;text-decoration:none;display:inline-flex;align-items:center;gap:2px" title="Call ${esc(phone)}">${svgIcon('phone', 10)} Call</a>` : ''}
+        <button class="btn" style="font-size:10px;padding:2px 6px;background:#ecfdf5;color:#059669;border:1px solid #a7f3d0;display:inline-flex;align-items:center;gap:2px" data-action="completeNurtureActivity" data-deal-id="${esc(item.dealId)}" title="Complete">${svgIcon('check', 10)} Done</button>
+        <button class="btn" style="font-size:10px;padding:2px 6px;background:#fef3c7;color:#d97706;border:1px solid #fde68a;display:inline-flex;align-items:center;gap:2px" data-action="snoozeNurtureDeal" data-id="${esc(item.id)}" data-deal-id="${esc(item.dealId)}" title="Snooze">${svgIcon('clock', 10)} Snooze</button>
+        <button class="btn" style="font-size:10px;padding:2px 6px;background:#ede9fe;color:#7c3aed;border:1px solid #c4b5fd;display:inline-flex;align-items:center;gap:2px" data-action="reactivateNurtureDeal" data-id="${esc(item.id)}" data-deal-id="${esc(item.dealId)}" title="Re-activate">${svgIcon('refresh', 10)} Reactivate</button>
       </div>
     </div>`;
   }
