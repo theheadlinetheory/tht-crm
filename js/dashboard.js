@@ -106,6 +106,10 @@ export function renderClientDashboard(thisMonth, archived){
     const am = (d.archivedAt || '').slice(0,7);
     if (am) monthSet.add(am);
   });
+  state.trackerEntries.forEach(e => {
+    const cm = (e.createdAt || '').slice(0,7);
+    if (cm) monthSet.add(cm);
+  });
   monthSet.add(thisMonth);
   const allMonths = [...monthSet].sort().reverse();
 
@@ -113,11 +117,9 @@ export function renderClientDashboard(thisMonth, archived){
   const prevDate = new Date(sy, sm - 2, 1);
   const prevMonth = prevDate.toISOString().slice(0,7);
 
-  // KPI 1: New Leads (active + archived, createdDate in month)
-  const newLeadsMonth = clientDeals.filter(d => (d.createdDate || '').slice(0,7) === selMonth).length
-    + clientArchived.filter(d => (d.createdDate || '').slice(0,7) === selMonth).length;
-  const prevNewLeads = clientDeals.filter(d => (d.createdDate || '').slice(0,7) === prevMonth).length
-    + clientArchived.filter(d => (d.createdDate || '').slice(0,7) === prevMonth).length;
+  // KPI 1: New Leads — from Lead Tracker (source of truth for billing)
+  const newLeadsMonth = state.trackerEntries.filter(e => (e.createdAt || '').slice(0,7) === selMonth).length;
+  const prevNewLeads = state.trackerEntries.filter(e => (e.createdAt || '').slice(0,7) === prevMonth).length;
 
   // KPI 2: Won / Passed Off (archived only, archived_at in month)
   const wonPassedMonth = clientArchived.filter(d =>
@@ -179,7 +181,7 @@ export function renderClientDashboard(thisMonth, archived){
   h += renderClientTable(selMonth, monthLabel, clientDeals, clientArchived);
 
   // ─── Monthly Intake Chart ───
-  h += renderIntakeChart(clientDeals, clientArchived);
+  h += renderIntakeChart();
 
   h += `</div>`;
   return h;
@@ -194,30 +196,32 @@ function renderClientTable(selMonth, monthLabel, clientDeals, clientArchived) {
     clientCounts[c.name] = { active: 0, newMonth: 0, won: 0, lastLead: null };
   });
 
-  // Count active deals using client attribution
+  // Count active deals per client
   clientDeals.forEach(d => {
     const cn = getClientForDeal(d);
     if (!cn) return;
     if (!clientCounts[cn]) clientCounts[cn] = { active: 0, newMonth: 0, won: 0, lastLead: null };
     clientCounts[cn].active++;
-    if ((d.createdDate || '').slice(0,7) === selMonth) clientCounts[cn].newMonth++;
-    const cd = d.createdDate || '';
-    if (cd && (!clientCounts[cn].lastLead || cd > clientCounts[cn].lastLead)) {
-      clientCounts[cn].lastLead = cd;
-    }
   });
 
-  // Count archived deals
+  // Count won/passed off from archived
   clientArchived.forEach(d => {
     const cn = getClientForDeal(d);
     if (!cn) return;
     if (!clientCounts[cn]) clientCounts[cn] = { active: 0, newMonth: 0, won: 0, lastLead: null };
-    if ((d.createdDate || '').slice(0,7) === selMonth) clientCounts[cn].newMonth++;
     if ((d.archiveStatus === 'Closed Won' || d.archiveStatus === 'Passed Off')
         && (d.archivedAt || '').slice(0,7) === selMonth) {
       clientCounts[cn].won++;
     }
-    const cd = d.createdDate || '';
+  });
+
+  // New leads + last lead from Lead Tracker (source of truth for billing)
+  state.trackerEntries.forEach(e => {
+    const cn = e.clientName;
+    if (!cn) return;
+    if (!clientCounts[cn]) clientCounts[cn] = { active: 0, newMonth: 0, won: 0, lastLead: null };
+    if ((e.createdAt || '').slice(0,7) === selMonth) clientCounts[cn].newMonth++;
+    const cd = e.createdAt || '';
     if (cd && (!clientCounts[cn].lastLead || cd > clientCounts[cn].lastLead)) {
       clientCounts[cn].lastLead = cd;
     }
@@ -271,8 +275,8 @@ function renderClientTable(selMonth, monthLabel, clientDeals, clientArchived) {
   return h;
 }
 
-function renderIntakeChart(clientDeals, clientArchived) {
-  const allDeals = [...clientDeals, ...clientArchived];
+function renderIntakeChart() {
+  const entries = state.trackerEntries;
   const now = new Date();
 
   // Build last 12 months
@@ -284,14 +288,14 @@ function renderIntakeChart(clientDeals, clientArchived) {
   const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
   // Get unique clients for filter
-  const clientNames = [...new Set(allDeals.map(d => getClientForDeal(d)).filter(Boolean))].sort();
+  const clientNames = [...new Set(entries.map(e => e.clientName).filter(Boolean))].sort();
   const filterClient = state.dashboardChartClient || '';
 
-  // Count leads per month (filtered by client if set)
+  // Count leads per month from Lead Tracker (source of truth)
   const counts = months.map(m => {
-    return allDeals.filter(d => {
-      if ((d.createdDate || '').slice(0,7) !== m) return false;
-      if (filterClient) return getClientForDeal(d) === filterClient;
+    return entries.filter(e => {
+      if ((e.createdAt || '').slice(0,7) !== m) return false;
+      if (filterClient) return e.clientName === filterClient;
       return true;
     }).length;
   });
