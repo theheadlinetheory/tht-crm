@@ -94,9 +94,10 @@ export function renderDocumentsSection(client) {
 
   // Drop zone
   if (canUpload) {
-    h += `<div id="doc-dropzone-${esc(clientId)}" ondragover="event.preventDefault();this.style.borderColor='#059669';this.style.background='#ecfdf5'" ondragleave="this.style.borderColor='var(--border)';this.style.background='transparent'" ondrop="event.preventDefault();this.style.borderColor='var(--border)';this.style.background='transparent';docUploadFiles('${esc(clientId)}',event.dataTransfer.files)"
-      style="border:2px dashed var(--border);border-radius:8px;padding:${docs.length ? '8px' : '24px'};text-align:center;margin-bottom:8px;transition:all .15s">
-      ${docs.length ? '' : '<div style="font-size:11px;color:var(--text-muted)">Drag files here or click Upload</div>'}
+    h += `<div id="doc-dropzone-${esc(clientId)}" ondragover="event.preventDefault();this.style.borderColor='#059669';this.style.background='#ecfdf5'" ondragleave="this.style.borderColor='var(--border)';this.style.background='transparent'" ondrop="event.preventDefault();this.style.borderColor='var(--border)';this.style.background='transparent';docUploadFiles('${esc(clientId)}',event.dataTransfer.files)" onclick="this.querySelector('input[type=file]').click()"
+      style="border:2px dashed var(--border);border-radius:8px;padding:${docs.length ? '8px' : '24px'};text-align:center;margin-bottom:8px;transition:all .15s;cursor:pointer">
+      <input type="file" multiple accept="${ALLOWED_TYPES.join(',')}" onchange="docUploadFiles('${esc(clientId)}',this.files);this.value=''" onclick="event.stopPropagation()" style="display:none">
+      ${docs.length ? '' : '<div style="font-size:11px;color:var(--text-muted)">Drag files here or click to upload</div>'}
     </div>`;
   }
 
