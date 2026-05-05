@@ -339,6 +339,7 @@ const FIELD_MAP = {
   stripe_invoice_id: 'stripeInvoiceId',
   stripe_invoice_item_id: 'stripeInvoiceItemId',
   payment_terms: 'paymentTerms',
+  client_phone: 'clientPhone',
 };
 
 const REVERSE_FIELD_MAP = {};
@@ -363,7 +364,7 @@ export function normalizeRow(row) {
   return normalized;
 }
 
-const NULLABLE_COLS = new Set(['completed_at','scheduled_time','created_at','updated_at','forwarded_at','pushed_to_tracker','pushed_to_ghl','queued_at','rerun_after','sent_at','archived_at','value','lead_cost','lead_email','rerun_days','booked_date','booked_time','follow_up_date','onboarding_parsed_at','date_paid','paid_status','invoice','payment_link','callback_status','notes','sheet_row','stripe_customer_id','stripe_invoice_id','stripe_invoice_item_id','payment_terms']);
+const NULLABLE_COLS = new Set(['completed_at','scheduled_time','created_at','updated_at','forwarded_at','pushed_to_tracker','pushed_to_ghl','queued_at','rerun_after','sent_at','archived_at','value','lead_cost','lead_email','rerun_days','booked_date','booked_time','follow_up_date','onboarding_parsed_at','date_paid','paid_status','invoice','payment_link','callback_status','notes','sheet_row','stripe_customer_id','stripe_invoice_id','stripe_invoice_item_id','payment_terms','client_phone']);
 
 export function camelToSnake(obj) {
   const result = {};

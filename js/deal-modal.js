@@ -726,6 +726,18 @@ export function renderDealModal(deal){
             ${svgIcon('clipboard',14)} ${esc(cn.name)} — Client Info & Warm Call Sheet
           </button>
         </div>`;
+
+        // Client contact quick-access bar
+        const cPhone=str(cn.clientPhone).trim();
+        const cEmail=str(cn.notifyEmail||'').trim()||str(cn.notifyEmails||'').trim().split(',')[0].trim();
+        const cContact=str(cn.contactFirstName).trim();
+        if(cPhone||cEmail){
+          h+=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px 0;padding:8px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:11px;align-items:center">
+            <span style="font-weight:700;color:#059669">${esc(cContact||cn.name)}</span>
+            ${cPhone?`<a href="tel:${esc(cPhone.replace(/[^+0-9]/g,''))}" style="display:inline-flex;align-items:center;gap:3px;color:#1d4ed8;text-decoration:none;font-weight:600;padding:2px 8px;background:#dbeafe;border-radius:4px">${svgIcon('phone',11,'#1d4ed8')} ${esc(cPhone)}</a>`:''}
+            ${cEmail?`<a href="mailto:${esc(cEmail)}" style="display:inline-flex;align-items:center;gap:3px;color:#6b7280;text-decoration:none;padding:2px 8px;background:#f3f4f6;border-radius:4px">${svgIcon('mail',11,'#6b7280')} ${esc(cEmail)}</a>`:''}
+          </div>`;
+        }
       }
 
       // Forward Lead Email button
