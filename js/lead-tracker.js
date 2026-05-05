@@ -57,6 +57,21 @@ function parseDateMDY(s) {
   return y * 10000 + m * 100 + d; // numeric sortable: 20260408
 }
 
+function isoToMDY(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${parseInt(m)}/${parseInt(d)}/${y.slice(-2)}`;
+}
+
+function mdyToISO(mdy) {
+  if (!mdy) return '';
+  const parts = mdy.split('/');
+  if (parts.length !== 3) return '';
+  let y = parseInt(parts[2], 10);
+  if (y < 100) y += 2000;
+  return `${y}-${String(parseInt(parts[0])).padStart(2,'0')}-${String(parseInt(parts[1])).padStart(2,'0')}`;
+}
+
 // ─── Filtering & Sorting ───
 function getFilteredEntries() {
   let entries = [...state.trackerEntries];
@@ -70,8 +85,18 @@ function getFilteredEntries() {
   } else if (f.paidStatus === 'unpaid') {
     entries = entries.filter(e => str(e.paidStatus).toLowerCase() !== 'paid');
   }
-  if (f.hideCalledBack) {
+  if (f.leadQuality === 'good') {
     entries = entries.filter(e => str(e.callbackStatus).toLowerCase() !== 'called back');
+  } else if (f.leadQuality === 'callback') {
+    entries = entries.filter(e => str(e.callbackStatus).toLowerCase() === 'called back');
+  }
+  if (f.dateFrom) {
+    const from = parseDateMDY(f.dateFrom);
+    entries = entries.filter(e => parseDateMDY(str(e.dateAdded)) >= from);
+  }
+  if (f.dateTo) {
+    const to = parseDateMDY(f.dateTo);
+    entries = entries.filter(e => parseDateMDY(str(e.dateAdded)) <= to);
   }
 
   const { field, dir } = state.trackerSort;
@@ -211,9 +236,18 @@ export function renderLeadTracker() {
       <option value="paid" ${f.paidStatus === 'paid' ? 'selected' : ''}>Paid</option>
       <option value="unpaid" ${f.paidStatus === 'unpaid' ? 'selected' : ''}>Unpaid</option>
     </select>
-    <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-muted);cursor:pointer">
-      <input type="checkbox" ${f.hideCalledBack ? 'checked' : ''} onchange="trackerFilterCallback(this.checked)"> Hide called back
-    </label>
+    <select onchange="trackerFilterQuality(this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+      <option value="" ${!f.leadQuality ? 'selected' : ''}>All Leads</option>
+      <option value="good" ${f.leadQuality === 'good' ? 'selected' : ''}>Good Leads</option>
+      <option value="callback" ${f.leadQuality === 'callback' ? 'selected' : ''}>Called Back</option>
+    </select>
+    <span style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-muted)">
+      <label>From</label>
+      <input type="date" value="${mdyToISO(f.dateFrom)}" onchange="trackerFilterDateFrom(this.value)" style="padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+      <label>To</label>
+      <input type="date" value="${mdyToISO(f.dateTo)}" onchange="trackerFilterDateTo(this.value)" style="padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+      ${(f.dateFrom || f.dateTo) ? '<button onclick="trackerClearDates()" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;padding:0 4px" title="Clear dates">&times;</button>' : ''}
+    </span>
     <span style="flex:1"></span>
     <span id="tracker-save-status" style="font-size:11px;font-weight:600;opacity:0;transition:opacity 0.3s"></span>
     <span style="font-size:12px;color:var(--text-muted)">${entries.length} entries</span>
@@ -308,7 +342,10 @@ export function renderLeadTracker() {
 // ─── Window Handlers ───
 window.trackerFilterClient = (v) => { state.trackerFilters.client = v; render(); };
 window.trackerFilterPaid = (v) => { state.trackerFilters.paidStatus = v; render(); };
-window.trackerFilterCallback = (v) => { state.trackerFilters.hideCalledBack = v; render(); };
+window.trackerFilterQuality = (v) => { state.trackerFilters.leadQuality = v; render(); };
+window.trackerFilterDateFrom = (v) => { state.trackerFilters.dateFrom = isoToMDY(v); render(); };
+window.trackerFilterDateTo = (v) => { state.trackerFilters.dateTo = isoToMDY(v); render(); };
+window.trackerClearDates = () => { state.trackerFilters.dateFrom = ''; state.trackerFilters.dateTo = ''; render(); };
 window.trackerSort = (field) => {
   if (state.trackerSort.field === field) {
     state.trackerSort.dir = state.trackerSort.dir === 'asc' ? 'desc' : 'asc';

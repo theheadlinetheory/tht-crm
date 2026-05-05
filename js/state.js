@@ -54,7 +54,7 @@ export const state = {
   myDealsFilter: false,
   trackerEntries: [],
   trackerLoaded: false,
-  trackerFilters: { client: '', paidStatus: '', hideCalledBack: false },
+  trackerFilters: { client: '', paidStatus: '', leadQuality: '', dateFrom: '', dateTo: '' },
   trackerSort: { field: 'dateAdded', dir: 'asc' },
   trackerEditingCell: null,
   trackerView: 'entries',
