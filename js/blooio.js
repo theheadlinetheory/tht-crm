@@ -88,8 +88,8 @@ async function sendBlooioText(phone, message){
   const e164 = formatE164(phone);
   const encoded = encodeURIComponent(e164);
   const fromNumber = await getFromNumber();
-  const body = { text: message };
-  if(fromNumber) body.from_number = fromNumber;
+  if(!fromNumber) throw new Error('No Blooio number linked. Go to Blooio dashboard → Numbers tab and link a number to this API key.');
+  const body = { text: message, from_number: fromNumber };
 
   console.log('[Blooio] Sending to', e164, 'from', fromNumber, 'body:', JSON.stringify(body));
   const res = await fetch(BLOOIO_BASE_URL + '/chats/' + encoded + '/messages', {
