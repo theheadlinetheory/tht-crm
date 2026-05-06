@@ -6,7 +6,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 export { supabase };
-import { state, store, pendingWrites, failedWriteQueue, pendingDealFields, deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds } from './app.js';
+import { state, store, pendingWrites, failedWriteQueue, pendingDealFields, deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds, inFlightActivityIds } from './app.js';
 import { render, refreshModal } from './render.js';
 
 // Cached auth check — populated lazily on first initialSync to avoid circular import
@@ -395,7 +395,14 @@ export async function initialSync(isStartup) {
       applySettings(savedSettings);
     }
     state.deals = deals.map(normalizeRow);
-    state.activities = activities.map(normalizeRow);
+    const freshActivities = activities.map(normalizeRow);
+    if (inFlightActivityIds.size > 0) {
+      const freshIds = new Set(freshActivities.map(a => String(a.id)));
+      const preserved = state.activities.filter(a => inFlightActivityIds.has(String(a.id)) && !freshIds.has(String(a.id)));
+      state.activities = [...freshActivities, ...preserved];
+    } else {
+      state.activities = freshActivities;
+    }
     state.clients = clients.map(normalizeRow);
     // Cache isAdmin for use in synchronous realtime handler
     if (!_cachedIsAdmin) {

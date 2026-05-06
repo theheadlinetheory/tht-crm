@@ -114,9 +114,7 @@ export const PRE_CALL_SEQUENCE = [
   { offset: -3, type: 'Text', subject: '{type}: Quick reminder text' },
   { offset: -1, type: 'Call', subject: '{type}: Confirm attendance' },
   { offset: -1, type: 'Text', subject: '{type}: Confirmation text' },
-  { offset: -1, type: 'Email', subject: '⚡ Calendly reminder email (case studies + info)' },
   { offset: 0, type: 'Text', subject: '{type}: Day-of reminder text' },
-  { offset: 0, type: 'Email', subject: '⚡ Calendly day-of reminder email' },
 ];
 
 // ─── Default Client Portal Stages ───

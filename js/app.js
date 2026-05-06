@@ -13,7 +13,7 @@ import './blooio.js'; // Blooio texting modal
 // ─── Re-export state from centralized module ───
 export {
   state, store,
-  pendingWrites, failedWriteQueue, pendingDealFields,
+  pendingWrites, failedWriteQueue, pendingDealFields, inFlightActivityIds,
   deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds,
   savedScrollLeft, setSavedScrollLeft,
   settingsOpen, setSettingsOpen,
