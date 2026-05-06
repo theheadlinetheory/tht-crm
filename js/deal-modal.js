@@ -11,7 +11,8 @@ import { flushRealtimeQueue } from './api.js';
 import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 import { render, refreshModal } from './render.js';
 import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js';
-import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml } from './utils.js';
+import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js';
+import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js';
 import { isAdmin, isClient, isEmployee, loadAssignableUsers } from './auth.js';
 import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js';
 import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence } from './activities.js';
@@ -756,17 +757,8 @@ export function renderDealModal(deal){
 
       // Book Meeting via Calendly — inline with editable prefill
       if(isOn('enableCalendly') && matchedClient.calendlyUrl){
-        const prefillLines=[];
-        if(deal.company) prefillLines.push('Business: '+deal.company);
-        if(deal.website) prefillLines.push('Website: '+deal.website);
-        const calAddr=str(deal.address||deal.location||'').trim();
-        if(calAddr) prefillLines.push('Address: '+calAddr);
-        if(deal.email) prefillLines.push('Email: '+deal.email);
-        if(deal.email2) prefillLines.push('Contact email: '+deal.email2);
-        if(deal.phone) prefillLines.push('Business Phone: '+deal.phone);
-        if(deal.contact && deal.contact!==deal.company) prefillLines.push('Contact: '+deal.contact);
-        if(deal.mobilePhone) prefillLines.push('Mobile Phone: '+deal.mobilePhone);
-        prefillLines.push('Instructions: ');
+        const instrTemplate = state.savedSettings?.instructions_template || DEFAULT_INSTRUCTIONS_TEMPLATE;
+        const prefillText = applyTemplate(instrTemplate, deal, matchedClient.name, str(matchedClient.contactFirstName));
         h+=`<div style="margin:0 0 8px 0">
           <button class="btn btn-primary" style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#818cf8;border-color:#818cf8"
             onclick="toggleCalendlyBooking('${esc(deal.id)}','${esc(matchedClient.calendlyUrl)}')">
@@ -794,7 +786,7 @@ export function renderDealModal(deal){
             <label style="font-size:11px;color:#6b7280;font-weight:600">Additional Info / Instructions</label>
             <textarea id="cal-prefill-notes" rows="5"
               oninput="savePrefillField('${esc(deal.id)}','calNotes',this.value)"
-              style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px;resize:vertical">${esc(deal.calNotes||prefillLines.join('\n'))}</textarea>
+              style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px;resize:vertical">${esc(deal.calNotes||prefillText)}</textarea>
           </div>
           <button class="btn btn-primary" style="width:100%;justify-content:center;font-size:13px;background:#818cf8;border-color:#818cf8"
             onclick="openCalendlyEmbed('${esc(deal.id)}','${esc(matchedClient.calendlyUrl)}',atob('${btoa(unescape(encodeURIComponent(matchedClient.name)))}'),document.getElementById('cal-prefill-name')?.value||'',document.getElementById('cal-prefill-email')?.value||'',document.getElementById('cal-prefill-notes')?.value||'')">
@@ -844,20 +836,13 @@ export function renderDealModal(deal){
 
       // Editable instructions for non-Calendly clients (auto-saves to calNotes)
       if(!isOn('enableCalendly') || !matchedClient.calendlyUrl){
-        const instrLines=[];
-        if(deal.company) instrLines.push('Business: '+deal.company);
-        if(deal.website) instrLines.push('Website: '+deal.website);
-        const instrAddr=str(deal.address||deal.location||'').trim();
-        if(instrAddr) instrLines.push('Address: '+instrAddr);
-        if(deal.email) instrLines.push('Email: '+deal.email);
-        if(deal.phone) instrLines.push('Phone: '+deal.phone);
-        if(deal.contact && deal.contact!==deal.company) instrLines.push('Contact: '+deal.contact);
-        instrLines.push('Instructions: ');
+        const instrTpl = state.savedSettings?.instructions_template || DEFAULT_INSTRUCTIONS_TEMPLATE;
+        const instrText = applyTemplate(instrTpl, deal, matchedClient.name, str(matchedClient.contactFirstName));
         h+=`<div style="margin:0 0 10px 0;padding:10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px">
           <label style="font-size:11px;font-weight:700;color:#0369a1;display:block;margin-bottom:4px">Send Instructions</label>
           <textarea rows="5" id="send-instructions-notes"
             oninput="savePrefillField('${esc(deal.id)}','calNotes',this.value)"
-            style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);resize:vertical">${esc(deal.calNotes||instrLines.join('\n'))}</textarea>
+            style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);resize:vertical">${esc(deal.calNotes||instrText)}</textarea>
         </div>`;
       }
 

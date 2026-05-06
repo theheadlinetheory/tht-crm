@@ -4,7 +4,8 @@
 import { state, pendingWrites } from './app.js';
 import { render, refreshModal } from './render.js';
 import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js';
-import { esc, str, svgIcon, stripHtml } from './utils.js';
+import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js';
+import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js';
 import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js';
 
 export async function forwardDealToClient(dealId){
@@ -189,47 +190,8 @@ export async function autoPushToTracker(deal){
 export function buildLeadMessage(deal, clientName){
   const client=state.clients.find(c=>c.name===deal.stage)||state.clients.find(c=>c.name===clientName);
   const clientFirst=client&&str(client.contactFirstName).trim()?str(client.contactFirstName).trim():'there';
-  const biz=deal.company||deal.contact||'';
-  // Build the time portion
-  let timeStr='';
-  if(deal.bookedDate && deal.bookedDate.match(/^\d{4}-\d{2}-\d{2}$/)){
-    const dt=new Date(deal.bookedDate+'T'+(deal.bookedTime||'12:00'));
-    const dayName=dt.toLocaleDateString('en-US',{weekday:'long'});
-    const dayPart=dt.toLocaleDateString('en-US',{month:'long',day:'numeric'});
-    const timePart=deal.bookedTime?dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
-    const todayDate=new Date();
-    const diffDays=Math.round((dt-todayDate)/(1000*60*60*24));
-    const prefix=diffDays>=0&&diffDays<=7?'This '+dayName:diffDays>7&&diffDays<=14?'Next '+dayName:dayName;
-    timeStr=timePart?prefix+', '+dayPart+' at '+timePart:prefix+', '+dayPart;
-  }
-  const lines=[];
-  if(timeStr){
-    lines.push('Hey '+clientFirst+', just scheduled a quote request for '+timeStr+' with '+biz+'. The address, phone, contact info and instructions are all included in that calendar event. I\'ve also added you to the email thread. Please check your spam folder if you are not seeing it.');
-  } else {
-    lines.push('Hey '+clientFirst+', just scheduled a quote request for [Day] at [Time] with '+biz+'. The address, phone, contact info and instructions are all included in that calendar event. I\'ve also added you to the email thread. Please check your spam folder if you are not seeing it.');
-  }
-  lines.push('');
-  if(str(deal.calNotes).trim()){
-    lines.push(deal.calNotes.trim());
-  } else {
-    if(biz) lines.push('Business: '+biz);
-    if(deal.website) lines.push('Website: '+deal.website);
-    const addr=str(deal.address||deal.location||'').trim();
-    if(addr) lines.push('Address: '+addr);
-    if(deal.email) lines.push('Email: '+deal.email);
-    if(deal.phone) lines.push('Business Phone: '+deal.phone);
-    if(deal.contact && deal.contact !== biz) lines.push('Contact: '+deal.contact);
-    if(deal.email2) lines.push('Contact email: '+deal.email2);
-    if(deal.mobilePhone) lines.push('Mobile Phone: '+deal.mobilePhone);
-    if(str(deal.notes).trim()) lines.push('Instructions: '+deal.notes);
-  }
-  if(str(deal.emailBody).trim()){
-    let reply = stripHtml(deal.emailBody);
-    // Remove base64 blocks (MIME-encoded attachments/images that leak into email body)
-    reply = reply.replace(/[A-Za-z0-9+/=]{50,}/g, '').replace(/\s{2,}/g, ' ').trim();
-    if(reply) lines.push('\nTheir Reply:\n'+reply);
-  }
-  return lines.join('\n');
+  const template = state.savedSettings?.delivery_template || DEFAULT_DELIVERY_TEMPLATE;
+  return applyTemplate(template, deal, clientName, clientFirst);
 }
 
 // Expose to inline HTML handlers

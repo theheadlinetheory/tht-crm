@@ -103,5 +103,48 @@ export function copyToClipboard(text, btnEl){
   });
 }
 
+export function applyTemplate(template, deal, clientName, clientFirst){
+  const s = v => (v != null && String(v).trim()) || '';
+  const addr = s(deal.address || deal.location);
+  const replacements = {
+    '{BUSINESS}': s(deal.company || deal.contact),
+    '{CONTACT}': s(deal.contact),
+    '{EMAIL}': s(deal.email),
+    '{PHONE}': s(deal.phone),
+    '{MOBILE_PHONE}': s(deal.mobilePhone),
+    '{WEBSITE}': s(deal.website),
+    '{ADDRESS}': addr,
+    '{JOB_TITLE}': s(deal.jobTitle),
+    '{CLIENT_NAME}': s(clientName),
+    '{CLIENT_FIRST}': s(clientFirst || 'there'),
+    '{NOTES}': s(deal.notes),
+    '{MEETING_TIME}': buildMeetingTimeStr(deal),
+  };
+  let result = template;
+  for(const [key, val] of Object.entries(replacements)){
+    result = result.split(key).join(val);
+  }
+  const lines = result.split('\n');
+  const filtered = lines.filter(line => {
+    const trimmed = line.trim();
+    if(!trimmed) return true;
+    const labelMatch = trimmed.match(/^(.+?):\s*$/);
+    return !labelMatch;
+  });
+  return filtered.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+function buildMeetingTimeStr(deal){
+  if(!deal.bookedDate || !/^\d{4}-\d{2}-\d{2}$/.test(deal.bookedDate)) return '[Day] at [Time]';
+  const dt = new Date(deal.bookedDate + 'T' + (deal.bookedTime || '12:00'));
+  const dayName = dt.toLocaleDateString('en-US', {weekday:'long'});
+  const dayPart = dt.toLocaleDateString('en-US', {month:'long', day:'numeric'});
+  const timePart = deal.bookedTime ? dt.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'}) : '';
+  const now = new Date();
+  const diffDays = Math.round((dt - now) / (1000*60*60*24));
+  const prefix = diffDays >= 0 && diffDays <= 7 ? 'This ' + dayName : diffDays > 7 && diffDays <= 14 ? 'Next ' + dayName : dayName;
+  return timePart ? prefix + ', ' + dayPart + ' at ' + timePart : prefix + ', ' + dayPart;
+}
+
 // Expose to inline HTML handlers
 window.copyToClipboard = copyToClipboard;

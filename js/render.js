@@ -286,7 +286,7 @@ export function render(){
       <button class="btn btn-primary" onclick="openNewDeal()">+ ${isClient()?'Lead':'Deal'}</button>
       ${isClient()?`<button class="btn btn-ghost" onclick="openClientArchive()" title="View archived leads">${svgIcon('archive',12)} Archive${clientArchivedDeals.length?' ('+clientArchivedDeals.length+')':''}</button>`:''}
       ${isEmployee()||isAdmin()?`<button class="btn ${state.showEmployeeArchive?'btn-primary':'btn-ghost'}" data-action="toggleEmployeeArchive" title="View archived leads">${svgIcon('archive',12)} Archive</button>`:''}
-      ${isAdmin()?`<button class="btn btn-ghost" onclick="openSettings()" title="Settings" style="display:inline-flex;align-items:center;gap:4px;padding:6px 10px">${svgIcon('settings',12)}</button>`:''}
+      ${isAdmin()||isEmployee()?`<button class="btn btn-ghost" onclick="openSettings(${isEmployee()&&!isAdmin()?"'templates'":""})" title="Settings" style="display:inline-flex;align-items:center;gap:4px;padding:6px 10px">${svgIcon('settings',12)}</button>`:''}
       ${isClient()?`<button class="btn btn-ghost" onclick="openClientStageSettings()" title="Edit stages" style="display:inline-flex;align-items:center;gap:4px;padding:6px 10px">${svgIcon('settings',12)}</button>`:''}
       ${renderUserMenu()}
     </div>

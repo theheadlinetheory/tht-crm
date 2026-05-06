@@ -7,7 +7,7 @@ import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY
 import { render } from './render.js';
 import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClientConfig, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast } from './api.js';
 import { esc, str, svgIcon } from './utils.js';
-import { isAdmin, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js';
 import { lookupClientInfo, getClientConfig, loadClientConfig } from './client-info.js';
 import { findPolygonForClient } from './maps.js';
 import { renderDocumentsSection, initDocumentHandlers } from './documents.js';
@@ -22,14 +22,18 @@ export function getDefaultSettings(){
   };
 }
 
-export function openSettings(){
-  if(!isAdmin()) return;
+export function openSettings(defaultTab){
+  if(!isAdmin() && !isEmployee()) return;
+  if(defaultTab) setSettingsTab(defaultTab);
+  else if(isEmployee() && !isAdmin()) setSettingsTab('templates');
   const draft = getDefaultSettings();
   if(state.savedSettings){
     for(const k of Object.keys(draft)){
       if(state.savedSettings[k]) draft[k] = JSON.parse(JSON.stringify(state.savedSettings[k]));
     }
   }
+  if(state.savedSettings?.instructions_template) draft.instructions_template = state.savedSettings.instructions_template;
+  if(state.savedSettings?.delivery_template) draft.delivery_template = state.savedSettings.delivery_template;
   setSettingsDraft(draft);
   setSettingsOpen(true);
   renderSettingsPanel();
@@ -205,13 +209,14 @@ export function renderSettingsPanel(){
     <button class="modal-close" onclick="closeSettings()">\u00D7</button>
   </div>
   <div class="settings-tab-bar">
-    <button class="settings-tab ${settingsTab==='pipeline'?'active':''}" onclick="settingsTab='pipeline';refreshSettingsBody()">Pipeline Config</button>
+    ${isAdmin()?`<button class="settings-tab ${settingsTab==='pipeline'?'active':''}" onclick="settingsTab='pipeline';refreshSettingsBody()">Pipeline Config</button>
     <button class="settings-tab ${settingsTab==='clients'?'active':''}" onclick="settingsTab='clients';refreshSettingsBody()">Clients</button>
     <button class="settings-tab ${settingsTab==='users'?'active':''}" onclick="settingsTab='users';refreshSettingsBody()">Users</button>
     <button class="settings-tab ${settingsTab==='campaigns'?'active':''}" onclick="settingsTab='campaigns';refreshSettingsBody()">Campaigns</button>
     <button class="settings-tab ${settingsTab==='dialer'?'active':''}" onclick="settingsTab='dialer';refreshSettingsBody()">Dialer</button>
     <button class="settings-tab ${settingsTab==='billing'?'active':''}" onclick="settingsTab='billing';refreshSettingsBody()">Billing</button>
-    <button class="settings-tab ${settingsTab==='ai'?'active':''}" onclick="settingsTab='ai';refreshSettingsBody()">AI</button>
+    <button class="settings-tab ${settingsTab==='ai'?'active':''}" onclick="settingsTab='ai';refreshSettingsBody()">AI</button>`:''}
+    <button class="settings-tab ${settingsTab==='templates'?'active':''}" onclick="settingsTab='templates';refreshSettingsBody()">Templates</button>
   </div>
   <div class="settings-body">`;
 
@@ -222,6 +227,7 @@ export function renderSettingsPanel(){
   else if(settingsTab==='dialer') h+=renderDialerSettings();
   else if(settingsTab==='billing') h+=renderBillingSettings();
   else if(settingsTab==='ai') h+=renderAISettings();
+  else if(settingsTab==='templates') h+=renderTemplatesSettings();
 
   h+=`</div>
   <div class="settings-footer">
@@ -249,7 +255,7 @@ export function refreshSettingsBody(){
   if(!panel){ renderSettingsPanel(); return; }
   panel.querySelectorAll('.settings-tab').forEach(btn=>{
     const tab=btn.textContent.trim().toLowerCase();
-    const map={'pipeline config':'pipeline','clients':'clients','users':'users','campaigns':'campaigns','dialer':'dialer','billing':'billing','ai':'ai'};
+    const map={'pipeline config':'pipeline','clients':'clients','users':'users','campaigns':'campaigns','dialer':'dialer','billing':'billing','ai':'ai','templates':'templates'};
     btn.classList.toggle('active', map[tab]===settingsTab);
   });
   const body=panel.querySelector('.settings-body');
@@ -262,6 +268,7 @@ export function refreshSettingsBody(){
   else if(settingsTab==='dialer') h=renderDialerSettings();
   else if(settingsTab==='billing') h=renderBillingSettings();
   else if(settingsTab==='ai') h=renderAISettings();
+  else if(settingsTab==='templates') h=renderTemplatesSettings();
   body.innerHTML=h;
   body.scrollTop=0;
   setupSettingsDrag();
@@ -1225,6 +1232,53 @@ Instructions: [Write 2-4 sentences synthesizing what the lead wants based on the
 Good luck!
 
 — The Headline Theory Team`;
+
+const DEFAULT_INSTRUCTIONS_TEMPLATE = `Business: {BUSINESS}
+Website: {WEBSITE}
+Address: {ADDRESS}
+Email: {EMAIL}
+Business Phone: {PHONE}
+Contact: {CONTACT}
+Mobile Phone: {MOBILE_PHONE}
+Instructions: `;
+
+const DEFAULT_DELIVERY_TEMPLATE = `Hey {CLIENT_FIRST}, just scheduled a quote request for {MEETING_TIME} with {BUSINESS}. The address, phone, contact info and instructions are all included in that calendar event. I've also added you to the email thread. Please check your spam folder if you are not seeing it.
+
+Business: {BUSINESS}
+Website: {WEBSITE}
+Address: {ADDRESS}
+Email: {EMAIL}
+Business Phone: {PHONE}
+Contact: {CONTACT}
+Mobile Phone: {MOBILE_PHONE}`;
+
+export { DEFAULT_INSTRUCTIONS_TEMPLATE, DEFAULT_DELIVERY_TEMPLATE };
+
+function renderTemplatesSettings(){
+  const instrTpl = settingsDraft.instructions_template || DEFAULT_INSTRUCTIONS_TEMPLATE;
+  const delivTpl = settingsDraft.delivery_template || DEFAULT_DELIVERY_TEMPLATE;
+  return `
+    <div style="margin-bottom:16px;padding:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;font-size:12px;color:#166534;line-height:1.6">
+      <strong>Available placeholders:</strong> {BUSINESS}, {CONTACT}, {EMAIL}, {PHONE}, {MOBILE_PHONE}, {WEBSITE}, {ADDRESS}, {JOB_TITLE}, {CLIENT_NAME}, {CLIENT_FIRST}, {MEETING_TIME}, {NOTES}
+      <div style="margin-top:4px;color:#15803d;font-size:11px">Placeholders auto-fill with the lead's info when a deal is opened. Empty fields are omitted.</div>
+    </div>
+
+    <div style="margin-bottom:20px">
+      <label style="font-size:13px;font-weight:700;color:var(--text);display:block;margin-bottom:6px">${svgIcon('calendar',14)} Calendly / Instructions Template</label>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Pre-fills the "Additional Info / Instructions" box when booking via Calendly or the instructions area for non-Calendly clients.</div>
+      <textarea id="tpl-instructions" rows="10" oninput="settingsDraft.instructions_template=this.value;debouncedAutoSave()"
+        style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:var(--font);line-height:1.5;resize:vertical;color:var(--text);background:var(--card)">${esc(instrTpl)}</textarea>
+      <button onclick="settingsDraft.instructions_template='';document.getElementById('tpl-instructions').value='';debouncedAutoSave()" style="margin-top:4px;font-size:11px;color:#6b7280;background:none;border:none;cursor:pointer;text-decoration:underline">Reset to default</button>
+    </div>
+
+    <div style="margin-bottom:20px">
+      <label style="font-size:13px;font-weight:700;color:var(--text);display:block;margin-bottom:6px">${svgIcon('send',14)} Lead Delivery Email Template</label>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Pre-fills the "Message Preview" when sending lead info to a client via email. Use {MEETING_TIME} for the booked date/time.</div>
+      <textarea id="tpl-delivery" rows="12" oninput="settingsDraft.delivery_template=this.value;debouncedAutoSave()"
+        style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:var(--font);line-height:1.5;resize:vertical;color:var(--text);background:var(--card)">${esc(delivTpl)}</textarea>
+      <button onclick="settingsDraft.delivery_template='';document.getElementById('tpl-delivery').value='';debouncedAutoSave()" style="margin-top:4px;font-size:11px;color:#6b7280;background:none;border:none;cursor:pointer;text-decoration:underline">Reset to default</button>
+    </div>`;
+}
 
 let _aiPassoffTemplate = '';
 
