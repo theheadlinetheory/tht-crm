@@ -803,6 +803,42 @@ export function renderDealModal(deal){
         </div>`;
       }
 
+      // Custom availability booking for clients without Calendly
+      if(!(isOn('enableCalendly') && matchedClient.calendlyUrl) && matchedClient.availabilityRules && matchedClient.availabilityRules.windows){
+        const rules=matchedClient.availabilityRules;
+        const dayOrder=['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+        const dayLabel={monday:'Mon',tuesday:'Tue',wednesday:'Wed',thursday:'Thu',friday:'Fri',saturday:'Sat',sunday:'Sun'};
+        const fmt12=t=>{const [h,m]=t.split(':');const hr=parseInt(h);return (hr>12?hr-12:hr||12)+':'+m+(hr>=12?' PM':' AM')};
+        const grouped={};
+        for(const w of rules.windows){
+          const key=w.start+'-'+w.end;
+          if(!grouped[key]) grouped[key]={start:w.start,end:w.end,days:[]};
+          grouped[key].days.push(w.day);
+        }
+        let summaryHtml='';
+        for(const g of Object.values(grouped)){
+          const days=g.days.sort((a,b)=>dayOrder.indexOf(a)-dayOrder.indexOf(b)).map(d=>dayLabel[d]||d).join(', ');
+          summaryHtml+=`<div style="font-size:12px;color:#166534">${esc(days)}: ${fmt12(g.start)} – ${fmt12(g.end)}</div>`;
+        }
+        const alreadyBooked=deal.bookedDate&&deal.bookedTime;
+        h+=`<div style="margin:0 0 12px 0;padding:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px">
+          <div style="font-size:11px;font-weight:700;color:#166534;margin-bottom:6px">${svgIcon('calendar',12)} Book Meeting — ${esc(matchedClient.name)}'s Availability</div>
+          <div style="margin-bottom:10px;padding:6px 10px;background:#dcfce7;border-radius:6px">${summaryHtml}</div>
+          ${alreadyBooked?`<div style="font-size:12px;color:#059669;font-weight:600;margin-bottom:8px">Currently booked: ${fmtDate(deal.bookedDate)} at ${fmtTime12(deal.bookedTime)}</div>`:''}
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <input type="date" id="avail-book-date" value="${esc(deal.bookedDate||'')}" min="${getToday()}"
+              style="flex:1;padding:6px 10px;border:1px solid #86efac;border-radius:6px;font-size:13px;font-family:var(--font);background:#fff;color:var(--text)">
+            <input type="time" id="avail-book-time" value="${esc(deal.bookedTime||'')}"
+              style="flex:1;padding:6px 10px;border:1px solid #86efac;border-radius:6px;font-size:13px;font-family:var(--font);background:#fff;color:var(--text)">
+          </div>
+          <div id="avail-book-error" style="display:none;color:#dc2626;font-size:11px;margin-bottom:6px"></div>
+          <button class="btn btn-primary" style="width:100%;justify-content:center;font-size:13px;background:#059669;border-color:#059669"
+            onclick="bookAvailabilitySlot('${esc(deal.id)}')">
+            ${alreadyBooked?'Update Booking':'Book This Time'}
+          </button>
+        </div>`;
+      }
+
       // Client's Upcoming Meetings — show all future bookings for this client
       h+=renderUpcomingMeetings(deal, matchedClient.name);
 
@@ -1236,6 +1272,55 @@ async function startAutoFollowUp(dealId){
   }
 }
 window.startAutoFollowUp = startAutoFollowUp;
+
+window.bookAvailabilitySlot = function(dealId) {
+  const dateEl = document.getElementById('avail-book-date');
+  const timeEl = document.getElementById('avail-book-time');
+  const errEl = document.getElementById('avail-book-error');
+  if (!dateEl || !timeEl) return;
+  const dateVal = dateEl.value;
+  const timeVal = timeEl.value;
+  if (!dateVal || !timeVal) {
+    errEl.textContent = 'Select both a date and time.';
+    errEl.style.display = '';
+    return;
+  }
+  const deal = state.deals.find(d => String(d.id) === String(dealId));
+  if (!deal) return;
+  const client = findClientForDeal(deal) || state.clients.find(c => c.name === deal.stage);
+  if (!client || !client.availabilityRules || !client.availabilityRules.windows) return;
+  const d = new Date(dateVal + 'T00:00:00');
+  const dayNames = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+  const dayName = dayNames[d.getDay()];
+  const windows = client.availabilityRules.windows.filter(w => w.day === dayName);
+  if (windows.length === 0) {
+    const availDays = [...new Set(client.availabilityRules.windows.map(w => w.day))];
+    const dayLabel = {monday:'Mon',tuesday:'Tue',wednesday:'Wed',thursday:'Thu',friday:'Fri',saturday:'Sat',sunday:'Sun'};
+    errEl.textContent = 'No availability on ' + (dayLabel[dayName]||dayName) + '. Available: ' + availDays.map(d=>dayLabel[d]||d).join(', ');
+    errEl.style.display = '';
+    return;
+  }
+  const inWindow = windows.some(w => timeVal >= w.start && timeVal < w.end);
+  if (!inWindow) {
+    const fmt12 = t => { const [h,m]=t.split(':'); const hr=parseInt(h); return (hr>12?hr-12:hr||12)+':'+m+(hr>=12?' PM':' AM'); };
+    const slots = windows.map(w => fmt12(w.start) + ' – ' + fmt12(w.end)).join(' or ');
+    errEl.textContent = 'Time is outside availability. Valid windows: ' + slots;
+    errEl.style.display = '';
+    return;
+  }
+  errEl.style.display = 'none';
+  deal.bookedDate = dateVal;
+  deal.bookedTime = timeVal;
+  pendingWrites.value++;
+  sbUpdateDeal(deal.id, camelToSnake({ bookedDate: dateVal, bookedTime: timeVal }))
+    .catch(e => console.error('Update deal failed:', e))
+    .finally(() => { pendingWrites.value--; });
+  if (state.selectedDeal && String(state.selectedDeal.id) === String(dealId)) {
+    state.selectedDeal = deal;
+    refreshModal();
+  }
+  render();
+};
 
 window.pushToGhl = async function(dealId) {
   const btn = document.getElementById('push-ghl-btn');
