@@ -5,7 +5,7 @@ import { state } from './app.js';
 import { ACQUISITION_STAGES, NURTURE_STAGES, DEFAULT_CLIENT_STAGES, ALL_PIPELINES } from './config.js';
 import { render } from './render.js';
 import { esc, fmt$ } from './utils.js';
-import { isAdmin } from './auth.js';
+import { isAdmin, isEmployee } from './auth.js';
 import { getOverdueActivities } from './activities.js';
 import { sbGetArchivedDeals } from './api.js';
 
@@ -66,7 +66,7 @@ export function renderDashboard(){
 
   let h = `<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin:0 20px">
     <button onclick="state.dashboardTab='client_leads';render()" style="${cs};color:${tab==='client_leads'?'var(--purple)':'var(--text-muted)'};border-bottom:2px solid ${tab==='client_leads'?'var(--purple)':'transparent'}">Client Fulfillment</button>
-    ${isAdmin()?`<button onclick="state.dashboardTab='acquisition';render()" style="${cs};color:${tab==='acquisition'?'#2563eb':'var(--text-muted)'};border-bottom:2px solid ${tab==='acquisition'?'#2563eb':'transparent'}">Acquisition</button>`:''}
+    ${isAdmin()||isEmployee()?`<button onclick="state.dashboardTab='acquisition';render()" style="${cs};color:${tab==='acquisition'?'#2563eb':'var(--text-muted)'};border-bottom:2px solid ${tab==='acquisition'?'#2563eb':'transparent'}">Acquisition</button>`:''}
   </div>`;
 
   // Load archive data if not cached
@@ -83,7 +83,7 @@ export function renderDashboard(){
 
   if (tab === 'client_leads') {
     h += renderClientDashboard(thisMonth, archived);
-  } else if (isAdmin()) {
+  } else if (isAdmin()||isEmployee()) {
     h += renderAcquisitionDashboard(thisMonth, archived);
   }
   return h;

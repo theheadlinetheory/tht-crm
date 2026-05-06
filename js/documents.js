@@ -63,7 +63,7 @@ export function renderDocumentsSection(client) {
   const folders = _foldersCache[clientId] || [];
   const sel = _selectedFolder[clientId] || 'all';
   const docs = getFilteredDocs(clientId);
-  const canUpload = isAdmin() || (isClient() && currentUser.clientName === client.name);
+  const canUpload = isAdmin() || isEmployee() || (isClient() && currentUser.clientName === client.name);
   const canDelete = isAdmin();
   const canDeleteOwn = isClient() && currentUser.clientName === client.name;
   const canManageFolders = isAdmin() || (isClient() && currentUser.clientName === client.name);
