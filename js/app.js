@@ -154,7 +154,7 @@ export async function initApp(){
       } catch(e){ console.warn('setServiceAreaData failed:', e); }
     }
     await initialSync(true);
-    subscribeRealtime();
+    await subscribeRealtime();
     // Background sync every 30s — catches anything realtime missed (modal open, writes in flight, etc.)
     setInterval(() => {
       flushRealtimeQueue();
