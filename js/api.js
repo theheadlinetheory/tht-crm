@@ -490,6 +490,7 @@ export function flushRealtimeQueue() {
 }
 
 export function subscribeRealtime() {
+  supabase.removeAllChannels();
   supabase.channel('deals-changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'deals' }, payload => {
       if (pendingWrites.value > 0 || state.selectedDeal || state.showNew || state.showAddClient) {
