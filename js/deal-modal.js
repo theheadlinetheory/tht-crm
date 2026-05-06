@@ -476,10 +476,11 @@ async function enrichLead(dealId) {
     console.log('[enrich-lead] Response:', JSON.stringify(result));
 
     if (result.ok && result.phones && result.phones.length > 0) {
-      if (result.updated.phone) { deal.phone = result.updated.phone; pendingDealFields[dealId] = { ...pendingDealFields[dealId], phone: result.updated.phone }; }
-      if (result.updated.mobile_phone) { deal.mobilePhone = result.updated.mobile_phone; pendingDealFields[dealId] = { ...pendingDealFields[dealId], mobilePhone: result.updated.mobile_phone }; }
+      if (result.updated && result.updated.phone) { deal.phone = result.updated.phone; pendingDealFields[dealId] = { ...pendingDealFields[dealId], phone: result.updated.phone }; }
+      if (result.updated && result.updated.mobile_phone) { deal.mobilePhone = result.updated.mobile_phone; pendingDealFields[dealId] = { ...pendingDealFields[dealId], mobilePhone: result.updated.mobile_phone }; }
+      if (state.selectedDeal && String(state.selectedDeal.id) === String(dealId)) state.selectedDeal = deal;
       showEnrichOverlay(false);
-      showToast('Found ' + result.phones.length + ' phone number(s) for ' + name, 'success');
+      showToast('Found ' + result.phones.length + ' phone number(s) — ' + result.phones.join(', '), 'success');
       refreshModal();
     } else if (result.ok) {
       showEnrichOverlay(false);
@@ -551,7 +552,8 @@ export function renderDealModal(deal){
             let extra='';
             if((k==='phone'||k==='mobilePhone') && deal[k]){
               const ph=String(deal[k]).replace(/[^0-9+]/g,'');
-              extra='<div id="phone-btns-'+k+'" style="margin-top:4px;display:flex;gap:6px">'
+              extra='<div id="phone-btns-'+k+'" style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap">'
+                +'<button onclick="navigator.clipboard.writeText(\''+esc(ph)+'\');this.textContent=\'Copied!\';setTimeout(()=>{this.innerHTML=\''+svgIcon('clipboard',12,'#6b7280').replace(/'/g,"\\'")+' Copy\'},1200);event.stopPropagation()" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#f3f4f6;color:#6b7280;border-color:#d1d5db;cursor:pointer;font-weight:600;font-size:11px">'+svgIcon('clipboard',12,'#6b7280')+' Copy</button>'
                 +(!isClient()?'<button onclick="callInJustCall(\''+esc(deal.id)+'\',\''+k+'\');event.stopPropagation()" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#f97316;color:#fff;border-color:#f97316;cursor:pointer;font-weight:600">'+svgIcon('phone',14,'#fff')+' Call</button>':'')
                 +'<button onclick="openBlooioModal(\''+esc(deal.id)+'\',\''+k+'\');event.stopPropagation()" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#059669;color:#fff;border-color:#059669;cursor:pointer;font-weight:600">'+svgIcon('message-circle',14,'#fff')+' Text</button>'
                 +'</div>';
@@ -1325,14 +1327,17 @@ window.pushToGhl = async function(dealId) {
     const timer = setTimeout(() => ctrl.abort(), 25000);
     await invokeEdgeFunction('push-to-ghl', { dealId }, ctrl.signal);
     clearTimeout(timer);
-    const deal = state.deals.find(d => String(d.id) === String(dealId));
-    if (deal) {
-      deal.pushedToGhl = new Date().toISOString();
+    const d = state.deals.find(dd => String(dd.id) === String(dealId));
+    if (d) {
+      d.pushedToGhl = new Date().toISOString();
+      pendingDealFields[dealId] = { ...pendingDealFields[dealId], pushedToGhl: d.pushedToGhl };
     }
     if (state.selectedDeal && String(state.selectedDeal.id) === String(dealId)) {
-      state.selectedDeal = deal;
-      refreshModal();
+      state.selectedDeal = d;
     }
+    btn.innerHTML = origText;
+    btn.disabled = false;
+    refreshModal();
   } catch (e) {
     const msg = e.name === 'AbortError' ? 'Request timed out — the push may have still succeeded. Refresh to check.' : (e.message || 'Unknown error');
     alert('GHL push failed: ' + msg);

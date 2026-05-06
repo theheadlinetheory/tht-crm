@@ -69,6 +69,9 @@ export const pendingWrites = { value: 0 };
 export const failedWriteQueue = [];
 export const pendingDealFields = {};
 
+// ─── In-flight activity guard ───
+export const inFlightActivityIds = new Set();
+
 // ─── Deletion/completion caches ───
 export const deletedDealIds = new Set(JSON.parse(localStorage.getItem('tht_deletedDeals')||'[]'));
 export const deletedActivityIds = new Set(JSON.parse(localStorage.getItem('tht_deletedActs')||'[]'));

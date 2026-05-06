@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // ACTIVITIES — Activity CRUD, SOP sequences, overdue tracking
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, completedActivityIds, deletedActivityIds } from './app.js';
+import { state, store, pendingWrites, completedActivityIds, deletedActivityIds, inFlightActivityIds } from './app.js';
 import { SOP_DAYS, CLIENT_SOP_DAYS, PRE_CALL_SEQUENCE } from './config.js';
 import { render, refreshModal } from './render.js';
 import { sbCreateActivity, sbUpdateActivity, sbDeleteActivity, camelToSnake } from './api.js';
@@ -16,11 +16,12 @@ export function getSopDays(deal){
 
 export function addActivity(dealId,act){
   const a={id:uid(),dealId,...act,done:false,createdDate:new Date().toISOString(),completedAt:null};
+  inFlightActivityIds.add(String(a.id));
   store.addActivity(a, {silent: true});
   if(state.selectedDeal && state.selectedDeal.id===dealId) refreshModal();
   else render();
   pendingWrites.value++;
-  sbCreateActivity(camelToSnake(a)).catch(e=>console.error('Create activity failed:',e)).finally(()=>{pendingWrites.value--;});
+  sbCreateActivity(camelToSnake(a)).then(()=>{inFlightActivityIds.delete(String(a.id));}).catch(e=>{console.error('Create activity failed:',e);inFlightActivityIds.delete(String(a.id));}).finally(()=>{pendingWrites.value--;});
 }
 
 export function getLeadAge(deal){
@@ -125,9 +126,10 @@ export async function deleteActivity(actId){
 export function assignSequence(dealId,dayLabel,acts,targetDate){
   for(const act of acts){
     const a={id:uid(),dealId,type:act.type,subject:act.subject,dueDate:targetDate,done:false,dayLabel:dayLabel,scheduledTime:null,createdDate:new Date().toISOString(),completedAt:null};
+    inFlightActivityIds.add(String(a.id));
     store.addActivity(a, {silent: true});
     pendingWrites.value++;
-    sbCreateActivity(camelToSnake(a)).catch(e=>console.error('Create activity failed:',e)).finally(()=>{pendingWrites.value--;});
+    sbCreateActivity(camelToSnake(a)).then(()=>{inFlightActivityIds.delete(String(a.id));}).catch(e=>{console.error('Create activity failed:',e);inFlightActivityIds.delete(String(a.id));}).finally(()=>{pendingWrites.value--;});
   }
   if(state.selectedDeal && state.selectedDeal.id===dealId) refreshModal();
   else render();
