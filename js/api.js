@@ -337,6 +337,7 @@ const FIELD_MAP = {
   stripe_invoice_item_id: 'stripeInvoiceItemId',
   payment_terms: 'paymentTerms',
   client_phone: 'clientPhone',
+  availability_rules: 'availabilityRules',
 };
 
 const REVERSE_FIELD_MAP = {};
