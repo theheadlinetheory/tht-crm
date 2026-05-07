@@ -389,9 +389,10 @@ export async function initialSync(isStartup) {
   }
   try {
     state.syncing = true;
-    // Clear dashboard archive cache so it refreshes on next render
-    import('./dashboard.js').then(m => m.clearDashboardArchiveCache && m.clearDashboardArchiveCache()).catch(() => {});
-    render();
+    if (isStartup) {
+      import('./dashboard.js').then(m => m.clearDashboardArchiveCache && m.clearDashboardArchiveCache()).catch(() => {});
+      render();
+    }
     const [deals, activities, clients, appointments, trackerEntries, demoEntries, savedSettings] = await Promise.all([
       sbGetDeals(), sbGetActivities(), sbGetClients(), sbGetAppointments(), sbGetTrackerEntries(), sbGetDemoEntries(), sbLoadSettings()
     ]);

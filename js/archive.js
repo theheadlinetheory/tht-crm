@@ -4,6 +4,7 @@
 import { state, store, pendingWrites, deletedDealIds } from './app.js';
 import { render } from './render.js';
 import { sbGetArchive, sbRestoreFromArchive, normalizeRow, supabase } from './api.js';
+import { clearDashboardArchiveCache } from './dashboard.js';
 import { esc, str, fmtDate } from './utils.js';
 import { registerActions } from './delegate.js';
 import { filterSelect } from './html-helpers.js';
@@ -130,9 +131,8 @@ export async function restoreFromArchive(id){
     console.error('Restore failed:', e);
     return;
   } finally { pendingWrites.value--; }
-  // Remove from archive UI only after DB restore succeeds
   store.removeArchiveItem(id);
-  // Sync to load the restored deal onto the board
+  clearDashboardArchiveCache();
   const { initialSync } = await import('./api.js');
   await initialSync();
 }
