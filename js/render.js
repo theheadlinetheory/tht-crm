@@ -285,11 +285,11 @@ export function render(){
     html += `<div style="padding:0 20px;margin-bottom:8px;display:flex;align-items:center">
       <div style="display:flex;gap:4px">
         <button onclick="state.clientLeadsSubTab='pipeline';render()" style="${subCs};background:${clSubTab==='pipeline'?'var(--purple)':'#f3f4f6'};color:${clSubTab==='pipeline'?'#fff':'var(--text-muted)'}">Pipeline</button>
-        ${isAdmin()?`<button onclick="state.clientLeadsSubTab='lead_tracker';render()" style="${subCs};background:${clSubTab==='lead_tracker'?'var(--purple)':'#f3f4f6'};color:${clSubTab==='lead_tracker'?'#fff':'var(--text-muted)'}">Lead Tracker</button>`:''}
+        ${isAdmin()||isEmployee()?`<button onclick="state.clientLeadsSubTab='lead_tracker';render()" style="${subCs};background:${clSubTab==='lead_tracker'?'var(--purple)':'#f3f4f6'};color:${clSubTab==='lead_tracker'?'#fff':'var(--text-muted)'}">Lead Tracker</button>`:''}
       </div>
     </div>`;
 
-    if(clSubTab === 'lead_tracker' && isAdmin()){
+    if(clSubTab === 'lead_tracker' && (isAdmin()||isEmployee())){
       // Sub-tabs: Entries / Trends
       html+=`<div style="display:flex;gap:0;border-bottom:1px solid var(--border);padding:0 12px">
         <button class="topbar-tab ${state.trackerView==='entries'?'active':''}" onclick="switchTrackerView('entries')">Entries</button>
