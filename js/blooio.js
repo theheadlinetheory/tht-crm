@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites } from './app.js';
 import { showToast, sbCreateActivity, sbUpdateDeal, camelToSnake } from './api.js';
-import { uid, getToday, esc } from './utils.js';
+import { uid, getToday, esc, applyTemplate } from './utils.js';
 import { refreshModal } from './render.js';
 import { BLOOIO_BASE_URL, BLOOIO_API_KEY } from './config.js';
 
@@ -185,6 +185,9 @@ export function openBlooioModal(dealId, phoneField){
         <div style="text-align:center;padding:40px;color:#9ca3af;font-size:13px">Loading messages...</div>
       </div>
       <div style="border-top:1px solid #e5e7eb;padding:12px 16px;background:#fff;flex-shrink:0">
+        <select id="blooio-tpl" style="width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;font-family:inherit;margin-bottom:8px;color:#6b7280;background:#fff">
+          <option value="">Select a template...</option>
+        </select>
         <div style="display:flex;gap:8px;align-items:flex-end">
           <textarea id="blooio-msg" rows="5" placeholder="Type a message..." style="flex:1;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;min-height:100px;max-height:200px"></textarea>
           <button id="blooio-send" style="padding:8px 16px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;height:36px">Send</button>
@@ -196,6 +199,27 @@ export function openBlooioModal(dealId, phoneField){
 
   const threadEl = document.getElementById('blooio-thread');
   const msgEl = document.getElementById('blooio-msg');
+  const tplSelect = document.getElementById('blooio-tpl');
+
+  const isAcq = deal.pipeline === 'Acquisition';
+  const tpls = isAcq ? (state.savedSettings?.acquisition_templates || []) : [];
+  if(tpls.length){
+    tpls.forEach((t, i) => {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = t.name;
+      tplSelect.appendChild(opt);
+    });
+    tplSelect.style.color = '#374151';
+  } else {
+    tplSelect.style.display = 'none';
+  }
+  tplSelect.onchange = () => {
+    const idx = parseInt(tplSelect.value);
+    if(isNaN(idx) || !tpls[idx]) return;
+    msgEl.value = applyTemplate(tpls[idx].body, deal, '', '');
+    msgEl.focus();
+  };
 
   // Load conversation thread
   fetchThread(phone).then(messages => {
