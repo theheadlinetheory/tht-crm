@@ -22,6 +22,7 @@ import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocode
 import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js';
 import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js';
 import './blooio.js';
+import './demo-tracker.js';
 
 function actTypeClass(type){
   const t=(type||'').toLowerCase();
@@ -915,6 +916,17 @@ export function renderDealModal(deal){
         style="flex:1;justify-content:center;gap:6px;font-size:12px;display:flex;background:#7c3aed;border-color:#7c3aed"
         onclick="event.stopPropagation();openAcqCalendly('${esc(deal.id)}','strategy')">
         ${svgIcon('calendar',14)} Strategy Call
+      </button>
+    </div>`;
+  }
+
+  // ACQUISITION — Push to Demo Tracker (admin only)
+  if(deal.pipeline==='Acquisition' && isAdmin()){
+    const demoPushed = deal.pushedToDemoTracker;
+    h+=`<div style="margin:0 0 8px 0">
+      <button id="push-demo-btn" class="btn ${demoPushed?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px;display:flex"
+        onclick="${demoPushed?'':'pushToDemoTracker(\''+deal.id+'\')'}" ${demoPushed?'disabled':''}>
+        ${demoPushed?'<span style="color:#059669">✓ Pushed to Demo Tracker</span>':svgIcon('upload',14)+' Push to Demo Tracker'}
       </button>
     </div>`;
   }

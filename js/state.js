@@ -62,6 +62,12 @@ export const state = {
   trackerBulkField: '',
   trackerBulkValue: '',
   invoiceModal: null,
+  demoEntries: [],
+  demoLoaded: false,
+  demoFilters: { month: '', showStatus: '', outcome: '', dateFrom: '', dateTo: '' },
+  demoSort: { field: 'callDate', dir: 'desc' },
+  demoEditingCell: null,
+  demoSelected: new Set(),
 };
 
 // ─── Pending writes guard ───
