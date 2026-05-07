@@ -821,7 +821,7 @@ export function renderDealModal(deal){
           <div style="margin-bottom:10px;padding:6px 10px;background:#dcfce7;border-radius:6px">${summaryHtml}</div>
           ${alreadyBooked?`<div style="font-size:12px;color:#059669;font-weight:600;margin-bottom:8px">Currently booked: ${fmtDate(deal.bookedDate)} at ${fmtTime12(deal.bookedTime)}</div>`:''}
           <div style="display:flex;gap:8px;margin-bottom:8px">
-            <input type="date" id="avail-book-date" value="${esc(deal.bookedDate||'')}" min="${getToday()}"
+            <input type="date" id="avail-book-date" value="${esc(deal.bookedDate||'')}" min="${rules.minNoticeDays ? (()=>{const _d=new Date();_d.setDate(_d.getDate()+rules.minNoticeDays);return _d.toISOString().slice(0,10)})() : getToday()}"
               style="flex:1;padding:6px 10px;border:1px solid #86efac;border-radius:6px;font-size:13px;font-family:var(--font);background:#fff;color:var(--text)">
             <input type="time" id="avail-book-time" value="${esc(deal.bookedTime||'')}"
               style="flex:1;padding:6px 10px;border:1px solid #86efac;border-radius:6px;font-size:13px;font-family:var(--font);background:#fff;color:var(--text)">
@@ -1289,6 +1289,10 @@ window.bookAvailabilitySlot = function(dealId) {
   const client = findClientForDeal(deal) || state.clients.find(c => c.name === deal.stage);
   if (!client || !client.availabilityRules || !client.availabilityRules.windows) return;
   const d = new Date(dateVal + 'T00:00:00');
+  if (client.availabilityRules.minNoticeDays) {
+    const minDate = new Date(); minDate.setDate(minDate.getDate() + client.availabilityRules.minNoticeDays); minDate.setHours(0,0,0,0);
+    if (d < minDate) { errEl.textContent = 'Booking requires at least ' + client.availabilityRules.minNoticeDays + ' day(s) notice.'; errEl.style.display = ''; return; }
+  }
   const dayNames = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
   const dayName = dayNames[d.getDay()];
   const windows = client.availabilityRules.windows.filter(w => w.day === dayName);
