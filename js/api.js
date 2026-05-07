@@ -338,6 +338,12 @@ const FIELD_MAP = {
   payment_terms: 'paymentTerms',
   client_phone: 'clientPhone',
   availability_rules: 'availabilityRules',
+  pushed_to_demo_tracker: 'pushedToDemoTracker',
+  call_date: 'callDate',
+  call_time: 'callTime',
+  call_type: 'callType',
+  show_status: 'showStatus',
+  date_booked: 'dateBooked',
 };
 
 const REVERSE_FIELD_MAP = {};
@@ -386,8 +392,8 @@ export async function initialSync(isStartup) {
     // Clear dashboard archive cache so it refreshes on next render
     import('./dashboard.js').then(m => m.clearDashboardArchiveCache && m.clearDashboardArchiveCache()).catch(() => {});
     render();
-    const [deals, activities, clients, appointments, trackerEntries, savedSettings] = await Promise.all([
-      sbGetDeals(), sbGetActivities(), sbGetClients(), sbGetAppointments(), sbGetTrackerEntries(), sbLoadSettings()
+    const [deals, activities, clients, appointments, trackerEntries, demoEntries, savedSettings] = await Promise.all([
+      sbGetDeals(), sbGetActivities(), sbGetClients(), sbGetAppointments(), sbGetTrackerEntries(), sbGetDemoEntries(), sbLoadSettings()
     ]);
     // Apply settings from Supabase if available
     if (savedSettings && Object.keys(savedSettings).length > 0) {
@@ -418,6 +424,7 @@ export async function initialSync(isStartup) {
     }
     state.appointments = (appointments || []).map(normalizeRow);
     state.trackerEntries = (trackerEntries || []).map(normalizeRow);
+    state.demoEntries = (demoEntries || []).map(normalizeRow);
 
     // Normalize deal fields
     for (const d of state.deals) {
@@ -537,6 +544,13 @@ export async function subscribeRealtime() {
       debouncedRealtimeRender();
     })
     .subscribe();
+
+  supabase.channel('demo-tracker-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'demo_tracker' }, payload => {
+      applyRealtimeEvent('demo_tracker', payload);
+      debouncedRealtimeRender();
+    })
+    .subscribe();
 }
 
 // Heavy fields to strip from realtime payloads to save memory
@@ -551,7 +565,7 @@ function applyRealtimeEvent(table, payload) {
   const newRow = payload.new ? normalizeRow(payload.new) : null;
   const oldRow = payload.old ? normalizeRow(payload.old) : null;
 
-  const stateKey = table === 'rerun_queue' ? 'rerunQueue' : table === 'lead_tracker' ? 'trackerEntries' : table;
+  const stateKey = table === 'rerun_queue' ? 'rerunQueue' : table === 'lead_tracker' ? 'trackerEntries' : table === 'demo_tracker' ? 'demoEntries' : table;
   const list = state[stateKey];
   if (!list) return;
 
@@ -823,6 +837,29 @@ export const sbDeleteTrackerEntry = (id) => sbCall(async () => {
   const { error } = await supabase.from('lead_tracker').delete().eq('id', id);
   if (error) throw error;
 }, { label: 'Delete tracker entry' });
+
+// ─── Demo Tracker CRUD ───
+export const sbGetDemoEntries = () => sbCall(async () => {
+  const { data, error } = await supabase.from('demo_tracker').select('*').order('created_at', { ascending: false });
+  if (error) throw error;
+  return data;
+}, { label: 'Load demo entries' });
+
+export const sbCreateDemoEntry = (fields) => sbCall(async () => {
+  const { data, error } = await supabase.from('demo_tracker').insert(fields).select().single();
+  if (error) throw error;
+  return data;
+}, { label: 'Create demo entry' });
+
+export const sbUpdateDemoEntry = (id, fields) => sbCall(async () => {
+  const { error } = await supabase.from('demo_tracker').update(fields).eq('id', id);
+  if (error) throw error;
+}, { label: 'Update demo entry' });
+
+export const sbDeleteDemoEntry = (id) => sbCall(async () => {
+  const { error } = await supabase.from('demo_tracker').delete().eq('id', id);
+  if (error) throw error;
+}, { label: 'Delete demo entry' });
 
 // ─── CRM Settings (Supabase key-value) ───
 export const sbLoadSettings = () => sbCall(async () => {
