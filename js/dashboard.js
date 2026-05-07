@@ -9,6 +9,27 @@ import { isAdmin, isEmployee } from './auth.js';
 import { getOverdueActivities } from './activities.js';
 import { sbGetArchivedDeals } from './api.js';
 
+function dateAddedToYM(dateAdded) {
+  if (!dateAdded) return '';
+  const parts = String(dateAdded).split('/');
+  if (parts.length !== 3) return '';
+  const m = parseInt(parts[0], 10);
+  let y = parseInt(parts[2], 10);
+  if (y < 100) y += 2000;
+  return `${y}-${String(m).padStart(2, '0')}`;
+}
+
+function dateAddedToDate(dateAdded) {
+  if (!dateAdded) return null;
+  const parts = String(dateAdded).split('/');
+  if (parts.length !== 3) return null;
+  const m = parseInt(parts[0], 10);
+  const d = parseInt(parts[1], 10);
+  let y = parseInt(parts[2], 10);
+  if (y < 100) y += 2000;
+  return new Date(y, m - 1, d);
+}
+
 export function getStagesForPipeline(pip){
   if(pip==='Acquisition') return ACQUISITION_STAGES;
   if(pip==='Nurture') return NURTURE_STAGES;
@@ -107,8 +128,8 @@ export function renderClientDashboard(thisMonth, archived){
     if (am) monthSet.add(am);
   });
   state.trackerEntries.forEach(e => {
-    const cm = (e.createdAt || '').slice(0,7);
-    if (cm) monthSet.add(cm);
+    const ym = dateAddedToYM(e.dateAdded);
+    if (ym) monthSet.add(ym);
   });
   monthSet.add(thisMonth);
   const allMonths = [...monthSet].sort().reverse();
@@ -117,21 +138,21 @@ export function renderClientDashboard(thisMonth, archived){
   const prevDate = new Date(sy, sm - 2, 1);
   const prevMonth = prevDate.toISOString().slice(0,7);
 
-  // KPI 1: New Leads — from Lead Tracker (source of truth for billing)
-  const newLeadsMonth = state.trackerEntries.filter(e => (e.createdAt || '').slice(0,7) === selMonth).length;
-  const prevNewLeads = state.trackerEntries.filter(e => (e.createdAt || '').slice(0,7) === prevMonth).length;
+  // KPI 1: Booked Leads — from Lead Tracker dateAdded (source of truth)
+  const monthEntries = state.trackerEntries.filter(e => dateAddedToYM(e.dateAdded) === selMonth);
+  const prevMonthEntries = state.trackerEntries.filter(e => dateAddedToYM(e.dateAdded) === prevMonth);
+  const bookedMonth = monthEntries.length;
+  const prevBooked = prevMonthEntries.length;
 
-  // KPI 2: Won / Passed Off (archived only, archived_at in month)
-  const wonPassedMonth = clientArchived.filter(d =>
-    (d.archiveStatus === 'Closed Won' || d.archiveStatus === 'Passed Off')
-    && (d.archivedAt || '').slice(0,7) === selMonth
-  ).length;
-  const prevWonPassed = clientArchived.filter(d =>
-    (d.archiveStatus === 'Closed Won' || d.archiveStatus === 'Passed Off')
-    && (d.archivedAt || '').slice(0,7) === prevMonth
-  ).length;
+  // KPI 2: Called Back (from tracker callbackStatus)
+  const calledBackMonth = monthEntries.filter(e => String(e.callbackStatus || '').toLowerCase() === 'called back').length;
+  const prevCalledBack = prevMonthEntries.filter(e => String(e.callbackStatus || '').toLowerCase() === 'called back').length;
 
-  // KPI 3: Active Leads (active only, all time)
+  // KPI 3: Good Leads (booked minus called back)
+  const goodMonth = bookedMonth - calledBackMonth;
+  const prevGood = prevBooked - prevCalledBack;
+
+  // KPI 4: Active Leads (active only, all time)
   const activeLeads = clientDeals.length;
 
   // KPI 4: Undistributed (active only)
@@ -170,15 +191,16 @@ export function renderClientDashboard(thisMonth, archived){
       </select>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px">
-      <div style="${cardStyle}"><div style="${labelStyle}">New Leads (${monthLabel})</div><div style="${numStyle};color:#2563eb">${newLeadsMonth}</div>${trend(newLeadsMonth, prevNewLeads)}</div>
-      <div style="${cardStyle}"><div style="${labelStyle}">Won / Passed Off</div><div style="${numStyle};color:#22c55e">${wonPassedMonth}</div>${trend(wonPassedMonth, prevWonPassed)}</div>
+      <div style="${cardStyle}"><div style="${labelStyle}">Booked (${monthLabel})</div><div style="${numStyle};color:#2563eb">${bookedMonth}</div>${trend(bookedMonth, prevBooked)}</div>
+      <div style="${cardStyle}"><div style="${labelStyle}">Called Back</div><div style="${numStyle};color:#ef4444">${calledBackMonth}</div>${trend(calledBackMonth, prevCalledBack)}</div>
+      <div style="${cardStyle}"><div style="${labelStyle}">Good Leads</div><div style="${numStyle};color:#22c55e">${goodMonth}</div>${trend(goodMonth, prevGood)}</div>
       <div style="${cardStyle}"><div style="${labelStyle}">Active Leads</div><div style="${numStyle};color:var(--purple)">${activeLeads}</div></div>
       <div style="${cardStyle}"><div style="${labelStyle}">Undistributed</div><div style="${numStyle};color:${undistributed ? '#f59e0b' : '#22c55e'}">${undistributed}</div></div>
       <div style="${cardStyle}"><div style="${labelStyle}">Overdue Tasks</div><div style="${numStyle};color:${overdueActs.length ? '#ef4444' : '#22c55e'}">${overdueActs.length}</div></div>
     </div>`;
 
   // ─── Per-Client Table ───
-  h += renderClientTable(selMonth, monthLabel, clientDeals, clientArchived);
+  h += renderClientTable(selMonth, monthLabel, clientDeals);
 
   // ─── Monthly Intake Chart ───
   h += renderIntakeChart();
@@ -187,58 +209,47 @@ export function renderClientDashboard(thisMonth, archived){
   return h;
 }
 
-function renderClientTable(selMonth, monthLabel, clientDeals, clientArchived) {
+function renderClientTable(selMonth, monthLabel, clientDeals) {
   const today = new Date();
   const clientCounts = {};
 
-  // Initialize from client list
   state.clients.forEach(c => {
-    clientCounts[c.name] = { active: 0, newMonth: 0, won: 0, lastLead: null };
+    clientCounts[c.name] = { active: 0, booked: 0, calledBack: 0, lastLead: null };
   });
 
-  // Count active deals per client
   clientDeals.forEach(d => {
     const cn = getClientForDeal(d);
     if (!cn) return;
-    if (!clientCounts[cn]) clientCounts[cn] = { active: 0, newMonth: 0, won: 0, lastLead: null };
+    if (!clientCounts[cn]) clientCounts[cn] = { active: 0, booked: 0, calledBack: 0, lastLead: null };
     clientCounts[cn].active++;
   });
 
-  // Count won/passed off from archived
-  clientArchived.forEach(d => {
-    const cn = getClientForDeal(d);
-    if (!cn) return;
-    if (!clientCounts[cn]) clientCounts[cn] = { active: 0, newMonth: 0, won: 0, lastLead: null };
-    if ((d.archiveStatus === 'Closed Won' || d.archiveStatus === 'Passed Off')
-        && (d.archivedAt || '').slice(0,7) === selMonth) {
-      clientCounts[cn].won++;
-    }
-  });
-
-  // New leads + last lead from Lead Tracker (source of truth for billing)
   state.trackerEntries.forEach(e => {
     const cn = e.clientName;
     if (!cn) return;
-    if (!clientCounts[cn]) clientCounts[cn] = { active: 0, newMonth: 0, won: 0, lastLead: null };
-    if ((e.createdAt || '').slice(0,7) === selMonth) clientCounts[cn].newMonth++;
-    const cd = e.createdAt || '';
-    if (cd && (!clientCounts[cn].lastLead || cd > clientCounts[cn].lastLead)) {
-      clientCounts[cn].lastLead = cd;
+    if (!clientCounts[cn]) clientCounts[cn] = { active: 0, booked: 0, calledBack: 0, lastLead: null };
+    if (dateAddedToYM(e.dateAdded) === selMonth) {
+      clientCounts[cn].booked++;
+      if (String(e.callbackStatus || '').toLowerCase() === 'called back') clientCounts[cn].calledBack++;
+    }
+    const dt = dateAddedToDate(e.dateAdded);
+    if (dt && (!clientCounts[cn].lastLead || dt > clientCounts[cn].lastLead)) {
+      clientCounts[cn].lastLead = dt;
     }
   });
 
-  // Filter out clients with 0 active and 0 archived
   const visibleClients = Object.entries(clientCounts)
-    .filter(([, c]) => c.active > 0 || c.newMonth > 0 || c.won > 0)
-    .sort((a, b) => b[1].active - a[1].active);
+    .filter(([, c]) => c.active > 0 || c.booked > 0)
+    .sort((a, b) => b[1].booked - a[1].booked || b[1].active - a[1].active);
 
   let h = `<h3 style="font-size:14px;font-weight:700;margin-bottom:10px">Leads by Client \u2014 ${monthLabel}</h3>
     <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;border:1px solid var(--border)">
       <thead><tr style="background:#f9fafb">
         <th style="text-align:left;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)">Client</th>
         <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)">Active</th>
-        <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)">New (${monthLabel})</th>
-        <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)">Won (${monthLabel})</th>
+        <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)">Booked (${monthLabel})</th>
+        <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)">Called Back</th>
+        <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)">Good</th>
         <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)">Last Lead</th>
         <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)">Status</th>
       </tr></thead>
@@ -247,11 +258,11 @@ function renderClientTable(selMonth, monthLabel, clientDeals, clientArchived) {
   for (const [name, c] of visibleClients) {
     const client = state.clients.find(x => x.name === name);
     const dot = client ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${client.color || '#818cf8'};margin-right:6px"></span>` : '';
+    const good = c.booked - c.calledBack;
 
     let statusHtml = '';
     if (c.lastLead) {
-      const lastDate = new Date(c.lastLead);
-      const daysSince = Math.floor((today - lastDate) / (1000 * 60 * 60 * 24));
+      const daysSince = Math.floor((today - c.lastLead) / (1000 * 60 * 60 * 24));
       if (daysSince >= 30) {
         statusHtml = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#ef4444;margin-right:4px"></span><span style="color:#ef4444;font-weight:600">30+ days</span>`;
       } else {
@@ -259,13 +270,14 @@ function renderClientTable(selMonth, monthLabel, clientDeals, clientArchived) {
       }
     }
 
-    const lastLeadDisplay = c.lastLead ? new Date(c.lastLead).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '\u2014';
+    const lastLeadDisplay = c.lastLead ? c.lastLead.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '\u2014';
 
     h += `<tr style="border-top:1px solid #f3f4f6">
       <td style="padding:8px 12px;font-size:12px;font-weight:600">${dot}${esc(name)}</td>
       <td style="text-align:center;padding:8px 12px;font-size:12px">${c.active}</td>
-      <td style="text-align:center;padding:8px 12px;font-size:12px">${c.newMonth}</td>
-      <td style="text-align:center;padding:8px 12px;font-size:12px;color:${c.won ? '#22c55e' : 'var(--text-muted)'};font-weight:${c.won ? '700' : '400'}">${c.won}</td>
+      <td style="text-align:center;padding:8px 12px;font-size:12px">${c.booked}</td>
+      <td style="text-align:center;padding:8px 12px;font-size:12px;color:${c.calledBack ? '#ef4444' : 'var(--text-muted)'};font-weight:${c.calledBack ? '600' : '400'}">${c.calledBack}</td>
+      <td style="text-align:center;padding:8px 12px;font-size:12px;color:#22c55e;font-weight:600">${good}</td>
       <td style="text-align:center;padding:8px 12px;font-size:11px;color:var(--text-muted)">${lastLeadDisplay}</td>
       <td style="text-align:center;padding:8px 12px;font-size:11px">${statusHtml}</td>
     </tr>`;
@@ -291,10 +303,9 @@ function renderIntakeChart() {
   const clientNames = [...new Set(entries.map(e => e.clientName).filter(Boolean))].sort();
   const filterClient = state.dashboardChartClient || '';
 
-  // Count leads per month from Lead Tracker (source of truth)
   const counts = months.map(m => {
     return entries.filter(e => {
-      if ((e.createdAt || '').slice(0,7) !== m) return false;
+      if (dateAddedToYM(e.dateAdded) !== m) return false;
       if (filterClient) return e.clientName === filterClient;
       return true;
     }).length;
