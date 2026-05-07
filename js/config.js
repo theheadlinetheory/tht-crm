@@ -113,6 +113,16 @@ export const PRE_CALL_SEQUENCE = [
   { offset: 0, type: 'Text', subject: '{type}: Day-of reminder text' },
 ];
 
+// ─── Default Acquisition Text Templates (SDR — David) ───
+export const DEFAULT_ACQ_TEMPLATES = [
+  { name: 'FU #1 — No Pickup Intro', body: `Hi {FIRST_NAME}, David with The Headline Theory here. You were just emailing with our founder Aidan about commercial landscaping opportunities around {CITY}. Figured it would be easier to give you a breakdown and learn more about your business over the phone rather than email.\n\nWould today or tomorrow be a good time for me to give you a call?` },
+  { name: 'FU #2 — Voicemail Follow-Up', body: `Hey {FIRST_NAME}, just tried giving you a ring but it went to voicemail. Does tomorrow or the day after work for me to give you a call back?` },
+  { name: 'FU #3 — Circle Back', body: `Hey {FIRST_NAME}, David here. Just wanted to circle back — still interested in chatting about what we can do for your business in {CITY}? Happy to work around your schedule.` },
+  { name: 'FU #4 — Final Nudge', body: `Hey {FIRST_NAME}, just bumping this up. Would love to connect this week if you have a few minutes. Let me know what works.` },
+  { name: 'Pre-Demo — Post-Disco Confirmation', body: `Hey {FIRST_NAME}, David with The Headline Theory here. It was great chatting with you just now. Looking forward to our call {MEETING_TIME}.\n\nIf you have any questions before then, please give me a text, call, or email and I will get back to you asap.\n\nIn the meantime, feel free to check out the results we've brought our clients at theheadlinetheory.com\n\nTalk soon!` },
+  { name: 'Pre-Demo — 30 Min Reminder', body: `Hey {FIRST_NAME}, looking forward to connecting in about 30 minutes! Talk soon.` },
+];
+
 // ─── Default Client Portal Stages ───
 export const DEFAULT_CLIENT_STAGES = [
   { id: "Positive Response", label: "Positive Response", color: "#059669" },
