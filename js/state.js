@@ -50,6 +50,7 @@ export const state = {
   acquisitionFilter: '',
   showAcqFilterDropdown: false,
   acquisitionSubTab: 'pipeline',
+  clientLeadsSubTab: 'pipeline',
   assignableUsers: [],
   myDealsFilter: false,
   trackerEntries: [],
