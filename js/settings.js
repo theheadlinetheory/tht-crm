@@ -34,6 +34,7 @@ export function openSettings(defaultTab){
   }
   if(state.savedSettings?.instructions_template) draft.instructions_template = state.savedSettings.instructions_template;
   if(state.savedSettings?.delivery_template) draft.delivery_template = state.savedSettings.delivery_template;
+  if(state.savedSettings?.acquisition_templates) draft.acquisition_templates = state.savedSettings.acquisition_templates;
   setSettingsDraft(draft);
   setSettingsOpen(true);
   renderSettingsPanel();
@@ -1269,6 +1270,29 @@ function renderTemplatesSettings(){
       <textarea id="tpl-instructions" rows="10" oninput="settingsDraft.instructions_template=this.value;debouncedAutoSave()"
         style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:var(--font);line-height:1.5;resize:vertical;color:var(--text);background:var(--card)">${esc(instrTpl)}</textarea>
       <button onclick="settingsDraft.instructions_template='';document.getElementById('tpl-instructions').value='';debouncedAutoSave()" style="margin-top:4px;font-size:11px;color:#6b7280;background:none;border:none;cursor:pointer;text-decoration:underline">Reset to default</button>
+    </div>
+
+    <div style="margin-bottom:20px">
+      <label style="font-size:13px;font-weight:700;color:var(--text);display:block;margin-bottom:6px">${svgIcon('send',14)} Acquisition Text Templates</label>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Quick-fill templates for texting acquisition leads. Shows as a dropdown on acquisition deal cards. Same placeholders work here.</div>
+      ${(()=>{
+        const tpls = settingsDraft.acquisition_templates || [];
+        let h = '';
+        tpls.forEach((t, i) => {
+          h += `<div style="margin-bottom:10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--card)">
+            <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
+              <input value="${esc(t.name||'')}" placeholder="Template name" oninput="settingsDraft.acquisition_templates[${i}].name=this.value;debouncedAutoSave()"
+                style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);font-weight:600">
+              <button onclick="settingsDraft.acquisition_templates.splice(${i},1);refreshSettingsBody()" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:16px;padding:0 4px">&times;</button>
+            </div>
+            <textarea rows="3" oninput="settingsDraft.acquisition_templates[${i}].body=this.value;debouncedAutoSave()"
+              style="width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);resize:vertical">${esc(t.body||'')}</textarea>
+          </div>`;
+        });
+        h += `<button onclick="if(!settingsDraft.acquisition_templates)settingsDraft.acquisition_templates=[];settingsDraft.acquisition_templates.push({name:'',body:''});refreshSettingsBody()"
+          style="padding:6px 12px;border:1px dashed var(--border);border-radius:6px;background:none;cursor:pointer;font-size:12px;color:var(--text-muted);font-family:var(--font)">+ Add Template</button>`;
+        return h;
+      })()}
     </div>
 
     <div style="margin-bottom:20px">
