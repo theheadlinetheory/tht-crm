@@ -106,14 +106,19 @@ export function copyToClipboard(text, btnEl){
 export function applyTemplate(template, deal, clientName, clientFirst){
   const s = v => (v != null && String(v).trim()) || '';
   const addr = s(deal.address || deal.location);
+  const loc = s(deal.location || deal.address);
+  const city = loc.includes(',') ? loc.split(',')[0].trim() : loc;
+  const firstName = s(deal.contact).split(/\s+/)[0] || '';
   const replacements = {
     '{BUSINESS}': s(deal.company || deal.contact),
     '{CONTACT}': s(deal.contact),
+    '{FIRST_NAME}': firstName,
     '{EMAIL}': s(deal.email),
     '{PHONE}': s(deal.phone),
     '{MOBILE_PHONE}': s(deal.mobilePhone),
     '{WEBSITE}': s(deal.website),
     '{ADDRESS}': addr,
+    '{CITY}': city,
     '{JOB_TITLE}': s(deal.jobTitle),
     '{CLIENT_NAME}': s(clientName),
     '{CLIENT_FIRST}': s(clientFirst || 'there'),

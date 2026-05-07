@@ -91,10 +91,6 @@ export const SOP_DAYS = {
   "Day 9": [
     {type:"Call",subject:"Call"}
   ],
-  "Day 11": [
-    {type:"Call",subject:"Final call"},
-    {type:"Text",subject:"Breakup text"}
-  ],
 };
 
 export const CLIENT_SOP_DAYS = {
