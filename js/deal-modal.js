@@ -648,6 +648,23 @@ export function renderDealModal(deal){
             const _mc=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
             return _mc ? renderPassoffSection(deal, _mc.name) : '';
           }
+          if(deal.pipeline==='Acquisition'){
+            const tpls = state.savedSettings?.acquisition_templates || [];
+            if(tpls.length > 0){
+              return `<div class="form-group form-span2" style="margin-bottom:16px">
+                <label>${svgIcon('send',14)} Quick Message</label>
+                <select id="acq-tpl-select" onchange="applyAcqTemplate('${esc(deal.id)}')"
+                  style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);margin-bottom:6px;background:var(--card);color:var(--text)">
+                  <option value="">Select a template...</option>
+                  ${tpls.map((t,i)=>'<option value="'+i+'">'+esc(t.name||'Template '+(i+1))+'</option>').join('')}
+                </select>
+                <textarea id="acq-tpl-body" rows="4" placeholder="Select a template above or type your message..."
+                  style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font);resize:vertical;line-height:1.5;background:var(--card);color:var(--text)"></textarea>
+                <button onclick="copyAcqMessage()" style="margin-top:4px;padding:4px 12px;border:1px solid var(--border);border-radius:6px;background:#f9fafb;font-size:11px;font-family:var(--font);cursor:pointer;color:var(--text)">Copy to Clipboard</button>
+              </div>`;
+            }
+            return '';
+          }
           return '';
         })()}
         <div class="form-group form-span2" style="margin-bottom:16px">
@@ -1271,6 +1288,27 @@ async function startAutoFollowUp(dealId){
   }
 }
 window.startAutoFollowUp = startAutoFollowUp;
+
+window.applyAcqTemplate = function(dealId) {
+  const sel = document.getElementById('acq-tpl-select');
+  const body = document.getElementById('acq-tpl-body');
+  if (!sel || !body) return;
+  const idx = parseInt(sel.value);
+  const tpls = state.savedSettings?.acquisition_templates || [];
+  if (isNaN(idx) || !tpls[idx]) { body.value = ''; return; }
+  const deal = state.deals.find(d => String(d.id) === String(dealId));
+  if (!deal) return;
+  body.value = applyTemplate(tpls[idx].body, deal, '', '');
+};
+
+window.copyAcqMessage = function() {
+  const body = document.getElementById('acq-tpl-body');
+  if (!body || !body.value.trim()) return;
+  navigator.clipboard.writeText(body.value).then(() => {
+    const btn = body.nextElementSibling;
+    if (btn) { const orig = btn.textContent; btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = orig, 1500); }
+  });
+};
 
 window.bookAvailabilitySlot = function(dealId) {
   const dateEl = document.getElementById('avail-book-date');
