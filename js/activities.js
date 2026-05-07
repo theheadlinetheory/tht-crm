@@ -44,7 +44,8 @@ export function leadAgeBadge(deal){
 
 export function getOverdueActivities(){
   const today=getToday();
-  return state.activities.filter(a=>!a.done && String(a.done)!=="TRUE" && a.dueDate && a.dueDate.slice(0,10)<today);
+  const acqDealIds = new Set(state.deals.filter(d => d.pipeline === 'Acquisition').map(d => String(d.id)));
+  return state.activities.filter(a=>!a.done && String(a.done)!=="TRUE" && a.dueDate && a.dueDate.slice(0,10)<today && acqDealIds.has(String(a.dealId)));
 }
 
 export function renderOverdueBanner(){

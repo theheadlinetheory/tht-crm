@@ -153,98 +153,11 @@ export function render(){
     return;
   }
 
-  // ─── Lead Tracker Tab ───
+  // ─── Lead Tracker redirect (legacy URL compat) ───
   if(state.pipeline==='lead_tracker'){
-    let html=`
-    <div class="topbar">
-      <div style="display:flex;align-items:center;">
-        <div class="topbar-tabs">
-          ${pipelineTabsHtml()}
-        </div>
-      </div>
-      <div class="topbar-right">
-        <button class="btn btn-ghost" onclick="syncFromSheet()" style="display:inline-flex;align-items:center;gap:4px">${svgIcon('refresh-cw',12)} Sync</button>
-        ${renderUserMenu()}
-      </div>
-    </div>`;
-    // Sub-tabs: Entries / Trends
-    html+=`<div style="display:flex;gap:0;border-bottom:1px solid var(--border);padding:0 12px">
-      <button class="topbar-tab ${state.trackerView==='entries'?'active':''}" onclick="switchTrackerView('entries')">Entries</button>
-      <button class="topbar-tab ${state.trackerView==='trends'?'active':''}" onclick="switchTrackerView('trends')">Trends</button>
-    </div>`;
-
-    if(state.trackerView==='trends'){
-      // Trends view
-      if(state.trackerLoaded && window._trendsModule){
-        html+=window._trendsModule.renderTrends();
-      } else {
-        html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading trends...</div>';
-        if(!window._trendsLoading){
-          window._trendsLoading=true;
-          import('./trends.js').then(m=>{ window._trendsModule=m; render(); });
-        }
-        // Ensure tracker data is loaded
-        if(!state.trackerLoaded && !window._trackerLoading){
-          window._trackerLoading=true;
-          import('./lead-tracker.js').then(m=>{
-            window._trackerModule=m;
-            m.loadTrackerEntries().then(()=>render());
-          });
-        }
-      }
-    } else {
-      // Entries view
-      if(state.trackerLoaded && window._trackerModule){
-        html+=window._trackerModule.renderLeadTracker();
-      } else {
-        html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading tracker...</div>';
-        if(!window._trackerLoading){
-          window._trackerLoading=true;
-          import('./lead-tracker.js').then(m=>{
-            window._trackerModule=m;
-            if(!state.trackerLoaded){ m.loadTrackerEntries().then(()=>render()); }
-            else render();
-          });
-          // Preload invoice module so window handlers are registered
-          if(!window._invoiceLoading){
-            window._invoiceLoading=true;
-            import('./invoice.js').then(m=>{ window._invoiceModule=m; });
-          }
-        }
-      }
-      // Invoice modal overlay (rendered on top)
-      if(state.invoiceModal && window._invoiceModule){
-        html+=window._invoiceModule.renderInvoiceModal();
-      } else if(state.invoiceModal && !window._invoiceLoading){
-        window._invoiceLoading=true;
-        import('./invoice.js').then(m=>{
-          window._invoiceModule=m;
-          render();
-        });
-      }
-    }
-    // Save tracker scroll position before replacing DOM
-    const trackerWrap=document.querySelector('.tracker-table-wrap');
-    const savedTrackerScrollTop=trackerWrap?trackerWrap.scrollTop:0;
-    const savedTrackerScrollLeft=trackerWrap?trackerWrap.scrollLeft:0;
-    app.innerHTML=html;
-    // Restore tracker scroll position
-    const newTrackerWrap=document.querySelector('.tracker-table-wrap');
-    if(newTrackerWrap){
-      newTrackerWrap.scrollTop=savedTrackerScrollTop;
-      newTrackerWrap.scrollLeft=savedTrackerScrollLeft;
-    }
-    // Post-render hooks
-    if(state.trackerView==='trends' && window._trendsModule){
-      setTimeout(()=>window._trendsModule.drawTrendsChart(),0);
-    }
-    if(state.trackerEditingCell){
-      setTimeout(()=>{
-        const input=document.querySelector('.tracker-cell-input');
-        if(input){input.focus();input.select();}
-      },0);
-    }
-    return;
+    state.pipeline='client_leads';
+    state.clientLeadsSubTab='lead_tracker';
+    location.hash='client_leads';
   }
 
   const stages=getStages();
@@ -296,7 +209,7 @@ export function render(){
     const overdue = renderOverdueBanner();
     const booked = renderBookedMeetingsBanner();
     const parts = [overdue, booked].filter(Boolean);
-    const strip = parts.length ? `<div style="padding:5px 16px;background:#fafafa;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;overflow-x:auto">${parts.join('<span style="color:#d1d5db">|</span>')}</div>` : '';
+    const strip = parts.length ? `<div style="padding:8px 16px;background:#fafafa;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;overflow-x:auto">${parts.join('<span style="color:#d1d5db">|</span>')}</div>` : '';
     const nurture = state.pipeline==='acquisition' ? renderDueTodayBanner() : '';
     return strip + nurture;
   })()}`;
@@ -362,6 +275,88 @@ export function render(){
           </div>`:''}
         </div>
       </div>`;
+    }
+  }
+
+  // ─── Client Leads Sub-Tabs (Pipeline / Lead Tracker) ───
+  if(state.pipeline==='client_leads' && !isClient()){
+    const clSubTab = state.clientLeadsSubTab || 'pipeline';
+    const subCs = 'padding:6px 16px;font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;border-radius:6px;margin-right:4px';
+    html += `<div style="padding:0 20px;margin-bottom:8px;display:flex;align-items:center">
+      <div style="display:flex;gap:4px">
+        <button onclick="state.clientLeadsSubTab='pipeline';render()" style="${subCs};background:${clSubTab==='pipeline'?'var(--purple)':'#f3f4f6'};color:${clSubTab==='pipeline'?'#fff':'var(--text-muted)'}">Pipeline</button>
+        ${isAdmin()?`<button onclick="state.clientLeadsSubTab='lead_tracker';render()" style="${subCs};background:${clSubTab==='lead_tracker'?'var(--purple)':'#f3f4f6'};color:${clSubTab==='lead_tracker'?'#fff':'var(--text-muted)'}">Lead Tracker</button>`:''}
+      </div>
+    </div>`;
+
+    if(clSubTab === 'lead_tracker' && isAdmin()){
+      // Sub-tabs: Entries / Trends
+      html+=`<div style="display:flex;gap:0;border-bottom:1px solid var(--border);padding:0 12px">
+        <button class="topbar-tab ${state.trackerView==='entries'?'active':''}" onclick="switchTrackerView('entries')">Entries</button>
+        <button class="topbar-tab ${state.trackerView==='trends'?'active':''}" onclick="switchTrackerView('trends')">Trends</button>
+      </div>`;
+
+      if(state.trackerView==='trends'){
+        if(state.trackerLoaded && window._trendsModule){
+          html+=window._trendsModule.renderTrends();
+        } else {
+          html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading trends...</div>';
+          if(!window._trendsLoading){
+            window._trendsLoading=true;
+            import('./trends.js').then(m=>{ window._trendsModule=m; render(); });
+          }
+          if(!state.trackerLoaded && !window._trackerLoading){
+            window._trackerLoading=true;
+            import('./lead-tracker.js').then(m=>{
+              window._trackerModule=m;
+              m.loadTrackerEntries().then(()=>render());
+            });
+          }
+        }
+      } else {
+        if(state.trackerLoaded && window._trackerModule){
+          html+=window._trackerModule.renderLeadTracker();
+        } else {
+          html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading tracker...</div>';
+          if(!window._trackerLoading){
+            window._trackerLoading=true;
+            import('./lead-tracker.js').then(m=>{
+              window._trackerModule=m;
+              if(!state.trackerLoaded){ m.loadTrackerEntries().then(()=>render()); }
+              else render();
+            });
+            if(!window._invoiceLoading){
+              window._invoiceLoading=true;
+              import('./invoice.js').then(m=>{ window._invoiceModule=m; });
+            }
+          }
+        }
+        if(state.invoiceModal && window._invoiceModule){
+          html+=window._invoiceModule.renderInvoiceModal();
+        } else if(state.invoiceModal && !window._invoiceLoading){
+          window._invoiceLoading=true;
+          import('./invoice.js').then(m=>{ window._invoiceModule=m; render(); });
+        }
+      }
+      const trackerWrap=document.querySelector('.tracker-table-wrap');
+      const savedTrackerScrollTop=trackerWrap?trackerWrap.scrollTop:0;
+      const savedTrackerScrollLeft=trackerWrap?trackerWrap.scrollLeft:0;
+      app.innerHTML=html;
+      const newTrackerWrap=document.querySelector('.tracker-table-wrap');
+      if(newTrackerWrap){
+        newTrackerWrap.scrollTop=savedTrackerScrollTop;
+        newTrackerWrap.scrollLeft=savedTrackerScrollLeft;
+      }
+      if(state.trackerView==='trends' && window._trendsModule){
+        setTimeout(()=>window._trendsModule.drawTrendsChart(),0);
+      }
+      if(state.trackerEditingCell){
+        setTimeout(()=>{
+          const input=document.querySelector('.tracker-cell-input');
+          if(input){input.focus();input.select();}
+        },0);
+      }
+      return;
     }
   }
 
@@ -688,6 +683,7 @@ function switchPipeline(id){
   // Ensure nurture sub-tab is valid (board or archive)
   if(state.nurtureSubTab!=='board' && state.nurtureSubTab!=='archive') state.nurtureSubTab='board';
   if(id!=='acquisition'){ state.nurtureSubTab='board'; state._nurtureLoaded=false; state.acquisitionSubTab='pipeline'; }
+  if(id!=='client_leads'){ state.clientLeadsSubTab='pipeline'; }
   render();
 }
 
