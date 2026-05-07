@@ -25,7 +25,7 @@ export function getDefaultSettings(){
 export function openSettings(defaultTab){
   if(!isAdmin() && !isEmployee()) return;
   if(defaultTab) setSettingsTab(defaultTab);
-  else if(isEmployee() && !isAdmin()) setSettingsTab('templates');
+  else if(isEmployee() && !isAdmin()) setSettingsTab('pipeline');
   const draft = getDefaultSettings();
   if(state.savedSettings){
     for(const k of Object.keys(draft)){
@@ -209,13 +209,13 @@ export function renderSettingsPanel(){
     <button class="modal-close" onclick="closeSettings()">\u00D7</button>
   </div>
   <div class="settings-tab-bar">
-    ${isAdmin()?`<button class="settings-tab ${settingsTab==='pipeline'?'active':''}" onclick="settingsTab='pipeline';refreshSettingsBody()">Pipeline Config</button>
-    <button class="settings-tab ${settingsTab==='clients'?'active':''}" onclick="settingsTab='clients';refreshSettingsBody()">Clients</button>
-    <button class="settings-tab ${settingsTab==='users'?'active':''}" onclick="settingsTab='users';refreshSettingsBody()">Users</button>
-    <button class="settings-tab ${settingsTab==='campaigns'?'active':''}" onclick="settingsTab='campaigns';refreshSettingsBody()">Campaigns</button>
-    <button class="settings-tab ${settingsTab==='dialer'?'active':''}" onclick="settingsTab='dialer';refreshSettingsBody()">Dialer</button>
-    <button class="settings-tab ${settingsTab==='billing'?'active':''}" onclick="settingsTab='billing';refreshSettingsBody()">Billing</button>
-    <button class="settings-tab ${settingsTab==='ai'?'active':''}" onclick="settingsTab='ai';refreshSettingsBody()">AI</button>`:''}
+    ${isAdmin()||isEmployee()?`<button class="settings-tab ${settingsTab==='pipeline'?'active':''}" onclick="settingsTab='pipeline';refreshSettingsBody()">Pipeline Config</button>
+    <button class="settings-tab ${settingsTab==='clients'?'active':''}" onclick="settingsTab='clients';refreshSettingsBody()">Clients</button>`:''}
+    ${isAdmin()?`<button class="settings-tab ${settingsTab==='users'?'active':''}" onclick="settingsTab='users';refreshSettingsBody()">Users</button>`:''}
+    ${isAdmin()||isEmployee()?`<button class="settings-tab ${settingsTab==='campaigns'?'active':''}" onclick="settingsTab='campaigns';refreshSettingsBody()">Campaigns</button>
+    <button class="settings-tab ${settingsTab==='dialer'?'active':''}" onclick="settingsTab='dialer';refreshSettingsBody()">Dialer</button>`:''}
+    ${isAdmin()?`<button class="settings-tab ${settingsTab==='billing'?'active':''}" onclick="settingsTab='billing';refreshSettingsBody()">Billing</button>`:''}
+    ${isAdmin()||isEmployee()?`<button class="settings-tab ${settingsTab==='ai'?'active':''}" onclick="settingsTab='ai';refreshSettingsBody()">AI</button>`:''}
     <button class="settings-tab ${settingsTab==='templates'?'active':''}" onclick="settingsTab='templates';refreshSettingsBody()">Templates</button>
   </div>
   <div class="settings-body">`;
@@ -555,7 +555,7 @@ function renderClientsSettings(){
         </div>`;
       })()}
 
-      <div style="margin-bottom:8px">
+      ${isAdmin()?`<div style="margin-bottom:8px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Lead Cost ($)</label>
         <input type="text" placeholder="e.g. 200" value="${esc(str(c.leadCost))}"
           oninput="updateClientField('${esc(c.id)}','leadCost',this.value)"
@@ -570,7 +570,7 @@ function renderClientsSettings(){
           <option value="Net 15" ${str(c.paymentTerms||'Net 7')==='Net 15'?'selected':''}>Net 15</option>
           <option value="Net 30" ${str(c.paymentTerms||'Net 7')==='Net 30'?'selected':''}>Net 30</option>
         </select>
-      </div>
+      </div>`:''}
 
       ${isOn('enableCalendly')?`<div style="margin-bottom:8px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Calendly URL</label>
@@ -593,7 +593,7 @@ function renderClientsSettings(){
         ${c.onboardingParsedAt?`<div style="font-size:10px;color:#6b7280;margin-top:4px">Last parsed: ${new Date(c.onboardingParsedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})}</div>`:''}
       </div>
 
-      <div style="margin-bottom:8px;padding:10px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px">
+      ${isAdmin()?`<div style="margin-bottom:8px;padding:10px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px">
         <div style="font-size:10px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">GoHighLevel Integration</div>
         <div style="margin-bottom:6px">
           <label style="font-size:10px;font-weight:600;color:var(--text-muted)">GHL Location ID</label>
@@ -623,7 +623,7 @@ function renderClientsSettings(){
               style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
           </div>
         </div>
-      </div>
+      </div>`:''}
 
       <div style="margin-bottom:8px;padding:10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px">
         <div style="font-size:10px;font-weight:700;color:#0369a1;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Route Optimization</div>
