@@ -62,6 +62,18 @@ export function clearDashboardArchiveCache() {
   _dashboardArchiveCache = null;
 }
 
+function resolveClientName(rawName) {
+  if (!rawName) return rawName;
+  const exact = state.clients.find(c => c.name === rawName);
+  if (exact) return exact.name;
+  const lower = rawName.toLowerCase();
+  const ci = state.clients.find(c => c.name.toLowerCase() === lower);
+  if (ci) return ci.name;
+  const partial = state.clients.find(c => c.name.toLowerCase().startsWith(lower) || lower.startsWith(c.name.toLowerCase()));
+  if (partial) return partial.name;
+  return rawName;
+}
+
 function getClientForDeal(deal) {
   // Priority: bookedFor → clientName (archive) → stage
   if (deal.bookedFor) {
@@ -225,7 +237,7 @@ function renderClientTable(selMonth, monthLabel, clientDeals) {
   });
 
   state.trackerEntries.forEach(e => {
-    const cn = e.clientName;
+    const cn = resolveClientName(e.clientName);
     if (!cn) return;
     if (!clientCounts[cn]) clientCounts[cn] = { active: 0, booked: 0, calledBack: 0, lastLead: null };
     if (dateAddedToYM(e.dateAdded) === selMonth) {
@@ -299,14 +311,14 @@ function renderIntakeChart() {
   }
   const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-  // Get unique clients for filter
-  const clientNames = [...new Set(entries.map(e => e.clientName).filter(Boolean))].sort();
+  // Get unique clients for filter (resolve short names)
+  const clientNames = [...new Set(entries.map(e => resolveClientName(e.clientName)).filter(Boolean))].sort();
   const filterClient = state.dashboardChartClient || '';
 
   const counts = months.map(m => {
     return entries.filter(e => {
       if (dateAddedToYM(e.dateAdded) !== m) return false;
-      if (filterClient) return e.clientName === filterClient;
+      if (filterClient) return resolveClientName(e.clientName) === filterClient;
       return true;
     }).length;
   });
