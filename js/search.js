@@ -47,7 +47,15 @@ export function getActivityBadge(dealId){
 
 // ─── Get stages for current pipeline ───
 export function getStages(){
-  if(state.pipeline==="acquisition") return ACQUISITION_STAGES;
+  if(state.pipeline==="acquisition"){
+    const extras = state.deals
+      .filter(d => d.pipeline === 'Acquisition' && !ACQUISITION_STAGES.some(s => s.id === d.stage))
+      .map(d => d.stage).filter(Boolean);
+    if(extras.length === 0) return ACQUISITION_STAGES;
+    const seen = new Set(ACQUISITION_STAGES.map(s => s.id));
+    const extraStages = [...new Set(extras)].filter(s => !seen.has(s)).map(s => ({id: s, label: s, color: '#6b7280'}));
+    return [...ACQUISITION_STAGES, ...extraStages];
+  }
   if(state.pipeline==="nurture") return NURTURE_STAGES;
   if(isClient() && clientPortalStages){
     return clientPortalStages;
@@ -67,7 +75,7 @@ export function getStages(){
 // ─── Filter deals for pipeline ───
 export function getPipelineDeals(){
   if(state.pipeline==="acquisition"){
-    let acqDeals = state.deals.filter(d=>ACQUISITION_STAGES.some(s=>s.id===d.stage));
+    let acqDeals = state.deals.filter(d=>d.pipeline==='Acquisition');
     if(state.acquisitionFilter){
       acqDeals = acqDeals.filter(d => getOwnerNameForDeal(d) === state.acquisitionFilter);
     }
