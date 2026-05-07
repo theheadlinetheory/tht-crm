@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
          settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID } from './config.js';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, DEFAULT_ACQ_TEMPLATES } from './config.js';
 import { render } from './render.js';
 import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClientConfig, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast } from './api.js';
 import { esc, str, svgIcon } from './utils.js';
@@ -34,7 +34,8 @@ export function openSettings(defaultTab){
   }
   if(state.savedSettings?.instructions_template) draft.instructions_template = state.savedSettings.instructions_template;
   if(state.savedSettings?.delivery_template) draft.delivery_template = state.savedSettings.delivery_template;
-  if(state.savedSettings?.acquisition_templates) draft.acquisition_templates = state.savedSettings.acquisition_templates;
+  if(state.savedSettings?.acquisition_templates?.length) draft.acquisition_templates = state.savedSettings.acquisition_templates;
+  else draft.acquisition_templates = DEFAULT_ACQ_TEMPLATES.map(t => ({...t}));
   setSettingsDraft(draft);
   setSettingsOpen(true);
   renderSettingsPanel();
