@@ -5,6 +5,7 @@ import { state, store, pendingWrites, pendingDealFields, deletedDealIds, clientP
 import { ACQUISITION_STAGES } from './config.js';
 import { render } from './render.js';
 import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbArchiveDeal, sbRestoreFromArchive, sbCreateActivity, camelToSnake, invokeEdgeFunction } from './api.js';
+import { clearDashboardArchiveCache } from './dashboard.js';
 import { uid, getToday, str } from './utils.js';
 import { isClient, currentUser } from './auth.js';
 
@@ -41,7 +42,7 @@ export async function deleteDeal(id, archiveStatus, clientName){
   store.removeActivitiesForDeal(id, {silent: true});
   store.set({selectedDeal: null});
   pendingWrites.value++;
-  try { await sbArchiveDeal(id, JSON.stringify({...deal, archiveStatus:status, pipeline, clientName:cName})); await sbDeleteDeal(id); invokeEdgeFunction('push-lead-tracker',{action:'remove-lead',dealId:id}).catch(e=>console.warn('Sheet removal:',e.message)); }
+  try { await sbArchiveDeal(id, JSON.stringify({...deal, archiveStatus:status, pipeline, clientName:cName})); await sbDeleteDeal(id); clearDashboardArchiveCache(); invokeEdgeFunction('push-lead-tracker',{action:'remove-lead',dealId:id}).catch(e=>console.warn('Sheet removal:',e.message)); }
   catch(e){ console.error('Archive failed, falling back to cancel:',e); try { await sbDeleteDeal(id); } catch(e2){} }
   finally { pendingWrites.value--; }
 }
@@ -158,6 +159,7 @@ export async function bulkRestoreFromArchive(){
     for(const id of ids){
       await sbRestoreFromArchive(id);
     }
+    clearDashboardArchiveCache();
     const { initialSync } = await import('./api.js');
     initialSync();
   }finally{ pendingWrites.value--; }
