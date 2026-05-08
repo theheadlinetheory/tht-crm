@@ -39,6 +39,7 @@ export const ACQUISITION_STAGES = [
   { id: "Waiting for Payment/Contract", label: "Waiting for Payment/Contract", color: "#d97706" },
   { id: "Closed Won", label: "Closed Won", color: "#059669" },
   { id: "Closed Lost", label: "Closed Lost", color: "#6b7280" },
+  { id: "Under Review", label: "Under Review", color: "#8b5cf6" },
 ];
 
 export const NURTURE_STAGES = [
