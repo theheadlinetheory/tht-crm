@@ -47,15 +47,7 @@ export function getActivityBadge(dealId){
 
 // ─── Get stages for current pipeline ───
 export function getStages(){
-  if(state.pipeline==="acquisition"){
-    const extras = state.deals
-      .filter(d => d.pipeline === 'Acquisition' && !ACQUISITION_STAGES.some(s => s.id === d.stage))
-      .map(d => d.stage).filter(Boolean);
-    if(extras.length === 0) return ACQUISITION_STAGES;
-    const seen = new Set(ACQUISITION_STAGES.map(s => s.id));
-    const extraStages = [...new Set(extras)].filter(s => !seen.has(s)).map(s => ({id: s, label: s, color: '#6b7280'}));
-    return [...ACQUISITION_STAGES, ...extraStages];
-  }
+  if(state.pipeline==="acquisition") return ACQUISITION_STAGES;
   if(state.pipeline==="nurture") return NURTURE_STAGES;
   if(isClient() && clientPortalStages){
     return clientPortalStages;
