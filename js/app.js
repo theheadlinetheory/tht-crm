@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // APP — Entry point, initApp, re-exports from state.js
 // ═══════════════════════════════════════════════════════════
-import { REPLY_CHECK_INTERVAL, REPLY_BACKEND_POLL_INTERVAL, SYNC_INTERVAL, DEFAULT_CLIENT_STAGES } from './config.js';
-import { render } from './render.js';
-import { syncFromSheet, pollReplyStatus, triggerBackendReplyCheck, initialSync, subscribeRealtime, flushRealtimeQueue } from './api.js';
-import { isAdmin, isClient, isEmployee, currentUser, loadCampaignAssignments, listenCampaignAssignments, setupAuthListener, db } from './auth.js';
-import { initJustCallDialer } from './dialer.js';
-import { esc, svgIcon } from './utils.js';
+import { REPLY_CHECK_INTERVAL, REPLY_BACKEND_POLL_INTERVAL, SYNC_INTERVAL, DEFAULT_CLIENT_STAGES } from './config.js?v=20260508';
+import { render } from './render.js?v=20260508';
+import { syncFromSheet, pollReplyStatus, triggerBackendReplyCheck, initialSync, subscribeRealtime, flushRealtimeQueue } from './api.js?v=20260508';
+import { isAdmin, isClient, isEmployee, currentUser, loadCampaignAssignments, listenCampaignAssignments, setupAuthListener, db } from './auth.js?v=20260508';
+import { initJustCallDialer } from './dialer.js?v=20260508';
+import { esc, svgIcon } from './utils.js?v=20260508';
 import './email.js'; // Static import to register window.forwardDealToClient etc.
 import './blooio.js'; // Blooio texting modal
 
@@ -22,7 +22,7 @@ export {
   settingsDraft, setSettingsDraft,
   clientPortalStages, setClientPortalStages,
   clientArchivedDeals, setClientArchivedDeals,
-} from './state.js';
+} from './state.js?v=20260508';
 
 // ─── Client Portal Stages (Firestore) ───
 export async function loadClientPortalStages(){
@@ -287,7 +287,7 @@ window.saveClientStagesAndClose = saveClientStagesAndClose;
 window.renderClientStageSettingsInner = renderClientStageSettingsInner;
 
 // ─── Event Delegation ───
-import { initDelegation } from './delegate.js';
+import { initDelegation } from './delegate.js?v=20260508';
 initDelegation();
 
 // ─── Bootstrap ───

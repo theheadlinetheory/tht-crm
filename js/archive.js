@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // ARCHIVE — Admin archive (Deals sheet archive), load/render
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, deletedDealIds } from './app.js';
-import { render } from './render.js';
-import { sbGetArchive, sbRestoreFromArchive, normalizeRow, supabase } from './api.js';
-import { clearDashboardArchiveCache } from './dashboard.js';
-import { esc, str, fmtDate } from './utils.js';
-import { registerActions } from './delegate.js';
-import { filterSelect } from './html-helpers.js';
+import { state, store, pendingWrites, deletedDealIds } from './app.js?v=20260508';
+import { render } from './render.js?v=20260508';
+import { sbGetArchive, sbRestoreFromArchive, normalizeRow, supabase } from './api.js?v=20260508';
+import { clearDashboardArchiveCache } from './dashboard.js?v=20260508';
+import { esc, str, fmtDate } from './utils.js?v=20260508';
+import { registerActions } from './delegate.js?v=20260508';
+import { filterSelect } from './html-helpers.js?v=20260508';
 
 export async function loadArchive(silent){
   if(!silent){

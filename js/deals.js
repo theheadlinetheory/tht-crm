@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // DEALS — CRUD operations, bulk actions, drag-drop
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, pendingDealFields, deletedDealIds, clientPortalStages } from './app.js';
-import { ACQUISITION_STAGES } from './config.js';
-import { render } from './render.js';
-import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbArchiveDeal, sbRestoreFromArchive, sbCreateActivity, camelToSnake, invokeEdgeFunction } from './api.js';
-import { clearDashboardArchiveCache } from './dashboard.js';
-import { uid, getToday, str } from './utils.js';
-import { isClient, currentUser } from './auth.js';
+import { state, store, pendingWrites, pendingDealFields, deletedDealIds, clientPortalStages } from './app.js?v=20260508';
+import { ACQUISITION_STAGES } from './config.js?v=20260508';
+import { render } from './render.js?v=20260508';
+import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbArchiveDeal, sbRestoreFromArchive, sbCreateActivity, camelToSnake, invokeEdgeFunction } from './api.js?v=20260508';
+import { clearDashboardArchiveCache } from './dashboard.js?v=20260508';
+import { uid, getToday, str } from './utils.js?v=20260508';
+import { isClient, currentUser } from './auth.js?v=20260508';
 
 const TODAY = getToday;
 

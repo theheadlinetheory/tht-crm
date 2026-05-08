@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════
 // THREADS — SmartLead thread viewer, client thread sender
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js';
-import { refreshModal } from './render.js';
-import { apiGet, invokeEdgeFunction } from './api.js';
-import { esc } from './utils.js';
+import { state } from './app.js?v=20260508';
+import { refreshModal } from './render.js?v=20260508';
+import { apiGet, invokeEdgeFunction } from './api.js?v=20260508';
+import { esc } from './utils.js?v=20260508';
 
 // ─── SmartLead Thread Viewer ───
 let slThreadCache = {};
