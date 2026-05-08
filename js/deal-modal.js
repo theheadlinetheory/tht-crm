@@ -922,7 +922,7 @@ export function renderDealModal(deal){
   }
 
   // ACQUISITION — Push to Demo Tracker (admin only)
-  if(deal.pipeline==='Acquisition' && isAdmin()){
+  if(deal.pipeline==='Acquisition' && (isAdmin()||isEmployee())){
     const demoPushed = deal.pushedToDemoTracker;
     h+=`<div style="margin:0 0 8px 0">
       <button id="push-demo-btn" class="btn ${demoPushed?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px;display:flex"
