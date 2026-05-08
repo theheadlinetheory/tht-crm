@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // ACTIVITIES — Activity CRUD, SOP sequences, overdue tracking
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, completedActivityIds, deletedActivityIds, inFlightActivityIds } from './app.js?v=20260508';
-import { SOP_DAYS, CLIENT_SOP_DAYS, PRE_CALL_SEQUENCE, NO_SHOW_SEQUENCE } from './config.js?v=20260508';
-import { render, refreshModal } from './render.js?v=20260508';
-import { sbCreateActivity, sbUpdateActivity, sbDeleteActivity, camelToSnake } from './api.js?v=20260508';
-import { uid, getToday, isValidDate, fmtTime12 } from './utils.js?v=20260508';
-import { findClientForDeal } from './client-info.js?v=20260508';
+import { state, store, pendingWrites, completedActivityIds, deletedActivityIds, inFlightActivityIds } from './app.js?v=20260508c';
+import { SOP_DAYS, CLIENT_SOP_DAYS, PRE_CALL_SEQUENCE, NO_SHOW_SEQUENCE } from './config.js?v=20260508c';
+import { render, refreshModal } from './render.js?v=20260508c';
+import { sbCreateActivity, sbUpdateActivity, sbDeleteActivity, camelToSnake } from './api.js?v=20260508c';
+import { uid, getToday, isValidDate, fmtTime12 } from './utils.js?v=20260508c';
+import { findClientForDeal } from './client-info.js?v=20260508c';
 
 export function getSopDays(deal){
   if(!deal) return SOP_DAYS;
