@@ -35,11 +35,11 @@ export const ACQUISITION_STAGES = [
   { id: "Follow-up", label: "Follow-up", color: "#10b981" },
   { id: "Discovery Scheduled", label: "Discovery Scheduled", color: "#2563eb" },
   { id: "Demo Scheduled", label: "Demo Scheduled", color: "#0891b2" },
+  { id: "Under Review", label: "Under Review", color: "#8b5cf6" },
   { id: "No Show", label: "No Show", color: "#ef4444" },
   { id: "Waiting for Payment/Contract", label: "Waiting for Payment/Contract", color: "#d97706" },
   { id: "Closed Won", label: "Closed Won", color: "#059669" },
   { id: "Closed Lost", label: "Closed Lost", color: "#6b7280" },
-  { id: "Under Review", label: "Under Review", color: "#8b5cf6" },
 ];
 
 export const NURTURE_STAGES = [
