@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
          settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, DEFAULT_ACQ_TEMPLATES } from './config.js';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js';
 import { render } from './render.js';
 import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClientConfig, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast } from './api.js';
 import { esc, str, svgIcon } from './utils.js';
@@ -34,8 +34,8 @@ export function openSettings(defaultTab){
   }
   if(state.savedSettings?.instructions_template) draft.instructions_template = state.savedSettings.instructions_template;
   if(state.savedSettings?.delivery_template) draft.delivery_template = state.savedSettings.delivery_template;
-  if(state.savedSettings?.acquisition_templates?.length) draft.acquisition_templates = state.savedSettings.acquisition_templates;
-  else draft.acquisition_templates = DEFAULT_ACQ_TEMPLATES.map(t => ({...t}));
+  if(state.savedSettings?.sequence_templates?.length) draft.sequence_templates = JSON.parse(JSON.stringify(state.savedSettings.sequence_templates));
+  else draft.sequence_templates = JSON.parse(JSON.stringify(SEQUENCE_TEMPLATES));
   setSettingsDraft(draft);
   setSettingsOpen(true);
   renderSettingsPanel();
@@ -1274,24 +1274,29 @@ function renderTemplatesSettings(){
     </div>
 
     <div style="margin-bottom:20px">
-      <label style="font-size:13px;font-weight:700;color:var(--text);display:block;margin-bottom:6px">${svgIcon('send',14)} Acquisition Text Templates</label>
-      <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Quick-fill templates for texting acquisition leads. Shows as a dropdown on acquisition deal cards. Same placeholders work here.</div>
+      <label style="font-size:13px;font-weight:700;color:var(--text);display:block;margin-bottom:6px">${svgIcon('send',14)} Text Templates (Blooio)</label>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Grouped by sequence. Available in the Blooio texting dropdown on acquisition deal cards. Use {FIRST_NAME}, {CITY}, {MEETING_TIME}, etc.</div>
       ${(()=>{
-        const tpls = settingsDraft.acquisition_templates || [];
+        const seqs = settingsDraft.sequence_templates || [];
         let h = '';
-        tpls.forEach((t, i) => {
-          h += `<div style="margin-bottom:10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--card)">
-            <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
-              <input value="${esc(t.name||'')}" placeholder="Template name" oninput="settingsDraft.acquisition_templates[${i}].name=this.value;debouncedAutoSave()"
-                style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);font-weight:600">
-              <button onclick="settingsDraft.acquisition_templates.splice(${i},1);refreshSettingsBody()" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:16px;padding:0 4px">&times;</button>
-            </div>
-            <textarea rows="3" oninput="settingsDraft.acquisition_templates[${i}].body=this.value;debouncedAutoSave()"
-              style="width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);resize:vertical">${esc(t.body||'')}</textarea>
+        seqs.forEach((seq, si) => {
+          h += `<div style="margin-bottom:16px">
+            <div style="font-size:12px;font-weight:700;color:var(--text);padding:6px 0;border-bottom:1px solid var(--border);margin-bottom:8px">${esc(seq.label)}</div>`;
+          (seq.templates || []).forEach((t, ti) => {
+            h += `<div style="margin-bottom:10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--card)">
+              <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
+                <input value="${esc(t.name||'')}" placeholder="Template name" oninput="settingsDraft.sequence_templates[${si}].templates[${ti}].name=this.value;debouncedAutoSave()"
+                  style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);font-weight:600">
+                <button onclick="settingsDraft.sequence_templates[${si}].templates.splice(${ti},1);refreshSettingsBody()" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:16px;padding:0 4px">&times;</button>
+              </div>
+              <textarea rows="3" oninput="settingsDraft.sequence_templates[${si}].templates[${ti}].body=this.value;debouncedAutoSave()"
+                style="width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);resize:vertical">${esc(t.body||'')}</textarea>
+            </div>`;
+          });
+          h += `<button onclick="settingsDraft.sequence_templates[${si}].templates.push({name:'',body:''});refreshSettingsBody()"
+            style="padding:4px 10px;border:1px dashed var(--border);border-radius:6px;background:none;cursor:pointer;font-size:11px;color:var(--text-muted);font-family:var(--font)">+ Add Template</button>
           </div>`;
         });
-        h += `<button onclick="if(!settingsDraft.acquisition_templates)settingsDraft.acquisition_templates=[];settingsDraft.acquisition_templates.push({name:'',body:''});refreshSettingsBody()"
-          style="padding:6px 12px;border:1px dashed var(--border);border-radius:6px;background:none;cursor:pointer;font-size:12px;color:var(--text-muted);font-family:var(--font)">+ Add Template</button>`;
         return h;
       })()}
     </div>
