@@ -1,0 +1,1681 @@
+// ═══════════════════════════════════════════════════════════
+// SETTINGS — Settings panel, auto-save, apply settings
+// ═══════════════════════════════════════════════════════════
+import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js';
+import { render } from './render.js';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClientConfig, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast } from './api.js';
+import { esc, str, svgIcon } from './utils.js';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js';
+import { lookupClientInfo, getClientConfig, loadClientConfig } from './client-info.js';
+import { findPolygonForClient } from './maps.js';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js';
+
+export function getDefaultSettings(){
+  return {
+    acquisition_stages: [...ACQUISITION_STAGES],
+    nurture_stages: [...NURTURE_STAGES],
+    activity_types: ACTIVITY_TYPES.map((t,i)=>({name:typeof t==='string'?t:t.name, icon:(typeof t==='string'?(ACTIVITY_ICONS[t]||'\u2713'):t.icon)||'\u2713', order:i})),
+    sop_acquisition: Object.entries(SOP_DAYS).map(([name,acts])=>({name,activities:acts.map(a=>({type:a.type,subject:a.subject}))})),
+    sop_client: Object.entries(CLIENT_SOP_DAYS).map(([name,acts])=>({name,activities:acts.map(a=>({type:a.type,subject:a.subject}))})),
+  };
+}
+
+export function openSettings(defaultTab){
+  if(!isAdmin() && !isEmployee()) return;
+  if(defaultTab) setSettingsTab(defaultTab);
+  else if(isEmployee() && !isAdmin()) setSettingsTab('pipeline');
+  const draft = getDefaultSettings();
+  if(state.savedSettings){
+    for(const k of Object.keys(draft)){
+      if(state.savedSettings[k]) draft[k] = JSON.parse(JSON.stringify(state.savedSettings[k]));
+    }
+  }
+  if(state.savedSettings?.instructions_template) draft.instructions_template = state.savedSettings.instructions_template;
+  if(state.savedSettings?.delivery_template) draft.delivery_template = state.savedSettings.delivery_template;
+  if(state.savedSettings?.sequence_templates?.length) draft.sequence_templates = JSON.parse(JSON.stringify(state.savedSettings.sequence_templates));
+  else draft.sequence_templates = JSON.parse(JSON.stringify(SEQUENCE_TEMPLATES));
+  setSettingsDraft(draft);
+  setSettingsOpen(true);
+  renderSettingsPanel();
+}
+
+export function closeSettings(){
+  setSettingsOpen(false);
+  const overlay = document.getElementById('settings-overlay');
+  const panel = document.getElementById('settings-panel');
+  if(overlay) overlay.classList.remove('open');
+  if(panel) panel.classList.remove('open');
+  setTimeout(()=>{
+    if(overlay) overlay.remove();
+    if(panel) panel.remove();
+  }, 250);
+}
+
+let _autoSaveTimer = null;
+let _expandedClientId = null;
+let _expandedPipelineSections = { stages: false, activities: false, sop: false };
+
+window.togglePipelineSection = function(section){
+  _expandedPipelineSections[section] = !_expandedPipelineSections[section];
+  const container = document.getElementById('pipeline-section-'+section);
+  const chevron = document.getElementById('pipeline-chevron-'+section);
+  if(container){
+    container.style.display = _expandedPipelineSections[section] ? 'block' : 'none';
+  }
+  if(chevron){
+    chevron.textContent = _expandedPipelineSections[section] ? '\u25BE' : '\u25B8';
+  }
+};
+
+window.toggleClientAccordion = function(clientId){
+  _expandedClientId = (_expandedClientId === clientId) ? null : clientId;
+  const container = document.getElementById('settings-clients-container');
+  if(!container) return;
+  // Update all cards without full re-render to preserve form state
+  container.querySelectorAll('.client-card-accordion').forEach(card => {
+    const cid = card.dataset.clientId;
+    const body = card.querySelector('.client-body');
+    const chevron = card.querySelector('.client-chevron');
+    if(cid === _expandedClientId){
+      body.style.display = 'block';
+      if(chevron) chevron.textContent = '\u25BE';
+      if(window.docLoadForClient) window.docLoadForClient(cid);
+    } else {
+      body.style.display = 'none';
+      if(chevron) chevron.textContent = '\u25B8';
+    }
+  });
+};
+
+export function debouncedAutoSave(){
+  clearTimeout(_autoSaveTimer);
+  // Don't auto-save while onboarding modal is open — its fields live in DOM, not state
+  if(state.onboardingModal) return;
+  const statusEl = document.getElementById('settings-autosave-status');
+  if(statusEl) statusEl.textContent = 'Unsaved changes...';
+  _autoSaveTimer = setTimeout(async ()=>{
+    try{
+      applySettings(settingsDraft);
+      const clientUpdates = state.clients.filter(c=>c.id).map(c=>({
+        id:c.id,
+        notifyEmails:str(c.notifyEmails),
+        notifyEmail:str(c.notifyEmails),
+        campaignKeywords:str(c.campaignKeywords),
+        contactFirstName:str(c.contactFirstName),
+        contactLastName:str(c.contactLastName),
+        calendlyUrl:str(c.calendlyUrl),
+        enableForward:str(c.enableForward),
+        enableCalendly:str(c.enableCalendly),
+        enableAutoForward:str(c.enableAutoForward),
+        enableCopyInfo:str(c.enableCopyInfo),
+        enableTracker:str(c.enableTracker),
+        leadCost:str(c.leadCost),
+        paymentTerms:str(c.paymentTerms||'Net 7'),
+        serviceAreaUrl:str(c.serviceAreaUrl),
+        clientNotes:str(c.clientNotes||''),
+        warmCallNotesText:str(c.warmCallNotesText||''),
+        passoffInstructions:str(c.passoffInstructions||''),
+        clientStanding:str(c.clientStanding||'neutral'),
+        homeBase:str(c.homeBase||''),
+        timeZone:str(c.timeZone||''),
+        ghlLocationId:str(c.ghlLocationId||''),
+        ghlApiKey:str(c.ghlApiKey||''),
+        onboardingDocUrl:str(c.onboardingDocUrl||''),
+        onboardingParsedAt:c.onboardingParsedAt||null
+      }));
+      await Promise.all([
+        sbSaveSettings(settingsDraft),
+        sbBatchUpdateClients(clientUpdates.map(c => ({id:c.id, ...camelToSnake(c)})))
+      ]);
+      const s = document.getElementById('settings-autosave-status');
+      if(s) s.textContent = '\u2713 Auto-saved';
+      setTimeout(()=>{ const s2=document.getElementById('settings-autosave-status'); if(s2 && s2.textContent==='\u2713 Auto-saved') s2.textContent=''; }, 2000);
+    }catch(e){
+      const s = document.getElementById('settings-autosave-status');
+      if(s) s.textContent = '\u26A0 Save failed';
+    }
+  }, 1500);
+}
+
+export function applySettings(s, skipCache){
+  if(!s) return;
+  state.savedSettings = s;
+  if(!skipCache) try{ localStorage.setItem('tht_settings',JSON.stringify(s)); }catch(e){}
+  if(s.acquisition_stages){
+    ACQUISITION_STAGES.length=0;
+    s.acquisition_stages.forEach(st=>ACQUISITION_STAGES.push({id:st.id||st.label,label:st.label,color:st.color}));
+  }
+  if(s.nurture_stages){
+    NURTURE_STAGES.length=0;
+    s.nurture_stages.forEach(st=>NURTURE_STAGES.push({id:st.id||st.label,label:st.label,color:st.color}));
+  }
+  if(s.activity_types){
+    ACTIVITY_TYPES.length=0;
+    s.activity_types.forEach(t=>{
+      ACTIVITY_TYPES.push(t.name);
+      ACTIVITY_ICONS[t.name]=t.icon||'\u2713';
+    });
+  }
+  if(s.sop_acquisition && Array.isArray(s.sop_acquisition)){
+    const entries = {};
+    for(const seq of s.sop_acquisition) entries[seq.name] = seq.activities.map(a=>({type:a.type,subject:a.subject}));
+    Object.keys(SOP_DAYS).forEach(k => delete SOP_DAYS[k]);
+    Object.assign(SOP_DAYS, entries);
+  }
+  if(s.sop_client && Array.isArray(s.sop_client)){
+    const entries = {};
+    for(const seq of s.sop_client) entries[seq.name] = seq.activities.map(a=>({type:a.type,subject:a.subject}));
+    Object.keys(CLIENT_SOP_DAYS).forEach(k => delete CLIENT_SOP_DAYS[k]);
+    Object.assign(CLIENT_SOP_DAYS, entries);
+  }
+  if(s.clientCalendlyUrls){
+    try{
+      const urls=typeof s.clientCalendlyUrls==='string'?JSON.parse(s.clientCalendlyUrls):s.clientCalendlyUrls;
+      if(Array.isArray(urls)){
+        for(const u of urls){
+          const c=state.clients.find(x=>x.name===u.name);
+          if(c){ if(u.calendlyUrl) c.calendlyUrl=u.calendlyUrl; if(u.color) c.color=u.color; }
+        }
+      }
+    }catch(e){}
+  }
+}
+
+// ─── Settings Panel Render ───
+export function renderSettingsPanel(){
+  const existingPanel = document.getElementById('settings-panel');
+  const existingOverlay = document.getElementById('settings-overlay');
+  let savedScroll = 0;
+  if(existingPanel){
+    const body = existingPanel.querySelector('.settings-body');
+    if(body) savedScroll = body.scrollTop;
+  }
+  if(existingOverlay) existingOverlay.remove();
+  if(existingPanel) existingPanel.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id='settings-overlay';
+  overlay.className='settings-overlay';
+  overlay.onclick=closeSettings;
+  document.body.appendChild(overlay);
+
+  const panel = document.createElement('div');
+  panel.id='settings-panel';
+  panel.className='settings-panel';
+  panel.onclick=e=>e.stopPropagation();
+
+  let h=`<div class="settings-header">
+    <h3>${svgIcon('settings',16)} Settings</h3>
+    <button class="modal-close" onclick="closeSettings()">\u00D7</button>
+  </div>
+  <div class="settings-tab-bar">
+    ${isAdmin()||isEmployee()?`<button class="settings-tab ${settingsTab==='pipeline'?'active':''}" onclick="settingsTab='pipeline';refreshSettingsBody()">Pipeline Config</button>
+    <button class="settings-tab ${settingsTab==='clients'?'active':''}" onclick="settingsTab='clients';refreshSettingsBody()">Clients</button>`:''}
+    ${isAdmin()?`<button class="settings-tab ${settingsTab==='users'?'active':''}" onclick="settingsTab='users';refreshSettingsBody()">Users</button>`:''}
+    ${isAdmin()||isEmployee()?`<button class="settings-tab ${settingsTab==='campaigns'?'active':''}" onclick="settingsTab='campaigns';refreshSettingsBody()">Campaigns</button>
+    <button class="settings-tab ${settingsTab==='dialer'?'active':''}" onclick="settingsTab='dialer';refreshSettingsBody()">Dialer</button>`:''}
+    ${isAdmin()?`<button class="settings-tab ${settingsTab==='billing'?'active':''}" onclick="settingsTab='billing';refreshSettingsBody()">Billing</button>`:''}
+    ${isAdmin()||isEmployee()?`<button class="settings-tab ${settingsTab==='ai'?'active':''}" onclick="settingsTab='ai';refreshSettingsBody()">AI</button>`:''}
+    <button class="settings-tab ${settingsTab==='templates'?'active':''}" onclick="settingsTab='templates';refreshSettingsBody()">Templates</button>
+  </div>
+  <div class="settings-body">`;
+
+  if(settingsTab==='pipeline') h+=renderPipelineConfigSettings();
+  else if(settingsTab==='clients') h+=renderClientsSettings();
+  else if(settingsTab==='users') h+=renderUsersSettings();
+  else if(settingsTab==='campaigns') h+=renderCampaignAssignSettings();
+  else if(settingsTab==='dialer') h+=renderDialerSettings();
+  else if(settingsTab==='billing') h+=renderBillingSettings();
+  else if(settingsTab==='ai') h+=renderAISettings();
+  else if(settingsTab==='templates') h+=renderTemplatesSettings();
+
+  h+=`</div>
+  <div class="settings-footer">
+    <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="closeSettings()">Cancel</button>
+    <button class="btn btn-primary" onclick="saveSettingsToSheet()">Save Settings</button>
+    <span id="settings-autosave-status" style="font-size:10px;color:#9ca3af;align-self:center;margin-left:8px"></span>
+  </div>`;
+
+  panel.innerHTML=h;
+  document.body.appendChild(panel);
+  initDocumentHandlers();
+  if(savedScroll > 0){
+    const body = panel.querySelector('.settings-body');
+    if(body) body.scrollTop = savedScroll;
+  }
+  requestAnimationFrame(()=>{
+    overlay.classList.add('open');
+    panel.classList.add('open');
+  });
+  setupSettingsDrag();
+}
+
+export function refreshSettingsBody(){
+  const panel=document.getElementById('settings-panel');
+  if(!panel){ renderSettingsPanel(); return; }
+  panel.querySelectorAll('.settings-tab').forEach(btn=>{
+    const tab=btn.textContent.trim().toLowerCase();
+    const map={'pipeline config':'pipeline','clients':'clients','users':'users','campaigns':'campaigns','dialer':'dialer','billing':'billing','ai':'ai','templates':'templates'};
+    btn.classList.toggle('active', map[tab]===settingsTab);
+  });
+  const body=panel.querySelector('.settings-body');
+  if(!body){ renderSettingsPanel(); return; }
+  let h='';
+  if(settingsTab==='pipeline') h=renderPipelineConfigSettings();
+  else if(settingsTab==='clients') h=renderClientsSettings();
+  else if(settingsTab==='users') h=renderUsersSettings();
+  else if(settingsTab==='campaigns') h=renderCampaignAssignSettings();
+  else if(settingsTab==='dialer') h=renderDialerSettings();
+  else if(settingsTab==='billing') h=renderBillingSettings();
+  else if(settingsTab==='ai') h=renderAISettings();
+  else if(settingsTab==='templates') h=renderTemplatesSettings();
+  body.innerHTML=h;
+  body.scrollTop=0;
+  setupSettingsDrag();
+  if(settingsTab==='users') loadUsersIntoPanel();
+  if(settingsTab==='campaigns') fetchAcquisitionCampaigns();
+  if(settingsTab==='ai') loadAISettings();
+}
+
+function renderPipelineConfigSettings(){
+  const sections = [
+    { key: 'stages', label: 'Pipeline Stages', icon: 'bar-chart', count: (settingsDraft.acquisition_stages||[]).length + (settingsDraft.nurture_stages||[]).length + ' stages' },
+    { key: 'activities', label: 'Activity Types', icon: 'clipboard', count: (settingsDraft.activity_types||[]).length + ' types' },
+    { key: 'sop', label: 'SOP Sequences', icon: 'bar-chart', count: ((settingsDraft.sop_acquisition||[]).length + (settingsDraft.sop_client||[]).length) + ' sequences' }
+  ];
+  let h = '';
+  for(const s of sections){
+    const isOpen = _expandedPipelineSections[s.key];
+    h += `<div style="margin-bottom:8px;background:var(--bg);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <div onclick="togglePipelineSection('${s.key}')" style="display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;user-select:none;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:8px">
+          ${svgIcon(s.icon,14)}
+          <span style="font-size:13px;font-weight:700;color:var(--text)">${s.label}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:10px;color:var(--text-muted)">${s.count}</span>
+          <span id="pipeline-chevron-${s.key}" style="font-size:12px;color:var(--text-muted)">${isOpen?'\u25BE':'\u25B8'}</span>
+        </div>
+      </div>
+      <div id="pipeline-section-${s.key}" style="display:${isOpen?'block':'none'};padding:0 14px 14px">
+        ${s.key==='stages'?renderStagesSettings():s.key==='activities'?renderActivityTypesSettings():renderSopSettings()}
+      </div>
+    </div>`;
+  }
+  return h;
+}
+
+function renderStagesSettings(){
+  let h='';
+  h+=`<div class="settings-section">
+    <h4>${svgIcon('bar-chart',14)} Acquisition Pipeline Stages</h4>
+    <div class="settings-list" id="settings-acq-stages" data-key="acquisition_stages">`;
+  for(const [i,s] of settingsDraft.acquisition_stages.entries()){
+    h+=`<div class="settings-list-item" draggable="true" data-idx="${i}">
+      <span class="drag-handle">\u2807</span>
+      <input type="color" class="item-color" value="${s.color}" onchange="settingsDraft.acquisition_stages[${i}].color=this.value;debouncedAutoSave()" style="width:24px;height:24px;border:none;padding:0;cursor:pointer;background:none">
+      <input class="item-label" value="${esc(s.label)}" oninput="settingsDraft.acquisition_stages[${i}].label=this.value;settingsDraft.acquisition_stages[${i}].id=this.value;debouncedAutoSave()" style="border:none;background:transparent;font-size:12px;font-weight:500;font-family:var(--font);flex:1">
+      <button class="item-delete" onclick="settingsDraft.acquisition_stages.splice(${i},1);renderSettingsPanel();debouncedAutoSave()">\u00D7</button>
+    </div>`;
+  }
+  h+=`</div>
+    <div class="settings-add-row">
+      <input id="new-acq-stage" placeholder="New stage name...">
+      <button class="btn btn-primary" onclick="addSettingsStage('acquisition_stages','new-acq-stage')">+ Add</button>
+    </div>
+  </div>`;
+
+  h+=`<div class="settings-section">
+    <h4>Nurture Pipeline Stages</h4>
+    <div class="settings-list" id="settings-nurt-stages" data-key="nurture_stages">`;
+  for(const [i,s] of settingsDraft.nurture_stages.entries()){
+    h+=`<div class="settings-list-item" draggable="true" data-idx="${i}">
+      <span class="drag-handle">\u2807</span>
+      <input type="color" class="item-color" value="${s.color}" onchange="settingsDraft.nurture_stages[${i}].color=this.value;debouncedAutoSave()" style="width:24px;height:24px;border:none;padding:0;cursor:pointer;background:none">
+      <input class="item-label" value="${esc(s.label)}" oninput="settingsDraft.nurture_stages[${i}].label=this.value;settingsDraft.nurture_stages[${i}].id=this.value;debouncedAutoSave()" style="border:none;background:transparent;font-size:12px;font-weight:500;font-family:var(--font);flex:1">
+      <button class="item-delete" onclick="settingsDraft.nurture_stages.splice(${i},1);renderSettingsPanel();debouncedAutoSave()">\u00D7</button>
+    </div>`;
+  }
+  h+=`</div>
+    <div class="settings-add-row">
+      <input id="new-nurt-stage" placeholder="New stage name...">
+      <button class="btn btn-primary" onclick="addSettingsStage('nurture_stages','new-nurt-stage')">+ Add</button>
+    </div>
+  </div>`;
+
+  h+=`<p style="font-size:11px;color:var(--text-muted);margin-top:8px">Client Leads stages are managed via the + Client button. Drag stages to reorder.</p>`;
+  return h;
+}
+
+function renderActivityTypesSettings(){
+  let h=`<div class="settings-section">
+    <h4>${svgIcon('clipboard',14)} Activity Types</h4>
+    <div class="settings-list" id="settings-act-types" data-key="activity_types">`;
+  for(const [i,t] of settingsDraft.activity_types.entries()){
+    h+=`<div class="settings-list-item" draggable="true" data-idx="${i}">
+      <span class="drag-handle">\u2807</span>
+      <input value="${esc(t.icon)}" oninput="settingsDraft.activity_types[${i}].icon=this.value;debouncedAutoSave()" style="width:32px;text-align:center;border:1px solid var(--border);border-radius:4px;font-size:14px;padding:2px">
+      <input class="item-label" value="${esc(t.name)}" oninput="settingsDraft.activity_types[${i}].name=this.value;debouncedAutoSave()" style="border:none;background:transparent;font-size:12px;font-weight:500;font-family:var(--font);flex:1">
+      <button class="item-delete" onclick="settingsDraft.activity_types.splice(${i},1);renderSettingsPanel();debouncedAutoSave()">\u00D7</button>
+    </div>`;
+  }
+  h+=`</div>
+    <div class="settings-add-row">
+      <input id="new-act-icon" placeholder="Icon" style="width:50px;text-align:center">
+      <input id="new-act-name" placeholder="Activity type name...">
+      <button class="btn btn-primary" onclick="addSettingsActivityType()">+ Add</button>
+    </div>
+  </div>`;
+  return h;
+}
+
+function renderSopSettings(){
+  let h='';
+  h+=`<div class="settings-section">
+    <h4>${svgIcon('bar-chart',14)} Acquisition SOP Sequences</h4>`;
+  for(const [i,seq] of settingsDraft.sop_acquisition.entries()){
+    h+=renderSopSequence('sop_acquisition',i,seq);
+  }
+  h+=`<div class="settings-add-row" style="margin-top:8px">
+    <input id="new-acq-sop-name" placeholder="Sequence name (e.g. Day 11)...">
+    <button class="btn btn-primary" onclick="addSopSequence('sop_acquisition','new-acq-sop-name')">+ Add Sequence</button>
+  </div></div>`;
+
+  h+=`<div class="settings-section">
+    <h4>Client SOP Sequences</h4>`;
+  for(const [i,seq] of settingsDraft.sop_client.entries()){
+    h+=renderSopSequence('sop_client',i,seq);
+  }
+  h+=`<div class="settings-add-row" style="margin-top:8px">
+    <input id="new-cli-sop-name" placeholder="Sequence name...">
+    <button class="btn btn-primary" onclick="addSopSequence('sop_client','new-cli-sop-name')">+ Add Sequence</button>
+  </div></div>`;
+  return h;
+}
+
+function renderSopSequence(key,idx,seq){
+  const actTypes = settingsDraft.activity_types.map(t=>t.name);
+  let h=`<div class="sop-sequence">
+    <div class="sop-sequence-header">
+      <input value="${esc(seq.name)}" oninput="settingsDraft.${key}[${idx}].name=this.value;debouncedAutoSave()" style="border:none;background:transparent;font-size:12px;font-weight:700;color:var(--purple);font-family:var(--font);width:120px">
+      <div style="display:flex;gap:4px">
+        <button class="btn" style="font-size:10px;padding:2px 8px;background:#f0fdf4;color:#059669;border:1px solid #bbf7d0" onclick="addSopActivity('${key}',${idx})">+ Activity</button>
+        <button class="item-delete" onclick="settingsDraft.${key}.splice(${idx},1);renderSettingsPanel();debouncedAutoSave()" style="font-size:16px">\u00D7</button>
+      </div>
+    </div>`;
+  for(const [j,act] of seq.activities.entries()){
+    h+=`<div class="sop-act-item">
+      <select onchange="settingsDraft.${key}[${idx}].activities[${j}].type=this.value;debouncedAutoSave()">
+        ${actTypes.map(t=>`<option value="${t}" ${t===act.type?'selected':''}>${t}</option>`).join('')}
+      </select>
+      <input value="${esc(act.subject)}" oninput="settingsDraft.${key}[${idx}].activities[${j}].subject=this.value;debouncedAutoSave()">
+      <button class="item-delete" onclick="settingsDraft.${key}[${idx}].activities.splice(${j},1);renderSettingsPanel();debouncedAutoSave()">\u00D7</button>
+    </div>`;
+  }
+  h+=`</div>`;
+  return h;
+}
+
+function renderClientsSettings(){
+  let h=`<div style="padding:16px 0">
+    <h4 style="font-size:13px;font-weight:700;color:var(--text);margin:0 0 4px">Client Configuration</h4>
+    <p style="font-size:11px;color:var(--text-muted);margin:0 0 12px">Set up how each client's leads are handled. Toggle actions on/off and fill in the details.</p>
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <button class="btn btn-ghost" style="font-size:12px;padding:7px 16px;flex:1" onclick="closeSettings();openAddClient()">+ Add Client</button>
+    </div>`;
+
+  if(state.clients.length===0){
+    h+=`<p style="font-size:12px;color:var(--text-muted);text-align:center;padding:20px">No clients added yet.</p></div>`;
+    return h;
+  }
+
+  h+=`<div id="settings-clients-container">`;
+
+  for(const c of state.clients){
+    const isOn=(field)=>str(c[field]).toUpperCase()==='TRUE';
+    const toggleCount = ['enableForward','enableCalendly','enableCopyInfo','enableTracker','enableAutoForward'].filter(f=>isOn(f)).length;
+    const isExpanded = _expandedClientId === c.id;
+    const standing = str(c.clientStanding).toLowerCase();
+    const standingColor = standing==='happy'?'#22c55e':standing==='unhappy'?'#ef4444':'#eab308';
+    const standingBg = standing==='happy'?'#f0fdf4':standing==='unhappy'?'#fef2f2':'#fefce8';
+
+    h+=`<div class="client-card-accordion" data-client-id="${esc(c.id)}" style="margin-bottom:8px;background:var(--bg);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <div class="client-header" onclick="toggleClientAccordion('${esc(c.id)}')"
+        style="display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;user-select:none;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+          <span style="width:10px;height:10px;border-radius:50%;background:${c.color||'#818cf8'};flex-shrink:0"></span>
+          <span style="font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.name)}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+          <select onclick="event.stopPropagation()" onchange="updateClientField('${esc(c.id)}','clientStanding',this.value);debouncedAutoSave()"
+            style="padding:3px 6px;border-radius:5px;font-size:10px;font-weight:700;font-family:var(--font);cursor:pointer;border:1px solid ${standingColor};color:${standingColor};background:${standingBg}">
+            <option value="happy" ${standing==='happy'?'selected':''}>Happy</option>
+            <option value="neutral" ${standing==='neutral'||!standing.trim()?'selected':''}>Neutral</option>
+            <option value="unhappy" ${standing==='unhappy'?'selected':''}>Unhappy</option>
+          </select>
+          <span style="font-size:10px;color:var(--text-muted);white-space:nowrap">${toggleCount} action${toggleCount!==1?'s':''}</span>
+          <span class="client-chevron" style="font-size:12px;color:var(--text-muted)">${isExpanded?'\u25BE':'\u25B8'}</span>
+        </div>
+      </div>
+      <div class="client-body" style="display:${isExpanded?'block':'none'};padding:0 14px 14px">
+
+      <div style="margin-bottom:10px">
+        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Campaign Keywords</label>
+        <input type="text" placeholder="keyword1, keyword2 (matches campaign name)" value="${esc(str(c.campaignKeywords))}"
+          oninput="updateClientField('${esc(c.id)}','campaignKeywords',this.value)"
+          style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+      </div>
+
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <div style="flex:1">
+          <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Contact First Name</label>
+          <input type="text" placeholder="e.g. Joel" value="${esc(str(c.contactFirstName))}"
+            oninput="updateClientField('${esc(c.id)}','contactFirstName',this.value)"
+            style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+        </div>
+        <div style="flex:1">
+          <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Contact Last Name</label>
+          <input type="text" placeholder="e.g. Smith" value="${esc(str(c.contactLastName))}"
+            oninput="updateClientField('${esc(c.id)}','contactLastName',this.value)"
+            style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">
+        <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableForward')?'#eff6ff':'var(--card)'}">
+          <input type="checkbox" ${isOn('enableForward')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableForward',this.checked)"> ${svgIcon('mail',12)} Forward Email
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableCalendly')?'#ecfdf5':'var(--card)'}">
+          <input type="checkbox" ${isOn('enableCalendly')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableCalendly',this.checked)"> ${svgIcon('calendar',12)} Calendly
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableCopyInfo')?'#f0fdf4':'var(--card)'}">
+          <input type="checkbox" ${isOn('enableCopyInfo')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableCopyInfo',this.checked)"> ${svgIcon('clipboard',12)} Copy Info
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableTracker')?'#fefce8':'var(--card)'}">
+          <input type="checkbox" ${isOn('enableTracker')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableTracker',this.checked)"> ${svgIcon('upload',12)} Lead Tracker
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid ${isOn('enableAutoForward')?'#f97316':'var(--border)'};border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableAutoForward')?'#fff7ed':'var(--card)'}">
+          <input type="checkbox" ${isOn('enableAutoForward')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableAutoForward',this.checked)"> ${svgIcon('mail',12)} Auto-Forward
+        </label>
+        <div style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--card)">
+          ${svgIcon('clock',12)}
+          <select onchange="updateClientField('${esc(c.id)}','timeZone',this.value);debouncedAutoSave()"
+            style="border:none;background:transparent;font-size:12px;font-family:var(--font);color:var(--text);cursor:pointer;flex:1">
+            <option value="" ${!str(c.timeZone).trim()?'selected':''}>No TZ</option>
+            <option value="EST" ${str(c.timeZone)==='EST'?'selected':''}>EST</option>
+            <option value="CST" ${str(c.timeZone)==='CST'?'selected':''}>CST</option>
+            <option value="MST" ${str(c.timeZone)==='MST'?'selected':''}>MST</option>
+            <option value="PST" ${str(c.timeZone)==='PST'?'selected':''}>PST</option>
+            <option value="AST" ${str(c.timeZone)==='AST'?'selected':''}>AST</option>
+            <option value="HST" ${str(c.timeZone)==='HST'?'selected':''}>HST</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="margin-bottom:8px">
+        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Client Email</label>
+        <input type="text" placeholder="client@example.com" value="${esc(str(c.notifyEmails))}"
+          oninput="updateClientField('${esc(c.id)}','notifyEmails',this.value)"
+          style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+      </div>
+
+      ${(()=>{
+        const cfg = getClientConfig(c.name) || {};
+        const inputStyle = 'width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px';
+        return `<div style="margin-bottom:8px;padding:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px">
+          <div style="font-size:10px;font-weight:700;color:#16a34a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Client Contact Info</div>
+          <div style="display:flex;gap:6px;margin-bottom:6px">
+            <div style="flex:1">
+              <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Contact Name</label>
+              <input type="text" placeholder="e.g. James" value="${esc(cfg.primary_contact||str(c.contactFirstName))}"
+                oninput="updateClientConfig('${esc(c.name)}','primary_contact',this.value)"
+                style="${inputStyle}">
+            </div>
+            <div style="flex:1">
+              <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Contact Email</label>
+              <input type="text" placeholder="e.g. book@company.com" value="${esc(cfg.primary_email||'')}"
+                oninput="updateClientConfig('${esc(c.name)}','primary_email',this.value)"
+                style="${inputStyle}">
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;margin-bottom:6px">
+            <div style="flex:1">
+              <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Phone</label>
+              <input type="text" placeholder="(555) 123-4567" value="${esc(cfg.phone||'')}"
+                oninput="updateClientConfig('${esc(c.name)}','phone',this.value)"
+                style="${inputStyle}">
+            </div>
+            <div style="flex:1">
+              <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Forward Email</label>
+              <input type="text" placeholder="Same as contact or different" value="${esc(cfg.forward_email||cfg.primary_email||'')}"
+                oninput="updateClientConfig('${esc(c.name)}','forward_email',this.value)"
+                style="${inputStyle}">
+            </div>
+          </div>
+        </div>`;
+      })()}
+
+      ${isAdmin()?`<div style="margin-bottom:8px">
+        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Lead Cost ($)</label>
+        <input type="text" placeholder="e.g. 200" value="${esc(str(c.leadCost))}"
+          oninput="updateClientField('${esc(c.id)}','leadCost',this.value)"
+          style="width:120px;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+      </div>
+
+      <div style="margin-bottom:8px">
+        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Payment Terms</label>
+        <select oninput="updateClientField('${esc(c.id)}','paymentTerms',this.value)"
+          style="width:120px;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+          <option value="Net 7" ${str(c.paymentTerms||'Net 7')==='Net 7'?'selected':''}>Net 7</option>
+          <option value="Net 15" ${str(c.paymentTerms||'Net 7')==='Net 15'?'selected':''}>Net 15</option>
+          <option value="Net 30" ${str(c.paymentTerms||'Net 7')==='Net 30'?'selected':''}>Net 30</option>
+        </select>
+      </div>`:''}
+
+      ${isOn('enableCalendly')?`<div style="margin-bottom:8px">
+        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Calendly URL</label>
+        <input type="text" placeholder="https://calendly.com/..." value="${esc(str(c.calendlyUrl))}"
+          oninput="updateClientField('${esc(c.id)}','calendlyUrl',this.value)"
+          style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+      </div>`:''}
+
+      <div style="margin-bottom:8px;padding:10px;background:#fefce8;border:1px solid #fde68a;border-radius:8px">
+        <div style="font-size:10px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Onboarding</div>
+        <div style="display:flex;gap:6px;align-items:end">
+          <div style="flex:1">
+            <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Google Doc URL</label>
+            <input type="text" id="onboarding-url-${esc(c.id)}" placeholder="https://docs.google.com/document/d/..." value="${esc(str(c.onboardingDocUrl))}"
+              oninput="updateClientField('${esc(c.id)}','onboardingDocUrl',this.value)"
+              style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+          </div>
+          <button onclick="parseOnboardingDoc('${esc(c.id)}')" style="padding:6px 12px;background:#92400e;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;margin-bottom:1px">Parse Doc</button>
+        </div>
+        ${c.onboardingParsedAt?`<div style="font-size:10px;color:#6b7280;margin-top:4px">Last parsed: ${new Date(c.onboardingParsedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})}</div>`:''}
+      </div>
+
+      ${isAdmin()?`<div style="margin-bottom:8px;padding:10px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px">
+        <div style="font-size:10px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">GoHighLevel Integration</div>
+        <div style="margin-bottom:6px">
+          <label style="font-size:10px;font-weight:600;color:var(--text-muted)">GHL Location ID</label>
+          <input type="text" placeholder="e.g. ve9EPM428h8vShlRW1KT" value="${esc(str(c.ghlLocationId))}"
+            oninput="updateClientField('${esc(c.id)}','ghlLocationId',this.value)"
+            style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+        </div>
+        <div style="margin-bottom:6px;position:relative">
+          <label style="font-size:10px;font-weight:600;color:var(--text-muted)">GHL API Key</label>
+          <input type="password" id="ghl-key-${esc(c.id)}" placeholder="pit-..." value="${esc(str(c.ghlApiKey))}"
+            oninput="updateClientField('${esc(c.id)}','ghlApiKey',this.value)"
+            style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+          <button onclick="const i=document.getElementById('ghl-key-${esc(c.id)}');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'Show':'Hide'"
+            style="position:absolute;right:6px;top:20px;border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:10px;font-family:var(--font)">Show</button>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:2px">
+          <div style="flex:1">
+            <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Pipeline ID</label>
+            <input type="text" placeholder="e.g. abc123..." value="${esc(str(c.ghlPipelineId))}"
+              oninput="updateClientField('${esc(c.id)}','ghlPipelineId',this.value)"
+              style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+          </div>
+          <div style="flex:1">
+            <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Stage ID</label>
+            <input type="text" placeholder="e.g. xyz789..." value="${esc(str(c.ghlStageId))}"
+              oninput="updateClientField('${esc(c.id)}','ghlStageId',this.value)"
+              style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+          </div>
+        </div>
+      </div>`:''}
+
+      <div style="margin-bottom:8px;padding:10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px">
+        <div style="font-size:10px;font-weight:700;color:#0369a1;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Route Optimization</div>
+        <div style="margin-bottom:6px">
+          <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Home Base Address</label>
+          <input type="text" placeholder="123 Main St, City, ST 12345" value="${esc(str(c.homeBase))}"
+            oninput="updateClientField('${esc(c.id)}','homeBase',this.value)"
+            style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+        </div>
+        <div style="margin-bottom:6px">
+          <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Google Calendar ID</label>
+          <input type="text" placeholder="email@example.com or 'primary'" value="${esc(str(c.calendarId))}"
+            oninput="updateClientField('${esc(c.id)}','calendarId',this.value)"
+            style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+        </div>
+        <div style="display:flex;gap:8px">
+          <div style="flex:1">
+            <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Work Start</label>
+            <input type="time" value="${esc(str(c.workStart)||'08:00')}"
+              onchange="updateClientField('${esc(c.id)}','workStart',this.value)"
+              style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+          </div>
+          <div style="flex:1">
+            <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Work End</label>
+            <input type="time" value="${esc(str(c.workEnd)||'17:00')}"
+              onchange="updateClientField('${esc(c.id)}','workEnd',this.value)"
+              style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:8px">
+        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">\uD83D\uDDFA\uFE0F Service Area</label>
+        ${(()=>{
+          const pm = findPolygonForClient(c.name);
+          if(pm){
+            const coordCount = JSON.stringify(pm.polygon).length;
+            return '<div style="display:flex;align-items:center;gap:6px;margin-top:3px;padding:6px 10px;background:#dcfce7;border:1px solid #86efac;border-radius:6px;font-size:11px;color:#166534"><span class="sa-badge sa-in" style="width:14px;height:14px;font-size:8px">&#10003;</span> Polygon configured ('+(coordCount/1024).toFixed(1)+'KB)</div>';
+          }
+          return '<div style="margin-top:3px;padding:6px 10px;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;font-size:11px;color:#6b7280">No polygon data \u2014 leads will show "unknown" for service area</div>';
+        })()}
+      </div>
+
+      <div style="margin-bottom:8px">
+        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">External Map URL (optional)</label>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:3px">
+          <input type="text" placeholder="Paste service area map link..." value="${esc(str(c.serviceAreaUrl))}"
+            oninput="updateClientField('${esc(c.id)}','serviceAreaUrl',this.value)"
+            style="flex:1;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text)">
+          ${str(c.serviceAreaUrl).trim()?`<a href="${esc(str(c.serviceAreaUrl))}" target="_blank" rel="noopener" style="font-size:11px;color:#10b981;white-space:nowrap;text-decoration:none;padding:5px 8px;border:1px solid #a7f3d0;border-radius:6px;background:#ecfdf5">Test \u2197</a>`:''}
+        </div>
+      </div>
+
+      <div style="margin-bottom:8px">
+        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">\uD83D\uDCDD Client Notes</label>
+        <textarea placeholder="Services offered, booking preferences, special instructions..." rows="3"
+          oninput="updateClientField('${esc(c.id)}','clientNotes',this.value)"
+          style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px;resize:vertical">${esc(str(c.clientNotes||''))}</textarea>
+      </div>
+
+      ${(()=>{
+        let wcDefault='';
+        if(!str(c.warmCallNotesText).trim()){const ci=lookupClientInfo(c.name);if(ci&&ci.warmCallNotes)wcDefault=ci.warmCallNotes.join('\\n');}
+        const wcVal=str(c.warmCallNotesText).trim()||wcDefault;
+        return `<div style="margin-bottom:8px">
+        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">${svgIcon('clipboard',10)} SDR / Warm Call Notes</label>
+        <div style="font-size:10px;color:var(--text-muted);margin:2px 0 4px">Key talking points for the appointment setter (one per line)</div>
+        <textarea placeholder="e.g. Veteran-owned&#10;24 years in business&#10;10% discount for churches&#10;Current clients: Marriott, YMCA" rows="6"
+          oninput="updateClientField('${esc(c.id)}','warmCallNotesText',this.value)"
+          style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px;resize:vertical">${esc(wcVal)}</textarea>
+      </div>`;
+      })()}
+
+      ${renderDocumentsSection(c)}
+      </div>
+    </div>`;
+  }
+
+  h+=`</div>`;
+
+  h+=`<div style="padding:10px 12px;background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.15);border-radius:8px">
+    <p style="font-size:11px;color:var(--text-muted);margin:0"><strong style="color:var(--text)">\uD83D\uDCA1 How it works:</strong> Toggle the actions each client needs. Only enabled actions show up on deal cards. Campaign keywords match against Smartlead campaign names to auto-assign leads to clients.</p>
+  </div>`;
+
+  h+=`</div>`;
+  return h;
+}
+
+function renderUsersSettings(){
+  let h = `<div class="settings-section">
+    <h4>User Management</h4>
+    <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Manage who can access the CRM and what they can see.</p>
+    <div id="users-list-container"><div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px">Loading users...</div></div>
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
+      <h4 style="font-size:12px;font-weight:700;margin-bottom:8px">\u2795 Invite New User</h4>
+      <p style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Create an account for a team member or client.</p>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <input type="text" id="new-user-name" placeholder="Full name" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+        <input type="email" id="new-user-email" placeholder="Email address" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+        <input type="password" id="new-user-pass" placeholder="Temporary password (6+ chars)" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+        <div style="display:flex;gap:6px">
+          <select id="new-user-role" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+            <option value="admin">Admin</option>
+            <option value="employee">Employee</option>
+            <option value="client" selected>Client</option>
+          </select>
+          <select id="new-user-client" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+            <option value="">No client assigned</option>
+            ${state.clients.map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('')}
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="createNewUser()" style="padding:10px;font-size:12px" id="create-user-btn">Create User Account</button>
+        <div id="create-user-msg" style="font-size:11px;text-align:center;display:none"></div>
+      </div>
+    </div>
+  </div>`;
+  setTimeout(()=>loadUsersIntoPanel(), 50);
+  return h;
+}
+
+let usersListCache = null;
+
+async function loadUsersIntoPanel(){
+  const container = document.getElementById('users-list-container');
+  if(!container) return;
+  const users = await loadAllUsers();
+  usersListCache = users;
+  if(!container.parentElement) return;
+  let h = '';
+  if(users.length===0){
+    h = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px">No users found</div>';
+  } else {
+    for(const u of users){
+      const isSelf = u.uid === currentUser.uid;
+      const roleColor = u.role==='admin' ? '#059669' : u.role==='employee' ? '#f59e0b' : '#2563eb';
+      const photoUrl = u.photoURL || '';
+      h += `<div style="display:flex;align-items:flex-start;gap:10px;padding:10px;margin-bottom:6px;background:#f9fafb;border:1px solid var(--border);border-radius:8px">
+        <div style="position:relative;flex-shrink:0">
+          ${photoUrl
+            ? `<img src="${esc(photoUrl)}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid ${roleColor}">`
+            : `<div style="width:40px;height:40px;border-radius:50%;background:${roleColor};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px">${esc((u.name||u.email||'?')[0].toUpperCase())}</div>`}
+          <label style="position:absolute;bottom:-3px;right:-3px;width:22px;height:22px;border-radius:50%;background:#059669;border:2px solid #fff;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:11px;color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)" title="Change photo">
+            <input type="file" accept="image/*" style="display:none" onchange="handleUserPhoto('${u.uid}',this)">
+            &#9998;
+          </label>
+        </div>
+        <div style="flex:1;min-width:0">
+          <input type="text" value="${esc(u.name||'')}" placeholder="Enter name" onkeydown="if(event.key==='Enter')this.blur()" style="font-size:13px;font-weight:600;border:1px solid transparent;background:transparent;padding:2px 6px;border-radius:4px;font-family:var(--font);width:100%;box-sizing:border-box" onfocus="this.style.borderColor='var(--border)';this.style.background='#fff'" onblur="this.style.borderColor='transparent';this.style.background='transparent';saveUserName('${u.uid}',this.value)">${isSelf?' <span style="font-size:10px;color:var(--text-muted)">(you)</span>':''}
+          <input type="text" value="${esc(u.email||'')}" placeholder="Email address" onkeydown="if(event.key==='Enter')this.blur()" style="font-size:11px;color:var(--text-muted);border:1px solid transparent;background:transparent;padding:2px 6px;border-radius:4px;font-family:var(--font);width:100%;box-sizing:border-box" onfocus="this.style.borderColor='var(--border)';this.style.background='#fff'" onblur="this.style.borderColor='transparent';this.style.background='transparent';saveUserEmail('${u.uid}',this.value)">
+          ${u.clientName?`<div style="font-size:10px;color:#2563eb;margin-top:2px;padding-left:6px">Assigned: ${esc(u.clientName)}</div>`:''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex-shrink:0">
+          <div style="display:flex;gap:6px;align-items:center">
+            <select onchange="changeUserRole('${u.uid}',this.value)" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:var(--font)"${isSelf?' disabled':''}>
+              <option value="admin"${u.role==='admin'?' selected':''}>Admin</option>
+              <option value="employee"${u.role==='employee'?' selected':''}>Employee</option>
+              <option value="client"${u.role==='client'?' selected':''}>Client</option>
+            </select>
+            <select onchange="changeUserClient('${u.uid}',this.value)" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:var(--font)">
+              <option value=""${!u.clientName?' selected':''}>None</option>
+              ${state.clients.map(c=>`<option value="${esc(c.name)}"${u.clientName===c.name?' selected':''}>${esc(c.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div style="display:flex;gap:3px;align-items:center">
+            <span style="font-size:9px;color:var(--text-muted);margin-right:2px">Tag:</span>
+            ${TAG_PALETTE.map(c => `<button onclick="saveUserTagColor('${u.uid}','${c}')" style="width:16px;height:16px;border-radius:50%;border:2px solid ${(u.tagColor||TAG_PALETTE[0])===c?'#111':'transparent'};background:${c};cursor:pointer;padding:0;flex-shrink:0" title="${c}"></button>`).join('')}
+          </div>
+          ${!isSelf?`<button onclick="deleteUser('${u.uid}','${esc(u.name||u.email||'')}')" style="font-size:10px;color:#ef4444;background:none;border:none;cursor:pointer;padding:2px 6px;font-family:var(--font)">Remove</button>`:''}
+        </div>
+      </div>`;
+    }
+  }
+  container.innerHTML = h;
+}
+
+async function changeUserRole(uid, role){
+  await updateUserRole(uid, role);
+  loadUsersIntoPanel();
+}
+async function changeUserClient(uid, clientName){
+  await updateUserClient(uid, clientName);
+  loadUsersIntoPanel();
+}
+async function saveUserName(uid, name){
+  const trimmed = name.trim();
+  if(!trimmed) return;
+  const cached = usersListCache && usersListCache.find(u => u.uid === uid);
+  if(cached && cached.name === trimmed) return;
+  await updateUserName(uid, trimmed);
+  if(cached) cached.name = trimmed;
+  state.assignableUsers = [];
+}
+async function saveUserEmail(uid, email){
+  const trimmed = email.trim();
+  if(!trimmed) return;
+  const cached = usersListCache && usersListCache.find(u => u.uid === uid);
+  if(cached && cached.email === trimmed) return;
+  await updateUserEmail(uid, trimmed);
+  if(cached) cached.email = trimmed;
+}
+async function saveUserTagColor(uid, color){
+  try {
+    await db.collection('users').doc(uid).update({ tagColor: color });
+    const cached = usersListCache && usersListCache.find(u => u.uid === uid);
+    if(cached) cached.tagColor = color;
+    state.assignableUsers = [];
+    loadUsersIntoPanel();
+  } catch(e){ alert('Failed to update tag color: '+e.message); }
+}
+async function deleteUser(uid, name){
+  if(!confirm('Remove user "'+name+'" from the CRM? This only removes their Firestore profile — their Firebase Auth account will remain.')) return;
+  await deleteFirebaseUser(uid);
+  loadUsersIntoPanel();
+  state.assignableUsers = [];
+}
+async function handleUserPhoto(uid, input){
+  const file = input.files && input.files[0];
+  if(!file) return;
+  const img = new Image();
+  img.onload = async function(){
+    const canvas = document.createElement('canvas');
+    const MAX = 128;
+    let w = img.width, h = img.height;
+    if(w > h){ h = Math.round(h * MAX / w); w = MAX; }
+    else { w = Math.round(w * MAX / h); h = MAX; }
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+    try {
+      await db.collection('users').doc(uid).update({ photoURL: dataUrl });
+      loadUsersIntoPanel();
+    } catch(e){ alert('Failed to save photo: '+e.message); }
+  };
+  img.src = URL.createObjectURL(file);
+}
+window.saveUserName = saveUserName;
+window.saveUserEmail = saveUserEmail;
+window.saveUserTagColor = saveUserTagColor;
+window.deleteUser = deleteUser;
+window.handleUserPhoto = handleUserPhoto;
+
+// ─── Campaign Assignment Settings ───
+let _fetchedCampaigns = null;
+
+function renderCampaignAssignSettings(){
+  let h = `<div class="settings-section">
+    <h4>${svgIcon('bar-chart',14)} Acquisition Campaign Assignments</h4>
+    <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Assign each acquisition campaign to a team member. Leads from that campaign will be tagged with their color on the board.</p>
+    <div id="campaign-assign-container"><div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px">Loading campaigns...</div></div>
+  </div>`;
+  setTimeout(()=>fetchAcquisitionCampaigns(), 50);
+  return h;
+}
+
+async function fetchAcquisitionCampaigns(){
+  const container = document.getElementById('campaign-assign-container');
+  if(!container) return;
+  if(!usersListCache || usersListCache.length===0){
+    try { usersListCache = await loadAllUsers(); } catch(e){}
+  }
+  const adminUsers = (usersListCache||[]).filter(u => u.role==='admin' || u.role==='employee').map(u => u.name||u.email);
+  if(!_fetchedCampaigns){
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px">Fetching campaigns from SmartLead...</div>';
+    try {
+      const campaigns = await apiGet('get_acquisition_campaigns');
+      if(Array.isArray(campaigns)){
+        _fetchedCampaigns = campaigns;
+      } else {
+        container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--red);font-size:12px">Failed to load campaigns. Try again.</div>';
+        return;
+      }
+    } catch(e){
+      container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--red);font-size:12px">Error: '+esc(e.message)+'</div>';
+      return;
+    }
+  }
+  if(!container.parentElement) return;
+  const assignments = state.campaignAssignments || {};
+  const allNames = new Set(_fetchedCampaigns.map(c=>c.name));
+  const extraAssigned = Object.keys(assignments).filter(n => !allNames.has(n));
+
+  let h = '';
+  if(_fetchedCampaigns.length === 0 && extraAssigned.length === 0){
+    h = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px">No acquisition campaigns found in SmartLead.</div>';
+  } else {
+    h += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <span style="font-size:11px;font-weight:600;color:var(--text-secondary)">${_fetchedCampaigns.length} acquisition campaign${_fetchedCampaigns.length!==1?'s':''}</span>
+      <button class="btn btn-ghost" style="font-size:10px;padding:3px 10px;background:#f9fafb;color:#6b7280;border:1px solid var(--border);display:inline-flex;align-items:center;gap:4px" onclick="_fetchedCampaigns=null;fetchAcquisitionCampaigns()">${svgIcon('refresh-cw',12)} Refresh</button>
+    </div>`;
+    for(const camp of _fetchedCampaigns){
+      const assigned = assignments[camp.name] || '';
+      const ownerInfo = assigned ? getOwnerColor(assigned) : null;
+      h += `<div style="display:flex;align-items:center;gap:10px;padding:10px;margin-bottom:6px;background:#f9fafb;border:1px solid var(--border);border-radius:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(camp.name)}</div>
+          <div style="font-size:10px;color:var(--text-muted)">${esc(camp.status||'')}</div>
+        </div>
+        ${ownerInfo?`<span class="owner-tag" style="background:${ownerInfo.bg};color:${ownerInfo.fg}">${esc(assigned)}</span>`:''}
+        <select onchange="assignCampaignOwner('${esc(camp.name).replace(/'/g,"\\'")}',this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:var(--font);min-width:120px">
+          <option value=""${!assigned?' selected':''}>Unassigned</option>
+          ${adminUsers.map(u => `<option value="${esc(u)}"${assigned===u?' selected':''}>${esc(u)}</option>`).join('')}
+        </select>
+      </div>`;
+    }
+    if(extraAssigned.length > 0){
+      h += '<div style="margin-top:12px;padding-top:8px;border-top:1px solid var(--border)"><div style="font-size:10px;font-weight:600;color:var(--text-muted);margin-bottom:6px">Previously assigned (not currently in SmartLead):</div>';
+      for(const name of extraAssigned){
+        h += `<div style="display:flex;align-items:center;gap:10px;padding:6px 10px;margin-bottom:4px;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;font-size:11px">
+          <span style="flex:1">${esc(name)}</span>
+          <span style="color:#92400e;font-weight:600">${esc(assignments[name])}</span>
+          <button onclick="removeCampaignAssignment('${esc(name).replace(/'/g,"\\'")}')" style="background:none;border:none;color:#d1d5db;cursor:pointer;font-size:14px" title="Remove">&times;</button>
+        </div>`;
+      }
+      h += '</div>';
+    }
+  }
+  container.innerHTML = h;
+}
+
+function getOwnerColor(name){
+  return authGetOwnerColor(name);
+}
+
+function renderDialerSettings(){
+  const mod = window.__numberHealthModule;
+  if(mod) return mod.renderNumberHealthSettings();
+  return `<div class="settings-section">
+    <h4>${svgIcon('phone',14)} Dialer Numbers</h4>
+    <p style="font-size:11px;color:var(--text-muted)">Loading number health data...</p>
+  </div>`;
+}
+
+function setupSettingsDrag(){
+  document.querySelectorAll('.settings-list').forEach(list=>{
+    const key=list.dataset.key;
+    let dragIdx=null;
+    list.querySelectorAll('.settings-list-item').forEach(item=>{
+      item.addEventListener('dragstart',e=>{
+        dragIdx=parseInt(item.dataset.idx);
+        item.classList.add('dragging');
+        e.dataTransfer.effectAllowed='move';
+      });
+      item.addEventListener('dragend',()=>{
+        item.classList.remove('dragging');
+        dragIdx=null;
+      });
+      item.addEventListener('dragover',e=>{
+        e.preventDefault();
+        e.dataTransfer.dropEffect='move';
+      });
+      item.addEventListener('drop',e=>{
+        e.preventDefault();
+        const dropIdx=parseInt(item.dataset.idx);
+        if(dragIdx!==null && dragIdx!==dropIdx && settingsDraft[key]){
+          const arr=settingsDraft[key];
+          const [moved]=arr.splice(dragIdx,1);
+          arr.splice(dropIdx,0,moved);
+          renderSettingsPanel();
+        }
+      });
+    });
+  });
+}
+
+export function captureClientInputs(){
+  const panel=document.querySelector('.settings-body');
+  if(!panel) return;
+  for(const c of state.clients){
+    const id=c.id;
+    panel.querySelectorAll('input[type="text"]').forEach(inp=>{
+      const handler=inp.getAttribute('oninput')||'';
+      const match=handler.match(/updateClientField\('([^']+)','([^']+)'/);
+      if(match && match[1]===id){
+        c[match[2]]=inp.value;
+      }
+    });
+    panel.querySelectorAll('input[type="checkbox"]').forEach(inp=>{
+      const handler=inp.getAttribute('onchange')||'';
+      const match=handler.match(/toggleClientField\('([^']+)','([^']+)'/);
+      if(match && match[1]===id){
+        c[match[2]]=inp.checked?'TRUE':'FALSE';
+      }
+    });
+    panel.querySelectorAll('select').forEach(sel=>{
+      const handler=sel.getAttribute('onchange')||'';
+      const match=handler.match(/updateClientField\('([^']+)','([^']+)'/);
+      if(match && match[1]===id){
+        c[match[2]]=sel.value;
+      }
+    });
+  }
+}
+
+export function updateClientField(clientId, field, value){
+  const c=state.clients.find(x=>str(x.id)===str(clientId));
+  if(c) c[field]=value;
+}
+
+// ─── Client Config (client_config table) edits with debounced save ───
+const _pendingConfigUpdates = {};
+let _configSaveTimer = null;
+
+function updateClientConfig(clientName, field, value) {
+  if (!_pendingConfigUpdates[clientName]) _pendingConfigUpdates[clientName] = {};
+  _pendingConfigUpdates[clientName][field] = value;
+  if (_configSaveTimer) clearTimeout(_configSaveTimer);
+  _configSaveTimer = setTimeout(flushClientConfigUpdates, 1500);
+}
+
+async function flushClientConfigUpdates() {
+  const updates = { ..._pendingConfigUpdates };
+  for (const k of Object.keys(_pendingConfigUpdates)) delete _pendingConfigUpdates[k];
+  for (const [clientName, fields] of Object.entries(updates)) {
+    try {
+      await sbUpdateClientConfig(clientName, fields);
+    } catch (e) {
+      console.error('Failed to update client config for', clientName, e);
+    }
+  }
+  // Refresh cache so Client Info modal reflects changes immediately
+  await loadClientConfig();
+}
+
+window.updateClientConfig = updateClientConfig;
+
+export function toggleClientField(clientId, field, checked){
+  captureClientInputs();
+  const c=state.clients.find(x=>str(x.id)===str(clientId));
+  if(c){
+    c[field]=checked?'TRUE':'FALSE';
+  }
+  const body=document.querySelector('.settings-body');
+  if(body) body.innerHTML=renderClientsSettings();
+  debouncedAutoSave();
+}
+
+export function updateClientCalendly(name, url){
+  const c=state.clients.find(x=>x.name===name);
+  if(c) c.calendlyUrl=url;
+}
+
+export async function saveSettingsToSheet(){
+  captureClientInputs();
+  applySettings(settingsDraft);
+  render();
+  const btn=document.querySelector('.settings-footer .btn-primary');
+  if(btn){ btn.textContent='Saving...'; btn.disabled=true; }
+  const oldBanner=document.getElementById('settings-save-banner');
+  if(oldBanner) oldBanner.remove();
+  try {
+    const clientUpdates = state.clients.filter(c=>c.id).map(c=>({
+      id:c.id,
+      notifyEmails:str(c.notifyEmails),
+      notifyEmail:str(c.notifyEmails),
+      campaignKeywords:str(c.campaignKeywords),
+      contactFirstName:str(c.contactFirstName),
+      contactLastName:str(c.contactLastName),
+      calendlyUrl:str(c.calendlyUrl),
+      enableForward:str(c.enableForward),
+      enableCalendly:str(c.enableCalendly),
+      enableAutoForward:str(c.enableAutoForward),
+      enableCopyInfo:str(c.enableCopyInfo),
+      enableTracker:str(c.enableTracker),
+      leadCost:str(c.leadCost),
+      paymentTerms:str(c.paymentTerms||'Net 7'),
+      serviceAreaUrl:str(c.serviceAreaUrl),
+      clientNotes:str(c.clientNotes||''),
+      warmCallNotesText:str(c.warmCallNotesText||''),
+      passoffInstructions:str(c.passoffInstructions||''),
+      clientStanding:str(c.clientStanding||'neutral'),
+      homeBase:str(c.homeBase||''),
+      timeZone:str(c.timeZone||''),
+      ghlLocationId:str(c.ghlLocationId||''),
+      ghlApiKey:str(c.ghlApiKey||''),
+      ghlPipelineId:str(c.ghlPipelineId||''),
+      ghlStageId:str(c.ghlStageId||''),
+      onboardingDocUrl:str(c.onboardingDocUrl||''),
+      onboardingParsedAt:c.onboardingParsedAt||null
+    }));
+    await Promise.all([
+      sbSaveSettings(settingsDraft),
+      sbBatchUpdateClients(clientUpdates.map(c => ({id:c.id, ...camelToSnake(c)})))
+    ]);
+    if(btn){ btn.textContent='Save Settings'; btn.disabled=false; }
+    const banner=document.createElement('div');
+    banner.id='settings-save-banner';
+    banner.style.cssText='padding:12px 16px;background:#dcfce7;border:2px solid #22c55e;border-radius:8px;margin:0 20px 12px;display:flex;align-items:center;gap:8px;animation:fadeIn .3s';
+    banner.innerHTML='<span style="font-size:18px">&#9989;</span><div><div style="font-size:13px;font-weight:700;color:#166534">Settings Saved Successfully</div><div style="font-size:11px;color:#15803d">All changes have been saved and will persist. You can safely close this panel.</div></div>';
+    const settingsBody=document.querySelector('.settings-body');
+    if(settingsBody) settingsBody.insertBefore(banner, settingsBody.firstChild);
+    setTimeout(()=>{ const b=document.getElementById('settings-save-banner'); if(b) b.style.opacity='0'; setTimeout(()=>{ const b2=document.getElementById('settings-save-banner'); if(b2) b2.remove(); },300); },6000);
+  } catch(e){
+    if(btn){ btn.textContent='Error \u2014 Retry'; btn.disabled=false; }
+  }
+}
+
+export async function createNewUser(){
+  const name = document.getElementById('new-user-name').value.trim();
+  const email = document.getElementById('new-user-email').value.trim();
+  const pass = document.getElementById('new-user-pass').value;
+  const role = document.getElementById('new-user-role').value;
+  const clientName = document.getElementById('new-user-client').value;
+  const btn = document.getElementById('create-user-btn');
+  const msg = document.getElementById('create-user-msg');
+
+  if(!name||!email||!pass){ msg.textContent='Please fill in all fields'; msg.style.color='var(--red)'; msg.style.display='block'; return; }
+  if(pass.length<6){ msg.textContent='Password must be at least 6 characters'; msg.style.color='var(--red)'; msg.style.display='block'; return; }
+
+  btn.disabled=true; btn.textContent='Creating...';
+  msg.style.display='none';
+
+  try {
+    const { auth } = await import('./auth.js');
+    const cred = await auth.createUserWithEmailAndPassword(email, pass);
+    await cred.user.updateProfile({ displayName: name });
+    await db.collection('users').doc(cred.user.uid).set({
+      name, email, role, clientName,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    msg.textContent='\u2713 Account created for '+name+'! Sign back in to continue.';
+    msg.style.color='var(--green)';
+    msg.style.display='block';
+    document.getElementById('new-user-name').value='';
+    document.getElementById('new-user-email').value='';
+    document.getElementById('new-user-pass').value='';
+    btn.textContent='Create User Account';
+    btn.disabled=false;
+  } catch(e){
+    let errMsg='Failed to create account';
+    if(e.code==='auth/email-already-in-use') errMsg='An account with this email already exists';
+    else if(e.code==='auth/invalid-email') errMsg='Invalid email address';
+    msg.textContent=errMsg;
+    msg.style.color='var(--red)';
+    msg.style.display='block';
+    btn.textContent='Create User Account';
+    btn.disabled=false;
+  }
+}
+
+// Settings sub-functions called from inline HTML
+export function addSettingsStage(key,inputId){
+  const el=document.getElementById(inputId);
+  const name=(el?el.value:'').trim();
+  if(!name) return;
+  const colors=['#059669','#10b981','#2563eb','#0891b2','#059669','#d97706','#ef4444','#34d399','#f97316','#10b981'];
+  settingsDraft[key].push({id:name,label:name,color:colors[settingsDraft[key].length%colors.length],order:settingsDraft[key].length});
+  renderSettingsPanel();
+  debouncedAutoSave();
+}
+export function addSettingsActivityType(){
+  const iconEl=document.getElementById('new-act-icon');
+  const nameEl=document.getElementById('new-act-name');
+  const icon=(iconEl?iconEl.value:'').trim()||'\u2713';
+  const name=(nameEl?nameEl.value:'').trim();
+  if(!name) return;
+  settingsDraft.activity_types.push({name,icon,order:settingsDraft.activity_types.length});
+  renderSettingsPanel();
+  debouncedAutoSave();
+}
+export function addSopSequence(key,inputId){
+  const el=document.getElementById(inputId);
+  const name=(el?el.value:'').trim();
+  if(!name) return;
+  settingsDraft[key].push({name,activities:[{type:'Email',subject:'Email'},{type:'Call',subject:'Call'}]});
+  renderSettingsPanel();
+  debouncedAutoSave();
+}
+export function addSopActivity(key,idx){
+  settingsDraft[key][idx].activities.push({type:'Call',subject:'Activity'});
+  renderSettingsPanel();
+  debouncedAutoSave();
+}
+
+// Expose to inline HTML handlers
+// Expose settingsDraft as a live getter so inline handlers always see the current object
+Object.defineProperty(window, 'settingsDraft', {
+  get(){ return settingsDraft; },
+  set(v){ setSettingsDraft(v); },
+  configurable: true
+});
+Object.defineProperty(window, 'settingsTab', {
+  get(){ return settingsTab; },
+  set(v){ setSettingsTab(v); },
+  configurable: true
+});
+// ── AI Settings ──────────────────────────────────────────
+const DEFAULT_PASSOFF_TEMPLATE = `You are writing lead passoff instructions for a lead generation company (The Headline Theory) to send to their client.
+
+Given the lead's information, email conversation, and call transcript (if available), write clear instructions for the client on what to do with this lead. Some leads are set up entirely through email with no phone call — use whatever context is available.
+
+IMPORTANT: Always carefully read email signatures in the thread. Extract the sender's full name, title, phone numbers, and any other contact details from signatures. If the deal card is missing this info or has it wrong, use the signature data instead.
+
+Output format (follow exactly):
+
+Hey [clientFirstName], just scheduled a quote request for [appointment details] with [Business Name]. The address, phone, contact info and instructions are all included below. I've also added you to the email thread. Please check your spam folder if you are not seeing it.
+
+Business: [company name]
+Website: [website URL]
+Address: [full address]
+Email: [lead email]
+Contact: [contact name]
+Business Phone: [phone]
+Mobile Phone: [mobile phone, only if available]
+Instructions: [Write 2-4 sentences synthesizing what the lead wants based on the email thread and call transcript. Include: what service they're looking for, any specific details about the property or job, scheduling preferences, and any special notes. Be specific and actionable.]
+
+Good luck!
+
+— The Headline Theory Team`;
+
+const DEFAULT_INSTRUCTIONS_TEMPLATE = `Business: {BUSINESS}
+Website: {WEBSITE}
+Address: {ADDRESS}
+Email: {EMAIL}
+Business Phone: {PHONE}
+Contact: {CONTACT}
+Mobile Phone: {MOBILE_PHONE}
+Instructions: `;
+
+const DEFAULT_DELIVERY_TEMPLATE = `Hey {CLIENT_FIRST}, just scheduled a quote request for {MEETING_TIME} with {BUSINESS}. The address, phone, contact info and instructions are all included in that calendar event. I've also added you to the email thread. Please check your spam folder if you are not seeing it.
+
+Business: {BUSINESS}
+Website: {WEBSITE}
+Address: {ADDRESS}
+Email: {EMAIL}
+Business Phone: {PHONE}
+Contact: {CONTACT}
+Mobile Phone: {MOBILE_PHONE}`;
+
+export { DEFAULT_INSTRUCTIONS_TEMPLATE, DEFAULT_DELIVERY_TEMPLATE };
+
+function renderTemplatesSettings(){
+  const instrTpl = settingsDraft.instructions_template || DEFAULT_INSTRUCTIONS_TEMPLATE;
+  const delivTpl = settingsDraft.delivery_template || DEFAULT_DELIVERY_TEMPLATE;
+  return `
+    <div style="margin-bottom:16px;padding:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;font-size:12px;color:#166534;line-height:1.6">
+      <strong>Available placeholders:</strong> {BUSINESS}, {CONTACT}, {EMAIL}, {PHONE}, {MOBILE_PHONE}, {WEBSITE}, {ADDRESS}, {JOB_TITLE}, {CLIENT_NAME}, {CLIENT_FIRST}, {MEETING_TIME}, {NOTES}
+      <div style="margin-top:4px;color:#15803d;font-size:11px">Placeholders auto-fill with the lead's info when a deal is opened. Empty fields are omitted.</div>
+    </div>
+
+    <div style="margin-bottom:20px">
+      <label style="font-size:13px;font-weight:700;color:var(--text);display:block;margin-bottom:6px">${svgIcon('calendar',14)} Calendly / Instructions Template</label>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Pre-fills the "Additional Info / Instructions" box when booking via Calendly or the instructions area for non-Calendly clients.</div>
+      <textarea id="tpl-instructions" rows="10" oninput="settingsDraft.instructions_template=this.value;debouncedAutoSave()"
+        style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:var(--font);line-height:1.5;resize:vertical;color:var(--text);background:var(--card)">${esc(instrTpl)}</textarea>
+      <button onclick="settingsDraft.instructions_template='';document.getElementById('tpl-instructions').value='';debouncedAutoSave()" style="margin-top:4px;font-size:11px;color:#6b7280;background:none;border:none;cursor:pointer;text-decoration:underline">Reset to default</button>
+    </div>
+
+    <div style="margin-bottom:20px">
+      <label style="font-size:13px;font-weight:700;color:var(--text);display:block;margin-bottom:6px">${svgIcon('send',14)} Text Templates (Blooio)</label>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Grouped by sequence. Available in the Blooio texting dropdown on acquisition deal cards. Use {FIRST_NAME}, {CITY}, {MEETING_TIME}, etc.</div>
+      ${(()=>{
+        const seqs = settingsDraft.sequence_templates || [];
+        let h = '';
+        seqs.forEach((seq, si) => {
+          h += `<div style="margin-bottom:16px">
+            <div style="font-size:12px;font-weight:700;color:var(--text);padding:6px 0;border-bottom:1px solid var(--border);margin-bottom:8px">${esc(seq.label)}</div>`;
+          (seq.templates || []).forEach((t, ti) => {
+            h += `<div style="margin-bottom:10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--card)">
+              <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
+                <input value="${esc(t.name||'')}" placeholder="Template name" oninput="settingsDraft.sequence_templates[${si}].templates[${ti}].name=this.value;debouncedAutoSave()"
+                  style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);font-weight:600">
+                <button onclick="settingsDraft.sequence_templates[${si}].templates.splice(${ti},1);refreshSettingsBody()" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:16px;padding:0 4px">&times;</button>
+              </div>
+              <textarea rows="3" oninput="settingsDraft.sequence_templates[${si}].templates[${ti}].body=this.value;debouncedAutoSave()"
+                style="width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);resize:vertical">${esc(t.body||'')}</textarea>
+            </div>`;
+          });
+          h += `<button onclick="settingsDraft.sequence_templates[${si}].templates.push({name:'',body:''});refreshSettingsBody()"
+            style="padding:4px 10px;border:1px dashed var(--border);border-radius:6px;background:none;cursor:pointer;font-size:11px;color:var(--text-muted);font-family:var(--font)">+ Add Template</button>
+          </div>`;
+        });
+        return h;
+      })()}
+    </div>
+
+    <div style="margin-bottom:20px">
+      <label style="font-size:13px;font-weight:700;color:var(--text);display:block;margin-bottom:6px">${svgIcon('send',14)} Lead Delivery Email Template</label>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Pre-fills the "Message Preview" when sending lead info to a client via email. Use {MEETING_TIME} for the booked date/time.</div>
+      <textarea id="tpl-delivery" rows="12" oninput="settingsDraft.delivery_template=this.value;debouncedAutoSave()"
+        style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:var(--font);line-height:1.5;resize:vertical;color:var(--text);background:var(--card)">${esc(delivTpl)}</textarea>
+      <button onclick="settingsDraft.delivery_template='';document.getElementById('tpl-delivery').value='';debouncedAutoSave()" style="margin-top:4px;font-size:11px;color:#6b7280;background:none;border:none;cursor:pointer;text-decoration:underline">Reset to default</button>
+    </div>`;
+}
+
+let _aiPassoffTemplate = '';
+
+function renderAISettings(){
+  return `
+  <div style="padding:12px 0">
+    <h3 style="margin:0 0 4px;font-size:14px;font-weight:600;color:var(--text)">Passoff Instructions Template</h3>
+    <p style="margin:0 0 12px;font-size:11px;color:#6b7280">This prompt tells the AI how to generate passoff instructions. Use placeholders like [clientFirstName], [Business Name], etc. The AI receives the deal data, email thread, and call transcript automatically.</p>
+    <textarea id="ai-passoff-template" style="width:100%;min-height:320px;padding:10px;font-size:12px;font-family:monospace;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);resize:vertical;line-height:1.5"
+      oninput="window._aiPassoffDirty=true">${esc(_aiPassoffTemplate || DEFAULT_PASSOFF_TEMPLATE)}</textarea>
+    <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+      <button class="btn btn-primary" onclick="saveAIPassoffTemplate()" style="font-size:12px">Save Template</button>
+      <button class="btn" style="font-size:12px;background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="resetAIPassoffTemplate()">Reset to Default</button>
+      <span id="ai-save-status" style="font-size:11px;color:#9ca3af"></span>
+    </div>
+  </div>`;
+}
+
+async function loadAISettings(){
+  try {
+    const { data } = await supabase.from('crm_settings').select('value').eq('key','passoff_template').single();
+    if(data && data.value) _aiPassoffTemplate = data.value;
+    else _aiPassoffTemplate = DEFAULT_PASSOFF_TEMPLATE;
+    const el = document.getElementById('ai-passoff-template');
+    if(el) el.value = _aiPassoffTemplate;
+  } catch(e){ console.warn('[AI Settings] load failed:', e); }
+}
+
+async function saveAIPassoffTemplate(){
+  const el = document.getElementById('ai-passoff-template');
+  if(!el) return;
+  const val = el.value.trim();
+  const status = document.getElementById('ai-save-status');
+  if(status) status.textContent = 'Saving...';
+  try {
+    await supabase.from('crm_settings').upsert({ key: 'passoff_template', value: val, updated_at: new Date().toISOString() });
+    _aiPassoffTemplate = val;
+    window._aiPassoffDirty = false;
+    if(status) status.textContent = '✓ Saved';
+    setTimeout(()=>{ if(status) status.textContent=''; }, 3000);
+  } catch(e){
+    if(status) status.textContent = 'Error saving';
+    console.error('[AI Settings] save failed:', e);
+  }
+}
+
+function resetAIPassoffTemplate(){
+  const el = document.getElementById('ai-passoff-template');
+  if(el) el.value = DEFAULT_PASSOFF_TEMPLATE;
+  window._aiPassoffDirty = true;
+}
+
+window.saveAIPassoffTemplate = saveAIPassoffTemplate;
+window.resetAIPassoffTemplate = resetAIPassoffTemplate;
+
+window.openSettings = openSettings;
+window.closeSettings = closeSettings;
+window.debouncedAutoSave = debouncedAutoSave;
+window.applySettings = applySettings;
+window.updateClientField = updateClientField;
+window.toggleClientField = toggleClientField;
+window.updateClientCalendly = updateClientCalendly;
+window.captureClientInputs = captureClientInputs;
+window.saveSettingsToSheet = saveSettingsToSheet;
+window.renderSettingsPanel = renderSettingsPanel;
+window.refreshSettingsBody = refreshSettingsBody;
+window.addSettingsStage = addSettingsStage;
+window.addSettingsActivityType = addSettingsActivityType;
+window.addSopSequence = addSopSequence;
+window.addSopActivity = addSopActivity;
+window.createNewUser = createNewUser;
+window.changeUserRole = changeUserRole;
+window.changeUserClient = changeUserClient;
+window.fetchAcquisitionCampaigns = fetchAcquisitionCampaigns;
+// _fetchedCampaigns needs live getter for inline onclick="..._fetchedCampaigns=null;..."
+Object.defineProperty(window, '_fetchedCampaigns', {
+  get(){ return _fetchedCampaigns; },
+  set(v){ _fetchedCampaigns = v; },
+  configurable: true
+});
+
+// ─── Billing / Lead Tracker Payment Tracking ───
+
+function renderBillingSettings(){
+  const unpaid = state.trackerEntries.filter(e => !str(e.paidStatus).trim());
+  let h=`<div style="padding:16px">
+    <h4 style="margin:0 0 12px;font-size:15px;font-weight:700;color:var(--text)">Unpaid Leads</h4>
+    <p style="font-size:12px;color:var(--text-muted);margin:0 0 16px">Select leads to mark as paid.</p>
+    <div id="billing-unpaid-list">`;
+
+  if(unpaid.length===0){
+    h+=`<div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">All leads are paid!</div>`;
+  } else {
+    const grouped = {};
+    for(const lead of unpaid){
+      const cn = lead.clientName || 'Unknown';
+      if(!grouped[cn]) grouped[cn]=[];
+      grouped[cn].push(lead);
+    }
+    const totalUnpaid = unpaid.reduce((sum,l) => sum + parseFloat(str(l.leadCost).replace(/[^0-9.]/g,'') || '0'), 0);
+    h+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-size:13px;color:var(--text)"><strong>${unpaid.length}</strong> unpaid leads — <strong>$${totalUnpaid.toLocaleString()}</strong> total</div>
+      <div style="display:flex;gap:6px">
+        <button class="btn" style="font-size:11px;padding:4px 10px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0" onclick="selectAllUnpaid()">Select All</button>
+        <button class="btn" style="font-size:11px;padding:4px 10px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0" onclick="markSelectedPaid()">Mark Selected Paid</button>
+      </div>
+    </div>`;
+
+    for(const [client, leads] of Object.entries(grouped)){
+      const clientTotal = leads.reduce((sum,l) => sum + parseFloat(str(l.leadCost).replace(/[^0-9.]/g,'') || '0'), 0);
+      h+=`<div style="margin-bottom:12px">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">${esc(client)} <span style="font-weight:400;color:var(--text-muted)">(${leads.length} leads — $${clientTotal.toLocaleString()})</span></div>`;
+      for(const lead of leads){
+        h+=`<label style="display:flex;align-items:center;gap:8px;padding:4px 8px;font-size:12px;color:var(--text);cursor:pointer;border-radius:4px;transition:background .1s" onmouseover="this.style.background='var(--hover)'" onmouseout="this.style.background='transparent'">
+          <input type="checkbox" class="unpaid-check" data-id="${lead.id}" style="cursor:pointer">
+          <span style="flex:1">${esc(lead.leadName||'Unknown')}</span>
+          <span style="color:var(--text-muted);min-width:60px">${esc(lead.dateAdded||'')}</span>
+          <span style="font-weight:600;min-width:50px;text-align:right">${esc(lead.leadCost||'$0')}</span>
+        </label>`;
+      }
+      h+=`</div>`;
+    }
+  }
+
+  h+=`</div></div>`;
+  return h;
+}
+
+window.selectAllUnpaid = function(){
+  document.querySelectorAll('.unpaid-check').forEach(cb => cb.checked = true);
+};
+
+window.markSelectedPaid = async function(){
+  const checked = [...document.querySelectorAll('.unpaid-check:checked')];
+  if(!checked.length){ alert('No leads selected'); return; }
+  if(!confirm(`Mark ${checked.length} lead(s) as paid?`)) return;
+
+  const ids = checked.map(cb => cb.dataset.id);
+  const now = new Date().toISOString().slice(0,10);
+  try{
+    const { sbUpdateTrackerEntry } = await import('./api.js');
+    await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
+    for(const id of ids){
+      const entry = state.trackerEntries.find(e => e.id === id);
+      if(entry){ entry.paidStatus = 'Paid'; entry.datePaid = now; }
+    }
+    showToast(`${ids.length} leads marked as paid!`);
+    refreshSettingsBody();
+  }catch(e){
+    alert('Failed to mark paid: ' + (e.message || 'Unknown error'));
+  }
+};
+
+// ─── Onboarding Doc Parse + Confirmation Modal ───
+
+async function parseOnboardingDoc(clientId) {
+  const urlInput = document.getElementById('onboarding-url-' + clientId);
+  if (!urlInput || !urlInput.value.trim()) {
+    showToast('Paste a Google Doc URL first', 'error');
+    return;
+  }
+  const docUrl = urlInput.value.trim();
+  if (!docUrl.includes('docs.google.com/document/d/')) {
+    showToast('Not a valid Google Docs URL', 'error');
+    return;
+  }
+
+  const btn = urlInput.parentElement.nextElementSibling;
+  const origText = btn.textContent;
+  btn.textContent = 'Parsing...';
+  btn.disabled = true;
+
+  try {
+    const resp = await invokeEdgeFunction('parse-onboarding-doc', { clientId, docUrl });
+    if (resp.error) throw new Error(resp.error);
+
+    state.onboardingModal = {
+      clientId,
+      clientName: state.clients.find(c => c.id === clientId)?.name || '',
+      parsed: resp.parsed || {},
+      confidence: resp.confidence || 'low',
+      saving: false,
+    };
+    render();
+  } catch (e) {
+    showToast('Parse failed: ' + e.message, 'error');
+  } finally {
+    btn.textContent = origText;
+    btn.disabled = false;
+  }
+}
+
+function renderOnboardingModal() {
+  const m = state.onboardingModal;
+  if (!m) return '';
+
+  const p = m.parsed;
+  const confColor = m.confidence === 'high' ? '#059669' : m.confidence === 'medium' ? '#d97706' : '#dc2626';
+  const confBg = m.confidence === 'high' ? '#f0fdf4' : m.confidence === 'medium' ? '#fffbeb' : '#fef2f2';
+
+  const field = (label, key, value, type = 'text') => {
+    const val = esc(str(value || ''));
+    const empty = !value;
+    const border = empty ? 'border:2px solid #fde68a' : 'border:1px solid var(--border)';
+    if (type === 'textarea') {
+      return `<div style="margin-bottom:8px">
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted)">${label}${empty?' <span style="color:#d97706">(not found)</span>':''}</label>
+        <textarea id="ob-${key}" rows="3" style="width:100%;box-sizing:border-box;padding:6px 10px;${border};border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px;resize:vertical">${val}</textarea>
+      </div>`;
+    }
+    return `<div style="margin-bottom:8px">
+      <label style="font-size:11px;font-weight:600;color:var(--text-muted)">${label}${empty?' <span style="color:#d97706">(not found)</span>':''}</label>
+      <input type="${type}" id="ob-${key}" value="${val}" style="width:100%;box-sizing:border-box;padding:6px 10px;${border};border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+    </div>`;
+  };
+
+  return `<div class="modal-overlay" onmousedown="this._mdownTarget=event.target" onclick="if(event.target===this&&this._mdownTarget===this&&!state.onboardingModal.saving){state.onboardingModal=null;render()}">
+    <div class="modal" style="width:560px;max-height:90vh;overflow-y:auto" onclick="event.stopPropagation()">
+      <div style="padding:20px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+          <h3 style="margin:0;font-size:16px;font-weight:800">Onboarding: ${esc(m.clientName)}</h3>
+          <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:${confBg};color:${confColor};text-transform:uppercase">${m.confidence} confidence</span>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px">
+          ${field('Services Offered', 'servicesOffered', p.servicesOffered, 'textarea')}
+          ${field('Service Area', 'serviceArea', p.serviceArea, 'textarea')}
+          ${field('Pricing Model', 'pricingModel', p.pricingModel)}
+          ${field('Cost', 'cost', p.cost)}
+          ${field('Payment Period', 'paymentPeriod', p.paymentPeriod)}
+          ${field('Calendly URL', 'calendlyUrl', p.calendlyUrl)}
+          ${field('Forwarding Email', 'forwardingEmail', p.forwardingEmail)}
+          ${field('Forwarding Name', 'forwardingName', p.forwardingName)}
+          ${field('Timezone', 'timezone', p.timezone)}
+          ${field('Website', 'websiteUrl', p.websiteUrl)}
+          ${field('GHL Location ID', 'ghlLocationId', p.ghlLocationId)}
+        </div>
+        ${field('Passoff Instructions', 'passoffInstructions', p.passoffInstructions, 'textarea')}
+        ${field('Warm Call Notes', 'warmCallNotes', p.warmCallNotes, 'textarea')}
+
+        ${state.clients.find(c=>c.id===m.clientId)?.ghlLocationId ?
+        `<div style="margin-top:12px;font-size:11px;color:#059669">GHL sub-account configured</div>` :
+        `<div style="margin-top:12px;font-size:11px;color:#d97706">GHL sub-account pending — created automatically on Won drop</div>`}
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+          <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="state.onboardingModal=null;render()" ${m.saving?'disabled':''}>Cancel</button>
+          <button class="btn btn-primary" onclick="saveOnboardingData()" ${m.saving?'disabled':''}>${m.saving?'Saving...':'Save Onboarding Data'}</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function saveOnboardingData() {
+  const m = state.onboardingModal;
+  if (!m || m.saving) return;
+  m.saving = true;
+  render();
+
+  try {
+    const val = (id) => (document.getElementById('ob-' + id)?.value || '').trim();
+
+    const servicesOffered = val('servicesOffered');
+    const serviceArea = val('serviceArea');
+    const pricingModel = val('pricingModel');
+    const cost = val('cost');
+    const paymentPeriod = val('paymentPeriod');
+    const calendlyUrl = val('calendlyUrl');
+    const forwardingEmail = val('forwardingEmail');
+    const forwardingName = val('forwardingName');
+    const timezone = val('timezone');
+    const websiteUrl = val('websiteUrl');
+    const ghlLocationId = val('ghlLocationId');
+    const passoffInstructions = val('passoffInstructions');
+    const warmCallNotes = val('warmCallNotes');
+
+    // Build client notes from structured fields
+    const notesParts = [];
+    if (pricingModel || cost || paymentPeriod) {
+      notesParts.push('Pricing');
+      notesParts.push([cost, pricingModel, paymentPeriod].filter(Boolean).join(' | '));
+    }
+    if (servicesOffered) {
+      notesParts.push('');
+      notesParts.push('Services');
+      notesParts.push(servicesOffered);
+    }
+    if (serviceArea) {
+      notesParts.push('');
+      notesParts.push('Service Area');
+      notesParts.push(serviceArea);
+    }
+    if (websiteUrl) {
+      notesParts.push('');
+      notesParts.push('Website: ' + websiteUrl);
+    }
+    const clientNotes = notesParts.join('\n');
+
+    // Build update payload
+    const updates = {
+      id: m.clientId,
+      clientNotes,
+      warmCallNotesText: warmCallNotes,
+      passoffInstructions,
+      timeZone: timezone,
+    };
+    if (calendlyUrl) {
+      updates.calendlyUrl = calendlyUrl;
+      updates.enableCalendly = 'TRUE';
+    }
+    if (forwardingEmail) {
+      updates.notifyEmail = forwardingEmail;
+      updates.enableForward = 'TRUE';
+    }
+    if (forwardingName) {
+      updates.contactFirstName = forwardingName.split(' ')[0];
+    }
+    if (ghlLocationId) {
+      updates.ghlLocationId = ghlLocationId;
+    }
+    if (cost) {
+      updates.leadCost = cost.replace(/[^0-9.]/g, '');
+    }
+
+    // Update local state
+    const client = state.clients.find(c => c.id === m.clientId);
+    if (client) Object.assign(client, updates);
+
+    // Save to Supabase
+    pendingWrites.value++;
+    try {
+      await sbBatchUpdateClients([{ id: m.clientId, ...camelToSnake(updates) }]);
+    } finally {
+      pendingWrites.value--;
+    }
+
+    // Push enriched data to Client Info Sheet (fire-and-forget)
+    if (client) {
+      const row = [
+        str(client.name),
+        str(forwardingName || client.contactFirstName || ''),
+        str(forwardingEmail || client.notifyEmail || ''),
+        '',
+        '',
+        timezone,
+        serviceArea,
+        '',
+        calendlyUrl,
+        str(forwardingEmail || client.notifyEmail || ''),
+      ];
+      invokeEdgeFunction('push-lead-tracker', {
+        action: 'write-row',
+        sheetId: CLIENT_INFO_SHEET_ID,
+        sheetName: 'Client Tracker',
+        row,
+      }).catch(e => console.error('Client Info sheet update failed:', e));
+    }
+
+    state.onboardingModal = null;
+    showToast('Onboarding data saved for ' + m.clientName, 'success');
+    render();
+  } catch (e) {
+    m.saving = false;
+    render();
+    showToast('Save failed: ' + e.message, 'error');
+  }
+}
+
+window.parseOnboardingDoc = parseOnboardingDoc;
+window.renderOnboardingModal = renderOnboardingModal;
+window.saveOnboardingData = saveOnboardingData;
