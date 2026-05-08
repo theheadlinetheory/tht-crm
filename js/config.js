@@ -137,7 +137,7 @@ export const SEQUENCE_TEMPLATES = [
     templates: [
       { name: 'Post-Booking Confirmation', body: `Hey {FIRST_NAME}, David with The Headline Theory here. It was great chatting with you just now. Looking forward to our call {MEETING_TIME}.\n\nIf you have any questions before then, please give me a text, call, or email and I will get back to you ASAP.\n\nIn the meantime, feel free to check out the results we've brought our clients at theheadlinetheory.com\n\nTalk soon!` },
       { name: '3-Day Reminder', body: `Hey {FIRST_NAME}, just a quick reminder about your upcoming call with Aidan on {MEETING_TIME}. Looking forward to it!` },
-      { name: '1-Day Confirmation', body: `Hey {FIRST_NAME}, quick reminder about your meeting with Aidan, one of our founders, tomorrow at TIME. Let me know if you have any questions before then.` },
+      { name: '1-Day Confirmation', body: `Hey {FIRST_NAME}, quick reminder about your meeting with Aidan, one of our founders, {MEETING_TIME}. Let me know if you have any questions before then.` },
       { name: 'Day-Of Reminder (30 min)', body: `Hey {FIRST_NAME}, here's the link for the call in 30 minutes.\n\n[Paste meeting link here]` },
     ]
   },
