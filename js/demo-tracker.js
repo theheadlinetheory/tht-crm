@@ -4,7 +4,7 @@
 import { state, pendingWrites, pendingDealFields } from './app.js';
 import { sbCreateDemoEntry, sbUpdateDemoEntry, sbDeleteDemoEntry, sbUpdateDeal, camelToSnake, normalizeRow } from './api.js';
 import { render, refreshModal } from './render.js';
-import { isAdmin } from './auth.js';
+import { isAdmin, isEmployee } from './auth.js';
 import { esc, str, svgIcon } from './utils.js';
 
 const DEMO_BASE_PAYOUT = 100;
@@ -69,9 +69,10 @@ function getFilteredEntries() {
 }
 
 export function renderDemoTracker() {
-  if (!isAdmin()) return '<div style="padding:40px;text-align:center;color:var(--text-muted)">Admin access required.</div>';
+  if (!isAdmin() && !isEmployee()) return '<div style="padding:40px;text-align:center;color:var(--text-muted)">Access restricted.</div>';
 
   const entries = getFilteredEntries();
+  const visibleCols = isAdmin() ? COLUMNS : COLUMNS.filter(c => c.key !== 'payout' && c.key !== 'paidStatus' && c.key !== 'datePaid');
   const f = state.demoFilters;
   const months = [...new Set(state.demoEntries.map(e => str(e.month)).filter(Boolean))].sort().reverse();
 
@@ -103,14 +104,14 @@ export function renderDemoTracker() {
     <span style="flex:1"></span>
     <span id="demo-save-status" style="font-size:11px;font-weight:600;transition:opacity .3s;opacity:0"></span>
     <span style="font-size:12px;color:var(--text-muted)">${entries.length} entries</span>
-    <button class="btn btn-primary" style="font-size:12px;padding:6px 14px;background:#7c3aed;border-color:#7c3aed" onclick="openDemoPayoutReport()">Payout Report</button>
+    ${isAdmin()?'<button class="btn btn-primary" style="font-size:12px;padding:6px 14px;background:#7c3aed;border-color:#7c3aed" onclick="openDemoPayoutReport()">Payout Report</button>':''}
     <button class="btn btn-ghost" style="font-size:12px;padding:6px 14px" onclick="demoAddRow()">+ Add Row</button>
   </div>`;
 
   // Table
   html += `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">`;
   html += `<thead><tr style="background:#f9fafb;border-bottom:2px solid var(--border)">`;
-  for (const col of COLUMNS) {
+  for (const col of visibleCols) {
     const isSorted = state.demoSort.field === col.key;
     const arrow = isSorted ? (state.demoSort.dir === 'asc' ? ' ↑' : ' ↓') : '';
     html += `<th onclick="demoSort('${col.key}')" style="padding:8px 6px;text-align:left;font-weight:600;cursor:pointer;white-space:nowrap;${col.width ? 'width:' + col.width : ''}">${esc(col.label)}${arrow}</th>`;
@@ -118,7 +119,7 @@ export function renderDemoTracker() {
   html += `<th style="width:60px;padding:8px 6px">Actions</th></tr></thead><tbody>`;
 
   if (entries.length === 0) {
-    html += `<tr><td colspan="${COLUMNS.length + 1}" style="padding:30px;text-align:center;color:var(--text-muted)">No entries found.</td></tr>`;
+    html += `<tr><td colspan="${visibleCols.length + 1}" style="padding:30px;text-align:center;color:var(--text-muted)">No entries found.</td></tr>`;
   }
 
   for (const entry of entries) {
@@ -127,7 +128,7 @@ export function renderDemoTracker() {
     const rowStyle = isNoShow ? 'color:#9ca3af;' : isWon ? 'border-left:3px solid #059669;' : '';
     html += `<tr style="${rowStyle}border-bottom:1px solid var(--border)">`;
 
-    for (const col of COLUMNS) {
+    for (const col of visibleCols) {
       const val = str(entry[col.key]);
       const isEditing = state.demoEditingCell && state.demoEditingCell.id === entry.id && state.demoEditingCell.field === col.key;
 
@@ -171,7 +172,7 @@ export function renderDemoTracker() {
       }
     }
 
-    html += `<td style="padding:6px"><button onclick="demoDeleteRow('${entry.id}')" style="background:none;border:none;cursor:pointer;color:#d1d5db;font-size:14px" title="Delete">×</button></td>`;
+    html += `<td style="padding:6px">${isAdmin()?`<button onclick="demoDeleteRow('${entry.id}')" style="background:none;border:none;cursor:pointer;color:#d1d5db;font-size:14px" title="Delete">×</button>`:''}</td>`;
     html += `</tr>`;
   }
 
@@ -218,6 +219,7 @@ async function saveDemoCell(entryId, field, value) {
 }
 
 function markDemoPaid(entryId) {
+  if (!isAdmin()) return;
   const entry = state.demoEntries.find(e => e.id === entryId);
   if (!entry) return;
   const today = new Date();
