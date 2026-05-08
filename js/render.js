@@ -2,25 +2,25 @@
 // RENDER — Main render loop, refreshModal, list view
 // ═══════════════════════════════════════════════════════════
 
-import { state, savedScrollLeft, setSavedScrollLeft, clientArchivedDeals } from './app.js';
-import { ACQUISITION_STAGES, NURTURE_STAGES, ACTIVITY_ICONS } from './config.js';
-import { esc, svgIcon, getToday, fmtDate, fmtTime12, str, stripHtml } from './utils.js';
-import { isAdmin, isClient, isEmployee, currentUser, renderUserMenu, getOwnerForDeal, getOwnerNameForDeal, loadAssignableUsers } from './auth.js';
-import { initialSync as syncFromSheet } from './api.js';
-import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js';
-import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWonDrop, renderDealModal, renderNewDealModal, renderAddClientModal, toggleBadgeDropdown } from './deal-modal.js';
-import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from './activities.js';
-import { renderDashboard } from './dashboard.js';
-import { loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js';
-import { toggleBulkMode, bulkMoveStage, bulkSelectAll, bulkArchive, bulkAddActivity, toggleBulkSelect } from './deals.js';
-import { openSettings } from './settings.js';
-import { serviceAreaResults } from './maps.js';
-import { lookupClientInfo, isRetainerClient, openClientInfoPanel, removeClient } from './client-info.js';
-import { openCalendlyEmbed, removeAppointment, addManualAppointment } from './calendly.js';
-import { doDragOver, doDragLeave, clearAllDragOver, doDrop } from './deals.js';
-import { renderDueTodayBanner, renderNurtureTab, renderNurtureEntryModal, renderReactivateModal, renderSnoozeModal, loadNurtureData } from './rerun.js';
-import { renderDemoTracker } from './demo-tracker.js';
+import { state, savedScrollLeft, setSavedScrollLeft, clientArchivedDeals } from './app.js?v=20260508';
+import { ACQUISITION_STAGES, NURTURE_STAGES, ACTIVITY_ICONS } from './config.js?v=20260508';
+import { esc, svgIcon, getToday, fmtDate, fmtTime12, str, stripHtml } from './utils.js?v=20260508';
+import { isAdmin, isClient, isEmployee, currentUser, renderUserMenu, getOwnerForDeal, getOwnerNameForDeal, loadAssignableUsers } from './auth.js?v=20260508';
+import { initialSync as syncFromSheet } from './api.js?v=20260508';
+import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js?v=20260508';
+import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWonDrop, renderDealModal, renderNewDealModal, renderAddClientModal, toggleBadgeDropdown } from './deal-modal.js?v=20260508';
+import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from './activities.js?v=20260508';
+import { renderDashboard } from './dashboard.js?v=20260508';
+import { loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js?v=20260508';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260508';
+import { toggleBulkMode, bulkMoveStage, bulkSelectAll, bulkArchive, bulkAddActivity, toggleBulkSelect } from './deals.js?v=20260508';
+import { openSettings } from './settings.js?v=20260508';
+import { serviceAreaResults } from './maps.js?v=20260508';
+import { lookupClientInfo, isRetainerClient, openClientInfoPanel, removeClient } from './client-info.js?v=20260508';
+import { openCalendlyEmbed, removeAppointment, addManualAppointment } from './calendly.js?v=20260508';
+import { doDragOver, doDragLeave, clearAllDragOver, doDrop } from './deals.js?v=20260508';
+import { renderDueTodayBanner, renderNurtureTab, renderNurtureEntryModal, renderReactivateModal, renderSnoozeModal, loadNurtureData } from './rerun.js?v=20260508';
+import { renderDemoTracker } from './demo-tracker.js?v=20260508';
 
 // ─── renderListView ───
 function renderListView(deals,stages){

@@ -1,8 +1,8 @@
 // js/number-health.js — Dialer number health tracking and smart number selection
 
-import { supabase } from './api.js';
-import { sbCall } from './api.js';
-import { esc, svgIcon } from './utils.js';
+import { supabase } from './api.js?v=20260508';
+import { sbCall } from './api.js?v=20260508';
+import { esc, svgIcon } from './utils.js?v=20260508';
 
 /* ── Constants ─────────────────────────────────────────────── */
 const ANSWER_THRESHOLD = 0.30;

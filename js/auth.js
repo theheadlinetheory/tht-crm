@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════
 // AUTH — Firebase Auth, user management, campaign assignments
 // ═══════════════════════════════════════════════════════════
-import { firebaseConfig, ROLES } from './config.js';
-import { state } from './app.js';
-import { render } from './render.js';
-import { esc, svgIcon, str } from './utils.js';
+import { firebaseConfig, ROLES } from './config.js?v=20260508';
+import { state } from './app.js?v=20260508';
+import { render } from './render.js?v=20260508';
+import { esc, svgIcon, str } from './utils.js?v=20260508';
 
 // Firebase instances (initialized once)
 firebase.initializeApp(firebaseConfig);

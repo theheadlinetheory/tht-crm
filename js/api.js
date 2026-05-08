@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // API — API layer (Google Sheets calls + Supabase CRUD)
 // ═══════════════════════════════════════════════════════════
-import { API_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
+import { API_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260508';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 export { supabase };
-import { state, store, pendingWrites, failedWriteQueue, pendingDealFields, deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds, inFlightActivityIds } from './app.js';
-import { render, refreshModal } from './render.js';
+import { state, store, pendingWrites, failedWriteQueue, pendingDealFields, deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds, inFlightActivityIds } from './app.js?v=20260508';
+import { render, refreshModal } from './render.js?v=20260508';
 
 // Cached auth check — populated lazily on first initialSync to avoid circular import
 let _cachedIsAdmin = null;

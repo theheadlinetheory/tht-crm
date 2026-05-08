@@ -5,12 +5,12 @@
 // Full warm call overlay with maps, Calendly inline, property view,
 // schedule prompt, and warm call Q&A.
 
-import { state, pendingWrites } from './app.js';
-import { render, refreshModal } from './render.js';
-import { invokeEdgeFunction } from './api.js';
-import { esc, str, svgIcon, getToday, isValidDate, fmtDate, fmtTime12, uid } from './utils.js';
-import { findClientForDeal, lookupClientInfo, getWarmCallQA } from './client-info.js';
-import { isAdmin, isEmployee } from './auth.js';
+import { state, pendingWrites } from './app.js?v=20260508';
+import { render, refreshModal } from './render.js?v=20260508';
+import { invokeEdgeFunction } from './api.js?v=20260508';
+import { esc, str, svgIcon, getToday, isValidDate, fmtDate, fmtTime12, uid } from './utils.js?v=20260508';
+import { findClientForDeal, lookupClientInfo, getWarmCallQA } from './client-info.js?v=20260508';
+import { isAdmin, isEmployee } from './auth.js?v=20260508';
 
 export function openWarmCallSheet(dealId){
   try{

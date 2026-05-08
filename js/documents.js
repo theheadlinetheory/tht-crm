@@ -3,9 +3,9 @@
 // ═══════════════════════════════════════════════════════════
 import { sbListFolders, sbCreateFolder, sbUpdateFolder, sbDeleteFolder,
          sbListDocuments, sbCreateDocument, sbDeleteDocument,
-         sbUploadFile, sbDeleteFile, sbGetSignedUrl, showToast } from './api.js';
-import { esc, str, uid, svgIcon } from './utils.js';
-import { isAdmin, isClient, isEmployee, currentUser } from './auth.js';
+         sbUploadFile, sbDeleteFile, sbGetSignedUrl, showToast } from './api.js?v=20260508';
+import { esc, str, uid, svgIcon } from './utils.js?v=20260508';
+import { isAdmin, isClient, isEmployee, currentUser } from './auth.js?v=20260508';
 
 // Per-client UI state: which folder tab is selected
 const _selectedFolder = {}; // { clientId: folderId|'all'|'unfiled' }

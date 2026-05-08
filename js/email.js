@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // EMAIL — Forward to client, lead tracker push, send to thread
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js';
-import { render, refreshModal } from './render.js';
-import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js';
-import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js';
-import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js';
-import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js';
+import { state, pendingWrites } from './app.js?v=20260508';
+import { render, refreshModal } from './render.js?v=20260508';
+import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20260508';
+import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20260508';
+import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20260508';
+import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20260508';
 
 export async function forwardDealToClient(dealId){
   const deal=state.deals.find(d=>d.id===dealId);
