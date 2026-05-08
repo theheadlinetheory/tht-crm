@@ -157,7 +157,6 @@ export function generateAppointmentSequence(deal){
   for(const step of PRE_CALL_SEQUENCE){
     let targetDate;
     if(step.offset==='scheduling_day'){
-      if(daysUntil<=3) continue;
       targetDate=getToday();
     } else {
       const offsetDate=new Date(bookedDate);
