@@ -1212,7 +1212,7 @@ Object.defineProperty(window, 'settingsTab', {
   configurable: true
 });
 // ── AI Settings ──────────────────────────────────────────
-const DEFAULT_PASSOFF_TEMPLATE = `You are writing lead passoff instructions for a landscaping lead generation company (The Headline Theory) to send to their client.
+const DEFAULT_PASSOFF_TEMPLATE = `You are writing lead passoff instructions for a lead generation company (The Headline Theory) to send to their client.
 
 Given the lead's information, email conversation, and call transcript (if available), write clear instructions for the client on what to do with this lead. Some leads are set up entirely through email with no phone call — use whatever context is available.
 
