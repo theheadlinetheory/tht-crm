@@ -66,6 +66,10 @@ export async function moveDeal(dealId,newStage){
     const { generateAppointmentSequence } = await import('./activities.js');
     generateAppointmentSequence(d);
   }
+  if(d && newStage==='No Show'){
+    const { assignNoShowSequence } = await import('./activities.js');
+    assignNoShowSequence(d);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════

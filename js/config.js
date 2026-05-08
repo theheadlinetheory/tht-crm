@@ -64,7 +64,7 @@ export const CLIENT_PALETTE = ["#2563eb","#059669","#0891b2","#10b981","#d97706"
 export const SOP_DAYS = {
   "Day 1": [
     {type:"Call",subject:"Call #1 — immediate"},
-    {type:"Email",subject:"Manual email (Mechanism/Info, Meeting, or Price)"},
+    {type:"Email",subject:"Manual email — SmartLead template (Mechanism, Meeting, Price, or Custom)"},
     {type:"Text",subject:"Day 1 text"},
     {type:"Call",subject:"Call #2 — end of day"},
     {type:"Task",subject:"Start auto follow-up sequence"}
@@ -105,6 +105,12 @@ export const NURTURE_NOT_NOW_SEQUENCE = [
   { dayOffset: 7, type: 'Call', subject: 'Final follow-up attempt' },
 ];
 
+export const NO_SHOW_SEQUENCE = [
+  { dayOffset: 0, type: 'Email', subject: 'No Show Email #1 — Phone Disco or Google Meet Demo (SmartLead)' },
+  { dayOffset: 2, type: 'Email', subject: 'No Show Email #2 (SmartLead)' },
+  { dayOffset: 5, type: 'Email', subject: 'No Show Email #3 (SmartLead)' },
+];
+
 export const PRE_CALL_SEQUENCE = [
   { offset: 'scheduling_day', type: 'Text', subject: '{type}: Post-booking confirmation text' },
   { offset: -3, type: 'Text', subject: '{type}: Quick reminder text' },
@@ -113,14 +119,28 @@ export const PRE_CALL_SEQUENCE = [
   { offset: 0, type: 'Text', subject: '{type}: Day-of reminder text' },
 ];
 
-// ─── Default Acquisition Text Templates (SDR — David) ───
-export const DEFAULT_ACQ_TEMPLATES = [
-  { name: 'FU #1 — No Pickup Intro', body: `Hi {FIRST_NAME}, David with The Headline Theory here. You were just emailing with our founder Aidan about commercial landscaping opportunities around {CITY}. Figured it would be easier to give you a breakdown and learn more about your business over the phone rather than email.\n\nWould today or tomorrow be a good time for me to give you a call?` },
-  { name: 'FU #2 — Voicemail Follow-Up', body: `Hey {FIRST_NAME}, just tried giving you a ring but it went to voicemail. Does tomorrow or the day after work for me to give you a call back?` },
-  { name: 'FU #3 — Circle Back', body: `Hey {FIRST_NAME}, David here. Just wanted to circle back — still interested in chatting about what we can do for your business in {CITY}? Happy to work around your schedule.` },
-  { name: 'FU #4 — Final Nudge', body: `Hey {FIRST_NAME}, just bumping this up. Would love to connect this week if you have a few minutes. Let me know what works.` },
-  { name: 'Pre-Demo — Post-Disco Confirmation', body: `Hey {FIRST_NAME}, David with The Headline Theory here. It was great chatting with you just now. Looking forward to our call {MEETING_TIME}.\n\nIf you have any questions before then, please give me a text, call, or email and I will get back to you asap.\n\nIn the meantime, feel free to check out the results we've brought our clients at theheadlinetheory.com\n\nTalk soon!` },
-  { name: 'Pre-Demo — 30 Min Reminder', body: `Hey {FIRST_NAME}, looking forward to connecting in about 30 minutes! Talk soon.` },
+// ─── Sequence Templates (text-only for Blooio, grouped by sequence) ───
+export const SEQUENCE_TEMPLATES = [
+  {
+    id: 'follow-up',
+    label: 'Follow-Up',
+    templates: [
+      { name: 'Day 1 — No Pickup Intro', body: `Hi {FIRST_NAME}, David with The Headline Theory here. You were just emailing with our founder Aidan about commercial landscaping opportunities around {CITY}. Figured it would be easier to give you a breakdown and learn more about your business over the phone rather than email.\n\nWould today at TIME or tomorrow at TIME be a good time for me to give you a call?` },
+      { name: 'Day 2 — Voicemail Follow-Up', body: `Hey {FIRST_NAME}, just tried giving you a ring but it went to voicemail. Does DAY at TIME or DAY at TIME work for me to give you a call back?` },
+      { name: 'Day 4 — Circle Back', body: `Hey {FIRST_NAME}, David here. Just wanted to check in on this. Are you still interested in chatting about how we can consistently get your business in front of commercial decision makers in {CITY}?` },
+      { name: 'Day 7 — Final Check-In', body: `Hey {FIRST_NAME}, checking back on this. I can stop reaching out if this is no longer relevant for you. Let me know.` },
+    ]
+  },
+  {
+    id: 'pre-call-nurture',
+    label: 'Pre-Call Nurture',
+    templates: [
+      { name: 'Post-Booking Confirmation', body: `Hey {FIRST_NAME}, David with The Headline Theory here. It was great chatting with you just now. Looking forward to our call {MEETING_TIME}.\n\nIf you have any questions before then, please give me a text, call, or email and I will get back to you ASAP.\n\nIn the meantime, feel free to check out the results we've brought our clients at theheadlinetheory.com\n\nTalk soon!` },
+      { name: '3-Day Reminder', body: `Hey {FIRST_NAME}, just a quick reminder about your upcoming call with Aidan on {MEETING_TIME}. Looking forward to it!` },
+      { name: '1-Day Confirmation', body: `Hey {FIRST_NAME}, quick reminder about your meeting with Aidan, one of our founders, tomorrow at TIME. Let me know if you have any questions before then.` },
+      { name: 'Day-Of Reminder (30 min)', body: `Hey {FIRST_NAME}, here's the link for the call in 30 minutes.\n\n[Paste meeting link here]` },
+    ]
+  },
 ];
 
 // ─── Default Client Portal Stages ───

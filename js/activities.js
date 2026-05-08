@@ -2,7 +2,7 @@
 // ACTIVITIES — Activity CRUD, SOP sequences, overdue tracking
 // ═══════════════════════════════════════════════════════════
 import { state, store, pendingWrites, completedActivityIds, deletedActivityIds, inFlightActivityIds } from './app.js';
-import { SOP_DAYS, CLIENT_SOP_DAYS, PRE_CALL_SEQUENCE } from './config.js';
+import { SOP_DAYS, CLIENT_SOP_DAYS, PRE_CALL_SEQUENCE, NO_SHOW_SEQUENCE } from './config.js';
 import { render, refreshModal } from './render.js';
 import { sbCreateActivity, sbUpdateActivity, sbDeleteActivity, camelToSnake } from './api.js';
 import { uid, getToday, isValidDate, fmtTime12 } from './utils.js';
@@ -173,6 +173,18 @@ export function generateAppointmentSequence(deal){
       :Math.abs(step.offset)+'d before';
 
     addActivity(deal.id,{type:step.type,subject,dueDate:targetDate,dayLabel});
+  }
+}
+
+export function assignNoShowSequence(deal){
+  if(!deal) return;
+  const today = getToday();
+  for(const step of NO_SHOW_SEQUENCE){
+    const d = new Date(today+'T00:00:00');
+    d.setDate(d.getDate() + step.dayOffset);
+    const targetDate = d.toISOString().split('T')[0];
+    const dayLabel = step.dayOffset === 0 ? 'Immediately' : '+' + step.dayOffset + 'd';
+    addActivity(deal.id, { type: step.type, subject: step.subject, dueDate: targetDate, dayLabel });
   }
 }
 
