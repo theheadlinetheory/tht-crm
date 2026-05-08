@@ -15,7 +15,7 @@ import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimesta
 import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js';
 import { isAdmin, isClient, isEmployee, loadAssignableUsers } from './auth.js';
 import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js';
-import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence } from './activities.js';
+import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, assignNoShowSequence } from './activities.js';
 import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js';
 import { getStagesForPipeline } from './dashboard.js';
 import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal } from './maps.js';
@@ -179,6 +179,7 @@ export function closeDealModal(){
   stopTranscriptPolling();
   state.selectedDeal=null;
   state.showSop=false;
+  state.sopSeq=null;
   flushRealtimeQueue();
   render();
 }
@@ -1022,24 +1023,37 @@ export function renderDealModal(deal){
   h+=`<div id="activities-container"><div class="activities-section">
     <div class="activities-header">
       <h4>Activities</h4>
-      <button class="sop-btn ${state.showSop?'active':''}" onclick="state.showSop=!state.showSop;refreshModal()">${svgIcon('clipboard',14)} Assign SOP Day</button>
+      <button class="sop-btn ${state.showSop?'active':''}" onclick="state.showSop=!state.showSop;if(!state.showSop)state.sopSeq=null;refreshModal()">${svgIcon('clipboard',14)} Sequences</button>
     </div>`;
 
   if(state.showSop){
+    const seq=state.sopSeq||'follow-up';
     const sopDays=getSopDays(deal);
+    const tabStyle=(id)=>seq===id?'background:#059669;color:#fff;border-color:#059669':'';
     h+=`<div class="sop-grid">
-      <div style="width:100%;margin-bottom:8px;display:flex;align-items:center;gap:8px">
-        <label style="font-size:11px;font-weight:600;color:#6b7280">Date:</label>
-        <input type="date" id="sop-target-date" value="${TODAY()}" style="padding:4px 8px;border:1px solid #a7f3d0;border-radius:6px;font-size:12px;font-family:inherit">
-        <span style="font-size:10px;color:#6ee7b7">${deal.pipeline==='Client'?'Client SOP':'Acquisition SOP'}</span>
+      <div style="display:flex;gap:6px;margin-bottom:10px;width:100%">
+        <button class="sop-day-btn" style="flex:1;${tabStyle('follow-up')}" onclick="state.sopSeq='follow-up';refreshModal()">Follow-Up</button>
+        <button class="sop-day-btn" style="flex:1;${tabStyle('pre-call')}" onclick="state.sopSeq='pre-call';refreshModal()">Pre-Call Nurture</button>
+        <button class="sop-day-btn" style="flex:1;${tabStyle('no-show')}" onclick="state.sopSeq='no-show';refreshModal()">No Show</button>
       </div>
-      ${(deal.stage==='Discovery Scheduled'||deal.stage==='Demo Scheduled')&&deal.bookedDate&&/^\d{4}-\d{2}-\d{2}$/.test(deal.bookedDate)?`
-      <button class="sop-day-btn" style="background:#2563eb;color:#fff;border-color:#2563eb" onclick="generateAppointmentSequence(state.deals.find(d=>d.id==='${esc(deal.id)}'));state.showSop=false;refreshModal()">
-        ${svgIcon('calendar',12,'#fff')} Appointment Sequence
-        <span style="font-weight:400;color:#bfdbfe">(${(()=>{const dd=Math.round((new Date(deal.bookedDate+'T00:00:00')-new Date(TODAY()+'T00:00:00'))/(1000*60*60*24));return dd+'d out'})()})</span>
-      </button>`:''}
-      ${Object.entries(sopDays).map(([day,acts])=>`
-      <button class="sop-day-btn" onclick="doAssignSequenceWithDate('${deal.id}','${day}')">${day} <span style="font-weight:400;color:#6ee7b7">(${acts.length})</span></button>`).join("")}</div>`;
+      ${seq==='follow-up'?`
+        <div style="width:100%;margin-bottom:8px;display:flex;align-items:center;gap:8px">
+          <label style="font-size:11px;font-weight:600;color:#6b7280">Date:</label>
+          <input type="date" id="sop-target-date" value="${TODAY()}" style="padding:4px 8px;border:1px solid #a7f3d0;border-radius:6px;font-size:12px;font-family:inherit">
+        </div>
+        ${Object.entries(sopDays).map(([day,acts])=>`
+        <button class="sop-day-btn" onclick="doAssignSequenceWithDate('${deal.id}','${day}')">${day} <span style="font-weight:400;color:#6ee7b7">(${acts.length})</span></button>`).join("")}`:''}
+      ${seq==='pre-call'?`
+        ${deal.bookedDate&&/^\d{4}-\d{2}-\d{2}$/.test(deal.bookedDate)?`
+        <button class="sop-day-btn" style="background:#2563eb;color:#fff;border-color:#2563eb;width:100%" onclick="generateAppointmentSequence(state.deals.find(d=>d.id==='${esc(deal.id)}'));state.showSop=false;refreshModal()">
+          ${svgIcon('calendar',12,'#fff')} Generate Pre-Call Sequence
+          <span style="font-weight:400;color:#bfdbfe">(${(()=>{const dd=Math.round((new Date(deal.bookedDate+'T00:00:00')-new Date(TODAY()+'T00:00:00'))/(1000*60*60*24));return dd+'d out'})()})</span>
+        </button>`:`<div style="font-size:12px;color:#6b7280;padding:8px 0">Set a booked date on this deal first.</div>`}`:''}
+      ${seq==='no-show'?`
+        <button class="sop-day-btn" style="background:#ef4444;color:#fff;border-color:#ef4444;width:100%" onclick="assignNoShowSequence(state.deals.find(d=>d.id==='${esc(deal.id)}'));state.showSop=false;refreshModal()">
+          ${svgIcon('send',12,'#fff')} Start No Show Sequence
+          <span style="font-weight:400;color:#fecaca">(3 emails over 5 days)</span>
+        </button>`:''}</div>`;
   }
 
   h+=`<div class="add-act-row">
@@ -1192,6 +1206,7 @@ setTimeout(() => {
   window.render = render;
   window.refreshModal = refreshModal;
   window.generateAppointmentSequence = generateAppointmentSequence;
+  window.assignNoShowSequence = assignNoShowSequence;
 }, 0);
 
 // Additional functions called from inline HTML
