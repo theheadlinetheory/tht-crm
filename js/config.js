@@ -51,7 +51,15 @@ export const ALL_PIPELINES = [
   { id: "dashboard", label: "Dashboard" },
   { id: "acquisition", label: "Acquisition" },
   { id: "client_leads", label: "Client Leads" },
+  { id: "retargeting", label: "Retargeting" },
 ];
+
+// ─── Retargeting Config ───
+export const RETARGET_ELIGIBLE_STAGES = ['No Show', 'Closed Lost', 'Not Now', 'Service Area Taken'];
+export const RETARGET_SPOKE_BEFORE_STAGES = ['Closed Lost', 'Not Now'];
+export const RETARGET_NEVER_CONNECTED_STAGES = ['No Show', 'Service Area Taken'];
+export const RETARGET_MIN_STALE_DAYS = 90;
+export const RETARGET_MAX_ATTEMPTS = 3;
 
 // ─── Activity Types & Icons ───
 export const ACTIVITY_TYPES = ["Call", "Text", "Email", "Discovery Call", "Demo", "Follow-up", "Meeting", "Task"];

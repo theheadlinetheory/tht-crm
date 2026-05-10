@@ -4,7 +4,7 @@
 // All mutations go through store.* methods to prevent direct
 // state tampering and ensure consistent re-renders.
 
-import { render, refreshModal } from './render.js?v=20260508c';
+import { render, refreshModal } from './render.js?v=20260510a';
 
 // ─── Raw State (private — modules should use store.*) ───
 export const state = {
@@ -12,7 +12,7 @@ export const state = {
   activities: [],
   clients: [],
   appointments: [],
-  pipeline: (() => { try { const h=location.hash.replace('#',''); if(h==='archive'||h==='nurture'){location.hash='acquisition';return 'acquisition';} return ['dashboard','acquisition','client_leads'].includes(h)?h:'dashboard'; } catch(e){ return 'acquisition'; } })(),
+  pipeline: (() => { try { const h=location.hash.replace('#',''); if(h==='archive'||h==='nurture'){location.hash='acquisition';return 'acquisition';} return ['dashboard','acquisition','client_leads','retargeting'].includes(h)?h:'dashboard'; } catch(e){ return 'acquisition'; } })(),
   selectedDeal: null,
   showNew: false,
   showAddClient: false,
@@ -69,6 +69,17 @@ export const state = {
   demoSort: { field: 'callDate', dir: 'desc' },
   demoEditingCell: null,
   demoSelected: new Set(),
+  retargetHistory: [],
+  retargetExports: [],
+  retargetLoaded: false,
+  retargetSelected: new Set(),
+  retargetSelectAll: false,
+  retargetFilters: { stage: '', minDays: 90, campaign: '', location: '', pipeline: '' },
+  retargetBuilderStep: 0,
+  retargetBuilderName: '',
+  retargetBuilderLeads: [],
+  retargetValidationResults: null,
+  retargetValidating: false,
 };
 
 // ─── Pending writes guard ───
@@ -187,6 +198,15 @@ export const store = {
   },
   removeArchiveItem(id, opts) {
     state.archiveData = state.archiveData.filter(d => String(d.id) !== String(id));
+    if (!opts?.silent) render();
+  },
+
+  setRetargetHistory(data, opts) {
+    state.retargetHistory = data;
+    if (!opts?.silent) render();
+  },
+  setRetargetExports(data, opts) {
+    state.retargetExports = data;
     if (!opts?.silent) render();
   },
 
