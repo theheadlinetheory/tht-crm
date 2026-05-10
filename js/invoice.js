@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════
 // INVOICE — Stripe invoice generation from Lead Tracker
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20260508c';
-import { invokeEdgeFunction } from './api.js?v=20260508c';
-import { esc, str } from './utils.js?v=20260508c';
-import { render } from './render.js?v=20260508c';
+import { state, pendingWrites } from './app.js?v=20260510a';
+import { invokeEdgeFunction } from './api.js?v=20260510a';
+import { esc, str } from './utils.js?v=20260510a';
+import { render } from './render.js?v=20260510a';
 
 // ─── Month helpers ───
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
