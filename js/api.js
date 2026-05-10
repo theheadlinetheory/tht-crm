@@ -394,7 +394,7 @@ export async function initialSync(isStartup) {
       render();
     }
     const [deals, activities, clients, appointments, trackerEntries, demoEntries, savedSettings, retargetHistory, retargetExports] = await Promise.all([
-      sbGetDeals(), sbGetActivities(), sbGetClients(), sbGetAppointments(), sbGetTrackerEntries(), sbGetDemoEntries(), sbLoadSettings(), sbGetRetargetHistory(), sbGetRetargetExports()
+      sbGetDeals(), sbGetActivities(), sbGetClients(), sbGetAppointments(), sbGetTrackerEntries(), sbGetDemoEntries(), sbLoadSettings(), sbGetRetargetHistory().catch(() => []), sbGetRetargetExports().catch(() => [])
     ]);
     // Apply settings from Supabase if available
     if (savedSettings && Object.keys(savedSettings).length > 0) {
