@@ -741,7 +741,7 @@ export function renderDealModal(deal){
           h+=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px 0;padding:8px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:11px;align-items:center">
             <span style="font-weight:700;color:#059669">${esc(cContact||cn.name)}</span>
             ${cPhone?`<button onclick="navigator.clipboard.writeText('${esc(cPhone)}');this.textContent='Copied!';setTimeout(()=>this.textContent='${esc(cPhone)}',1200);event.stopPropagation()" style="display:inline-flex;align-items:center;gap:3px;color:#1d4ed8;text-decoration:none;font-weight:600;padding:2px 8px;background:#dbeafe;border:1px solid #93c5fd;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">${svgIcon('phone',11,'#1d4ed8')} ${esc(cPhone)}</button>`:''}
-            ${cEmail?`<a href="mailto:${esc(cEmail)}" style="display:inline-flex;align-items:center;gap:3px;color:#6b7280;text-decoration:none;padding:2px 8px;background:#f3f4f6;border-radius:4px">${svgIcon('mail',11,'#6b7280')} ${esc(cEmail)}</a>`:''}
+            ${cEmail?`<button onclick="navigator.clipboard.writeText('${esc(cEmail)}');this.textContent='Copied!';setTimeout(()=>this.textContent='${esc(cEmail)}',1200);event.stopPropagation()" style="display:inline-flex;align-items:center;gap:3px;color:#6b7280;text-decoration:none;padding:2px 8px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">${svgIcon('mail',11,'#6b7280')} ${esc(cEmail)}</button>`:''}
           </div>`;
         }
       }
