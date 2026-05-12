@@ -142,15 +142,9 @@ export function generateAppointmentSequence(deal){
   const today=new Date(getToday()+'T00:00:00');
   const daysUntil=Math.floor((bookedDate-today)/(1000*60*60*24));
 
-  // Clear existing pre-call activities
-  const existingActs=state.activities.filter(a=>a.dealId===deal.id &&
-    ((a.subject||'').includes('Discovery:')||(a.subject||'').includes('Demo:')||
-     (a.subject||'').toLowerCase().includes('appointment')||(a.subject||'').includes('Calendly')));
-  for(const a of existingActs){
-    store.removeActivity(a.id, {silent: true});
-    pendingWrites.value++;
-    sbDeleteActivity(a.id).catch(e=>console.error('Delete activity failed:',e)).finally(()=>{pendingWrites.value--;});
-  }
+  // Skip duplicate pre-call activities (don't delete existing ones)
+  const existingSubjects=new Set(state.activities.filter(a=>a.dealId===deal.id)
+    .map(a=>(a.subject||'').toLowerCase().trim()));
 
   const typeLabel=deal.stage==='Demo Scheduled'?'Demo':'Discovery';
 
@@ -167,6 +161,7 @@ export function generateAppointmentSequence(deal){
     }
 
     const subject=step.subject.replace('{type}',typeLabel);
+    if(existingSubjects.has(subject.toLowerCase().trim())) continue;
     const dayLabel=step.offset==='scheduling_day'?'Booking Day'
       :step.offset===0?'Meeting Day'
       :Math.abs(step.offset)+'d before';
