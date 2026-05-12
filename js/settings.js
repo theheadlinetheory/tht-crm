@@ -437,7 +437,7 @@ function renderClientsSettings(){
 
   for(const c of state.clients){
     const isOn=(field)=>str(c[field]).toUpperCase()==='TRUE';
-    const toggleCount = ['enableForward','enableCalendly','enableCopyInfo','enableTracker','enableAutoForward'].filter(f=>isOn(f)).length;
+    const toggleCount = ['enableForward','enableCalendly','enableCopyInfo','enableTracker','enableAutoForward','enablePassoff'].filter(f=>isOn(f)).length;
     const isExpanded = _expandedClientId === c.id;
     const standing = str(c.clientStanding).toLowerCase();
     const standingColor = standing==='happy'?'#22c55e':standing==='unhappy'?'#ef4444':'#eab308';
@@ -500,6 +500,9 @@ function renderClientsSettings(){
         </label>
         <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid ${isOn('enableAutoForward')?'#f97316':'var(--border)'};border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableAutoForward')?'#fff7ed':'var(--card)'}">
           <input type="checkbox" ${isOn('enableAutoForward')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableAutoForward',this.checked)"> ${svgIcon('mail',12)} Auto-Forward
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid ${isOn('enablePassoff')?'#7c3aed':'var(--border)'};border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enablePassoff')?'#f5f3ff':'var(--card)'}">
+          <input type="checkbox" ${isOn('enablePassoff')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enablePassoff',this.checked);if(this.checked)toggleClientField('${esc(c.id)}','enableTracker',false)"> ${svgIcon('send',12)} Pass-Off Mode
         </label>
         <div style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--card)">
           ${svgIcon('clock',12)}
@@ -1091,6 +1094,7 @@ export async function saveSettingsToSheet(){
       enableAutoForward:str(c.enableAutoForward),
       enableCopyInfo:str(c.enableCopyInfo),
       enableTracker:str(c.enableTracker),
+      enablePassoff:str(c.enablePassoff),
       leadCost:str(c.leadCost),
       paymentTerms:str(c.paymentTerms||'Net 7'),
       serviceAreaUrl:str(c.serviceAreaUrl),

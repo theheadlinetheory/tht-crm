@@ -746,8 +746,18 @@ export function renderDealModal(deal){
         }
       }
 
+      // Pass-Off Mode — single button replaces Forward/Send/Tracker
+      if(isOn('enablePassoff')){
+        h+=`<div style="margin:0 0 8px 0">
+          <button class="btn btn-primary" style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#7c3aed;border-color:#7c3aed"
+            onclick="openPassOffPreview('${esc(deal.id)}',atob('${btoa(unescape(encodeURIComponent(matchedClient.name)))}'))">
+            ${svgIcon('send',14)} Pass Off to ${esc(matchedClient.name)}
+          </button>
+        </div>`;
+      }
+
       // Forward Lead Email button
-      if(isOn('enableForward')){
+      if(isOn('enableForward') && !isOn('enablePassoff')){
         const forwarded=deal.forwardedAt && str(deal.forwardedAt).trim()!=='';
         const fwdLabel=forwarded
           ? '<span style="color:#059669">Forwarded to '+esc(matchedClient.name)+' — '+new Date(deal.forwardedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+'</span>'
@@ -852,7 +862,7 @@ export function renderDealModal(deal){
       }
 
       // Send Lead Info to Client button
-      if(isOn('enableCopyInfo')){
+      if(isOn('enableCopyInfo') && !isOn('enablePassoff')){
         const forwarded=deal.forwardedAt && str(deal.forwardedAt).trim()!=='';
         h+=`<div style="margin:0 0 8px 0">
           <button class="btn ${forwarded?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px;${forwarded?'':'background:#2563eb;border-color:#2563eb'}"
@@ -865,7 +875,7 @@ export function renderDealModal(deal){
       }
 
       // Push to Lead Tracker button
-      if(isOn('enableTracker')){
+      if(isOn('enableTracker') && !isOn('enablePassoff')){
         const pushed=deal.pushedToTracker;
         h+=`<div style="margin:0 0 8px 0">
           <button id="push-tracker-btn" class="btn ${pushed?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px"

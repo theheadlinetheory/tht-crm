@@ -277,6 +277,7 @@ const FIELD_MAP = {
   enable_calendly: 'enableCalendly',
   enable_copy_info: 'enableCopyInfo',
   enable_tracker: 'enableTracker',
+  enable_passoff: 'enablePassoff',
   time_zone: 'timeZone',
   deal_name: 'dealName',
   queued_at: 'queuedAt',
