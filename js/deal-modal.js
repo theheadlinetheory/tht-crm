@@ -754,7 +754,7 @@ export function renderDealModal(deal){
           : svgIcon('mail',14)+' Forward Lead to '+esc(matchedClient.name);
         h+=`<div style="margin:0 0 8px 0">
           <button class="btn forward-btn ${forwarded?'sent':'ready'}"
-            onclick="${forwarded?'':'forwardDealToClient(\''+deal.id+'\')'}" ${forwarded?'disabled':''}>
+            onclick="forwardDealToClient('${deal.id}')">
             ${fwdLabel}
           </button>
         </div>`;

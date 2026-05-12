@@ -13,7 +13,7 @@ export async function forwardDealToClient(dealId){
   if(!deal) return;
   const client=findClientForDeal(deal) || state.clients.find(c=>c.name===deal.stage);
   if(!client){alert('No client matched for this campaign. Add campaign keywords in Settings \u2192 Clients.');return;}
-  if(deal.forwardedAt && str(deal.forwardedAt).trim()!==''){alert('Already forwarded.');return;}
+  if(deal.forwardedAt && str(deal.forwardedAt).trim()!=='' && !confirm('Already forwarded. Send again?')) return;
   showForwardPreview(deal, client);
 }
 
