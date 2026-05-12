@@ -244,7 +244,7 @@ export async function openPassOffPreview(dealId, clientName){
         ${leadEmail4?`<tr><td style="padding:8px 0;color:#888">Email 4</td><td style="padding:8px 0;color:#2563eb">${esc(leadEmail4)}</td></tr>`:''}
         ${leadMobilePhone?`<tr><td style="padding:8px 0;color:#888">Mobile Phone</td><td style="padding:8px 0">${esc(leadMobilePhone)}</td></tr>`:''}
       </table>
-      ${emailBody?`<div style="margin:16px 0;padding:12px 16px;background:#f3f4f6;border-left:3px solid #4f46e5;border-radius:4px;font-size:13px;color:#374151"><strong>Their reply:</strong><br>${esc(emailBody)}</div>`:''}
+      ${emailBody?`<div style="margin:16px 0;padding:12px 16px;background:#f3f4f6;border-left:3px solid #4f46e5;border-radius:4px;font-size:13px;color:#374151;white-space:pre-line"><strong>Their reply:</strong><br>${esc(stripHtml(emailBody))}</div>`:''}
       ${smartleadUrl?`<div style="margin-top:20px"><span style="display:inline-block;background:#2563eb;color:#fff;padding:10px 24px;border-radius:6px;font-weight:bold;font-size:14px">Click to Reply →</span></div>`:''}
       <p style="margin-top:20px;color:#888;font-size:12px">Go get em while they're hot!</p>
     </div>`;
