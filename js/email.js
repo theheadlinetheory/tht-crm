@@ -8,6 +8,29 @@ import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=202605
 import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20260512a';
 import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20260512a';
 
+function formatEmailBody(html){
+  if(!html) return '';
+  let s=String(html);
+  s=s.replace(/<style[^>]*>[\s\S]*?<\/style>/gi,'');
+  s=s.replace(/<script[^>]*>[\s\S]*?<\/script>/gi,'');
+  // Trim the quoted/forwarded thread below the lead's reply
+  s=s.replace(/<div\s+class="gmail_quote[^"]*"[\s\S]*/gi,'\n---\n(earlier messages trimmed)');
+  s=s.replace(/<blockquote[\s\S]*/gi,'\n---\n(earlier messages trimmed)');
+  // Convert structural tags to newlines
+  s=s.replace(/<br\s*\/?>/gi,'\n');
+  s=s.replace(/<\/div>/gi,'\n');
+  s=s.replace(/<\/p>/gi,'\n\n');
+  s=s.replace(/<\/tr>/gi,'\n');
+  s=s.replace(/<\/li>/gi,'\n');
+  // Strip remaining tags
+  s=s.replace(/<[^>]*>/g,'');
+  // Decode entities
+  s=s.replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').replace(/&quot;/gi,'"').replace(/&#39;/gi,"'");
+  // Collapse excessive blank lines
+  s=s.replace(/\n{3,}/g,'\n\n').trim();
+  return esc(s).replace(/\n/g,'<br>');
+}
+
 export async function forwardDealToClient(dealId){
   const deal=state.deals.find(d=>d.id===dealId);
   if(!deal) return;
@@ -244,7 +267,7 @@ export async function openPassOffPreview(dealId, clientName){
         ${leadEmail4?`<tr><td style="padding:8px 0;color:#888">Email 4</td><td style="padding:8px 0;color:#2563eb">${esc(leadEmail4)}</td></tr>`:''}
         ${leadMobilePhone?`<tr><td style="padding:8px 0;color:#888">Mobile Phone</td><td style="padding:8px 0">${esc(leadMobilePhone)}</td></tr>`:''}
       </table>
-      ${emailBody?`<div style="margin:16px 0;padding:12px 16px;background:#f3f4f6;border-left:3px solid #4f46e5;border-radius:4px;font-size:13px;color:#374151;white-space:pre-line"><strong>Their reply:</strong><br>${esc(stripHtml(emailBody))}</div>`:''}
+      ${emailBody?`<div style="margin:16px 0;padding:12px 16px;background:#f3f4f6;border-left:3px solid #4f46e5;border-radius:4px;font-size:13px;color:#374151;overflow-y:auto;max-height:300px"><strong>Their reply:</strong><br>${formatEmailBody(emailBody)}</div>`:''}
       ${smartleadUrl?`<div style="margin-top:20px"><span style="display:inline-block;background:#2563eb;color:#fff;padding:10px 24px;border-radius:6px;font-weight:bold;font-size:14px">Click to Reply →</span></div>`:''}
       <p style="margin-top:20px;color:#888;font-size:12px">Go get em while they're hot!</p>
     </div>`;
