@@ -207,14 +207,21 @@ export async function openPassOffPreview(dealId, clientName){
   const recipientCCs=['aidan@theheadlinetheory.com','lars@theheadlinetheory.com'];
   const threadId=getClientThreadId(client.name);
 
-  const message=buildLeadMessage(deal, client.name);
-
   const forwarded=deal.forwardedAt && str(deal.forwardedAt).trim()!=='';
   const ghlPushed=deal.pushedToGhl && str(deal.pushedToGhl).trim()!=='';
   const ghlConfigured=str(client.ghlLocationId).trim()&&str(client.ghlApiKey).trim();
 
   const fwdStatus=forwarded?`<span style="color:#059669">Already forwarded ${new Date(deal.forwardedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>`:'Forward lead email to '+esc(client.name);
   const ghlStatus=!ghlConfigured?'<span style="color:#9ca3af">GHL not configured — skip</span>':ghlPushed?'<span style="color:#059669">Already pushed to GHL — will update</span>':'Push contact + opportunity to GHL';
+
+  const leadDetails=[
+    deal.company?'Business: '+deal.company:'',
+    deal.contact?'Contact: '+deal.contact:'',
+    deal.email?'Email: '+deal.email:'',
+    deal.phone?'Phone: '+deal.phone:'',
+    deal.website?'Website: '+deal.website:'',
+    deal.address||deal.location?'Address: '+(deal.address||deal.location):'',
+  ].filter(Boolean).join('\n');
 
   const overlay=document.createElement('div');
   overlay.id='passoff-preview-overlay';
@@ -233,8 +240,8 @@ export async function openPassOffPreview(dealId, clientName){
       <button onclick="document.getElementById('passoff-preview-overlay').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9ca3af;padding:4px">×</button>
     </div>
     <div style="padding:16px 20px">
-      <label style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px">Message Preview (editable)</label>
-      <textarea id="passoff-message-body" rows="10" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;font-family:var(--font);line-height:1.6;resize:vertical;color:#1f2937">${esc(message)}</textarea>
+      <label style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px">Lead details being forwarded</label>
+      <div style="padding:12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:var(--font);line-height:1.8;color:#374151;background:#f8fafc;white-space:pre-line">${esc(leadDetails)}</div>
     </div>
     <div style="padding:0 20px 16px">
       <div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">What happens</div>
@@ -274,8 +281,12 @@ export async function executePassOff(dealId, clientName){
     const ghlConfigured=str(client.ghlLocationId).trim()&&str(client.ghlApiKey).trim();
     if(ghlConfigured){
       if(btn) btn.textContent='Pushing to GHL...';
-      const ghlResp=await invokeEdgeFunction('push-to-ghl',{dealId:dealId});
-      if(ghlResp&&ghlResp.error) console.warn('GHL push warning:',ghlResp.error);
+      try{
+        const ghlResp=await invokeEdgeFunction('push-to-ghl',{dealId:dealId});
+        if(ghlResp&&ghlResp.error) console.warn('GHL push warning:',ghlResp.error);
+      }catch(ghlErr){
+        console.warn('GHL push skipped during pass-off:',ghlErr.message);
+      }
     }
 
     if(btn) btn.textContent='Archiving...';
