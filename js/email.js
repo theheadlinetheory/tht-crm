@@ -214,19 +214,45 @@ export async function openPassOffPreview(dealId, clientName){
   const fwdStatus=forwarded?`<span style="color:#059669">Already forwarded ${new Date(deal.forwardedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>`:'Forward lead email to '+esc(client.name);
   const ghlStatus=!ghlConfigured?'<span style="color:#9ca3af">GHL not configured — skip</span>':ghlPushed?'<span style="color:#059669">Already pushed to GHL — will update</span>':'Push contact + opportunity to GHL';
 
-  const leadDetails=[
-    deal.company?'Business: '+deal.company:'',
-    deal.contact?'Contact: '+deal.contact:'',
-    deal.email?'Email: '+deal.email:'',
-    deal.phone?'Phone: '+deal.phone:'',
-    deal.website?'Website: '+deal.website:'',
-    deal.address||deal.location?'Address: '+(deal.address||deal.location):'',
-  ].filter(Boolean).join('\n');
+  const companyName=deal.company||'Unknown Company';
+  const contactName=deal.contact||'';
+  const leadEmail=deal.email||'';
+  const leadPhone=deal.phone||'';
+  const leadMobilePhone=deal.mobilePhone||'';
+  const leadWebsite=deal.website||'';
+  const leadLocation=deal.location||'';
+  const smartleadUrl=deal.smartleadUrl||'';
+  const leadEmail2=deal.email2||'';
+  const leadEmail3=deal.email3||'';
+  const leadEmail4=deal.email4||'';
+  const emailBody=deal.emailBody||'';
+
+  let emailPreview=`
+    <div style="background:#1a1a2e;color:#fff;padding:20px 24px;border-radius:8px 8px 0 0">
+      <h2 style="margin:0;font-size:18px">New Lead from Your Campaign</h2>
+    </div>
+    <div style="background:#fff;padding:24px;border:1px solid #e0e0e0;border-top:none;border-radius:0 0 8px 8px">
+      <table style="width:100%;border-collapse:collapse;font-size:14px">
+        <tr><td style="padding:8px 0;color:#888;width:140px">Business</td><td style="padding:8px 0;font-weight:bold">${esc(companyName)}</td></tr>
+        ${leadWebsite?`<tr><td style="padding:8px 0;color:#888">Website</td><td style="padding:8px 0;color:#2563eb">${esc(leadWebsite)}</td></tr>`:''}
+        ${leadLocation?`<tr><td style="padding:8px 0;color:#888">Address</td><td style="padding:8px 0">${esc(leadLocation)}</td></tr>`:''}
+        ${leadEmail?`<tr><td style="padding:8px 0;color:#888">Email</td><td style="padding:8px 0;color:#2563eb">${esc(leadEmail)}</td></tr>`:''}
+        ${leadPhone?`<tr><td style="padding:8px 0;color:#888">Business Phone</td><td style="padding:8px 0">${esc(leadPhone)}</td></tr>`:''}
+        ${contactName?`<tr><td style="padding:8px 0;color:#888">Contact</td><td style="padding:8px 0">${esc(contactName)}</td></tr>`:''}
+        ${leadEmail2?`<tr><td style="padding:8px 0;color:#888">Contact email</td><td style="padding:8px 0;color:#2563eb">${esc(leadEmail2)}</td></tr>`:''}
+        ${leadEmail3?`<tr><td style="padding:8px 0;color:#888">Email 3</td><td style="padding:8px 0;color:#2563eb">${esc(leadEmail3)}</td></tr>`:''}
+        ${leadEmail4?`<tr><td style="padding:8px 0;color:#888">Email 4</td><td style="padding:8px 0;color:#2563eb">${esc(leadEmail4)}</td></tr>`:''}
+        ${leadMobilePhone?`<tr><td style="padding:8px 0;color:#888">Mobile Phone</td><td style="padding:8px 0">${esc(leadMobilePhone)}</td></tr>`:''}
+      </table>
+      ${emailBody?`<div style="margin:16px 0;padding:12px 16px;background:#f3f4f6;border-left:3px solid #4f46e5;border-radius:4px;font-size:13px;color:#374151"><strong>Their reply:</strong><br>${esc(emailBody)}</div>`:''}
+      ${smartleadUrl?`<div style="margin-top:20px"><span style="display:inline-block;background:#2563eb;color:#fff;padding:10px 24px;border-radius:6px;font-weight:bold;font-size:14px">Click to Reply →</span></div>`:''}
+      <p style="margin-top:20px;color:#888;font-size:12px">Go get em while they're hot!</p>
+    </div>`;
 
   const overlay=document.createElement('div');
   overlay.id='passoff-preview-overlay';
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100000;display:flex;align-items:center;justify-content:center';
-  overlay.innerHTML=`<div style="background:#fff;border-radius:12px;width:520px;max-width:92vw;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)" onclick="event.stopPropagation()">
+  overlay.innerHTML=`<div style="background:#fff;border-radius:12px;width:560px;max-width:92vw;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)" onclick="event.stopPropagation()">
     <div style="padding:16px 20px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center">
       <div>
         <div style="font-size:15px;font-weight:700;color:#1e293b">Pass Off: ${esc(deal.company||deal.contact||'Lead')} → ${esc(client.name)}</div>
@@ -239,9 +265,10 @@ export async function openPassOffPreview(dealId, clientName){
       </div>
       <button onclick="document.getElementById('passoff-preview-overlay').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9ca3af;padding:4px">×</button>
     </div>
-    <div style="padding:16px 20px">
-      <label style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px">Lead details being forwarded</label>
-      <div style="padding:12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:var(--font);line-height:1.8;color:#374151;background:#f8fafc;white-space:pre-line">${esc(leadDetails)}</div>
+    <div style="padding:20px">
+      <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;font-family:Arial,sans-serif">
+        ${emailPreview}
+      </div>
     </div>
     <div style="padding:0 20px 16px">
       <div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">What happens</div>
