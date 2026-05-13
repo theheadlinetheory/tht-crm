@@ -404,13 +404,15 @@ export async function initialSync(isStartup) {
     }
     state.deals = deals.map(normalizeRow);
     const freshActivities = activities.map(normalizeRow);
-    if (inFlightActivityIds.size > 0) {
-      const freshIds = new Set(freshActivities.map(a => String(a.id)));
-      const preserved = state.activities.filter(a => inFlightActivityIds.has(String(a.id)) && !freshIds.has(String(a.id)));
-      state.activities = [...freshActivities, ...preserved];
-    } else {
-      state.activities = freshActivities;
-    }
+    const freshIds = new Set(freshActivities.map(a => String(a.id)));
+    const recentCutoff = Date.now() - 60000;
+    const preserved = state.activities.filter(a => {
+      if (freshIds.has(String(a.id))) return false;
+      if (inFlightActivityIds.has(String(a.id))) return true;
+      if (a.createdDate && new Date(a.createdDate).getTime() > recentCutoff) return true;
+      return false;
+    });
+    state.activities = [...freshActivities, ...preserved];
     state.clients = clients.map(normalizeRow);
     // Cache isAdmin for use in synchronous realtime handler
     if (!_cachedIsAdmin) {
@@ -516,9 +518,13 @@ export async function subscribeRealtime() {
 
   supabase.channel('activities-changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'activities' }, payload => {
-      if (pendingWrites.value > 0) {
+      if (pendingWrites.value > 0 || state.selectedDeal) {
         _realtimeQueue.push({ table: 'activities', payload });
         return;
+      }
+      if (payload.eventType === 'DELETE' && payload.old) {
+        const oldId = String(payload.old.id);
+        if (!deletedActivityIds.has(oldId)) return;
       }
       applyRealtimeEvent('activities', payload);
       debouncedRealtimeRender();
@@ -654,7 +660,7 @@ export const sbCreateActivity = (fields) => sbCall(async () => {
   const { data, error } = await supabase.from('activities').insert(fields).select().single();
   if (error) throw error;
   return data;
-}, { label: 'Create activity' });
+}, { label: 'Create activity', retries: 3 });
 
 export const sbUpdateActivity = (id, fields) => sbCall(async () => {
   const { error } = await supabase.from('activities').update(fields).eq('id', id);
