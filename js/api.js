@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // API — API layer (Google Sheets calls + Supabase CRUD)
 // ═══════════════════════════════════════════════════════════
-import { API_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260512a';
+import { API_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260513a';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 export { supabase };
-import { state, store, pendingWrites, failedWriteQueue, pendingDealFields, deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds, inFlightActivityIds } from './app.js?v=20260512a';
-import { render, refreshModal } from './render.js?v=20260512a';
+import { state, store, pendingWrites, failedWriteQueue, pendingDealFields, deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds, inFlightActivityIds } from './app.js?v=20260513a';
+import { render, refreshModal } from './render.js?v=20260513a';
 
 // Cached auth check — populated lazily on first initialSync to avoid circular import
 let _cachedIsAdmin = null;
@@ -135,14 +135,14 @@ export async function syncFromSheet(){
       state.clients=data.clients.filter(c => !deletedClientIds.has(String(c.id)));
       for(const c of state.clients){
         if(!c.calendlyUrl){
-          const { getClientConfig } = await import('./client-info.js?v=20260512a');
+          const { getClientConfig } = await import('./client-info.js?v=20260513a');
           const cfg = getClientConfig(c.name);
           if(cfg?.calendly_url) c.calendlyUrl = cfg.calendly_url;
         }
       }
     }
     if(data.appointments && Array.isArray(data.appointments)){
-      const { getToday } = await import('./utils.js?v=20260512a');
+      const { getToday } = await import('./utils.js?v=20260513a');
       state.appointments=data.appointments;
       state.appointments.forEach(a=>{
         Object.keys(a).forEach(k=>{ if(a[k]!=null && typeof a[k]!=='string') a[k]=String(a[k]); });
@@ -197,16 +197,16 @@ export async function syncFromSheet(){
     state.loadFailed=false;
     // Run service area checks in background (all roles — clients need maps too)
     // Re-render after checks complete to show badges/maps
-    const { runServiceAreaChecks } = await import('./maps.js?v=20260512a');
+    const { runServiceAreaChecks } = await import('./maps.js?v=20260513a');
     runServiceAreaChecks().then(() => render()).catch(e => console.warn('Service area checks failed:', e));
     // Pre-load archive
     if((isAdmin()||isEmployee()) && !state.archiveLoaded){
-      const { loadArchive } = await import('./archive.js?v=20260512a');
+      const { loadArchive } = await import('./archive.js?v=20260513a');
       loadArchive(true);
     }
   } else {
     if(state.deals.length===0){
-      const { getTestData } = await import('./config.js?v=20260512a');
+      const { getTestData } = await import('./config.js?v=20260513a');
       const { TEST_DEALS, TEST_ACTIVITIES, TEST_CLIENTS } = getTestData();
       state.deals=[...TEST_DEALS];
       state.activities=[...TEST_ACTIVITIES];
@@ -391,7 +391,7 @@ export async function initialSync(isStartup) {
   try {
     state.syncing = true;
     if (isStartup) {
-      import('./dashboard.js?v=20260512a').then(m => m.clearDashboardArchiveCache && m.clearDashboardArchiveCache()).catch(() => {});
+      import('./dashboard.js?v=20260513a').then(m => m.clearDashboardArchiveCache && m.clearDashboardArchiveCache()).catch(() => {});
       render();
     }
     const [deals, activities, clients, appointments, trackerEntries, demoEntries, savedSettings, retargetHistory, retargetExports] = await Promise.all([
@@ -399,7 +399,7 @@ export async function initialSync(isStartup) {
     ]);
     // Apply settings from Supabase if available
     if (savedSettings && Object.keys(savedSettings).length > 0) {
-      const { applySettings } = await import('./settings.js?v=20260512a');
+      const { applySettings } = await import('./settings.js?v=20260513a');
       applySettings(savedSettings);
     }
     state.deals = deals.map(normalizeRow);
@@ -416,7 +416,7 @@ export async function initialSync(isStartup) {
     state.clients = clients.map(normalizeRow);
     // Cache isAdmin for use in synchronous realtime handler
     if (!_cachedIsAdmin) {
-      const { isAdmin: _isAdmin } = await import('./auth.js?v=20260512a');
+      const { isAdmin: _isAdmin } = await import('./auth.js?v=20260513a');
       _cachedIsAdmin = _isAdmin;
     }
     // Strip sensitive GHL credentials for non-admin users but preserve a flag
@@ -464,13 +464,33 @@ export async function initialSync(isStartup) {
       }
     }
 
+    // Prune activity caches — remove IDs for activities no longer in server data
+    const fetchedActIds = new Set(freshActivities.map(a => String(a.id)));
+    if (deletedActivityIds.size) {
+      for (const id of deletedActivityIds) {
+        if (!fetchedActIds.has(id)) deletedActivityIds.delete(id);
+      }
+      localStorage.setItem('tht_deletedActs', JSON.stringify([...deletedActivityIds]));
+    }
+    if (completedActivityIds.size) {
+      for (const id of completedActivityIds) {
+        if (!fetchedActIds.has(id)) completedActivityIds.delete(id);
+      }
+      localStorage.setItem('tht_completedActs', JSON.stringify([...completedActivityIds]));
+    }
+
+    // Replay any pending activities from write-ahead log
+    if (isStartup) {
+      import('./activities.js?v=20260513a').then(m => m.replayPendingActivities && m.replayPendingActivities()).catch(() => {});
+    }
+
     state.synced = true;
     state.loadFailed = false;
     state.syncing = false;
     render();
 
     // Run service area checks in background, re-render when done
-    const { runServiceAreaChecks } = await import('./maps.js?v=20260512a');
+    const { runServiceAreaChecks } = await import('./maps.js?v=20260513a');
     runServiceAreaChecks().then(() => render()).catch(e => console.warn('Service area checks failed:', e));
   } catch (e) {
     console.error('Initial sync failed:', e);
@@ -657,9 +677,8 @@ export const sbGetActivities = () => sbCall(async () => {
 }, { label: 'Load activities' });
 
 export const sbCreateActivity = (fields) => sbCall(async () => {
-  const { data, error } = await supabase.from('activities').insert(fields).select().single();
+  const { error } = await supabase.from('activities').upsert(fields, { onConflict: 'id' });
   if (error) throw error;
-  return data;
 }, { label: 'Create activity', retries: 3 });
 
 export const sbUpdateActivity = (id, fields) => sbCall(async () => {

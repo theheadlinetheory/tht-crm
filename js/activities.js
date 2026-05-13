@@ -1,12 +1,57 @@
 // ═══════════════════════════════════════════════════════════
 // ACTIVITIES — Activity CRUD, SOP sequences, overdue tracking
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, completedActivityIds, deletedActivityIds, inFlightActivityIds } from './app.js?v=20260512a';
-import { SOP_DAYS, CLIENT_SOP_DAYS, PRE_CALL_SEQUENCE, NO_SHOW_SEQUENCE } from './config.js?v=20260512a';
-import { render, refreshModal } from './render.js?v=20260512a';
-import { sbCreateActivity, sbUpdateActivity, sbDeleteActivity, camelToSnake } from './api.js?v=20260512a';
-import { uid, getToday, isValidDate, fmtTime12 } from './utils.js?v=20260512a';
-import { findClientForDeal } from './client-info.js?v=20260512a';
+import { state, store, pendingWrites, completedActivityIds, deletedActivityIds, inFlightActivityIds } from './app.js?v=20260513a';
+import { SOP_DAYS, CLIENT_SOP_DAYS, PRE_CALL_SEQUENCE, NO_SHOW_SEQUENCE } from './config.js?v=20260513a';
+import { render, refreshModal } from './render.js?v=20260513a';
+import { sbCreateActivity, sbUpdateActivity, sbDeleteActivity, camelToSnake } from './api.js?v=20260513a';
+import { uid, getToday, isValidDate, fmtTime12 } from './utils.js?v=20260513a';
+import { findClientForDeal } from './client-info.js?v=20260513a';
+
+async function retryActivityWrite(fn, label, maxRetries=3){
+  pendingWrites.value++;
+  for(let attempt=0;attempt<=maxRetries;attempt++){
+    try{
+      await fn();
+      pendingWrites.value--;
+      return;
+    }catch(e){
+      console.error(`${label} failed (attempt ${attempt+1}):`,e);
+      if(attempt<maxRetries) await new Promise(r=>setTimeout(r,1000*(attempt+1)));
+    }
+  }
+  pendingWrites.value--;
+  console.error(`${label} failed after ${maxRetries+1} attempts`);
+}
+
+const WAL_KEY='tht_pendingActivities';
+function savePendingActivity(a){
+  try{
+    const pending=JSON.parse(localStorage.getItem(WAL_KEY)||'[]');
+    if(!pending.find(p=>p.id===a.id)) pending.push(a);
+    localStorage.setItem(WAL_KEY,JSON.stringify(pending));
+  }catch(e){}
+}
+function removePendingActivity(id){
+  try{
+    const pending=JSON.parse(localStorage.getItem(WAL_KEY)||'[]');
+    localStorage.setItem(WAL_KEY,JSON.stringify(pending.filter(p=>p.id!==id)));
+  }catch(e){}
+}
+export function replayPendingActivities(){
+  try{
+    const pending=JSON.parse(localStorage.getItem(WAL_KEY)||'[]');
+    if(!pending.length) return;
+    console.log(`Replaying ${pending.length} pending activities from WAL`);
+    for(const a of pending){
+      if(!state.activities.find(x=>x.id===a.id)){
+        inFlightActivityIds.add(String(a.id));
+        store.addActivity(a,{silent:true});
+      }
+      persistActivity(a);
+    }
+  }catch(e){ console.error('WAL replay failed:',e); }
+}
 
 export function getSopDays(deal){
   if(!deal) return SOP_DAYS;
@@ -16,6 +61,7 @@ export function getSopDays(deal){
 
 export function addActivity(dealId,act){
   const a={id:uid(),dealId,...act,done:false,createdDate:new Date().toISOString(),completedAt:null};
+  savePendingActivity(a);
   inFlightActivityIds.add(String(a.id));
   store.addActivity(a, {silent: true});
   if(state.selectedDeal && state.selectedDeal.id===dealId) refreshModal();
@@ -29,10 +75,10 @@ async function persistActivity(a, attempt=0){
   try{
     await sbCreateActivity(camelToSnake(a));
     setTimeout(()=>inFlightActivityIds.delete(String(a.id)),5000);
+    removePendingActivity(a.id);
   }catch(e){
     console.error(`Create activity failed (attempt ${attempt+1}):`,e);
     if(attempt<maxRetries){
-      pendingWrites.value--;
       const delay=Math.min(2000*(attempt+1),10000);
       setTimeout(()=>persistActivity(a,attempt+1),delay);
       return;
@@ -109,8 +155,7 @@ export function updateActivityDate(actId, newDate){
   act.dueDate=newDate;
   act.updatedAt=new Date().toISOString();
   refreshModal();
-  pendingWrites.value++;
-  sbUpdateActivity(actId, camelToSnake({dueDate:newDate})).catch(e=>console.error('Update activity failed:',e)).finally(()=>{pendingWrites.value--;});
+  retryActivityWrite(() => sbUpdateActivity(actId, camelToSnake({dueDate:newDate})), 'Update activity date');
 }
 
 export async function toggleActivity(actId){
@@ -127,10 +172,7 @@ export async function toggleActivity(actId){
   localStorage.setItem('tht_completedActs',JSON.stringify([...completedActivityIds]));
   if(state.selectedDeal) refreshModal();
   else render();
-  pendingWrites.value++;
-  try {
-    await sbUpdateActivity(actId, camelToSnake({done:act.done,completedAt:act.completedAt}));
-  } finally { pendingWrites.value--; }
+  retryActivityWrite(() => sbUpdateActivity(actId, camelToSnake({done:act.done,completedAt:act.completedAt})), 'Toggle activity');
 }
 
 export async function deleteActivity(actId){
@@ -139,14 +181,13 @@ export async function deleteActivity(actId){
   store.removeActivity(actId, {silent: true});
   if(state.selectedDeal) refreshModal();
   else render();
-  pendingWrites.value++;
-  try { await sbDeleteActivity(actId); }
-  finally { pendingWrites.value--; }
+  retryActivityWrite(() => sbDeleteActivity(actId), 'Delete activity');
 }
 
 export function assignSequence(dealId,dayLabel,acts,targetDate){
   for(const act of acts){
     const a={id:uid(),dealId,type:act.type,subject:act.subject,dueDate:targetDate,done:false,dayLabel:dayLabel,scheduledTime:null,createdDate:new Date().toISOString(),completedAt:null};
+    savePendingActivity(a);
     inFlightActivityIds.add(String(a.id));
     store.addActivity(a, {silent: true});
     persistActivity(a);
