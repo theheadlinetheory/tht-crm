@@ -20,8 +20,28 @@ export function addActivity(dealId,act){
   store.addActivity(a, {silent: true});
   if(state.selectedDeal && state.selectedDeal.id===dealId) refreshModal();
   else render();
+  persistActivity(a);
+}
+
+async function persistActivity(a, attempt=0){
+  const maxRetries=4;
   pendingWrites.value++;
-  sbCreateActivity(camelToSnake(a)).then(()=>{inFlightActivityIds.delete(String(a.id));}).catch(e=>{console.error('Create activity failed:',e);inFlightActivityIds.delete(String(a.id));}).finally(()=>{pendingWrites.value--;});
+  try{
+    await sbCreateActivity(camelToSnake(a));
+    setTimeout(()=>inFlightActivityIds.delete(String(a.id)),5000);
+  }catch(e){
+    console.error(`Create activity failed (attempt ${attempt+1}):`,e);
+    if(attempt<maxRetries){
+      pendingWrites.value--;
+      const delay=Math.min(2000*(attempt+1),10000);
+      setTimeout(()=>persistActivity(a,attempt+1),delay);
+      return;
+    }
+    alert('Activity failed to save after multiple attempts. Please check your connection and try again.');
+    inFlightActivityIds.delete(String(a.id));
+  }finally{
+    pendingWrites.value--;
+  }
 }
 
 export function getLeadAge(deal){
@@ -129,8 +149,7 @@ export function assignSequence(dealId,dayLabel,acts,targetDate){
     const a={id:uid(),dealId,type:act.type,subject:act.subject,dueDate:targetDate,done:false,dayLabel:dayLabel,scheduledTime:null,createdDate:new Date().toISOString(),completedAt:null};
     inFlightActivityIds.add(String(a.id));
     store.addActivity(a, {silent: true});
-    pendingWrites.value++;
-    sbCreateActivity(camelToSnake(a)).then(()=>{inFlightActivityIds.delete(String(a.id));}).catch(e=>{console.error('Create activity failed:',e);inFlightActivityIds.delete(String(a.id));}).finally(()=>{pendingWrites.value--;});
+    persistActivity(a);
   }
   if(state.selectedDeal && state.selectedDeal.id===dealId) refreshModal();
   else render();

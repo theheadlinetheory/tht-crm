@@ -124,17 +124,11 @@ export async function bulkAddActivity(){
   if(!dueDate||!dueDate.match(/^\d{4}-\d{2}-\d{2}$/)) return;
   const ids=[...state.bulkSelected];
   if(!confirm('Add "'+subject+'" activity to '+ids.length+' deal'+(ids.length!==1?'s':'')+'?')) return;
-  const newActs=[];
+  const { addActivity } = await import('./activities.js?v=20260512a');
   for(const dealId of ids){
-    const a={id:uid(),dealId,type,subject,dueDate,done:false,dayLabel:'',scheduledTime:null,createdDate:new Date().toISOString(),completedAt:null};
-    store.addActivity(a, {silent: true});
-    newActs.push(a);
+    addActivity(dealId,{type,subject,dueDate,dayLabel:''});
   }
   store.set({bulkSelected: new Set(), bulkMode: false});
-  pendingWrites.value++;
-  try{
-    for(const a of newActs){ await sbCreateActivity(camelToSnake(a)); }
-  }finally{ pendingWrites.value--; }
 }
 
 export async function bulkArchive(){
