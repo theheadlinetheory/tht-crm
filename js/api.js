@@ -518,6 +518,9 @@ export function flushRealtimeQueue() {
   if (!_realtimeQueue.length) return;
   const queued = _realtimeQueue.splice(0);
   for (const { table, payload } of queued) {
+    if (table === 'activities' && payload.eventType === 'DELETE' && payload.old) {
+      if (!deletedActivityIds.has(String(payload.old.id))) continue;
+    }
     applyRealtimeEvent(table, payload);
   }
   render();
@@ -669,11 +672,20 @@ export const sbDeleteDeal = (id) => sbCall(async () => {
   if (error) throw error;
 }, { label: 'Cancel deal (soft-delete)' });
 
-// Activities
+// Activities — paginate to bypass the 1000-row PostgREST default cap
 export const sbGetActivities = () => sbCall(async () => {
-  const { data, error } = await supabase.from('activities').select('*').limit(5000);
-  if (error) throw error;
-  return data;
+  const PAGE = 1000;
+  let all = [];
+  for (let off = 0; ; off += PAGE) {
+    const { data, error } = await supabase
+      .from('activities').select('*')
+      .not('deal_id', 'is', null)
+      .range(off, off + PAGE - 1);
+    if (error) throw error;
+    all = all.concat(data);
+    if (data.length < PAGE) break;
+  }
+  return all;
 }, { label: 'Load activities' });
 
 export const sbCreateActivity = (fields) => sbCall(async () => {
