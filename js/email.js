@@ -7,6 +7,7 @@ import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20260
 import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20260513a';
 import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20260513a';
 import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20260513a';
+import { CRM_BASE_URL } from './config.js?v=20260513a';
 
 function formatEmailBody(html){
   if(!html) return '';
@@ -83,7 +84,10 @@ function showForwardPreview(deal, client){
         ${leadEmail4?`<tr><td style="padding:8px 0;color:#888">Email 4</td><td style="padding:8px 0;color:#2563eb">${esc(leadEmail4)}</td></tr>`:''}
         ${leadMobilePhone?`<tr><td style="padding:8px 0;color:#888">Mobile Phone</td><td style="padding:8px 0">${esc(leadMobilePhone)}</td></tr>`:''}
       </table>
-      ${smartleadUrl?`<div style="margin-top:20px"><span style="display:inline-block;background:#2563eb;color:#fff;padding:10px 24px;border-radius:6px;font-weight:bold;font-size:14px">Click to Reply \u2192</span></div>`:''}
+      <div style="margin-top:20px">
+        ${smartleadUrl?`<span style="display:inline-block;background:#2563eb;color:#fff;padding:10px 24px;border-radius:6px;font-weight:bold;font-size:14px">Click to Reply \u2192</span>`:''}
+        <span style="display:inline-block;background:#fff;color:#2563eb;padding:10px 24px;border-radius:6px;font-weight:bold;font-size:14px;border:2px solid #2563eb;margin-left:8px">View in CRM \u2192</span>
+      </div>
       <p style="margin-top:20px;color:#888;font-size:12px">Go get em while they're hot!</p>
     </div>`;
 
@@ -268,7 +272,10 @@ export async function openPassOffPreview(dealId, clientName){
         ${leadMobilePhone?`<tr><td style="padding:8px 0;color:#888">Mobile Phone</td><td style="padding:8px 0">${esc(leadMobilePhone)}</td></tr>`:''}
       </table>
       ${emailBody?`<div style="margin:16px 0;padding:12px 16px;background:#f3f4f6;border-left:3px solid #4f46e5;border-radius:4px;font-size:13px;color:#374151;overflow-y:auto;max-height:300px"><strong>Their reply:</strong><br>${formatEmailBody(emailBody)}</div>`:''}
-      ${smartleadUrl?`<div style="margin-top:20px"><span style="display:inline-block;background:#2563eb;color:#fff;padding:10px 24px;border-radius:6px;font-weight:bold;font-size:14px">Click to Reply →</span></div>`:''}
+      <div style="margin-top:20px">
+        ${smartleadUrl?`<span style="display:inline-block;background:#2563eb;color:#fff;padding:10px 24px;border-radius:6px;font-weight:bold;font-size:14px">Click to Reply →</span>`:''}
+        <span style="display:inline-block;background:#fff;color:#2563eb;padding:10px 24px;border-radius:6px;font-weight:bold;font-size:14px;border:2px solid #2563eb;margin-left:8px">View in CRM →</span>
+      </div>
       <p style="margin-top:20px;color:#888;font-size:12px">Go get em while they're hot!</p>
     </div>`;
 
