@@ -104,9 +104,14 @@ async function sendBlooioText(phone, message){
   if(!res.ok){
     const errText = await res.text().catch(() => '');
     console.error('[Blooio] Send failed:', res.status, errText);
-    let errMsg;
-    try { errMsg = JSON.parse(errText).error || JSON.parse(errText).message; } catch(_){}
-    throw new Error(errMsg || 'Send failed (HTTP ' + res.status + '). Check browser console for details.');
+    let errMsg = '';
+    try {
+      const parsed = JSON.parse(errText);
+      errMsg = parsed.message || parsed.error || parsed.detail || '';
+      if(parsed.error && parsed.message && parsed.error !== parsed.message) errMsg = parsed.error + ': ' + parsed.message;
+    } catch(_){}
+    if(res.status === 429 || /limit|quota|rate/i.test(errMsg)) errMsg = 'Daily new contact limit reached — try again tomorrow or upgrade Blooio plan';
+    throw new Error(errMsg || 'Send failed (HTTP ' + res.status + '): ' + (errText||'').slice(0, 200));
   }
   return await res.json();
 }
