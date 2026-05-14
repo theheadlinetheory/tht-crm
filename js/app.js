@@ -155,6 +155,16 @@ export async function initApp(){
     }
     await initialSync(true);
     await subscribeRealtime();
+    // Deep link: ?deal=ID opens that deal's modal after sync
+    try {
+      const urlDealId = new URLSearchParams(window.location.search).get('deal');
+      if (urlDealId) {
+        const { openDeal } = await import('./deal-modal.js?v=20260513a');
+        const target = state.deals.find(d => String(d.id) === urlDealId);
+        if (target) openDeal(target.id);
+        window.history.replaceState({}, '', window.location.pathname + window.location.hash);
+      }
+    } catch(e) { console.warn('Deep link failed:', e); }
     // Background sync every 30s — catches anything realtime missed (modal open, writes in flight, etc.)
     setInterval(() => {
       flushRealtimeQueue();
