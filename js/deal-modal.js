@@ -6,24 +6,24 @@
 // populated during the final migration. This module provides
 // the key functions other modules depend on.
 
-import { state, pendingWrites, pendingDealFields } from './app.js?v=20260515b';
-import { flushRealtimeQueue } from './api.js?v=20260515b';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260515b';
-import { render, refreshModal } from './render.js?v=20260515b';
-import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20260515b';
-import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20260515b';
-import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20260515b';
-import { isAdmin, isClient, isEmployee, loadAssignableUsers } from './auth.js?v=20260515b';
-import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js?v=20260515b';
-import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, assignNoShowSequence } from './activities.js?v=20260515b';
-import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js?v=20260515b';
-import { getStagesForPipeline } from './dashboard.js?v=20260515b';
-import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal } from './maps.js?v=20260515b';
-import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js?v=20260515b';
-import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js?v=20260515b';
+import { state, pendingWrites, pendingDealFields } from './app.js?v=20260515c';
+import { flushRealtimeQueue } from './api.js?v=20260515c';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260515c';
+import { render, refreshModal } from './render.js?v=20260515c';
+import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20260515c';
+import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20260515c';
+import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20260515c';
+import { isAdmin, isClient, isEmployee, loadAssignableUsers } from './auth.js?v=20260515c';
+import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js?v=20260515c';
+import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, assignNoShowSequence } from './activities.js?v=20260515c';
+import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js?v=20260515c';
+import { getStagesForPipeline } from './dashboard.js?v=20260515c';
+import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal } from './maps.js?v=20260515c';
+import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js?v=20260515c';
+import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js?v=20260515c';
 import './blooio.js';
 import './demo-tracker.js';
-import { renderDealRetargetHistory } from './retargeting.js?v=20260515b';
+import { renderDealRetargetHistory } from './retargeting.js?v=20260515c';
 
 function actTypeClass(type){
   const t=(type||'').toLowerCase();
@@ -411,22 +411,22 @@ export async function doWonDrop(){
   let wonSuccess = false;
   try {
     if(deal.pipeline==='Acquisition'){
-      const { autoCreateClient } = await import('./client-info.js?v=20260515b');
+      const { autoCreateClient } = await import('./client-info.js?v=20260515c');
       const result = await autoCreateClient(deal);
       wonSuccess = true; // Even if user skipped duplicate, still archive
     } else {
-      const { autoPushToTracker } = await import('./email.js?v=20260515b');
+      const { autoPushToTracker } = await import('./email.js?v=20260515c');
       await autoPushToTracker(deal);
       wonSuccess = true;
     }
   } catch(e){
     console.error('Won drop action failed:', e);
-    const { showToast } = await import('./api.js?v=20260515b');
+    const { showToast } = await import('./api.js?v=20260515c');
     showToast('Won action failed: ' + e.message, 'error');
   }
 
   if(wonSuccess) {
-    const { deleteDeal } = await import('./deals.js?v=20260515b');
+    const { deleteDeal } = await import('./deals.js?v=20260515c');
     deleteDeal(id, 'Closed Won', clientName);
   }
 }
@@ -460,12 +460,15 @@ const PHONE_FIELDS = [
   { key: 'phone3', label: 'Phone 3' },
 ];
 
+let _phoneAssignCtx = null;
+
 function showPhoneAssignPopup(deal, phones) {
+  _phoneAssignCtx = { dealId: deal.id, phones };
   const existing = {};
   for (const f of PHONE_FIELDS) existing[f.key] = str(deal[f.key]).trim();
 
-  let html = '<div style="position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);backdrop-filter:blur(2px)" id="phone-assign-overlay">';
-  html += '<div style="background:#fff;border-radius:12px;padding:24px 28px;max-width:420px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.18)">';
+  let html = '<div style="position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);backdrop-filter:blur(2px)" id="phone-assign-overlay" onclick="if(event.target===this)closePhoneAssignPopup()">';
+  html += '<div style="background:#fff;border-radius:12px;padding:24px 28px;max-width:400px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.18)">';
   html += '<div style="font-size:16px;font-weight:700;color:#1e1b4b;margin-bottom:4px">Phone Numbers Found</div>';
   html += '<div style="font-size:12px;color:#6b7280;margin-bottom:16px">Choose where to save each number</div>';
 
@@ -474,22 +477,22 @@ function showPhoneAssignPopup(deal, phones) {
     const defaultKey = firstEmpty ? firstEmpty.key : '';
     if (firstEmpty) existing[firstEmpty.key] = '(pending)';
 
-    html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;padding:10px 12px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb">';
-    html += '<div style="font-size:14px;font-weight:600;color:#111827;min-width:130px;font-family:monospace">' + esc(ph) + '</div>';
-    html += '<select id="phone-assign-' + i + '" style="flex:1;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;font-family:var(--font);background:#fff">';
+    html += '<div style="background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;padding:12px;margin-bottom:10px">';
+    html += '<div style="font-size:15px;font-weight:700;color:#111827;letter-spacing:.3px;margin-bottom:8px">' + esc(ph) + '</div>';
+    html += '<select id="phone-assign-' + i + '" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;font-family:var(--font);background:#fff">';
     html += '<option value="">Skip</option>';
     for (const f of PHONE_FIELDS) {
       const filled = str(deal[f.key]).trim();
       const sel = f.key === defaultKey ? ' selected' : '';
-      const suffix = filled ? ' (' + filled + ')' : '';
-      html += '<option value="' + f.key + '"' + sel + '>' + esc(f.label) + suffix + '</option>';
+      const suffix = filled ? ' — ' + filled : '';
+      html += '<option value="' + f.key + '"' + sel + '>' + esc(f.label + suffix) + '</option>';
     }
     html += '</select></div>';
   });
 
-  html += '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">';
-  html += '<button onclick="closePhoneAssignPopup()" style="padding:6px 16px;border:1px solid #d1d5db;border-radius:6px;background:#fff;color:#374151;font-size:13px;font-weight:600;cursor:pointer">Cancel</button>';
-  html += '<button onclick="confirmPhoneAssign(\'' + esc(deal.id) + '\',' + JSON.stringify(phones) + ')" style="padding:6px 16px;border:none;border-radius:6px;background:#7c3aed;color:#fff;font-size:13px;font-weight:600;cursor:pointer">Save</button>';
+  html += '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">';
+  html += '<button onclick="closePhoneAssignPopup()" style="padding:8px 18px;border:1px solid #d1d5db;border-radius:6px;background:#fff;color:#374151;font-size:13px;font-weight:600;cursor:pointer">Cancel</button>';
+  html += '<button onclick="confirmPhoneAssign()" style="padding:8px 18px;border:none;border-radius:6px;background:#7c3aed;color:#fff;font-size:13px;font-weight:600;cursor:pointer">Save</button>';
   html += '</div></div></div>';
 
   const container = document.createElement('div');
@@ -498,11 +501,14 @@ function showPhoneAssignPopup(deal, phones) {
 }
 
 function closePhoneAssignPopup() {
+  _phoneAssignCtx = null;
   const ov = document.getElementById('phone-assign-overlay');
   if (ov) ov.remove();
 }
 
-async function confirmPhoneAssign(dealId, phones) {
+async function confirmPhoneAssign() {
+  if (!_phoneAssignCtx) return;
+  const { dealId, phones } = _phoneAssignCtx;
   const deal = state.deals.find(d => d.id === dealId);
   if (!deal) return;
 
@@ -530,7 +536,7 @@ async function confirmPhoneAssign(dealId, phones) {
   try { await sbUpdateDeal(dealId, snakeUpdates); }
   finally { pendingWrites.value--; }
 
-  const { showToast } = await import('./api.js?v=20260515b');
+  const { showToast } = await import('./api.js?v=20260515c');
   showToast('Phone number(s) saved', 'success');
 }
 
@@ -547,7 +553,7 @@ async function enrichLead(dealId) {
   const canEnrich = hasLinkedin || (hasContact && hasWebsite);
 
   if (!canEnrich) {
-    const { showToast } = await import('./api.js?v=20260515b');
+    const { showToast } = await import('./api.js?v=20260515c');
     showToast('Needs a LinkedIn URL or company name + website to enrich', 'warning');
     return;
   }
@@ -559,7 +565,7 @@ async function enrichLead(dealId) {
 
   try {
     const result = await invokeEdgeFunction('enrich-lead', { dealId });
-    const { showToast } = await import('./api.js?v=20260515b');
+    const { showToast } = await import('./api.js?v=20260515c');
     console.log('[enrich-lead] Response:', JSON.stringify(result));
 
     if (result.ok && result.phones && result.phones.length > 0) {
@@ -575,7 +581,7 @@ async function enrichLead(dealId) {
     }
   } catch (e) {
     showEnrichOverlay(false);
-    const { showToast } = await import('./api.js?v=20260515b');
+    const { showToast } = await import('./api.js?v=20260515c');
     console.error('[enrich-lead] Exception:', e);
     showToast('Enrichment failed: ' + e.message, 'error');
   }
@@ -1317,7 +1323,7 @@ export function confirmScheduleAndCopy(){
   sbUpdateDeal(dealId, camelToSnake({bookedDate:dateVal,bookedTime:timeVal})).catch(e=>console.error('Update deal failed:',e)).finally(()=>{pendingWrites.value--;});
   const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
   if(client && dateVal){
-    import('./calendly.js?v=20260515b').then(mod=>{
+    import('./calendly.js?v=20260515c').then(mod=>{
       const apptAddr=(deal.address||deal.location||'').trim();
       mod.saveAppointment(client.name, deal.company||deal.contact||'Unknown', dateVal, timeVal, '', apptAddr);
     });
