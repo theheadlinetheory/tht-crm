@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // DIALER — JustCall Dialer (embedded iframe via SDK protocol)
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260515f';
-import { str, esc, uid, getToday } from './utils.js?v=20260515f';
-import { invokeEdgeFunction, sbCreateActivity, camelToSnake } from './api.js?v=20260515f';
-import { getBestNumberForLead, getRegionForPhone, recordCallOutcome } from './number-health.js?v=20260515f';
-import { JUSTCALL_USER_MAP } from './config.js?v=20260515f';
-import { currentUser } from './auth.js?v=20260515f';
+import { state } from './app.js?v=20260515g';
+import { str, esc, uid, getToday } from './utils.js?v=20260515g';
+import { invokeEdgeFunction, sbCreateActivity, camelToSnake } from './api.js?v=20260515g';
+import { getBestNumberForLead, getRegionForPhone, recordCallOutcome } from './number-health.js?v=20260515g';
+import { JUSTCALL_USER_MAP } from './config.js?v=20260515g';
+import { currentUser } from './auth.js?v=20260515g';
 
 const DIALER_URL = 'https://app.justcall.io/dialer';
 let dialerReady = false;
@@ -168,7 +168,7 @@ async function onCallEnded(){
     }));
 
     // Refresh modal if open on this deal
-    const { refreshModal } = await import('./render.js?v=20260515f');
+    const { refreshModal } = await import('./render.js?v=20260515g');
     if(state.selectedDeal === dealId) refreshModal();
 
     // Start transcript polling for Client pipeline deals after answered calls

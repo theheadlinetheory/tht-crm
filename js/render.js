@@ -2,26 +2,26 @@
 // RENDER — Main render loop, refreshModal, list view
 // ═══════════════════════════════════════════════════════════
 
-import { state, savedScrollLeft, setSavedScrollLeft, clientArchivedDeals } from './app.js?v=20260515f';
-import { ACQUISITION_STAGES, NURTURE_STAGES, ACTIVITY_ICONS } from './config.js?v=20260515f';
-import { esc, svgIcon, getToday, fmtDate, fmtTime12, str, stripHtml } from './utils.js?v=20260515f';
-import { isAdmin, isClient, isEmployee, currentUser, renderUserMenu, getOwnerForDeal, getOwnerNameForDeal, loadAssignableUsers } from './auth.js?v=20260515f';
-import { initialSync as syncFromSheet } from './api.js?v=20260515f';
-import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js?v=20260515f';
-import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWonDrop, renderDealModal, renderNewDealModal, renderAddClientModal, toggleBadgeDropdown } from './deal-modal.js?v=20260515f';
-import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from './activities.js?v=20260515f';
-import { renderDashboard } from './dashboard.js?v=20260515f';
-import { loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js?v=20260515f';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260515f';
-import { toggleBulkMode, bulkMoveStage, bulkSelectAll, bulkArchive, bulkAddActivity, toggleBulkSelect } from './deals.js?v=20260515f';
-import { openSettings } from './settings.js?v=20260515f';
-import { serviceAreaResults } from './maps.js?v=20260515f';
-import { lookupClientInfo, isRetainerClient, openClientInfoPanel, removeClient } from './client-info.js?v=20260515f';
-import { openCalendlyEmbed, removeAppointment, addManualAppointment } from './calendly.js?v=20260515f';
-import { doDragOver, doDragLeave, clearAllDragOver, doDrop } from './deals.js?v=20260515f';
-import { renderDueTodayBanner, renderNurtureTab, renderNurtureEntryModal, renderReactivateModal, renderSnoozeModal, loadNurtureData } from './rerun.js?v=20260515f';
-import { renderDemoTracker } from './demo-tracker.js?v=20260515f';
-import { renderRetargetingTab } from './retargeting.js?v=20260515f';
+import { state, savedScrollLeft, setSavedScrollLeft, clientArchivedDeals } from './app.js?v=20260515g';
+import { ACQUISITION_STAGES, NURTURE_STAGES, ACTIVITY_ICONS } from './config.js?v=20260515g';
+import { esc, svgIcon, getToday, fmtDate, fmtTime12, str, stripHtml } from './utils.js?v=20260515g';
+import { isAdmin, isClient, isEmployee, currentUser, renderUserMenu, getOwnerForDeal, getOwnerNameForDeal, loadAssignableUsers } from './auth.js?v=20260515g';
+import { initialSync as syncFromSheet } from './api.js?v=20260515g';
+import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js?v=20260515g';
+import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWonDrop, renderDealModal, renderNewDealModal, renderAddClientModal, toggleBadgeDropdown } from './deal-modal.js?v=20260515g';
+import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from './activities.js?v=20260515g';
+import { renderDashboard } from './dashboard.js?v=20260515g';
+import { loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js?v=20260515g';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260515g';
+import { toggleBulkMode, bulkMoveStage, bulkSelectAll, bulkArchive, bulkAddActivity, toggleBulkSelect } from './deals.js?v=20260515g';
+import { openSettings } from './settings.js?v=20260515g';
+import { serviceAreaResults } from './maps.js?v=20260515g';
+import { lookupClientInfo, isRetainerClient, openClientInfoPanel, removeClient } from './client-info.js?v=20260515g';
+import { openCalendlyEmbed, removeAppointment, addManualAppointment } from './calendly.js?v=20260515g';
+import { doDragOver, doDragLeave, clearAllDragOver, doDrop } from './deals.js?v=20260515g';
+import { renderDueTodayBanner, renderNurtureTab, renderNurtureEntryModal, renderReactivateModal, renderSnoozeModal, loadNurtureData } from './rerun.js?v=20260515g';
+import { renderDemoTracker } from './demo-tracker.js?v=20260515g';
+import { renderRetargetingTab } from './retargeting.js?v=20260515g';
 
 // ─── renderListView ───
 function renderListView(deals,stages){
@@ -323,14 +323,14 @@ export function render(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading trends...</div>';
           if(!window._trendsLoading){
             window._trendsLoading=true;
-            import('./trends.js?v=20260515f').then(m=>{ window._trendsModule=m; render(); });
+            import('./trends.js?v=20260515g').then(m=>{ window._trendsModule=m; render(); }).catch(()=>{ window._trendsLoading=false; });
           }
           if(!state.trackerLoaded && !window._trackerLoading){
             window._trackerLoading=true;
-            import('./lead-tracker.js?v=20260515f').then(m=>{
+            import('./lead-tracker.js?v=20260515g').then(m=>{
               window._trackerModule=m;
-              m.loadTrackerEntries().then(()=>render());
-            });
+              m.loadTrackerEntries().then(()=>render()).catch(()=>render());
+            }).catch(()=>{ window._trackerLoading=false; });
           }
         }
       } else {
@@ -340,14 +340,14 @@ export function render(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading tracker...</div>';
           if(!window._trackerLoading){
             window._trackerLoading=true;
-            import('./lead-tracker.js?v=20260515f').then(m=>{
+            import('./lead-tracker.js?v=20260515g').then(m=>{
               window._trackerModule=m;
-              if(!state.trackerLoaded){ m.loadTrackerEntries().then(()=>render()); }
+              if(!state.trackerLoaded){ m.loadTrackerEntries().then(()=>render()).catch(()=>render()); }
               else render();
-            });
+            }).catch(()=>{ window._trackerLoading=false; });
             if(!window._invoiceLoading){
               window._invoiceLoading=true;
-              import('./invoice.js?v=20260515f').then(m=>{ window._invoiceModule=m; });
+              import('./invoice.js?v=20260515g').then(m=>{ window._invoiceModule=m; }).catch(()=>{ window._invoiceLoading=false; });
             }
           }
         }
@@ -355,7 +355,7 @@ export function render(){
           html+=window._invoiceModule.renderInvoiceModal();
         } else if(state.invoiceModal && !window._invoiceLoading){
           window._invoiceLoading=true;
-          import('./invoice.js?v=20260515f').then(m=>{ window._invoiceModule=m; render(); });
+          import('./invoice.js?v=20260515g').then(m=>{ window._invoiceModule=m; render(); });
         }
       }
       const trackerWrap=document.querySelector('.tracker-table-wrap');
