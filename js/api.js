@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // API — API layer (Google Sheets calls + Supabase CRUD)
 // ═══════════════════════════════════════════════════════════
-import { API_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260514a';
+import { API_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260515a';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 export { supabase };
-import { state, store, pendingWrites, failedWriteQueue, pendingDealFields, deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds, inFlightActivityIds } from './app.js?v=20260514a';
-import { render, refreshModal } from './render.js?v=20260514a';
+import { state, store, pendingWrites, failedWriteQueue, pendingDealFields, deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds, inFlightActivityIds } from './app.js?v=20260515a';
+import { render, refreshModal } from './render.js?v=20260515a';
 
 // Cached auth check — populated lazily on first initialSync to avoid circular import
 let _cachedIsAdmin = null;
@@ -135,14 +135,14 @@ export async function syncFromSheet(){
       state.clients=data.clients.filter(c => !deletedClientIds.has(String(c.id)));
       for(const c of state.clients){
         if(!c.calendlyUrl){
-          const { getClientConfig } = await import('./client-info.js?v=20260514a');
+          const { getClientConfig } = await import('./client-info.js?v=20260515a');
           const cfg = getClientConfig(c.name);
           if(cfg?.calendly_url) c.calendlyUrl = cfg.calendly_url;
         }
       }
     }
     if(data.appointments && Array.isArray(data.appointments)){
-      const { getToday } = await import('./utils.js?v=20260514a');
+      const { getToday } = await import('./utils.js?v=20260515a');
       state.appointments=data.appointments;
       state.appointments.forEach(a=>{
         Object.keys(a).forEach(k=>{ if(a[k]!=null && typeof a[k]!=='string') a[k]=String(a[k]); });
@@ -197,16 +197,16 @@ export async function syncFromSheet(){
     state.loadFailed=false;
     // Run service area checks in background (all roles — clients need maps too)
     // Re-render after checks complete to show badges/maps
-    const { runServiceAreaChecks } = await import('./maps.js?v=20260514a');
+    const { runServiceAreaChecks } = await import('./maps.js?v=20260515a');
     runServiceAreaChecks().then(() => render()).catch(e => console.warn('Service area checks failed:', e));
     // Pre-load archive
     if((isAdmin()||isEmployee()) && !state.archiveLoaded){
-      const { loadArchive } = await import('./archive.js?v=20260514a');
+      const { loadArchive } = await import('./archive.js?v=20260515a');
       loadArchive(true);
     }
   } else {
     if(state.deals.length===0){
-      const { getTestData } = await import('./config.js?v=20260514a');
+      const { getTestData } = await import('./config.js?v=20260515a');
       const { TEST_DEALS, TEST_ACTIVITIES, TEST_CLIENTS } = getTestData();
       state.deals=[...TEST_DEALS];
       state.activities=[...TEST_ACTIVITIES];
@@ -254,6 +254,7 @@ const FIELD_MAP = {
   ghl_stage_id: 'ghlStageId',
   onboarding_doc_url: 'onboardingDocUrl',
   onboarding_parsed_at: 'onboardingParsedAt',
+  auto_followup_started_at: 'autoFollowupStartedAt',
   client_stage: 'clientStage',
   booked_date: 'bookedDate',
   booked_time: 'bookedTime',
@@ -369,7 +370,7 @@ export function normalizeRow(row) {
   return normalized;
 }
 
-const NULLABLE_COLS = new Set(['completed_at','scheduled_time','created_at','updated_at','forwarded_at','pushed_to_tracker','pushed_to_ghl','queued_at','rerun_after','sent_at','archived_at','value','lead_cost','lead_email','rerun_days','booked_date','booked_time','follow_up_date','onboarding_parsed_at','date_paid','paid_status','invoice','payment_link','callback_status','notes','sheet_row','stripe_customer_id','stripe_invoice_id','stripe_invoice_item_id','payment_terms','client_phone']);
+const NULLABLE_COLS = new Set(['completed_at','scheduled_time','created_at','updated_at','forwarded_at','pushed_to_tracker','pushed_to_ghl','queued_at','rerun_after','sent_at','archived_at','value','lead_cost','lead_email','rerun_days','booked_date','booked_time','follow_up_date','onboarding_parsed_at','date_paid','paid_status','invoice','payment_link','callback_status','notes','sheet_row','stripe_customer_id','stripe_invoice_id','stripe_invoice_item_id','payment_terms','client_phone','auto_followup_started_at']);
 
 export function camelToSnake(obj) {
   const result = {};
@@ -391,7 +392,7 @@ export async function initialSync(isStartup) {
   try {
     state.syncing = true;
     if (isStartup) {
-      import('./dashboard.js?v=20260514a').then(m => m.clearDashboardArchiveCache && m.clearDashboardArchiveCache()).catch(() => {});
+      import('./dashboard.js?v=20260515a').then(m => m.clearDashboardArchiveCache && m.clearDashboardArchiveCache()).catch(() => {});
       render();
     }
     const [deals, activities, clients, appointments, trackerEntries, demoEntries, savedSettings, retargetHistory, retargetExports] = await Promise.all([
@@ -399,7 +400,7 @@ export async function initialSync(isStartup) {
     ]);
     // Apply settings from Supabase if available
     if (savedSettings && Object.keys(savedSettings).length > 0) {
-      const { applySettings } = await import('./settings.js?v=20260514a');
+      const { applySettings } = await import('./settings.js?v=20260515a');
       applySettings(savedSettings);
     }
     state.deals = deals.map(normalizeRow);
@@ -416,7 +417,7 @@ export async function initialSync(isStartup) {
     state.clients = clients.map(normalizeRow);
     // Cache isAdmin for use in synchronous realtime handler
     if (!_cachedIsAdmin) {
-      const { isAdmin: _isAdmin } = await import('./auth.js?v=20260514a');
+      const { isAdmin: _isAdmin } = await import('./auth.js?v=20260515a');
       _cachedIsAdmin = _isAdmin;
     }
     // Strip sensitive GHL credentials for non-admin users but preserve a flag
@@ -481,7 +482,7 @@ export async function initialSync(isStartup) {
 
     // Replay any pending activities from write-ahead log
     if (isStartup) {
-      import('./activities.js?v=20260514a').then(m => m.replayPendingActivities && m.replayPendingActivities()).catch(() => {});
+      import('./activities.js?v=20260515a').then(m => m.replayPendingActivities && m.replayPendingActivities()).catch(() => {});
     }
 
     state.synced = true;
@@ -490,7 +491,7 @@ export async function initialSync(isStartup) {
     render();
 
     // Run service area checks in background, re-render when done
-    const { runServiceAreaChecks } = await import('./maps.js?v=20260514a');
+    const { runServiceAreaChecks } = await import('./maps.js?v=20260515a');
     runServiceAreaChecks().then(() => render()).catch(e => console.warn('Service area checks failed:', e));
   } catch (e) {
     console.error('Initial sync failed:', e);
@@ -641,7 +642,7 @@ function applyRealtimeEvent(table, payload) {
 
 // Deals — exclude heavy fields (email_body, call_transcript) to reduce bandwidth
 // These are loaded on-demand when opening a deal modal
-const DEALS_LIGHT_COLS = 'id,company,contact,email,phone,value,stage,pipeline,flag,notes,sl_lead_id,sl_campaign_id,campaign_name,lead_category,created_at,updated_at,website,location,smartlead_url,forwarded_at,mobile_phone,pushed_to_tracker,pushed_to_ghl,address,client_stage,booked_date,booked_time,booked_for,booked_timezone,cal_name,cal_email,cal_notes,has_new_reply,owner_override,job_title,linkedin_url,passoff_instructions,passoff_sent_at,suggested_updates,contact2,contact3,phone2,phone3,title2,title3,reply_snippet,retarget_campaign,retarget_date,retarget_status,retarget_count';
+const DEALS_LIGHT_COLS = 'id,company,contact,email,phone,value,stage,pipeline,flag,notes,sl_lead_id,sl_campaign_id,campaign_name,lead_category,created_at,updated_at,website,location,smartlead_url,forwarded_at,mobile_phone,pushed_to_tracker,pushed_to_ghl,address,client_stage,booked_date,booked_time,booked_for,booked_timezone,cal_name,cal_email,cal_notes,has_new_reply,owner_override,job_title,linkedin_url,passoff_instructions,passoff_sent_at,suggested_updates,contact2,contact3,phone2,phone3,title2,title3,reply_snippet,retarget_campaign,retarget_date,retarget_status,retarget_count,auto_followup_started_at';
 
 export const sbGetDeals = () => sbCall(async () => {
   const { data, error } = await supabase.from('deals').select(DEALS_LIGHT_COLS).eq('lead_status', 'active');
