@@ -6,24 +6,24 @@
 // populated during the final migration. This module provides
 // the key functions other modules depend on.
 
-import { state, pendingWrites, pendingDealFields } from './app.js?v=20260514a';
-import { flushRealtimeQueue } from './api.js?v=20260514a';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260514a';
-import { render, refreshModal } from './render.js?v=20260514a';
-import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20260514a';
-import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20260514a';
-import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20260514a';
-import { isAdmin, isClient, isEmployee, loadAssignableUsers } from './auth.js?v=20260514a';
-import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js?v=20260514a';
-import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, assignNoShowSequence } from './activities.js?v=20260514a';
-import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js?v=20260514a';
-import { getStagesForPipeline } from './dashboard.js?v=20260514a';
-import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal } from './maps.js?v=20260514a';
-import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js?v=20260514a';
-import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js?v=20260514a';
+import { state, pendingWrites, pendingDealFields } from './app.js?v=20260515a';
+import { flushRealtimeQueue } from './api.js?v=20260515a';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260515a';
+import { render, refreshModal } from './render.js?v=20260515a';
+import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20260515a';
+import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20260515a';
+import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20260515a';
+import { isAdmin, isClient, isEmployee, loadAssignableUsers } from './auth.js?v=20260515a';
+import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js?v=20260515a';
+import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, assignNoShowSequence } from './activities.js?v=20260515a';
+import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js?v=20260515a';
+import { getStagesForPipeline } from './dashboard.js?v=20260515a';
+import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal } from './maps.js?v=20260515a';
+import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js?v=20260515a';
+import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js?v=20260515a';
 import './blooio.js';
 import './demo-tracker.js';
-import { renderDealRetargetHistory } from './retargeting.js?v=20260514a';
+import { renderDealRetargetHistory } from './retargeting.js?v=20260515a';
 
 function actTypeClass(type){
   const t=(type||'').toLowerCase();
@@ -411,22 +411,22 @@ export async function doWonDrop(){
   let wonSuccess = false;
   try {
     if(deal.pipeline==='Acquisition'){
-      const { autoCreateClient } = await import('./client-info.js?v=20260514a');
+      const { autoCreateClient } = await import('./client-info.js?v=20260515a');
       const result = await autoCreateClient(deal);
       wonSuccess = true; // Even if user skipped duplicate, still archive
     } else {
-      const { autoPushToTracker } = await import('./email.js?v=20260514a');
+      const { autoPushToTracker } = await import('./email.js?v=20260515a');
       await autoPushToTracker(deal);
       wonSuccess = true;
     }
   } catch(e){
     console.error('Won drop action failed:', e);
-    const { showToast } = await import('./api.js?v=20260514a');
+    const { showToast } = await import('./api.js?v=20260515a');
     showToast('Won action failed: ' + e.message, 'error');
   }
 
   if(wonSuccess) {
-    const { deleteDeal } = await import('./deals.js?v=20260514a');
+    const { deleteDeal } = await import('./deals.js?v=20260515a');
     deleteDeal(id, 'Closed Won', clientName);
   }
 }
@@ -463,7 +463,7 @@ async function enrichLead(dealId) {
   const canEnrich = hasLinkedin || (hasContact && hasWebsite);
 
   if (!canEnrich) {
-    const { showToast } = await import('./api.js?v=20260514a');
+    const { showToast } = await import('./api.js?v=20260515a');
     showToast('Needs a LinkedIn URL or company name + website to enrich', 'warning');
     return;
   }
@@ -475,7 +475,7 @@ async function enrichLead(dealId) {
 
   try {
     const result = await invokeEdgeFunction('enrich-lead', { dealId });
-    const { showToast } = await import('./api.js?v=20260514a');
+    const { showToast } = await import('./api.js?v=20260515a');
     console.log('[enrich-lead] Response:', JSON.stringify(result));
 
     if (result.ok && result.phones && result.phones.length > 0) {
@@ -495,7 +495,7 @@ async function enrichLead(dealId) {
     }
   } catch (e) {
     showEnrichOverlay(false);
-    const { showToast } = await import('./api.js?v=20260514a');
+    const { showToast } = await import('./api.js?v=20260515a');
     console.error('[enrich-lead] Exception:', e);
     showToast('Enrichment failed: ' + e.message, 'error');
   }
@@ -665,16 +665,18 @@ export function renderDealModal(deal){
         </div>`;
 
   if(deal.campaignName){
-    const isSubseqActive = str(deal.leadCategory).toLowerCase() === 'ht subsequence fu';
+    const isSubseqActive = !!str(deal.autoFollowupStartedAt).trim() || str(deal.leadCategory).toLowerCase() === 'ht subsequence fu';
+    const followUpDate = deal.autoFollowupStartedAt ? new Date(deal.autoFollowupStartedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
+    const showStartBtn = (deal.pipeline==='Acquisition'||ACQUISITION_STAGES.some(s=>s.id===deal.stage))&&str(deal.slLeadId).trim()&&str(deal.slCampaignId).trim()&&!isSubseqActive;
     h+=`<div class="sl-info">
       <div class="sl-info-title">Smartlead Source</div>
       <div>Campaign: ${esc(deal.campaignName)}</div>
       ${deal.leadCategory?`<div>Category: ${esc(deal.leadCategory)}</div>`:''}
       ${(deal.smartleadUrl||deal.email)?`<a href="${esc(deal.smartleadUrl||('https://app.smartlead.ai/app/master-inbox?sortBy=REPLY_TIME_DESC&search='+encodeURIComponent(deal.email)))}" target="_blank" rel="noopener">Open in Smartlead →</a>`:''}
-      ${(deal.pipeline==='Acquisition'||ACQUISITION_STAGES.some(s=>s.id===deal.stage))&&str(deal.slLeadId).trim()&&str(deal.slCampaignId).trim()&&!isSubseqActive
+      ${showStartBtn
         ?`<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e9d5ff"><button class="sl-subseq-btn" onclick="event.stopPropagation();startAutoFollowUp('${esc(deal.id)}')" style="display:inline-flex;align-items:center;gap:6px;padding:7px 16px;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);box-shadow:0 1px 3px rgba(124,58,237,.3);transition:opacity .15s" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">${svgIcon('send',14,'#fff')} Start Auto Follow-Up</button></div>`
         :''}
-      ${isSubseqActive?`<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e9d5ff"><div style="display:inline-flex;align-items:center;gap:6px;padding:7px 16px;background:#f3e8ff;color:#6d28d9;border-radius:8px;font-size:12px;font-weight:600">${svgIcon('check',14,'#6d28d9')} Auto Follow-Up Active</div></div>`:''}
+      ${isSubseqActive?`<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e9d5ff"><div style="display:inline-flex;align-items:center;gap:6px;padding:7px 16px;background:#f3e8ff;color:#6d28d9;border-radius:8px;font-size:12px;font-weight:600">${svgIcon('check',14,'#6d28d9')} Auto Follow-Up Active${followUpDate?' · Started '+followUpDate:''}</div></div>`:''}
     </div>`;
   }
 
@@ -1238,7 +1240,7 @@ export function confirmScheduleAndCopy(){
   sbUpdateDeal(dealId, camelToSnake({bookedDate:dateVal,bookedTime:timeVal})).catch(e=>console.error('Update deal failed:',e)).finally(()=>{pendingWrites.value--;});
   const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
   if(client && dateVal){
-    import('./calendly.js?v=20260514a').then(mod=>{
+    import('./calendly.js?v=20260515a').then(mod=>{
       const apptAddr=(deal.address||deal.location||'').trim();
       mod.saveAppointment(client.name, deal.company||deal.contact||'Unknown', dateVal, timeVal, '', apptAddr);
     });
@@ -1284,6 +1286,7 @@ async function startAutoFollowUp(dealId){
 
     if(resp.ok && result.status === 'ok'){
       deal.leadCategory = 'HT Subsequence FU';
+      deal.autoFollowupStartedAt = new Date().toISOString();
       refreshModal(true);
       if(result.alreadyActive) console.log('[Subseq] Lead was already in subsequence — marked active');
     } else {
