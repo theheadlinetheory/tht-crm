@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // CLIENT-INFO — Client data, thread IDs, lookup functions
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, deletedClientIds } from './app.js?v=20260515f';
-import { CLIENT_PALETTE, CLIENT_INFO_SHEET_ID } from './config.js?v=20260515f';
-import { render } from './render.js?v=20260515f';
-import { str, uid, esc, isValidDate, getToday, svgIcon } from './utils.js?v=20260515f';
-import { sbCreateClient, sbDeleteClient, camelToSnake, apiPost, invokeEdgeFunction, showToast } from './api.js?v=20260515f';
-import { isClient, isAdmin } from './auth.js?v=20260515f';
+import { state, store, pendingWrites, deletedClientIds } from './app.js?v=20260515g';
+import { CLIENT_PALETTE, CLIENT_INFO_SHEET_ID } from './config.js?v=20260515g';
+import { render } from './render.js?v=20260515g';
+import { str, uid, esc, isValidDate, getToday, svgIcon } from './utils.js?v=20260515g';
+import { sbCreateClient, sbDeleteClient, camelToSnake, apiPost, invokeEdgeFunction, showToast } from './api.js?v=20260515g';
+import { isClient, isAdmin } from './auth.js?v=20260515g';
 
 // ─── Derive campaign keyword from client name ───
 const SKIP_PREFIXES = /^(the|a|an)\s+/i;
@@ -25,7 +25,7 @@ let _clientConfigLoaded = false;
 
 export async function loadClientConfig() {
   try {
-    const { sbGetClientConfig } = await import('./api.js?v=20260515f');
+    const { sbGetClientConfig } = await import('./api.js?v=20260515g');
     const data = await sbGetClientConfig();
     if (Array.isArray(data)) _clientConfigCache = data;
     _clientConfigLoaded = true;
