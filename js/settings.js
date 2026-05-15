@@ -2,15 +2,15 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260515g';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260515g';
-import { render } from './render.js?v=20260515g';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClientConfig, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast } from './api.js?v=20260515g';
-import { esc, str, svgIcon } from './utils.js?v=20260515g';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js?v=20260515g';
-import { lookupClientInfo, getClientConfig, loadClientConfig } from './client-info.js?v=20260515g';
-import { findPolygonForClient } from './maps.js?v=20260515g';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260515g';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260515h';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260515h';
+import { render } from './render.js?v=20260515h';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClientConfig, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast } from './api.js?v=20260515h';
+import { esc, str, svgIcon } from './utils.js?v=20260515h';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js?v=20260515h';
+import { lookupClientInfo, getClientConfig, loadClientConfig } from './client-info.js?v=20260515h';
+import { findPolygonForClient } from './maps.js?v=20260515h';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260515h';
 
 export function getDefaultSettings(){
   return {
@@ -1144,7 +1144,7 @@ export async function createNewUser(){
   msg.style.display='none';
 
   try {
-    const { auth } = await import('./auth.js?v=20260515g');
+    const { auth } = await import('./auth.js?v=20260515h');
     const cred = await auth.createUserWithEmailAndPassword(email, pass);
     await cred.user.updateProfile({ displayName: name });
     await db.collection('users').doc(cred.user.uid).set({
@@ -1455,7 +1455,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260515g');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260515h');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);

@@ -6,24 +6,24 @@
 // populated during the final migration. This module provides
 // the key functions other modules depend on.
 
-import { state, pendingWrites, pendingDealFields } from './app.js?v=20260515g';
-import { flushRealtimeQueue } from './api.js?v=20260515g';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260515g';
-import { render, refreshModal } from './render.js?v=20260515g';
-import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20260515g';
-import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20260515g';
-import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20260515g';
-import { isAdmin, isClient, isEmployee, loadAssignableUsers } from './auth.js?v=20260515g';
-import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js?v=20260515g';
-import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, assignNoShowSequence } from './activities.js?v=20260515g';
-import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js?v=20260515g';
-import { getStagesForPipeline } from './dashboard.js?v=20260515g';
-import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal } from './maps.js?v=20260515g';
-import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js?v=20260515g';
-import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js?v=20260515g';
+import { state, pendingWrites, pendingDealFields } from './app.js?v=20260515h';
+import { flushRealtimeQueue } from './api.js?v=20260515h';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260515h';
+import { render, refreshModal } from './render.js?v=20260515h';
+import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20260515h';
+import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20260515h';
+import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20260515h';
+import { isAdmin, isClient, isEmployee, loadAssignableUsers } from './auth.js?v=20260515h';
+import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js?v=20260515h';
+import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, assignNoShowSequence } from './activities.js?v=20260515h';
+import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js?v=20260515h';
+import { getStagesForPipeline } from './dashboard.js?v=20260515h';
+import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal } from './maps.js?v=20260515h';
+import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js?v=20260515h';
+import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js?v=20260515h';
 import './blooio.js';
 import './demo-tracker.js';
-import { renderDealRetargetHistory } from './retargeting.js?v=20260515g';
+import { renderDealRetargetHistory } from './retargeting.js?v=20260515h';
 
 function actTypeClass(type){
   const t=(type||'').toLowerCase();
@@ -411,22 +411,22 @@ export async function doWonDrop(){
   let wonSuccess = false;
   try {
     if(deal.pipeline==='Acquisition'){
-      const { autoCreateClient } = await import('./client-info.js?v=20260515g');
+      const { autoCreateClient } = await import('./client-info.js?v=20260515h');
       const result = await autoCreateClient(deal);
       wonSuccess = true; // Even if user skipped duplicate, still archive
     } else {
-      const { autoPushToTracker } = await import('./email.js?v=20260515g');
+      const { autoPushToTracker } = await import('./email.js?v=20260515h');
       await autoPushToTracker(deal);
       wonSuccess = true;
     }
   } catch(e){
     console.error('Won drop action failed:', e);
-    const { showToast } = await import('./api.js?v=20260515g');
+    const { showToast } = await import('./api.js?v=20260515h');
     showToast('Won action failed: ' + e.message, 'error');
   }
 
   if(wonSuccess) {
-    const { deleteDeal } = await import('./deals.js?v=20260515g');
+    const { deleteDeal } = await import('./deals.js?v=20260515h');
     deleteDeal(id, 'Closed Won', clientName);
   }
 }
@@ -536,7 +536,7 @@ async function confirmPhoneAssign() {
   try { await sbUpdateDeal(dealId, snakeUpdates); }
   finally { pendingWrites.value--; }
 
-  const { showToast } = await import('./api.js?v=20260515g');
+  const { showToast } = await import('./api.js?v=20260515h');
   showToast('Phone number(s) saved', 'success');
 }
 
@@ -551,7 +551,7 @@ let _interactionsCache = {};
 
 async function loadInteractions(dealId) {
   try {
-    const { sbGetInteractions } = await import('./api.js?v=20260515g');
+    const { sbGetInteractions } = await import('./api.js?v=20260515h');
     const rows = await sbGetInteractions(dealId);
     _interactionsCache[dealId] = (rows || []).map(r => ({
       id: r.id, dealId: r.deal_id, type: r.type, content: r.content,
@@ -614,13 +614,19 @@ function openTimelinePanel(dealId) {
   html += '<button onclick="closeTimelinePanel()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9ca3af;padding:4px">&times;</button>';
   html += '</div>';
 
-  html += '<div style="padding:12px 20px;border-bottom:1px solid #e5e7eb;display:flex;gap:6px">';
+  html += '<div style="padding:12px 20px;border-bottom:1px solid #e5e7eb">';
+  html += '<div style="display:flex;gap:6px">';
   html += '<select id="tl-type" style="padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;background:#fff;min-width:90px">';
   INTERACTION_TYPES.forEach(t => { html += '<option value="' + t + '">' + t + '</option>'; });
   html += '</select>';
   html += '<input id="tl-content" type="text" placeholder="Log a touchpoint..." style="flex:1;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px" onkeydown="if(event.key===\'Enter\'){addInteraction(\'' + esc(dealId) + '\');event.preventDefault()}">';
   html += '<button onclick="addInteraction(\'' + esc(dealId) + '\')" style="padding:6px 14px;border:none;border-radius:6px;background:#7c3aed;color:#fff;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">+ Add</button>';
   html += '</div>';
+  html += '<div style="display:flex;align-items:center;gap:6px;margin-top:6px">';
+  html += '<label style="font-size:11px;color:#6b7280;margin:0">Date:</label>';
+  html += '<input id="tl-date" type="datetime-local" style="padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;font-family:var(--font)">';
+  html += '<span style="font-size:10px;color:#9ca3af">Leave blank for now</span>';
+  html += '</div></div>';
 
   html += '<div id="timeline-entries" style="flex:1;overflow-y:auto;padding:8px 20px">';
   if (all.length === 0) {
@@ -640,8 +646,12 @@ function openTimelinePanel(dealId) {
       html += '<div style="flex:1;padding-bottom:' + (isLast ? '8' : '16') + 'px">';
       html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">';
       html += '<span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;color:#fff;background:' + color + '">' + esc(ev.type) + '</span>';
-      html += '<span style="font-size:11px;color:#9ca3af">' + esc(dateStr) + ' at ' + esc(timeStr) + '</span>';
-      if (!ev.system) html += '<button onclick="deleteInteraction(\'' + esc(ev.id) + '\',\'' + esc(dealId) + '\')" style="background:none;border:none;cursor:pointer;color:#d1d5db;font-size:13px;margin-left:auto;padding:0 4px" title="Delete">&times;</button>';
+      if (!ev.system) {
+        html += '<span onclick="editInteractionDate(\'' + esc(ev.id) + '\',\'' + esc(dealId) + '\')" style="font-size:11px;color:#9ca3af;cursor:pointer;border-bottom:1px dashed #d1d5db" title="Click to change date">' + esc(dateStr) + ' at ' + esc(timeStr) + '</span>';
+        html += '<button onclick="deleteInteraction(\'' + esc(ev.id) + '\',\'' + esc(dealId) + '\')" style="background:none;border:none;cursor:pointer;color:#d1d5db;font-size:13px;margin-left:auto;padding:0 4px" title="Delete">&times;</button>';
+      } else {
+        html += '<span style="font-size:11px;color:#9ca3af">' + esc(dateStr) + ' at ' + esc(timeStr) + '</span>';
+      }
       html += '</div>';
       html += '<div style="font-size:13px;color:' + (ev.system ? '#6b7280' : '#1f2937') + ';line-height:1.4;' + (ev.system ? 'font-style:italic' : '') + '">' + esc(ev.content) + '</div>';
       html += '</div></div>';
@@ -662,14 +672,19 @@ function closeTimelinePanel() {
 async function addInteraction(dealId) {
   const typeEl = document.getElementById('tl-type');
   const contentEl = document.getElementById('tl-content');
+  const dateEl = document.getElementById('tl-date');
   if (!typeEl || !contentEl) return;
   const type = typeEl.value;
   const content = contentEl.value.trim();
   if (!content) return;
 
+  const fields = { deal_id: dealId, type, content };
+  if (dateEl && dateEl.value) fields.created_at = new Date(dateEl.value).toISOString();
+
   contentEl.value = '';
-  const { sbCreateInteraction } = await import('./api.js?v=20260515g');
-  const row = await sbCreateInteraction({ deal_id: dealId, type, content });
+  if (dateEl) dateEl.value = '';
+  const { sbCreateInteraction } = await import('./api.js?v=20260515h');
+  const row = await sbCreateInteraction(fields);
   if (row) {
     if (!_interactionsCache[dealId]) _interactionsCache[dealId] = [];
     _interactionsCache[dealId].unshift({ id: row.id, dealId: row.deal_id, type: row.type, content: row.content, createdAt: row.created_at });
@@ -681,7 +696,7 @@ async function addInteraction(dealId) {
 }
 
 async function deleteInteraction(id, dealId) {
-  const { sbDeleteInteraction } = await import('./api.js?v=20260515g');
+  const { sbDeleteInteraction } = await import('./api.js?v=20260515h');
   await sbDeleteInteraction(id);
   if (_interactionsCache[dealId]) {
     _interactionsCache[dealId] = _interactionsCache[dealId].filter(i => i.id !== id);
@@ -692,8 +707,28 @@ async function deleteInteraction(id, dealId) {
   if (preview) preview.innerHTML = buildPreviewHTML(dealId);
 }
 
+async function editInteractionDate(id, dealId) {
+  const item = (_interactionsCache[dealId] || []).find(i => i.id === id);
+  if (!item) return;
+  const current = new Date(item.createdAt);
+  const iso = current.getFullYear() + '-' + String(current.getMonth()+1).padStart(2,'0') + '-' + String(current.getDate()).padStart(2,'0') + 'T' + String(current.getHours()).padStart(2,'0') + ':' + String(current.getMinutes()).padStart(2,'0');
+  const input = prompt('Edit date/time (YYYY-MM-DDTHH:MM):', iso);
+  if (!input) return;
+  const parsed = new Date(input);
+  if (isNaN(parsed.getTime())) return;
+
+  const { sbUpdateInteraction } = await import('./api.js?v=20260515h');
+  await sbUpdateInteraction(id, { created_at: parsed.toISOString() });
+  item.createdAt = parsed.toISOString();
+  closeTimelinePanel();
+  openTimelinePanel(dealId);
+  const preview = document.getElementById('interaction-preview');
+  if (preview) preview.innerHTML = buildPreviewHTML(dealId);
+}
+
 window.addInteraction = addInteraction;
 window.deleteInteraction = deleteInteraction;
+window.editInteractionDate = editInteractionDate;
 window.openTimelinePanel = openTimelinePanel;
 window.closeTimelinePanel = closeTimelinePanel;
 
@@ -707,7 +742,7 @@ async function enrichLead(dealId) {
   const canEnrich = hasLinkedin || (hasContact && hasWebsite);
 
   if (!canEnrich) {
-    const { showToast } = await import('./api.js?v=20260515g');
+    const { showToast } = await import('./api.js?v=20260515h');
     showToast('Needs a LinkedIn URL or company name + website to enrich', 'warning');
     return;
   }
@@ -719,7 +754,7 @@ async function enrichLead(dealId) {
 
   try {
     const result = await invokeEdgeFunction('enrich-lead', { dealId });
-    const { showToast } = await import('./api.js?v=20260515g');
+    const { showToast } = await import('./api.js?v=20260515h');
     console.log('[enrich-lead] Response:', JSON.stringify(result));
 
     if (result.ok && result.phones && result.phones.length > 0) {
@@ -735,7 +770,7 @@ async function enrichLead(dealId) {
     }
   } catch (e) {
     showEnrichOverlay(false);
-    const { showToast } = await import('./api.js?v=20260515g');
+    const { showToast } = await import('./api.js?v=20260515h');
     console.error('[enrich-lead] Exception:', e);
     showToast('Enrichment failed: ' + e.message, 'error');
   }
@@ -1486,7 +1521,7 @@ export function confirmScheduleAndCopy(){
   sbUpdateDeal(dealId, camelToSnake({bookedDate:dateVal,bookedTime:timeVal})).catch(e=>console.error('Update deal failed:',e)).finally(()=>{pendingWrites.value--;});
   const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
   if(client && dateVal){
-    import('./calendly.js?v=20260515g').then(mod=>{
+    import('./calendly.js?v=20260515h').then(mod=>{
       const apptAddr=(deal.address||deal.location||'').trim();
       mod.saveAppointment(client.name, deal.company||deal.contact||'Unknown', dateVal, timeVal, '', apptAddr);
     });
