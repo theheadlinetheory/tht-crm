@@ -6,24 +6,24 @@
 // populated during the final migration. This module provides
 // the key functions other modules depend on.
 
-import { state, pendingWrites, pendingDealFields } from './app.js?v=20260515e';
-import { flushRealtimeQueue } from './api.js?v=20260515e';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260515e';
-import { render, refreshModal } from './render.js?v=20260515e';
-import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20260515e';
-import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20260515e';
-import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20260515e';
-import { isAdmin, isClient, isEmployee, loadAssignableUsers } from './auth.js?v=20260515e';
-import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js?v=20260515e';
-import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, assignNoShowSequence } from './activities.js?v=20260515e';
-import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js?v=20260515e';
-import { getStagesForPipeline } from './dashboard.js?v=20260515e';
-import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal } from './maps.js?v=20260515e';
-import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js?v=20260515e';
-import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js?v=20260515e';
+import { state, pendingWrites, pendingDealFields } from './app.js?v=20260515f';
+import { flushRealtimeQueue } from './api.js?v=20260515f';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260515f';
+import { render, refreshModal } from './render.js?v=20260515f';
+import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20260515f';
+import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20260515f';
+import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20260515f';
+import { isAdmin, isClient, isEmployee, loadAssignableUsers } from './auth.js?v=20260515f';
+import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js?v=20260515f';
+import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, assignNoShowSequence } from './activities.js?v=20260515f';
+import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js?v=20260515f';
+import { getStagesForPipeline } from './dashboard.js?v=20260515f';
+import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal } from './maps.js?v=20260515f';
+import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js?v=20260515f';
+import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js?v=20260515f';
 import './blooio.js';
 import './demo-tracker.js';
-import { renderDealRetargetHistory } from './retargeting.js?v=20260515e';
+import { renderDealRetargetHistory } from './retargeting.js?v=20260515f';
 
 function actTypeClass(type){
   const t=(type||'').toLowerCase();
@@ -411,22 +411,22 @@ export async function doWonDrop(){
   let wonSuccess = false;
   try {
     if(deal.pipeline==='Acquisition'){
-      const { autoCreateClient } = await import('./client-info.js?v=20260515e');
+      const { autoCreateClient } = await import('./client-info.js?v=20260515f');
       const result = await autoCreateClient(deal);
       wonSuccess = true; // Even if user skipped duplicate, still archive
     } else {
-      const { autoPushToTracker } = await import('./email.js?v=20260515e');
+      const { autoPushToTracker } = await import('./email.js?v=20260515f');
       await autoPushToTracker(deal);
       wonSuccess = true;
     }
   } catch(e){
     console.error('Won drop action failed:', e);
-    const { showToast } = await import('./api.js?v=20260515e');
+    const { showToast } = await import('./api.js?v=20260515f');
     showToast('Won action failed: ' + e.message, 'error');
   }
 
   if(wonSuccess) {
-    const { deleteDeal } = await import('./deals.js?v=20260515e');
+    const { deleteDeal } = await import('./deals.js?v=20260515f');
     deleteDeal(id, 'Closed Won', clientName);
   }
 }
@@ -536,7 +536,7 @@ async function confirmPhoneAssign() {
   try { await sbUpdateDeal(dealId, snakeUpdates); }
   finally { pendingWrites.value--; }
 
-  const { showToast } = await import('./api.js?v=20260515e');
+  const { showToast } = await import('./api.js?v=20260515f');
   showToast('Phone number(s) saved', 'success');
 }
 
@@ -545,11 +545,13 @@ window.confirmPhoneAssign = confirmPhoneAssign;
 
 // ─── Interaction Timeline ───
 const INTERACTION_TYPES = ['Call', 'Email', 'Meeting', 'Text', 'Note'];
+const TYPE_COLORS = { Call: '#f97316', Email: '#2563eb', Meeting: '#7c3aed', Text: '#10b981', Note: '#6b7280', System: '#8b5cf6' };
+const TYPE_ICONS = { Call: 'phone', Email: 'mail', Meeting: 'calendar', Text: 'message-circle', Note: 'edit', System: 'zap' };
 let _interactionsCache = {};
 
 async function loadInteractions(dealId) {
   try {
-    const { sbGetInteractions } = await import('./api.js?v=20260515e');
+    const { sbGetInteractions } = await import('./api.js?v=20260515f');
     const rows = await sbGetInteractions(dealId);
     _interactionsCache[dealId] = (rows || []).map(r => ({
       id: r.id, dealId: r.deal_id, type: r.type, content: r.content,
@@ -559,64 +561,141 @@ async function loadInteractions(dealId) {
     console.error('[interactions] load failed:', e);
     _interactionsCache[dealId] = _interactionsCache[dealId] || [];
   }
-  renderInteractionTimeline(dealId);
+  const preview = document.getElementById('interaction-preview');
+  if (preview) preview.innerHTML = buildPreviewHTML(dealId);
 }
 
-const INTERACTION_TYPE_COLORS = { Call: '#f97316', Email: '#2563eb', Meeting: '#7c3aed', Text: '#10b981', Note: '#6b7280' };
+function fmtShortDate(d) {
+  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
 
-function buildInteractionTimelineHTML(dealId) {
+function buildPreviewHTML(dealId) {
   const items = _interactionsCache[dealId];
-  if (!items) return '<div style="text-align:center;color:#9ca3af;font-size:12px;padding:12px 0">Loading...</div>';
-  if (items.length === 0) return '<div style="text-align:center;color:#9ca3af;font-size:12px;padding:12px 0">No interactions yet</div>';
-
-  return items.map(it => {
-    const d = new Date(it.createdAt);
-    const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-    const color = INTERACTION_TYPE_COLORS[it.type] || '#6b7280';
-    return '<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #f3f4f6;align-items:flex-start">'
-      + '<div style="min-width:56px;padding-top:1px"><div style="font-size:11px;font-weight:600;color:#374151">' + esc(dateStr) + '</div><div style="font-size:10px;color:#9ca3af">' + esc(timeStr) + '</div></div>'
-      + '<div style="display:inline-block;padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;color:#fff;background:' + color + ';margin-top:2px;white-space:nowrap">' + esc(it.type) + '</div>'
-      + '<div style="flex:1;font-size:13px;color:#1f2937;line-height:1.4;padding-top:1px">' + esc(it.content) + '</div>'
-      + '<button onclick="deleteInteraction(\'' + esc(it.id) + '\',\'' + esc(dealId) + '\')" style="background:none;border:none;cursor:pointer;color:#d1d5db;font-size:14px;padding:2px 4px;flex-shrink:0" title="Delete">&times;</button>'
-      + '</div>';
-  }).join('');
+  if (!items) return '<span style="color:#9ca3af;font-size:12px">Loading...</span>';
+  if (items.length === 0) return '<span style="color:#9ca3af;font-size:12px">No touchpoints logged yet</span>';
+  const last = items[0];
+  const color = TYPE_COLORS[last.type] || '#6b7280';
+  return '<span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;color:#fff;background:' + color + ';margin-right:6px">' + esc(last.type) + '</span>'
+    + '<span style="font-size:12px;color:#374151">' + esc(last.content.length > 60 ? last.content.slice(0, 60) + '...' : last.content) + '</span>'
+    + '<span style="font-size:11px;color:#9ca3af;margin-left:6px">' + fmtShortDate(last.createdAt) + '</span>';
 }
 
-function renderInteractionTimeline(dealId) {
-  const el = document.getElementById('interaction-timeline');
-  if (el) el.innerHTML = buildInteractionTimelineHTML(dealId);
+function buildLifecycleEvents(deal) {
+  const events = [];
+  if (deal.createdAt || deal.createdDate) {
+    events.push({ type: 'System', content: 'Lead created — ' + (deal.pipeline || '') + ' pipeline', date: deal.createdAt || deal.createdDate, system: true });
+  }
+  if (deal.bookedDate) {
+    const label = deal.stage && deal.stage.toLowerCase().includes('demo') ? 'Demo scheduled' : 'Meeting scheduled';
+    const dt = deal.bookedDate + (deal.bookedTime ? 'T' + deal.bookedTime : '');
+    events.push({ type: 'System', content: label + (deal.bookedFor ? ' with ' + deal.bookedFor : ''), date: dt, system: true });
+  }
+  if (deal.forwardedAt) {
+    events.push({ type: 'System', content: 'Forwarded to client', date: deal.forwardedAt, system: true });
+  }
+  if (deal.autoFollowupStartedAt) {
+    events.push({ type: 'System', content: 'Auto follow-up sequence started', date: deal.autoFollowupStartedAt, system: true });
+  }
+  return events;
+}
+
+function openTimelinePanel(dealId) {
+  const deal = state.deals.find(d => d.id === dealId);
+  if (!deal) return;
+  const interactions = (_interactionsCache[dealId] || []).map(it => ({ ...it, system: false }));
+  const lifecycle = buildLifecycleEvents(deal);
+  const all = [...interactions, ...lifecycle].sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
+
+  let html = '<div style="position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);backdrop-filter:blur(2px)" id="timeline-panel-overlay" onclick="if(event.target===this)closeTimelinePanel()">';
+  html += '<div style="background:#fff;border-radius:12px;width:90%;max-width:520px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.18)">';
+
+  html += '<div style="padding:16px 20px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center">';
+  html += '<div><div style="font-size:16px;font-weight:700;color:#1e1b4b">Lead Timeline</div><div style="font-size:12px;color:#6b7280">' + esc(deal.contact || deal.company || '') + '</div></div>';
+  html += '<button onclick="closeTimelinePanel()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9ca3af;padding:4px">&times;</button>';
+  html += '</div>';
+
+  html += '<div style="padding:12px 20px;border-bottom:1px solid #e5e7eb;display:flex;gap:6px">';
+  html += '<select id="tl-type" style="padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;background:#fff;min-width:90px">';
+  INTERACTION_TYPES.forEach(t => { html += '<option value="' + t + '">' + t + '</option>'; });
+  html += '</select>';
+  html += '<input id="tl-content" type="text" placeholder="Log a touchpoint..." style="flex:1;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px" onkeydown="if(event.key===\'Enter\'){addInteraction(\'' + esc(dealId) + '\');event.preventDefault()}">';
+  html += '<button onclick="addInteraction(\'' + esc(dealId) + '\')" style="padding:6px 14px;border:none;border-radius:6px;background:#7c3aed;color:#fff;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">+ Add</button>';
+  html += '</div>';
+
+  html += '<div id="timeline-entries" style="flex:1;overflow-y:auto;padding:8px 20px">';
+  if (all.length === 0) {
+    html += '<div style="text-align:center;color:#9ca3af;font-size:13px;padding:24px 0">No timeline events yet</div>';
+  } else {
+    all.forEach((ev, i) => {
+      const d = new Date(ev.date || ev.createdAt);
+      const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      const color = TYPE_COLORS[ev.type] || '#6b7280';
+      const isLast = i === all.length - 1;
+      html += '<div style="display:flex;gap:12px;position:relative">';
+      html += '<div style="display:flex;flex-direction:column;align-items:center;min-width:20px">';
+      html += '<div style="width:10px;height:10px;border-radius:50%;background:' + color + ';flex-shrink:0;margin-top:4px;border:2px solid #fff;box-shadow:0 0 0 2px ' + color + '40"></div>';
+      if (!isLast) html += '<div style="width:2px;flex:1;background:#e5e7eb;margin:4px 0"></div>';
+      html += '</div>';
+      html += '<div style="flex:1;padding-bottom:' + (isLast ? '8' : '16') + 'px">';
+      html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">';
+      html += '<span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;color:#fff;background:' + color + '">' + esc(ev.type) + '</span>';
+      html += '<span style="font-size:11px;color:#9ca3af">' + esc(dateStr) + ' at ' + esc(timeStr) + '</span>';
+      if (!ev.system) html += '<button onclick="deleteInteraction(\'' + esc(ev.id) + '\',\'' + esc(dealId) + '\')" style="background:none;border:none;cursor:pointer;color:#d1d5db;font-size:13px;margin-left:auto;padding:0 4px" title="Delete">&times;</button>';
+      html += '</div>';
+      html += '<div style="font-size:13px;color:' + (ev.system ? '#6b7280' : '#1f2937') + ';line-height:1.4;' + (ev.system ? 'font-style:italic' : '') + '">' + esc(ev.content) + '</div>';
+      html += '</div></div>';
+    });
+  }
+  html += '</div></div></div>';
+
+  const container = document.createElement('div');
+  container.innerHTML = html;
+  document.body.appendChild(container.firstChild);
+}
+
+function closeTimelinePanel() {
+  const el = document.getElementById('timeline-panel-overlay');
+  if (el) el.remove();
 }
 
 async function addInteraction(dealId) {
-  const typeEl = document.getElementById('interaction-type');
-  const contentEl = document.getElementById('interaction-content');
+  const typeEl = document.getElementById('tl-type');
+  const contentEl = document.getElementById('tl-content');
   if (!typeEl || !contentEl) return;
   const type = typeEl.value;
   const content = contentEl.value.trim();
   if (!content) return;
 
   contentEl.value = '';
-  const { sbCreateInteraction } = await import('./api.js?v=20260515e');
+  const { sbCreateInteraction } = await import('./api.js?v=20260515f');
   const row = await sbCreateInteraction({ deal_id: dealId, type, content });
   if (row) {
     if (!_interactionsCache[dealId]) _interactionsCache[dealId] = [];
     _interactionsCache[dealId].unshift({ id: row.id, dealId: row.deal_id, type: row.type, content: row.content, createdAt: row.created_at });
-    renderInteractionTimeline(dealId);
+    closeTimelinePanel();
+    openTimelinePanel(dealId);
+    const preview = document.getElementById('interaction-preview');
+    if (preview) preview.innerHTML = buildPreviewHTML(dealId);
   }
 }
 
 async function deleteInteraction(id, dealId) {
-  const { sbDeleteInteraction } = await import('./api.js?v=20260515e');
+  const { sbDeleteInteraction } = await import('./api.js?v=20260515f');
   await sbDeleteInteraction(id);
   if (_interactionsCache[dealId]) {
     _interactionsCache[dealId] = _interactionsCache[dealId].filter(i => i.id !== id);
   }
-  renderInteractionTimeline(dealId);
+  closeTimelinePanel();
+  openTimelinePanel(dealId);
+  const preview = document.getElementById('interaction-preview');
+  if (preview) preview.innerHTML = buildPreviewHTML(dealId);
 }
 
 window.addInteraction = addInteraction;
 window.deleteInteraction = deleteInteraction;
+window.openTimelinePanel = openTimelinePanel;
+window.closeTimelinePanel = closeTimelinePanel;
 
 async function enrichLead(dealId) {
   const deal = state.deals.find(d => d.id === dealId);
@@ -628,7 +707,7 @@ async function enrichLead(dealId) {
   const canEnrich = hasLinkedin || (hasContact && hasWebsite);
 
   if (!canEnrich) {
-    const { showToast } = await import('./api.js?v=20260515e');
+    const { showToast } = await import('./api.js?v=20260515f');
     showToast('Needs a LinkedIn URL or company name + website to enrich', 'warning');
     return;
   }
@@ -640,7 +719,7 @@ async function enrichLead(dealId) {
 
   try {
     const result = await invokeEdgeFunction('enrich-lead', { dealId });
-    const { showToast } = await import('./api.js?v=20260515e');
+    const { showToast } = await import('./api.js?v=20260515f');
     console.log('[enrich-lead] Response:', JSON.stringify(result));
 
     if (result.ok && result.phones && result.phones.length > 0) {
@@ -656,7 +735,7 @@ async function enrichLead(dealId) {
     }
   } catch (e) {
     showEnrichOverlay(false);
-    const { showToast } = await import('./api.js?v=20260515e');
+    const { showToast } = await import('./api.js?v=20260515f');
     console.error('[enrich-lead] Exception:', e);
     showToast('Enrichment failed: ' + e.message, 'error');
   }
@@ -804,16 +883,12 @@ export function renderDealModal(deal){
           <textarea id="deal-notes" rows="2" oninput="updateDealField('notes',this.value)">${esc(deal.notes||'')}</textarea>
         </div>
         <div class="form-group form-span2" style="margin-bottom:16px">
-          <label style="margin-bottom:8px">Interaction History</label>
-          <div style="display:flex;gap:6px;margin-bottom:8px">
-            <select id="interaction-type" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card)">
-              ${INTERACTION_TYPES.map(t => '<option value="' + t + '">' + t + '</option>').join('')}
-            </select>
-            <input id="interaction-content" type="text" placeholder="What happened?" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)" onkeydown="if(event.key==='Enter'){addInteraction('${esc(deal.id)}');event.preventDefault()}">
-            <button onclick="addInteraction('${esc(deal.id)}')" style="padding:6px 14px;border:none;border-radius:6px;background:#7c3aed;color:#fff;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">+ Add</button>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <label style="margin:0">Timeline</label>
+            <button onclick="openTimelinePanel('${esc(deal.id)}')" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border:1px solid #7c3aed;border-radius:6px;background:#f5f3ff;color:#7c3aed;font-size:11px;font-weight:600;cursor:pointer">${svgIcon('clock',12,'#7c3aed')} View Full Timeline</button>
           </div>
-          <div id="interaction-timeline" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:4px 10px;background:var(--card)">
-            ${buildInteractionTimelineHTML(deal.id)}
+          <div id="interaction-preview" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);min-height:24px">
+            ${buildPreviewHTML(deal.id)}
           </div>
         </div>
         ${(()=>{
@@ -1411,7 +1486,7 @@ export function confirmScheduleAndCopy(){
   sbUpdateDeal(dealId, camelToSnake({bookedDate:dateVal,bookedTime:timeVal})).catch(e=>console.error('Update deal failed:',e)).finally(()=>{pendingWrites.value--;});
   const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
   if(client && dateVal){
-    import('./calendly.js?v=20260515e').then(mod=>{
+    import('./calendly.js?v=20260515f').then(mod=>{
       const apptAddr=(deal.address||deal.location||'').trim();
       mod.saveAppointment(client.name, deal.company||deal.contact||'Unknown', dateVal, timeVal, '', apptAddr);
     });
