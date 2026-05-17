@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // DEALS — CRUD operations, bulk actions, drag-drop
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, pendingDealFields, deletedDealIds, clientPortalStages } from './app.js?v=20260517e';
-import { ACQUISITION_STAGES } from './config.js?v=20260517e';
-import { render } from './render.js?v=20260517e';
-import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbArchiveDeal, sbRestoreFromArchive, sbCreateActivity, camelToSnake, invokeEdgeFunction } from './api.js?v=20260517e';
-import { clearDashboardArchiveCache } from './dashboard.js?v=20260517e';
-import { uid, getToday, str } from './utils.js?v=20260517e';
-import { isClient, currentUser } from './auth.js?v=20260517e';
+import { state, store, pendingWrites, pendingDealFields, deletedDealIds, clientPortalStages } from './app.js?v=20260517f';
+import { ACQUISITION_STAGES } from './config.js?v=20260517f';
+import { render } from './render.js?v=20260517f';
+import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbArchiveDeal, sbRestoreFromArchive, sbCreateActivity, camelToSnake, invokeEdgeFunction } from './api.js?v=20260517f';
+import { clearDashboardArchiveCache } from './dashboard.js?v=20260517f';
+import { uid, getToday, str } from './utils.js?v=20260517f';
+import { isClient, currentUser } from './auth.js?v=20260517f';
 
 const TODAY = getToday;
 
@@ -63,11 +63,11 @@ export async function moveDeal(dealId,newStage){
     if(pending && Object.keys(pending).length===0) delete pendingDealFields[String(dealId)];
   } finally { pendingWrites.value--; }
   if(d && (newStage==='Discovery Scheduled' || newStage==='Demo Scheduled') && d.bookedDate && /^\d{4}-\d{2}-\d{2}$/.test(d.bookedDate)){
-    const { generateAppointmentSequence } = await import('./activities.js?v=20260517e');
+    const { generateAppointmentSequence } = await import('./activities.js?v=20260517f');
     generateAppointmentSequence(d);
   }
   if(d && newStage==='No Show'){
-    const { assignNoShowSequence } = await import('./activities.js?v=20260517e');
+    const { assignNoShowSequence } = await import('./activities.js?v=20260517f');
     assignNoShowSequence(d);
   }
 }
@@ -124,7 +124,7 @@ export async function bulkAddActivity(){
   if(!dueDate||!dueDate.match(/^\d{4}-\d{2}-\d{2}$/)) return;
   const ids=[...state.bulkSelected];
   if(!confirm('Add "'+subject+'" activity to '+ids.length+' deal'+(ids.length!==1?'s':'')+'?')) return;
-  const { addActivity } = await import('./activities.js?v=20260517e');
+  const { addActivity } = await import('./activities.js?v=20260517f');
   for(const dealId of ids){
     addActivity(dealId,{type,subject,dueDate,dayLabel:''});
   }
@@ -158,7 +158,7 @@ export async function bulkRestoreFromArchive(){
       await sbRestoreFromArchive(id);
     }
     clearDashboardArchiveCache();
-    const { initialSync } = await import('./api.js?v=20260517e');
+    const { initialSync } = await import('./api.js?v=20260517f');
     initialSync();
   }finally{ pendingWrites.value--; }
 }
