@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // CALENDLY — Calendly popup/inline widget integration
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20260517a';
-import { TZ_TO_IANA, ACQ_CALENDLY_URLS } from './config.js?v=20260517a';
-import { render, refreshModal } from './render.js?v=20260517a';
-import { sbUpdateDeal, sbCreateAppointment, sbDeleteAppointment, camelToSnake } from './api.js?v=20260517a';
-import { esc, str, getToday, fmtTime12, uid } from './utils.js?v=20260517a';
-import { lookupClientInfo, findClientForDeal } from './client-info.js?v=20260517a';
+import { state, store, pendingWrites } from './app.js?v=20260517b';
+import { TZ_TO_IANA, ACQ_CALENDLY_URLS } from './config.js?v=20260517b';
+import { render, refreshModal } from './render.js?v=20260517b';
+import { sbUpdateDeal, sbCreateAppointment, sbDeleteAppointment, camelToSnake } from './api.js?v=20260517b';
+import { esc, str, getToday, fmtTime12, uid } from './utils.js?v=20260517b';
+import { lookupClientInfo, findClientForDeal } from './client-info.js?v=20260517b';
 
 export function buildCalendlyUrl(baseUrl, deal){
   if(!baseUrl) return '';
@@ -84,20 +84,26 @@ export function openCalendlyEmbed(dealId, baseCalUrl, clientName, overrideName, 
   try {
     const url=new URL(baseCalUrl);
     if(ianaTz) url.searchParams.set('timezone', ianaTz);
-    const cleanUrl=url.toString().replace(/\+/g,'%20');
+    if(guestName) url.searchParams.set('name', guestName);
+    if(guestEmail) url.searchParams.set('email', guestEmail);
+    if(notes) url.searchParams.set('a1', notes);
+    const finalUrl=url.toString().replace(/\+/g,'%20');
 
+    const parts=guestName.split(/\s+/);
     const prefill={};
-    if(guestName) prefill.name=guestName;
+    if(guestName){
+      prefill.name=guestName;
+      prefill.firstName=parts[0]||'';
+      prefill.lastName=parts.slice(1).join(' ')||'';
+    }
     if(guestEmail) prefill.email=guestEmail;
     if(notes) prefill.customAnswers={a1:notes};
 
     if(window.Calendly){
-      window.Calendly.initPopupWidget({url:cleanUrl, prefill});
+      try{window.Calendly.closePopupWidget();}catch(ex){}
+      window.Calendly.initPopupWidget({url:finalUrl, prefill});
     } else {
-      if(guestName) url.searchParams.set('name', guestName);
-      if(guestEmail) url.searchParams.set('email', guestEmail);
-      if(notes) url.searchParams.set('a1', notes);
-      window.open(url.toString().replace(/\+/g,'%20'),'_blank');
+      window.open(finalUrl,'_blank');
     }
   } catch(e){
     if(window.Calendly){
