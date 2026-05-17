@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // CALENDLY — Calendly popup/inline widget integration
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20260517d';
-import { TZ_TO_IANA, ACQ_CALENDLY_URLS } from './config.js?v=20260517d';
-import { render, refreshModal } from './render.js?v=20260517d';
-import { sbUpdateDeal, sbCreateAppointment, sbDeleteAppointment, camelToSnake } from './api.js?v=20260517d';
-import { esc, str, getToday, fmtTime12, uid } from './utils.js?v=20260517d';
-import { lookupClientInfo, findClientForDeal } from './client-info.js?v=20260517d';
+import { state, store, pendingWrites } from './app.js?v=20260517e';
+import { TZ_TO_IANA, ACQ_CALENDLY_URLS } from './config.js?v=20260517e';
+import { render, refreshModal } from './render.js?v=20260517e';
+import { sbUpdateDeal, sbCreateAppointment, sbDeleteAppointment, camelToSnake } from './api.js?v=20260517e';
+import { esc, str, getToday, fmtTime12, uid } from './utils.js?v=20260517e';
+import { lookupClientInfo, findClientForDeal } from './client-info.js?v=20260517e';
 
 export function buildCalendlyUrl(baseUrl, deal){
   if(!baseUrl) return '';
@@ -92,8 +92,8 @@ export function openCalendlyEmbed(dealId, baseCalUrl, clientName, overrideName, 
       url.searchParams.set('last_name', parts.slice(1).join(' ')||'');
     }
     if(guestEmail) url.searchParams.set('email', guestEmail);
-    if(guestPhone) url.searchParams.set('phone_number', guestPhone);
-    if(notes) url.searchParams.set('a1', notes);
+    if(guestPhone) url.searchParams.set('a1', guestPhone);
+    if(notes) url.searchParams.set('a2', notes);
     const finalUrl=url.toString().replace(/\+/g,'%20');
     const prefill={};
     if(guestName){
@@ -102,8 +102,10 @@ export function openCalendlyEmbed(dealId, baseCalUrl, clientName, overrideName, 
       prefill.lastName=parts.slice(1).join(' ')||'';
     }
     if(guestEmail) prefill.email=guestEmail;
-    if(guestPhone) prefill.smsReminderPhoneNumber=guestPhone;
-    if(notes) prefill.customAnswers={a1:notes};
+    const ca={};
+    if(guestPhone) ca.a1=guestPhone;
+    if(notes) ca.a2=notes;
+    if(Object.keys(ca).length) prefill.customAnswers=ca;
 
     if(window.Calendly){
       try{window.Calendly.closePopupWidget();}catch(ex){}
