@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // CALENDLY — Calendly popup/inline widget integration
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20260515h';
-import { TZ_TO_IANA, ACQ_CALENDLY_URLS } from './config.js?v=20260515h';
-import { render, refreshModal } from './render.js?v=20260515h';
-import { sbUpdateDeal, sbCreateAppointment, sbDeleteAppointment, camelToSnake } from './api.js?v=20260515h';
-import { esc, str, getToday, fmtTime12, uid } from './utils.js?v=20260515h';
-import { lookupClientInfo, findClientForDeal } from './client-info.js?v=20260515h';
+import { state, store, pendingWrites } from './app.js?v=20260517a';
+import { TZ_TO_IANA, ACQ_CALENDLY_URLS } from './config.js?v=20260517a';
+import { render, refreshModal } from './render.js?v=20260517a';
+import { sbUpdateDeal, sbCreateAppointment, sbDeleteAppointment, camelToSnake } from './api.js?v=20260517a';
+import { esc, str, getToday, fmtTime12, uid } from './utils.js?v=20260517a';
+import { lookupClientInfo, findClientForDeal } from './client-info.js?v=20260517a';
 
 export function buildCalendlyUrl(baseUrl, deal){
   if(!baseUrl) return '';
@@ -83,20 +83,23 @@ export function openCalendlyEmbed(dealId, baseCalUrl, clientName, overrideName, 
 
   try {
     const url=new URL(baseCalUrl);
-    if(guestName) url.searchParams.set('name', guestName);
-    if(guestEmail) url.searchParams.set('email', guestEmail);
-    if(notes) url.searchParams.set('a1', notes);
     if(ianaTz) url.searchParams.set('timezone', ianaTz);
+    const cleanUrl=url.toString().replace(/\+/g,'%20');
 
-    // Replace + with %20 — URLSearchParams encodes spaces as + but Calendly reads them literally
-    const finalUrl=url.toString().replace(/\+/g,'%20');
+    const prefill={};
+    if(guestName) prefill.name=guestName;
+    if(guestEmail) prefill.email=guestEmail;
+    if(notes) prefill.customAnswers={a1:notes};
+
     if(window.Calendly){
-      window.Calendly.initPopupWidget({url:finalUrl});
+      window.Calendly.initPopupWidget({url:cleanUrl, prefill});
     } else {
-      window.open(finalUrl,'_blank');
+      if(guestName) url.searchParams.set('name', guestName);
+      if(guestEmail) url.searchParams.set('email', guestEmail);
+      if(notes) url.searchParams.set('a1', notes);
+      window.open(url.toString().replace(/\+/g,'%20'),'_blank');
     }
   } catch(e){
-    // Fallback if URL parsing fails
     if(window.Calendly){
       window.Calendly.initPopupWidget({url:baseCalUrl});
     } else {
