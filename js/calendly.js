@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // CALENDLY — Calendly popup/inline widget integration
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20260517c';
-import { TZ_TO_IANA, ACQ_CALENDLY_URLS } from './config.js?v=20260517c';
-import { render, refreshModal } from './render.js?v=20260517c';
-import { sbUpdateDeal, sbCreateAppointment, sbDeleteAppointment, camelToSnake } from './api.js?v=20260517c';
-import { esc, str, getToday, fmtTime12, uid } from './utils.js?v=20260517c';
-import { lookupClientInfo, findClientForDeal } from './client-info.js?v=20260517c';
+import { state, store, pendingWrites } from './app.js?v=20260517d';
+import { TZ_TO_IANA, ACQ_CALENDLY_URLS } from './config.js?v=20260517d';
+import { render, refreshModal } from './render.js?v=20260517d';
+import { sbUpdateDeal, sbCreateAppointment, sbDeleteAppointment, camelToSnake } from './api.js?v=20260517d';
+import { esc, str, getToday, fmtTime12, uid } from './utils.js?v=20260517d';
+import { lookupClientInfo, findClientForDeal } from './client-info.js?v=20260517d';
 
 export function buildCalendlyUrl(baseUrl, deal){
   if(!baseUrl) return '';
@@ -73,10 +73,11 @@ export function openCalendlyEmbed(dealId, baseCalUrl, clientName, overrideName, 
   const ianaTz=clientName?clientIanaTz(clientName):null;
 
   // Build prefill — encode everything into URL params (most reliable method)
-  let guestName='', guestEmail='', notes='';
+  let guestName='', guestEmail='', guestPhone='', notes='';
   if(deal){
     guestName=overrideName||deal.calName||deal.contact||deal.company||'';
     guestEmail=overrideEmail||deal.calEmail||deal.email||'';
+    guestPhone=deal.mobilePhone||deal.phone||'';
     notes=overrideNotes||deal.calNotes||'';
     if(!notes && deal.company) notes=deal.company;
   }
@@ -91,6 +92,7 @@ export function openCalendlyEmbed(dealId, baseCalUrl, clientName, overrideName, 
       url.searchParams.set('last_name', parts.slice(1).join(' ')||'');
     }
     if(guestEmail) url.searchParams.set('email', guestEmail);
+    if(guestPhone) url.searchParams.set('phone_number', guestPhone);
     if(notes) url.searchParams.set('a1', notes);
     const finalUrl=url.toString().replace(/\+/g,'%20');
     const prefill={};
@@ -100,6 +102,7 @@ export function openCalendlyEmbed(dealId, baseCalUrl, clientName, overrideName, 
       prefill.lastName=parts.slice(1).join(' ')||'';
     }
     if(guestEmail) prefill.email=guestEmail;
+    if(guestPhone) prefill.smsReminderPhoneNumber=guestPhone;
     if(notes) prefill.customAnswers={a1:notes};
 
     if(window.Calendly){
