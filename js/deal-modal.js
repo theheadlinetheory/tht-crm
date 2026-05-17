@@ -6,24 +6,24 @@
 // populated during the final migration. This module provides
 // the key functions other modules depend on.
 
-import { state, pendingWrites, pendingDealFields } from './app.js?v=20260517b';
-import { flushRealtimeQueue } from './api.js?v=20260517b';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260517b';
-import { render, refreshModal } from './render.js?v=20260517b';
-import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20260517b';
-import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20260517b';
-import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20260517b';
-import { isAdmin, isClient, isEmployee, loadAssignableUsers } from './auth.js?v=20260517b';
-import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js?v=20260517b';
-import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, assignNoShowSequence } from './activities.js?v=20260517b';
-import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js?v=20260517b';
-import { getStagesForPipeline } from './dashboard.js?v=20260517b';
-import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal } from './maps.js?v=20260517b';
-import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js?v=20260517b';
-import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js?v=20260517b';
+import { state, pendingWrites, pendingDealFields } from './app.js?v=20260517c';
+import { flushRealtimeQueue } from './api.js?v=20260517c';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260517c';
+import { render, refreshModal } from './render.js?v=20260517c';
+import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20260517c';
+import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20260517c';
+import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20260517c';
+import { isAdmin, isClient, isEmployee, loadAssignableUsers } from './auth.js?v=20260517c';
+import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js?v=20260517c';
+import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, assignNoShowSequence } from './activities.js?v=20260517c';
+import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js?v=20260517c';
+import { getStagesForPipeline } from './dashboard.js?v=20260517c';
+import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal } from './maps.js?v=20260517c';
+import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js?v=20260517c';
+import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js?v=20260517c';
 import './blooio.js';
 import './demo-tracker.js';
-import { renderDealRetargetHistory } from './retargeting.js?v=20260517b';
+import { renderDealRetargetHistory } from './retargeting.js?v=20260517c';
 
 function actTypeClass(type){
   const t=(type||'').toLowerCase();
@@ -411,22 +411,22 @@ export async function doWonDrop(){
   let wonSuccess = false;
   try {
     if(deal.pipeline==='Acquisition'){
-      const { autoCreateClient } = await import('./client-info.js?v=20260517b');
+      const { autoCreateClient } = await import('./client-info.js?v=20260517c');
       const result = await autoCreateClient(deal);
       wonSuccess = true; // Even if user skipped duplicate, still archive
     } else {
-      const { autoPushToTracker } = await import('./email.js?v=20260517b');
+      const { autoPushToTracker } = await import('./email.js?v=20260517c');
       await autoPushToTracker(deal);
       wonSuccess = true;
     }
   } catch(e){
     console.error('Won drop action failed:', e);
-    const { showToast } = await import('./api.js?v=20260517b');
+    const { showToast } = await import('./api.js?v=20260517c');
     showToast('Won action failed: ' + e.message, 'error');
   }
 
   if(wonSuccess) {
-    const { deleteDeal } = await import('./deals.js?v=20260517b');
+    const { deleteDeal } = await import('./deals.js?v=20260517c');
     deleteDeal(id, 'Closed Won', clientName);
   }
 }
@@ -536,7 +536,7 @@ async function confirmPhoneAssign() {
   try { await sbUpdateDeal(dealId, snakeUpdates); }
   finally { pendingWrites.value--; }
 
-  const { showToast } = await import('./api.js?v=20260517b');
+  const { showToast } = await import('./api.js?v=20260517c');
   showToast('Phone number(s) saved', 'success');
 }
 
@@ -551,7 +551,7 @@ let _interactionsCache = {};
 
 async function loadInteractions(dealId) {
   try {
-    const { sbGetInteractions } = await import('./api.js?v=20260517b');
+    const { sbGetInteractions } = await import('./api.js?v=20260517c');
     const rows = await sbGetInteractions(dealId);
     _interactionsCache[dealId] = (rows || []).map(r => ({
       id: r.id, dealId: r.deal_id, type: r.type, content: r.content,
@@ -683,7 +683,7 @@ async function addInteraction(dealId) {
 
   contentEl.value = '';
   if (dateEl) dateEl.value = '';
-  const { sbCreateInteraction } = await import('./api.js?v=20260517b');
+  const { sbCreateInteraction } = await import('./api.js?v=20260517c');
   const row = await sbCreateInteraction(fields);
   if (row) {
     if (!_interactionsCache[dealId]) _interactionsCache[dealId] = [];
@@ -696,7 +696,7 @@ async function addInteraction(dealId) {
 }
 
 async function deleteInteraction(id, dealId) {
-  const { sbDeleteInteraction } = await import('./api.js?v=20260517b');
+  const { sbDeleteInteraction } = await import('./api.js?v=20260517c');
   await sbDeleteInteraction(id);
   if (_interactionsCache[dealId]) {
     _interactionsCache[dealId] = _interactionsCache[dealId].filter(i => i.id !== id);
@@ -717,7 +717,7 @@ async function editInteractionDate(id, dealId) {
   const parsed = new Date(input);
   if (isNaN(parsed.getTime())) return;
 
-  const { sbUpdateInteraction } = await import('./api.js?v=20260517b');
+  const { sbUpdateInteraction } = await import('./api.js?v=20260517c');
   await sbUpdateInteraction(id, { created_at: parsed.toISOString() });
   item.createdAt = parsed.toISOString();
   closeTimelinePanel();
@@ -742,7 +742,7 @@ async function enrichLead(dealId) {
   const canEnrich = hasLinkedin || (hasContact && hasWebsite);
 
   if (!canEnrich) {
-    const { showToast } = await import('./api.js?v=20260517b');
+    const { showToast } = await import('./api.js?v=20260517c');
     showToast('Needs a LinkedIn URL or company name + website to enrich', 'warning');
     return;
   }
@@ -754,7 +754,7 @@ async function enrichLead(dealId) {
 
   try {
     const result = await invokeEdgeFunction('enrich-lead', { dealId });
-    const { showToast } = await import('./api.js?v=20260517b');
+    const { showToast } = await import('./api.js?v=20260517c');
     console.log('[enrich-lead] Response:', JSON.stringify(result));
 
     if (result.ok && result.phones && result.phones.length > 0) {
@@ -770,7 +770,7 @@ async function enrichLead(dealId) {
     }
   } catch (e) {
     showEnrichOverlay(false);
-    const { showToast } = await import('./api.js?v=20260517b');
+    const { showToast } = await import('./api.js?v=20260517c');
     console.error('[enrich-lead] Exception:', e);
     showToast('Enrichment failed: ' + e.message, 'error');
   }
@@ -1521,7 +1521,7 @@ export function confirmScheduleAndCopy(){
   sbUpdateDeal(dealId, camelToSnake({bookedDate:dateVal,bookedTime:timeVal})).catch(e=>console.error('Update deal failed:',e)).finally(()=>{pendingWrites.value--;});
   const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
   if(client && dateVal){
-    import('./calendly.js?v=20260517b').then(mod=>{
+    import('./calendly.js?v=20260517c').then(mod=>{
       const apptAddr=(deal.address||deal.location||'').trim();
       mod.saveAppointment(client.name, deal.company||deal.contact||'Unknown', dateVal, timeVal, '', apptAddr);
     });
