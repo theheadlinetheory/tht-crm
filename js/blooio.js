@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // BLOOIO — In-CRM texting via Blooio API (thread viewer + send)
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20260517c';
-import { showToast, sbCreateActivity, sbUpdateDeal, camelToSnake } from './api.js?v=20260517c';
-import { uid, getToday, esc, applyTemplate } from './utils.js?v=20260517c';
-import { refreshModal } from './render.js?v=20260517c';
-import { BLOOIO_BASE_URL, BLOOIO_API_KEY, SEQUENCE_TEMPLATES } from './config.js?v=20260517c';
+import { state, pendingWrites } from './app.js?v=20260517d';
+import { showToast, sbCreateActivity, sbUpdateDeal, camelToSnake } from './api.js?v=20260517d';
+import { uid, getToday, esc, applyTemplate } from './utils.js?v=20260517d';
+import { refreshModal } from './render.js?v=20260517d';
+import { BLOOIO_BASE_URL, BLOOIO_API_KEY, SEQUENCE_TEMPLATES } from './config.js?v=20260517d';
 
 let cachedFromNumber = null;
 
