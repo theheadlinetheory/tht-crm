@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // CALENDLY — Calendly popup/inline widget integration
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20260517b';
-import { TZ_TO_IANA, ACQ_CALENDLY_URLS } from './config.js?v=20260517b';
-import { render, refreshModal } from './render.js?v=20260517b';
-import { sbUpdateDeal, sbCreateAppointment, sbDeleteAppointment, camelToSnake } from './api.js?v=20260517b';
-import { esc, str, getToday, fmtTime12, uid } from './utils.js?v=20260517b';
-import { lookupClientInfo, findClientForDeal } from './client-info.js?v=20260517b';
+import { state, store, pendingWrites } from './app.js?v=20260517c';
+import { TZ_TO_IANA, ACQ_CALENDLY_URLS } from './config.js?v=20260517c';
+import { render, refreshModal } from './render.js?v=20260517c';
+import { sbUpdateDeal, sbCreateAppointment, sbDeleteAppointment, camelToSnake } from './api.js?v=20260517c';
+import { esc, str, getToday, fmtTime12, uid } from './utils.js?v=20260517c';
+import { lookupClientInfo, findClientForDeal } from './client-info.js?v=20260517c';
 
 export function buildCalendlyUrl(baseUrl, deal){
   if(!baseUrl) return '';
@@ -83,13 +83,16 @@ export function openCalendlyEmbed(dealId, baseCalUrl, clientName, overrideName, 
 
   try {
     const url=new URL(baseCalUrl);
+    const parts=guestName.split(/\s+/);
     if(ianaTz) url.searchParams.set('timezone', ianaTz);
-    if(guestName) url.searchParams.set('name', guestName);
+    if(guestName){
+      url.searchParams.set('name', guestName);
+      url.searchParams.set('first_name', parts[0]||'');
+      url.searchParams.set('last_name', parts.slice(1).join(' ')||'');
+    }
     if(guestEmail) url.searchParams.set('email', guestEmail);
     if(notes) url.searchParams.set('a1', notes);
     const finalUrl=url.toString().replace(/\+/g,'%20');
-
-    const parts=guestName.split(/\s+/);
     const prefill={};
     if(guestName){
       prefill.name=guestName;
