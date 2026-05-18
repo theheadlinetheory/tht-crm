@@ -700,10 +700,11 @@ function switchPipeline(id){
   state._snoozeDealId = null;
   // Close deal modal if open
   state.selectedDeal = null;
-  // Ensure nurture sub-tab is valid (board or archive)
-  if(state.nurtureSubTab!=='board' && state.nurtureSubTab!=='archive') state.nurtureSubTab='board';
-  if(id!=='acquisition'){ state.nurtureSubTab='board'; state._nurtureLoaded=false; state.acquisitionSubTab='pipeline'; }
-  if(id!=='client_leads'){ state.clientLeadsSubTab='pipeline'; }
+  // Always reset sub-tabs to default on any pipeline switch
+  state.acquisitionSubTab = 'pipeline';
+  state.clientLeadsSubTab = 'pipeline';
+  state.nurtureSubTab = 'board';
+  state._nurtureLoaded = false;
   render();
 }
 
