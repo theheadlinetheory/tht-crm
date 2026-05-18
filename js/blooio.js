@@ -155,11 +155,13 @@ export function openBlooioModal(dealId, phoneField){
   const phone = phoneField === 'mobilePhone' ? (deal.mobilePhone || deal.phone) : (deal.phone || deal.mobilePhone);
   if(!phone){ showToast('No phone number on this deal', 'error'); return; }
 
-  // Clear reply highlight when opening thread
-  if(deal.hasNewReply){
-    deal.hasNewReply = false;
+  // Clear reply/text highlights when opening thread
+  const blooioClear = {};
+  if(deal.hasNewReply){ deal.hasNewReply=false; blooioClear.has_new_reply=false; }
+  if(deal.hasNewText){ deal.hasNewText=false; blooioClear.has_new_text=false; }
+  if(Object.keys(blooioClear).length){
     pendingWrites.value++;
-    sbUpdateDeal(deal.id, { has_new_reply: false })
+    sbUpdateDeal(deal.id, blooioClear)
       .catch(e => console.error('Clear reply flag failed:', e))
       .finally(() => { pendingWrites.value--; });
   }

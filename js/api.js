@@ -294,6 +294,7 @@ const FIELD_MAP = {
   appt_time: 'apptTime',
   owner_override: 'ownerOverride',
   has_new_reply: 'hasNewReply',
+  has_new_text: 'hasNewText',
   booked_for: 'bookedFor',
   booked_timezone: 'bookedTimezone',
   prefill_name: 'prefillName',
@@ -353,7 +354,7 @@ for (const [snake, camel] of Object.entries(FIELD_MAP)) {
   REVERSE_FIELD_MAP[camel] = snake;
 }
 
-const BOOLEAN_FIELDS = new Set(['done', 'hasNewReply']);
+const BOOLEAN_FIELDS = new Set(['done', 'hasNewReply', 'hasNewText']);
 
 export function normalizeRow(row) {
   const normalized = {};
@@ -643,7 +644,7 @@ function applyRealtimeEvent(table, payload) {
 
 // Deals — exclude heavy fields (email_body, call_transcript) to reduce bandwidth
 // These are loaded on-demand when opening a deal modal
-const DEALS_LIGHT_COLS = 'id,company,contact,email,phone,value,stage,pipeline,flag,notes,sl_lead_id,sl_campaign_id,campaign_name,lead_category,created_at,updated_at,website,location,smartlead_url,forwarded_at,mobile_phone,pushed_to_tracker,pushed_to_ghl,address,client_stage,booked_date,booked_time,booked_for,booked_timezone,cal_name,cal_email,cal_notes,has_new_reply,owner_override,job_title,linkedin_url,passoff_instructions,passoff_sent_at,suggested_updates,contact2,contact3,phone2,phone3,title2,title3,reply_snippet,retarget_campaign,retarget_date,retarget_status,retarget_count,auto_followup_started_at';
+const DEALS_LIGHT_COLS = 'id,company,contact,email,phone,value,stage,pipeline,flag,notes,sl_lead_id,sl_campaign_id,campaign_name,lead_category,created_at,updated_at,website,location,smartlead_url,forwarded_at,mobile_phone,pushed_to_tracker,pushed_to_ghl,address,client_stage,booked_date,booked_time,booked_for,booked_timezone,cal_name,cal_email,cal_notes,has_new_reply,has_new_text,owner_override,job_title,linkedin_url,passoff_instructions,passoff_sent_at,suggested_updates,contact2,contact3,phone2,phone3,title2,title3,reply_snippet,retarget_campaign,retarget_date,retarget_status,retarget_count,auto_followup_started_at';
 
 export const sbGetDeals = () => sbCall(async () => {
   const { data, error } = await supabase.from('deals').select(DEALS_LIGHT_COLS).eq('lead_status', 'active');
@@ -991,7 +992,7 @@ export const sbRestoreFromArchive = (id) => sbCall(async () => {
   // Remove archive-specific and non-column fields before inserting
   const exclude = new Set(['archivedAt','archiveStatus','clientName','done','dealId','dayLabel','scheduledTime','completedAt','createdDate']);
   // Valid deals table columns
-  const DEAL_COLS = new Set(['id','company','contact','email','phone','value','stage','pipeline','flag','notes','sl_lead_id','sl_campaign_id','campaign_name','lead_category','website','location','smartlead_url','forwarded_at','email_body','mobile_phone','pushed_to_tracker','pushed_to_ghl','address','client_stage','booked_date','booked_time','cal_name','cal_email','cal_notes','created_at','updated_at','owner_override','lead_hero_id','has_new_reply','reply_msg_count','email2','email3','email4','booked_for','prefill_name','prefill_email','prefill_notes','booked_timezone','lead_status']);
+  const DEAL_COLS = new Set(['id','company','contact','email','phone','value','stage','pipeline','flag','notes','sl_lead_id','sl_campaign_id','campaign_name','lead_category','website','location','smartlead_url','forwarded_at','email_body','mobile_phone','pushed_to_tracker','pushed_to_ghl','address','client_stage','booked_date','booked_time','cal_name','cal_email','cal_notes','created_at','updated_at','owner_override','lead_hero_id','has_new_reply','has_new_text','reply_msg_count','email2','email3','email4','booked_for','prefill_name','prefill_email','prefill_notes','booked_timezone','lead_status']);
   const insert = {};
   for (const [key, value] of Object.entries(dealData)) {
     if (exclude.has(key)) continue;
