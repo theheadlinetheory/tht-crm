@@ -156,11 +156,11 @@ window.dismissSuggestions = dismissSuggestions;
 export function openDeal(id){
   const deal=state.deals.find(d=>d.id===id);
   if(!deal) return;
-  // Clear new-reply indicator when opening the deal card
-  if(deal.hasNewReply){
-    deal.hasNewReply=false;
-    sbUpdateDeal(id, { has_new_reply: false });
-  }
+  // Clear new-reply / new-text indicators when opening the deal card
+  const clearFlags = {};
+  if(deal.hasNewReply){ deal.hasNewReply=false; clearFlags.has_new_reply=false; }
+  if(deal.hasNewText){ deal.hasNewText=false; clearFlags.has_new_text=false; }
+  if(Object.keys(clearFlags).length) sbUpdateDeal(id, clearFlags);
   state.selectedDeal=deal;
   render();
   // Lazy-load heavy fields (email_body, call_transcript) if not already cached
