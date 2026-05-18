@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // EMAIL — Forward to client, lead tracker push, send to thread
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20260517f';
-import { render, refreshModal } from './render.js?v=20260517f';
-import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20260517f';
-import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20260517f';
-import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20260517f';
-import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20260517f';
-import { CRM_BASE_URL } from './config.js?v=20260517f';
+import { state, pendingWrites } from './app.js?v=20260518a';
+import { render, refreshModal } from './render.js?v=20260518a';
+import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20260518a';
+import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20260518a';
+import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20260518a';
+import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20260518a';
+import { CRM_BASE_URL } from './config.js?v=20260518a';
 
 function formatEmailBody(html){
   if(!html) return '';
@@ -186,7 +186,7 @@ export async function autoPushToTracker(deal){
   }
 
   // Insert into lead_tracker table
-  const { sbCreateTrackerEntry, normalizeRow } = await import('./api.js?v=20260517f');
+  const { sbCreateTrackerEntry, normalizeRow } = await import('./api.js?v=20260518a');
   const entry = await sbCreateTrackerEntry({
     deal_id: deal.id,
     client_name: clientName,
@@ -347,8 +347,8 @@ export async function executePassOff(dealId, clientName){
     }
 
     if(btn) btn.textContent='Archiving...';
-    const { deleteDeal }=await import('./deals.js?v=20260517f');
-    await deleteDeal(dealId,'Passed Off to '+clientName,clientName);
+    const { deleteDeal }=await import('./deals.js?v=20260518a');
+    await deleteDeal(dealId,'Passed Off',clientName);
 
     document.getElementById('passoff-preview-overlay')?.remove();
     const toast=document.createElement('div');
