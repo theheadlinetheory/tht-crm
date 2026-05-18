@@ -95,9 +95,8 @@ export function openCalendlyEmbed(dealId, baseCalUrl, clientName, overrideName, 
     if(guestPhone){
       url.searchParams.set('location', guestPhone);
       url.searchParams.set('phone_number', guestPhone);
-      url.searchParams.set('a1', guestPhone);
     }
-    if(notes) url.searchParams.set('a2', notes);
+    if(notes) url.searchParams.set('a1', notes);
     const finalUrl=url.toString().replace(/\+/g,'%20');
     const prefill={};
     if(guestName){
@@ -108,8 +107,7 @@ export function openCalendlyEmbed(dealId, baseCalUrl, clientName, overrideName, 
     if(guestEmail) prefill.email=guestEmail;
     if(guestPhone) prefill.location=guestPhone;
     const ca={};
-    if(guestPhone) ca.a1=guestPhone;
-    if(notes) ca.a2=notes;
+    if(notes) ca.a1=notes;
     if(Object.keys(ca).length) prefill.customAnswers=ca;
 
     if(window.Calendly){
