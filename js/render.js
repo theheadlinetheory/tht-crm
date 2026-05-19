@@ -460,6 +460,10 @@ export function render(){
     }
     html+=`</tbody></table></div></div>`;
     app.innerHTML=html;
+    if(state.archiveSearch){
+      const ai=document.getElementById('archive-search-input');
+      if(ai){ai.focus();ai.setSelectionRange(ai.value.length,ai.value.length);}
+    }
     return;
   }
 
