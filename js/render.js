@@ -440,7 +440,7 @@ export function render(){
       const dateStr=d.archivedAt?new Date(d.archivedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}):'';
       const rowMatch=!archQ||((d.company||'')+(d.contact||'')+(d.email||'')).toLowerCase().includes(archQ);
       if(rowMatch) archiveVisCount++;
-      html+=`<tr style="border-bottom:1px solid var(--border)${rowMatch?'':';display:none'}">`
+      html+=`<tr style="border-bottom:1px solid var(--border)${rowMatch?'':';display:none'}">
         <td style="padding:8px 10px;font-weight:500">${esc(d.company||'')}</td>
         <td style="padding:8px 10px">${esc(d.contact||'')}</td>
         <td style="padding:8px 10px;color:var(--text-muted)">${esc(d.email||'')}</td>
