@@ -305,18 +305,16 @@ export async function autoCreateClient(deal) {
     showToast('Warning: GHL sub-account creation failed — create manually', 'warning');
   });
 
-  // 4. Create SmartLead client (fire-and-forget)
+  // 4. Create SmartLead email account tags (Group A + Group B)
   invokeEdgeFunction('create-smartlead-client', {
-    clientId: c.id,
     clientName,
-    clientEmail: str(deal.email || ''),
   }).then(result => {
-    if (result.smartleadClientId) {
-      showToast('SmartLead client created for ' + clientName, 'success');
+    if (result.tags && result.tags.length === 2) {
+      showToast('SmartLead tags created: ' + result.tags.map(t => t.name).join(', '), 'success');
     }
   }).catch(e => {
-    console.error('SmartLead client creation failed:', e);
-    showToast('Warning: SmartLead client creation failed — create manually', 'warning');
+    console.error('SmartLead tag creation failed:', e);
+    showToast('Warning: SmartLead tag creation failed — create manually', 'warning');
   });
 
   // 5. Push row to Client Info Sheet
