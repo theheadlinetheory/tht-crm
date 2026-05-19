@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // EMAIL — Forward to client, lead tracker push, send to thread
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20260518b';
-import { render, refreshModal } from './render.js?v=20260518b';
-import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20260518b';
-import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20260518b';
-import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20260518b';
-import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20260518b';
-import { CRM_BASE_URL } from './config.js?v=20260518b';
+import { state, pendingWrites } from './app.js?v=20260518c';
+import { render, refreshModal } from './render.js?v=20260518c';
+import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20260518c';
+import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20260518c';
+import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20260518c';
+import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20260518c';
+import { CRM_BASE_URL } from './config.js?v=20260518c';
 
 function formatEmailBody(html){
   if(!html) return '';
@@ -186,7 +186,7 @@ export async function autoPushToTracker(deal){
   }
 
   // Insert into lead_tracker table
-  const { sbCreateTrackerEntry, normalizeRow } = await import('./api.js?v=20260518b');
+  const { sbCreateTrackerEntry, normalizeRow } = await import('./api.js?v=20260518c');
   const entry = await sbCreateTrackerEntry({
     deal_id: deal.id,
     client_name: clientName,
@@ -236,7 +236,7 @@ export async function openPassOffPreview(dealId, clientName){
 
   const forwarded=deal.forwardedAt && str(deal.forwardedAt).trim()!=='';
   const ghlPushed=deal.pushedToGhl && str(deal.pushedToGhl).trim()!=='';
-  const ghlConfigured=str(client.ghlLocationId).trim()&&str(client.ghlApiKey).trim();
+  const ghlConfigured=client.ghlConfigured;
 
   const fwdStatus=forwarded?`<span style="color:#059669">Already forwarded ${new Date(deal.forwardedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>`:'Forward lead email to '+esc(client.name);
   const ghlStatus=!ghlConfigured?'<span style="color:#9ca3af">GHL not configured — skip</span>':ghlPushed?'<span style="color:#059669">Already pushed to GHL — will update</span>':'Push contact + opportunity to GHL';
@@ -335,7 +335,7 @@ export async function executePassOff(dealId, clientName){
       deal.forwardedAt=new Date().toISOString();
     }
 
-    const ghlConfigured=str(client.ghlLocationId).trim()&&str(client.ghlApiKey).trim();
+    const ghlConfigured=client.ghlConfigured;
     if(ghlConfigured){
       if(btn) btn.textContent='Pushing to GHL...';
       try{
@@ -347,7 +347,7 @@ export async function executePassOff(dealId, clientName){
     }
 
     if(btn) btn.textContent='Archiving...';
-    const { deleteDeal }=await import('./deals.js?v=20260518b');
+    const { deleteDeal }=await import('./deals.js?v=20260518c');
     await deleteDeal(dealId,'Passed Off',clientName);
 
     document.getElementById('passoff-preview-overlay')?.remove();
