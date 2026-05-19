@@ -158,7 +158,21 @@ registerActions({
   archiveFilterClientSelect(el) { state.archiveFilterClient=el.value.trim(); render(); },
   archiveFilterStatusSelect(el) { state.archiveFilterStatus=el.value; render(); },
   archiveSortSelect(el) { state.archiveSortDir=el.value; render(); },
-  archiveSearchInput(el) { state.archiveSearch=el.value; render(); },
+  archiveSearchInput(el) {
+    state.archiveSearch=el.value;
+    const q=el.value.toLowerCase().trim();
+    const tbody=document.getElementById('archive-tbody');
+    if(!tbody) return;
+    let count=0;
+    for(const tr of tbody.rows){
+      const text=tr.textContent.toLowerCase();
+      const show=!q||text.includes(q);
+      tr.style.display=show?'':'none';
+      if(show) count++;
+    }
+    const countEl=document.getElementById('archive-result-count');
+    if(countEl) countEl.textContent=count+' result'+(count!==1?'s':'');
+  },
   toggleEmployeeArchive() { state.showEmployeeArchive=!state.showEmployeeArchive; render(); },
 });
 

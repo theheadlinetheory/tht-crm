@@ -391,13 +391,6 @@ export function render(){
     if(state.archiveFilterClient) empArchive=empArchive.filter(d=>(d.clientName||d.stage||'').trim().toLowerCase()===state.archiveFilterClient.trim().toLowerCase());
     if(state.archiveFilterStatus) empArchive=empArchive.filter(d=>(d.archiveStatus||'')===state.archiveFilterStatus);
     const archQ = (state.archiveSearch||'').toLowerCase().trim();
-    if(archQ){
-      empArchive = empArchive.filter(d =>
-        (d.company||'').toLowerCase().includes(archQ) ||
-        (d.contact||'').toLowerCase().includes(archQ) ||
-        (d.email||'').toLowerCase().includes(archQ)
-      );
-    }
     if(state.archiveSortDir==='oldest') empArchive.sort((a,b)=>(a.archivedAt||'').localeCompare(b.archivedAt||''));
     else empArchive.sort((a,b)=>(b.archivedAt||'').localeCompare(a.archivedAt||''));
     // Build client list for this pipeline's archive
@@ -406,7 +399,7 @@ export function render(){
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
         <button class="btn btn-ghost" data-action="archiveBackToBoard" style="font-size:13px;padding:5px 12px;display:flex;align-items:center;gap:4px">\u2190 Back to Board</button>
         <span style="font-size:14px;font-weight:600">${state.pipeline==='acquisition'?'Archived Acquisition Deals':'Archived Client Leads'}</span>
-        <span style="font-size:12px;color:var(--text-muted)">${empArchive.length} result${empArchive.length!==1?'s':''}</span>
+        <span id="archive-result-count" style="font-size:12px;color:var(--text-muted)"></span>
         <button class="btn btn-ghost" data-action="archiveRefresh" style="font-size:11px;padding:3px 10px;display:inline-flex;align-items:center;gap:4px">${svgIcon('refresh-cw',12)} Refresh</button>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
@@ -436,15 +429,18 @@ export function render(){
             <th style="padding:8px 10px;text-align:left;font-weight:600">Status</th>
             <th style="padding:8px 10px;text-align:left;font-weight:600">Archived</th>
             <th style="padding:8px 10px;text-align:left;font-weight:600"></th>
-          </tr></thead><tbody>`;
+          </tr></thead><tbody id="archive-tbody">`;
     if(!empArchive.length){
       html+=`<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--text-muted)">${state.archiveLoaded?'No archived leads':'Loading...'}</td></tr>`;
     }
+    let archiveVisCount=0;
     for(const d of empArchive){
       const stColor=d.archiveStatus==='Closed Won'?'#22c55e':d.archiveStatus==='Passed Off'?'#f59e0b':'#ef4444';
       const stBg=d.archiveStatus==='Closed Won'?'#f0fdf4':d.archiveStatus==='Passed Off'?'#fffbeb':'#fef2f2';
       const dateStr=d.archivedAt?new Date(d.archivedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}):'';
-      html+=`<tr style="border-bottom:1px solid var(--border)">
+      const rowMatch=!archQ||((d.company||'')+(d.contact||'')+(d.email||'')).toLowerCase().includes(archQ);
+      if(rowMatch) archiveVisCount++;
+      html+=`<tr style="border-bottom:1px solid var(--border)${rowMatch?'':';display:none'}">`
         <td style="padding:8px 10px;font-weight:500">${esc(d.company||'')}</td>
         <td style="padding:8px 10px">${esc(d.contact||'')}</td>
         <td style="padding:8px 10px;color:var(--text-muted)">${esc(d.email||'')}</td>
@@ -460,10 +456,8 @@ export function render(){
     }
     html+=`</tbody></table></div></div>`;
     app.innerHTML=html;
-    if(state.archiveSearch){
-      const ai=document.getElementById('archive-search-input');
-      if(ai){ai.focus();ai.setSelectionRange(ai.value.length,ai.value.length);}
-    }
+    const countEl=document.getElementById('archive-result-count');
+    if(countEl) countEl.textContent=archiveVisCount+' result'+(archiveVisCount!==1?'s':'');
     return;
   }
 
