@@ -31,7 +31,7 @@ export async function loadArchive(silent){
     }
   } catch(e){ console.warn('Failed to load archive:', e); }
   state.archiveLoaded=true;
-  if(!silent) render();
+  render();
 }
 
 export function renderArchiveTab(){
