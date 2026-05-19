@@ -458,6 +458,10 @@ export function render(){
     app.innerHTML=html;
     const countEl=document.getElementById('archive-result-count');
     if(countEl) countEl.textContent=archiveVisCount+' result'+(archiveVisCount!==1?'s':'');
+    const archInput=document.getElementById('archive-search-input');
+    if(archInput && state.archiveSearch){
+      requestAnimationFrame(()=>{archInput.focus();archInput.setSelectionRange(archInput.value.length,archInput.value.length);});
+    }
     return;
   }
 
