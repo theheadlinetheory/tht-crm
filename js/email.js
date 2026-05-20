@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // EMAIL — Forward to client, lead tracker push, send to thread
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20260520c';
-import { render, refreshModal } from './render.js?v=20260520c';
-import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20260520c';
-import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20260520c';
-import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20260520c';
-import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20260520c';
-import { CRM_BASE_URL } from './config.js?v=20260520c';
+import { state, pendingWrites } from './app.js?v=20260520d';
+import { render, refreshModal } from './render.js?v=20260520d';
+import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20260520d';
+import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20260520d';
+import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20260520d';
+import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20260520d';
+import { CRM_BASE_URL } from './config.js?v=20260520d';
 
 function formatEmailBody(html){
   if(!html) return '';
@@ -64,9 +64,6 @@ function showForwardPreview(deal, client){
   const threadId=getClientThreadId(client.name);
   const recipientThread=threadId ? 'Lead Delivery Thread' : 'New email (no existing thread)';
 
-  const leadEmail2=deal.email2||'';
-  const leadEmail3=deal.email3||'';
-  const leadEmail4=deal.email4||'';
   let emailPreview=`
     <div style="background:#1a1a2e;color:#fff;padding:20px 24px;border-radius:8px 8px 0 0">
       <h2 style="margin:0;font-size:18px">New Lead from Your Campaign</h2>
@@ -79,10 +76,13 @@ function showForwardPreview(deal, client){
         ${leadEmail?`<tr><td style="padding:8px 0;color:#888">Email</td><td style="padding:8px 0;color:#2563eb">${esc(leadEmail)}</td></tr>`:''}
         ${leadPhone?`<tr><td style="padding:8px 0;color:#888">Business Phone</td><td style="padding:8px 0">${esc(leadPhone)}</td></tr>`:''}
         ${contactName?`<tr><td style="padding:8px 0;color:#888">Contact</td><td style="padding:8px 0">${esc(contactName)}</td></tr>`:''}
-        ${leadEmail2?`<tr><td style="padding:8px 0;color:#888">Contact email</td><td style="padding:8px 0;color:#2563eb">${esc(leadEmail2)}</td></tr>`:''}
-        ${leadEmail3?`<tr><td style="padding:8px 0;color:#888">Email 3</td><td style="padding:8px 0;color:#2563eb">${esc(leadEmail3)}</td></tr>`:''}
-        ${leadEmail4?`<tr><td style="padding:8px 0;color:#888">Email 4</td><td style="padding:8px 0;color:#2563eb">${esc(leadEmail4)}</td></tr>`:''}
         ${leadMobilePhone?`<tr><td style="padding:8px 0;color:#888">Mobile Phone</td><td style="padding:8px 0">${esc(leadMobilePhone)}</td></tr>`:''}
+        ${[{n:deal.contact2,t:deal.title2,e:deal.email2,p:deal.phone2},{n:deal.contact3,t:deal.title3,e:deal.email3,p:deal.phone3}].filter(c=>c.n||c.e||c.p).map(c=>`
+        <tr><td colspan="2" style="padding:12px 0 4px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Additional Contact</td></tr>
+        ${c.n?`<tr><td style="padding:8px 0;color:#888">Name</td><td style="padding:8px 0;font-weight:600">${esc(c.n)}${c.t?' \u2014 '+esc(c.t):''}</td></tr>`:''}
+        ${c.e?`<tr><td style="padding:8px 0;color:#888">Email</td><td style="padding:8px 0;color:#2563eb">${esc(c.e)}</td></tr>`:''}
+        ${c.p?`<tr><td style="padding:8px 0;color:#888">Phone</td><td style="padding:8px 0">${esc(c.p)}</td></tr>`:''}`).join('')}
+        ${deal.email4?`<tr><td style="padding:8px 0;color:#888">Additional Email</td><td style="padding:8px 0;color:#2563eb">${esc(deal.email4)}</td></tr>`:''}
       </table>
       <div style="margin-top:20px">
         ${smartleadUrl?`<span style="display:inline-block;background:#2563eb;color:#fff;padding:10px 24px;border-radius:6px;font-weight:bold;font-size:14px">Click to Reply \u2192</span>`:''}
@@ -186,7 +186,7 @@ export async function autoPushToTracker(deal){
   }
 
   // Insert into lead_tracker table
-  const { sbCreateTrackerEntry, normalizeRow } = await import('./api.js?v=20260520c');
+  const { sbCreateTrackerEntry, normalizeRow } = await import('./api.js?v=20260520d');
   const entry = await sbCreateTrackerEntry({
     deal_id: deal.id,
     client_name: clientName,
@@ -249,9 +249,6 @@ export async function openPassOffPreview(dealId, clientName){
   const leadWebsite=deal.website||'';
   const leadLocation=deal.location||'';
   const smartleadUrl=deal.smartleadUrl||'';
-  const leadEmail2=deal.email2||'';
-  const leadEmail3=deal.email3||'';
-  const leadEmail4=deal.email4||'';
   const emailBody=deal.emailBody||'';
 
   let emailPreview=`
@@ -266,10 +263,13 @@ export async function openPassOffPreview(dealId, clientName){
         ${leadEmail?`<tr><td style="padding:8px 0;color:#888">Email</td><td style="padding:8px 0;color:#2563eb">${esc(leadEmail)}</td></tr>`:''}
         ${leadPhone?`<tr><td style="padding:8px 0;color:#888">Business Phone</td><td style="padding:8px 0">${esc(leadPhone)}</td></tr>`:''}
         ${contactName?`<tr><td style="padding:8px 0;color:#888">Contact</td><td style="padding:8px 0">${esc(contactName)}</td></tr>`:''}
-        ${leadEmail2?`<tr><td style="padding:8px 0;color:#888">Contact email</td><td style="padding:8px 0;color:#2563eb">${esc(leadEmail2)}</td></tr>`:''}
-        ${leadEmail3?`<tr><td style="padding:8px 0;color:#888">Email 3</td><td style="padding:8px 0;color:#2563eb">${esc(leadEmail3)}</td></tr>`:''}
-        ${leadEmail4?`<tr><td style="padding:8px 0;color:#888">Email 4</td><td style="padding:8px 0;color:#2563eb">${esc(leadEmail4)}</td></tr>`:''}
         ${leadMobilePhone?`<tr><td style="padding:8px 0;color:#888">Mobile Phone</td><td style="padding:8px 0">${esc(leadMobilePhone)}</td></tr>`:''}
+        ${[{n:deal.contact2,t:deal.title2,e:deal.email2,p:deal.phone2},{n:deal.contact3,t:deal.title3,e:deal.email3,p:deal.phone3}].filter(c=>c.n||c.e||c.p).map(c=>`
+        <tr><td colspan="2" style="padding:12px 0 4px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Additional Contact</td></tr>
+        ${c.n?`<tr><td style="padding:8px 0;color:#888">Name</td><td style="padding:8px 0;font-weight:600">${esc(c.n)}${c.t?' — '+esc(c.t):''}</td></tr>`:''}
+        ${c.e?`<tr><td style="padding:8px 0;color:#888">Email</td><td style="padding:8px 0;color:#2563eb">${esc(c.e)}</td></tr>`:''}
+        ${c.p?`<tr><td style="padding:8px 0;color:#888">Phone</td><td style="padding:8px 0">${esc(c.p)}</td></tr>`:''}`).join('')}
+        ${deal.email4?`<tr><td style="padding:8px 0;color:#888">Additional Email</td><td style="padding:8px 0;color:#2563eb">${esc(deal.email4)}</td></tr>`:''}
       </table>
       ${emailBody?`<div style="margin:16px 0;padding:12px 16px;background:#f3f4f6;border-left:3px solid #4f46e5;border-radius:4px;font-size:13px;color:#374151;overflow-y:auto;max-height:300px"><strong>Their reply:</strong><br>${formatEmailBody(emailBody)}</div>`:''}
       <div style="margin-top:20px">
@@ -347,7 +347,7 @@ export async function executePassOff(dealId, clientName){
     }
 
     if(btn) btn.textContent='Archiving...';
-    const { deleteDeal }=await import('./deals.js?v=20260520c');
+    const { deleteDeal }=await import('./deals.js?v=20260520d');
     await deleteDeal(dealId,'Passed Off',clientName);
 
     document.getElementById('passoff-preview-overlay')?.remove();
