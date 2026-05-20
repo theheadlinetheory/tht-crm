@@ -6,24 +6,24 @@
 // populated during the final migration. This module provides
 // the key functions other modules depend on.
 
-import { state, pendingWrites, pendingDealFields } from './app.js?v=20260520a';
-import { flushRealtimeQueue } from './api.js?v=20260520a';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260520a';
-import { render, refreshModal } from './render.js?v=20260520a';
-import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20260520a';
-import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20260520a';
-import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20260520a';
-import { isAdmin, isClient, isEmployee, loadAssignableUsers } from './auth.js?v=20260520a';
-import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js?v=20260520a';
-import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, reschedulePreCallSequence, assignNoShowSequence } from './activities.js?v=20260520a';
-import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js?v=20260520a';
-import { getStagesForPipeline } from './dashboard.js?v=20260520a';
-import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal } from './maps.js?v=20260520a';
-import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js?v=20260520a';
-import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js?v=20260520a';
+import { state, pendingWrites, pendingDealFields } from './app.js?v=20260520b';
+import { flushRealtimeQueue } from './api.js?v=20260520b';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260520b';
+import { render, refreshModal } from './render.js?v=20260520b';
+import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20260520b';
+import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20260520b';
+import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20260520b';
+import { isAdmin, isClient, isEmployee, loadAssignableUsers } from './auth.js?v=20260520b';
+import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js?v=20260520b';
+import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, reschedulePreCallSequence, assignNoShowSequence } from './activities.js?v=20260520b';
+import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js?v=20260520b';
+import { getStagesForPipeline } from './dashboard.js?v=20260520b';
+import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal } from './maps.js?v=20260520b';
+import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js?v=20260520b';
+import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js?v=20260520b';
 import './blooio.js';
 import './demo-tracker.js';
-import { renderDealRetargetHistory } from './retargeting.js?v=20260520a';
+import { renderDealRetargetHistory } from './retargeting.js?v=20260520b';
 
 function actTypeClass(type){
   const t=(type||'').toLowerCase();
@@ -235,34 +235,26 @@ export function changeDealOwner(val){
 
 // ─── Debounced Deal Field Save ───
 let _dealFieldSaveTimer=null;
+const _dirtyFields=new Set();
 export function debouncedDealFieldSave(){
   clearTimeout(_dealFieldSaveTimer);
   _dealFieldSaveTimer=setTimeout(()=>{
     if(!state.selectedDeal) return;
     const deal=state.selectedDeal;
     const fields={};
-    // Read all editable fields from the modal DOM
-    const fieldMap=['company','contact','email','phone','mobilePhone','website','location','address','value','notes',
-      'email2','email3','email4','contact2','contact3','phone2','phone3','title2','title3',
-      'bookedDate','bookedTime','bookedFor','prefillName','prefillEmail','prefillNotes',
-      'stage','pipeline'];
-    for(const f of fieldMap){
+    for(const f of _dirtyFields){
       const el=document.getElementById('deal-'+f);
       if(el && el.value!==undefined){
-        const val=el.value;
-        if((deal[f]||'')!==(val||'')){
-          deal[f]=val;
-          fields[f]=val;
-        }
+        deal[f]=el.value;
+        fields[f]=el.value;
       }
     }
+    _dirtyFields.clear();
     if(Object.keys(fields).length===0) return;
-    // Track pending fields so sync doesn't overwrite them
     if(!pendingDealFields[String(deal.id)]) pendingDealFields[String(deal.id)]={};
     Object.assign(pendingDealFields[String(deal.id)], fields);
     pendingWrites.value++;
     sbUpdateDeal(deal.id, camelToSnake(fields)).then(()=>{
-      // Clear pending fields after successful save
       const pending=pendingDealFields[String(deal.id)];
       if(pending){
         for(const k of Object.keys(fields)){
@@ -276,10 +268,10 @@ export function debouncedDealFieldSave(){
 
 export function updateDealField(key,val){
   if(!state.selectedDeal) return;
-  state.selectedDeal[key]=val;
   // Stage, pipeline, and booking fields save immediately — not debounced.
   // The debounced save is killed when the modal closes, so these were lost.
   if(key==='stage'||key==='pipeline'||key==='bookedDate'||key==='bookedTime'){
+    state.selectedDeal[key]=val;
     const dealId=state.selectedDeal.id;
     if(!pendingDealFields[String(dealId)]) pendingDealFields[String(dealId)]={};
     pendingDealFields[String(dealId)][key]=val;
@@ -297,6 +289,7 @@ export function updateDealField(key,val){
     }
     return;
   }
+  _dirtyFields.add(key);
   debouncedDealFieldSave();
 }
 
@@ -417,22 +410,22 @@ export async function doWonDrop(){
   let wonSuccess = false;
   try {
     if(deal.pipeline==='Acquisition'){
-      const { autoCreateClient } = await import('./client-info.js?v=20260520a');
+      const { autoCreateClient } = await import('./client-info.js?v=20260520b');
       const result = await autoCreateClient(deal);
       wonSuccess = true; // Even if user skipped duplicate, still archive
     } else {
-      const { autoPushToTracker } = await import('./email.js?v=20260520a');
+      const { autoPushToTracker } = await import('./email.js?v=20260520b');
       await autoPushToTracker(deal);
       wonSuccess = true;
     }
   } catch(e){
     console.error('Won drop action failed:', e);
-    const { showToast } = await import('./api.js?v=20260520a');
+    const { showToast } = await import('./api.js?v=20260520b');
     showToast('Won action failed: ' + e.message, 'error');
   }
 
   if(wonSuccess) {
-    const { deleteDeal } = await import('./deals.js?v=20260520a');
+    const { deleteDeal } = await import('./deals.js?v=20260520b');
     deleteDeal(id, 'Closed Won', clientName);
   }
 }
@@ -541,7 +534,7 @@ async function confirmPhoneAssign() {
   try { await sbUpdateDeal(dealId, snakeUpdates); }
   finally { pendingWrites.value--; }
 
-  const { showToast } = await import('./api.js?v=20260520a');
+  const { showToast } = await import('./api.js?v=20260520b');
   showToast('Phone number(s) saved', 'success');
 }
 
@@ -556,7 +549,7 @@ let _interactionsCache = {};
 
 async function loadInteractions(dealId) {
   try {
-    const { sbGetInteractions } = await import('./api.js?v=20260520a');
+    const { sbGetInteractions } = await import('./api.js?v=20260520b');
     const rows = await sbGetInteractions(dealId);
     _interactionsCache[dealId] = (rows || []).map(r => ({
       id: r.id, dealId: r.deal_id, type: r.type, content: r.content,
@@ -688,7 +681,7 @@ async function addInteraction(dealId) {
 
   contentEl.value = '';
   if (dateEl) dateEl.value = '';
-  const { sbCreateInteraction } = await import('./api.js?v=20260520a');
+  const { sbCreateInteraction } = await import('./api.js?v=20260520b');
   const row = await sbCreateInteraction(fields);
   if (row) {
     if (!_interactionsCache[dealId]) _interactionsCache[dealId] = [];
@@ -701,7 +694,7 @@ async function addInteraction(dealId) {
 }
 
 async function deleteInteraction(id, dealId) {
-  const { sbDeleteInteraction } = await import('./api.js?v=20260520a');
+  const { sbDeleteInteraction } = await import('./api.js?v=20260520b');
   await sbDeleteInteraction(id);
   if (_interactionsCache[dealId]) {
     _interactionsCache[dealId] = _interactionsCache[dealId].filter(i => i.id !== id);
@@ -722,7 +715,7 @@ async function editInteractionDate(id, dealId) {
   const parsed = new Date(input);
   if (isNaN(parsed.getTime())) return;
 
-  const { sbUpdateInteraction } = await import('./api.js?v=20260520a');
+  const { sbUpdateInteraction } = await import('./api.js?v=20260520b');
   await sbUpdateInteraction(id, { created_at: parsed.toISOString() });
   item.createdAt = parsed.toISOString();
   closeTimelinePanel();
@@ -747,7 +740,7 @@ async function enrichLead(dealId) {
   const canEnrich = hasLinkedin || (hasContact && hasWebsite);
 
   if (!canEnrich) {
-    const { showToast } = await import('./api.js?v=20260520a');
+    const { showToast } = await import('./api.js?v=20260520b');
     showToast('Needs a LinkedIn URL or company name + website to enrich', 'warning');
     return;
   }
@@ -759,7 +752,7 @@ async function enrichLead(dealId) {
 
   try {
     const result = await invokeEdgeFunction('enrich-lead', { dealId });
-    const { showToast } = await import('./api.js?v=20260520a');
+    const { showToast } = await import('./api.js?v=20260520b');
     console.log('[enrich-lead] Response:', JSON.stringify(result));
 
     if (result.ok && result.phones && result.phones.length > 0) {
@@ -775,7 +768,7 @@ async function enrichLead(dealId) {
     }
   } catch (e) {
     showEnrichOverlay(false);
-    const { showToast } = await import('./api.js?v=20260520a');
+    const { showToast } = await import('./api.js?v=20260520b');
     console.error('[enrich-lead] Exception:', e);
     showToast('Enrichment failed: ' + e.message, 'error');
   }
@@ -853,35 +846,36 @@ export function renderDealModal(deal){
             const extraOninput = (k === 'location' && deal.pipeline === 'Client') ? ';onAddressFieldChange(\''+deal.id+'\',this.value)' : '';
             return'<div class="form-group"><label>'+label+'</label><input id="deal-'+k+'" value="'+esc(String(deal[k]||''))+'" oninput="updateDealField(\''+k+'\',this.value)'+extraOninput+'">'+extra+'</div>';
           }).join("")}
-          <div class="form-group form-span2" style="margin-top:0">
-            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-              <label style="margin:0;font-size:11px;font-weight:600;color:var(--text-muted)">Additional Emails</label>
-              ${!(deal.email2||deal.email3||deal.email4)?`<button onclick="document.getElementById('extra-emails').style.display='flex';this.style.display='none'" style="background:none;border:1px solid var(--border);border-radius:4px;font-size:11px;color:#2563eb;cursor:pointer;padding:1px 8px;font-weight:600">+ Add</button>`:''}
-            </div>
-            <div id="extra-emails" style="display:${(deal.email2||deal.email3||deal.email4)?'flex':'none'};flex-direction:column;gap:4px">
-              <input id="deal-email2" placeholder="Email 2" value="${esc(String(deal.email2||''))}" oninput="updateDealField('email2',this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
-              <input id="deal-email3" placeholder="Email 3" value="${esc(String(deal.email3||''))}" oninput="updateDealField('email3',this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
-              <input id="deal-email4" placeholder="Email 4" value="${esc(String(deal.email4||''))}" oninput="updateDealField('email4',this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
-            </div>
-          </div>
-          <div class="form-group form-span2" style="margin-top:0">
-            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-              <label style="margin:0;font-size:11px;font-weight:600;color:var(--text-muted)">Additional Contacts</label>
-              ${!(deal.contact2||deal.contact3||deal.phone2||deal.phone3)?`<button onclick="document.getElementById('extra-contacts').style.display='flex';this.style.display='none'" style="background:none;border:1px solid var(--border);border-radius:4px;font-size:11px;color:#2563eb;cursor:pointer;padding:1px 8px;font-weight:600">+ Add</button>`:''}
-            </div>
-            <div id="extra-contacts" style="display:${(deal.contact2||deal.contact3||deal.phone2||deal.phone3)?'flex':'none'};flex-direction:column;gap:6px">
-              <div style="display:flex;gap:4px">
-                <input id="deal-contact2" placeholder="Contact 2" value="${esc(String(deal.contact2||''))}" oninput="updateDealField('contact2',this.value)" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
-                <input id="deal-title2" placeholder="Title" value="${esc(String(deal.title2||''))}" oninput="updateDealField('title2',this.value)" style="width:120px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
-              </div>
-              <input id="deal-phone2" placeholder="Phone 2" value="${esc(String(deal.phone2||''))}" oninput="updateDealField('phone2',this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
-              <div style="display:flex;gap:4px;margin-top:4px">
-                <input id="deal-contact3" placeholder="Contact 3" value="${esc(String(deal.contact3||''))}" oninput="updateDealField('contact3',this.value)" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
-                <input id="deal-title3" placeholder="Title" value="${esc(String(deal.title3||''))}" oninput="updateDealField('title3',this.value)" style="width:120px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
-              </div>
-              <input id="deal-phone3" placeholder="Phone 3" value="${esc(String(deal.phone3||''))}" oninput="updateDealField('phone3',this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
-            </div>
-          </div>
+          ${(()=>{
+            const hasC2=deal.contact2||deal.email2||deal.phone2||deal.title2;
+            const hasC3=deal.contact3||deal.email3||deal.phone3||deal.title3;
+            const hasC4=deal.email4;
+            const hasAny=hasC2||hasC3||hasC4;
+            let ac='<div class="form-group form-span2" style="margin-top:0">';
+            ac+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">';
+            ac+='<label style="margin:0;font-size:11px;font-weight:600;color:var(--text-muted)">Additional Contacts</label>';
+            if(!hasAny) ac+='<button onclick="document.getElementById(\'extra-contacts\').style.display=\'flex\';this.style.display=\'none\'" style="background:none;border:1px solid var(--border);border-radius:4px;font-size:11px;color:#2563eb;cursor:pointer;padding:1px 8px;font-weight:600">+ Add</button>';
+            ac+='</div>';
+            ac+='<div id="extra-contacts" style="display:'+(hasAny?'flex':'none')+';flex-direction:column;gap:8px">';
+            // Contact 2 card
+            ac+='<div style="background:#f9fafb;border:1px solid var(--border);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:4px">';
+            ac+='<div style="display:flex;gap:4px"><input id="deal-contact2" placeholder="Name" value="'+esc(String(deal.contact2||''))+'" oninput="updateDealField(\'contact2\',this.value)" style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:var(--font)">';
+            ac+='<input id="deal-title2" placeholder="Title" value="'+esc(String(deal.title2||''))+'" oninput="updateDealField(\'title2\',this.value)" style="width:100px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:var(--font)"></div>';
+            ac+='<div style="display:flex;gap:4px"><input id="deal-email2" placeholder="Email" value="'+esc(String(deal.email2||''))+'" oninput="updateDealField(\'email2\',this.value)" style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:var(--font)">';
+            ac+='<input id="deal-phone2" placeholder="Phone" value="'+esc(String(deal.phone2||''))+'" oninput="updateDealField(\'phone2\',this.value)" style="width:130px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:var(--font)"></div>';
+            ac+='</div>';
+            // Contact 3 card
+            ac+='<div style="background:#f9fafb;border:1px solid var(--border);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:4px">';
+            ac+='<div style="display:flex;gap:4px"><input id="deal-contact3" placeholder="Name" value="'+esc(String(deal.contact3||''))+'" oninput="updateDealField(\'contact3\',this.value)" style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:var(--font)">';
+            ac+='<input id="deal-title3" placeholder="Title" value="'+esc(String(deal.title3||''))+'" oninput="updateDealField(\'title3\',this.value)" style="width:100px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:var(--font)"></div>';
+            ac+='<div style="display:flex;gap:4px"><input id="deal-email3" placeholder="Email" value="'+esc(String(deal.email3||''))+'" oninput="updateDealField(\'email3\',this.value)" style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:var(--font)">';
+            ac+='<input id="deal-phone3" placeholder="Phone" value="'+esc(String(deal.phone3||''))+'" oninput="updateDealField(\'phone3\',this.value)" style="width:130px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:var(--font)"></div>';
+            ac+='</div>';
+            // Email 4 standalone
+            ac+='<input id="deal-email4" placeholder="Additional Email" value="'+esc(String(deal.email4||''))+'" oninput="updateDealField(\'email4\',this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:var(--font)">';
+            ac+='</div></div>';
+            return ac;
+          })()}
           ${(()=>{
             if(isClient()) return '';
             const hasLinkedin=deal.linkedinUrl&&str(deal.linkedinUrl).trim();
@@ -1526,7 +1520,7 @@ export function confirmScheduleAndCopy(){
   sbUpdateDeal(dealId, camelToSnake({bookedDate:dateVal,bookedTime:timeVal})).catch(e=>console.error('Update deal failed:',e)).finally(()=>{pendingWrites.value--;});
   const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
   if(client && dateVal){
-    import('./calendly.js?v=20260520a').then(mod=>{
+    import('./calendly.js?v=20260520b').then(mod=>{
       const apptAddr=(deal.address||deal.location||'').trim();
       mod.saveAppointment(client.name, deal.company||deal.contact||'Unknown', dateVal, timeVal, '', apptAddr);
     });
