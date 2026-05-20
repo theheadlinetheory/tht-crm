@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // ACTIVITIES — Activity CRUD, SOP sequences, overdue tracking
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, completedActivityIds, deletedActivityIds, inFlightActivityIds } from './app.js?v=20260518c';
-import { SOP_DAYS, CLIENT_SOP_DAYS, PRE_CALL_SEQUENCE, NO_SHOW_SEQUENCE } from './config.js?v=20260518c';
-import { render, refreshModal } from './render.js?v=20260518c';
-import { sbCreateActivity, sbUpdateActivity, sbDeleteActivity, camelToSnake } from './api.js?v=20260518c';
-import { uid, getToday, isValidDate, fmtTime12 } from './utils.js?v=20260518c';
-import { findClientForDeal } from './client-info.js?v=20260518c';
+import { state, store, pendingWrites, completedActivityIds, deletedActivityIds, inFlightActivityIds } from './app.js?v=20260520a';
+import { SOP_DAYS, CLIENT_SOP_DAYS, PRE_CALL_SEQUENCE, NO_SHOW_SEQUENCE } from './config.js?v=20260520a';
+import { render, refreshModal } from './render.js?v=20260520a';
+import { sbCreateActivity, sbUpdateActivity, sbDeleteActivity, camelToSnake } from './api.js?v=20260520a';
+import { uid, getToday, isValidDate, fmtTime12 } from './utils.js?v=20260520a';
+import { findClientForDeal } from './client-info.js?v=20260520a';
 
 async function retryActivityWrite(fn, label, maxRetries=3){
   pendingWrites.value++;
@@ -228,6 +228,16 @@ export function generateAppointmentSequence(deal){
 
     addActivity(deal.id,{type:step.type,subject,dueDate:targetDate,dayLabel});
   }
+}
+
+export function reschedulePreCallSequence(deal){
+  if(!deal || !deal.bookedDate || !isValidDate(deal.bookedDate)) return;
+  const typeLabel=deal.stage==='Demo Scheduled'?'Demo':'Discovery';
+  const preCallSubjects=new Set(PRE_CALL_SEQUENCE.map(s=>s.subject.replace('{type}',typeLabel).toLowerCase().trim()));
+  const toDelete=state.activities.filter(a=>
+    a.dealId===deal.id && !a.done && preCallSubjects.has((a.subject||'').toLowerCase().trim()));
+  for(const a of toDelete) deleteActivity(a.id);
+  generateAppointmentSequence(deal);
 }
 
 export function assignNoShowSequence(deal){

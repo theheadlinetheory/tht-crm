@@ -6,24 +6,24 @@
 // populated during the final migration. This module provides
 // the key functions other modules depend on.
 
-import { state, pendingWrites, pendingDealFields } from './app.js?v=20260518c';
-import { flushRealtimeQueue } from './api.js?v=20260518c';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260518c';
-import { render, refreshModal } from './render.js?v=20260518c';
-import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20260518c';
-import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20260518c';
-import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20260518c';
-import { isAdmin, isClient, isEmployee, loadAssignableUsers } from './auth.js?v=20260518c';
-import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js?v=20260518c';
-import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, assignNoShowSequence } from './activities.js?v=20260518c';
-import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js?v=20260518c';
-import { getStagesForPipeline } from './dashboard.js?v=20260518c';
-import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal } from './maps.js?v=20260518c';
-import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js?v=20260518c';
-import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js?v=20260518c';
+import { state, pendingWrites, pendingDealFields } from './app.js?v=20260520a';
+import { flushRealtimeQueue } from './api.js?v=20260520a';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260520a';
+import { render, refreshModal } from './render.js?v=20260520a';
+import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20260520a';
+import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20260520a';
+import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20260520a';
+import { isAdmin, isClient, isEmployee, loadAssignableUsers } from './auth.js?v=20260520a';
+import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js?v=20260520a';
+import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, reschedulePreCallSequence, assignNoShowSequence } from './activities.js?v=20260520a';
+import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js?v=20260520a';
+import { getStagesForPipeline } from './dashboard.js?v=20260520a';
+import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal } from './maps.js?v=20260520a';
+import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js?v=20260520a';
+import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js?v=20260520a';
 import './blooio.js';
 import './demo-tracker.js';
-import { renderDealRetargetHistory } from './retargeting.js?v=20260518c';
+import { renderDealRetargetHistory } from './retargeting.js?v=20260520a';
 
 function actTypeClass(type){
   const t=(type||'').toLowerCase();
@@ -277,18 +277,24 @@ export function debouncedDealFieldSave(){
 export function updateDealField(key,val){
   if(!state.selectedDeal) return;
   state.selectedDeal[key]=val;
-  // Stage and pipeline changes save immediately (like drag-drop) — not debounced.
-  // The debounced save is killed when the modal closes, so stage changes were lost.
-  if(key==='stage'||key==='pipeline'){
+  // Stage, pipeline, and booking fields save immediately — not debounced.
+  // The debounced save is killed when the modal closes, so these were lost.
+  if(key==='stage'||key==='pipeline'||key==='bookedDate'||key==='bookedTime'){
     const dealId=state.selectedDeal.id;
     if(!pendingDealFields[String(dealId)]) pendingDealFields[String(dealId)]={};
     pendingDealFields[String(dealId)][key]=val;
+    const snakeKey=camelToSnake({[key]:val});
     pendingWrites.value++;
-    sbUpdateDeal(dealId, {[key]:val}).then(()=>{
+    sbUpdateDeal(dealId, snakeKey).then(()=>{
       const pending=pendingDealFields[String(dealId)];
       if(pending && pending[key]===val) delete pending[key];
       if(pending && Object.keys(pending).length===0) delete pendingDealFields[String(dealId)];
     }).finally(()=>{pendingWrites.value--;});
+    if(key==='bookedDate'&&val){
+      const deal=state.selectedDeal;
+      const isSchedulingStage=['Discovery Scheduled','Demo Scheduled'].includes(deal.stage);
+      if(isSchedulingStage) reschedulePreCallSequence(deal);
+    }
     return;
   }
   debouncedDealFieldSave();
@@ -411,22 +417,22 @@ export async function doWonDrop(){
   let wonSuccess = false;
   try {
     if(deal.pipeline==='Acquisition'){
-      const { autoCreateClient } = await import('./client-info.js?v=20260518c');
+      const { autoCreateClient } = await import('./client-info.js?v=20260520a');
       const result = await autoCreateClient(deal);
       wonSuccess = true; // Even if user skipped duplicate, still archive
     } else {
-      const { autoPushToTracker } = await import('./email.js?v=20260518c');
+      const { autoPushToTracker } = await import('./email.js?v=20260520a');
       await autoPushToTracker(deal);
       wonSuccess = true;
     }
   } catch(e){
     console.error('Won drop action failed:', e);
-    const { showToast } = await import('./api.js?v=20260518c');
+    const { showToast } = await import('./api.js?v=20260520a');
     showToast('Won action failed: ' + e.message, 'error');
   }
 
   if(wonSuccess) {
-    const { deleteDeal } = await import('./deals.js?v=20260518c');
+    const { deleteDeal } = await import('./deals.js?v=20260520a');
     deleteDeal(id, 'Closed Won', clientName);
   }
 }
@@ -513,12 +519,10 @@ async function confirmPhoneAssign() {
   if (!deal) return;
 
   const updates = {};
-  const snakeUpdates = {};
   phones.forEach((ph, i) => {
     const sel = document.getElementById('phone-assign-' + i);
     if (!sel || !sel.value) return;
     updates[sel.value] = ph;
-    snakeUpdates[camelToSnake(sel.value)] = ph;
   });
 
   closePhoneAssignPopup();
@@ -532,11 +536,12 @@ async function confirmPhoneAssign() {
   if (state.selectedDeal && String(state.selectedDeal.id) === String(dealId)) state.selectedDeal = deal;
   refreshModal();
 
+  const snakeUpdates = camelToSnake(updates);
   pendingWrites.value++;
   try { await sbUpdateDeal(dealId, snakeUpdates); }
   finally { pendingWrites.value--; }
 
-  const { showToast } = await import('./api.js?v=20260518c');
+  const { showToast } = await import('./api.js?v=20260520a');
   showToast('Phone number(s) saved', 'success');
 }
 
@@ -551,7 +556,7 @@ let _interactionsCache = {};
 
 async function loadInteractions(dealId) {
   try {
-    const { sbGetInteractions } = await import('./api.js?v=20260518c');
+    const { sbGetInteractions } = await import('./api.js?v=20260520a');
     const rows = await sbGetInteractions(dealId);
     _interactionsCache[dealId] = (rows || []).map(r => ({
       id: r.id, dealId: r.deal_id, type: r.type, content: r.content,
@@ -683,7 +688,7 @@ async function addInteraction(dealId) {
 
   contentEl.value = '';
   if (dateEl) dateEl.value = '';
-  const { sbCreateInteraction } = await import('./api.js?v=20260518c');
+  const { sbCreateInteraction } = await import('./api.js?v=20260520a');
   const row = await sbCreateInteraction(fields);
   if (row) {
     if (!_interactionsCache[dealId]) _interactionsCache[dealId] = [];
@@ -696,7 +701,7 @@ async function addInteraction(dealId) {
 }
 
 async function deleteInteraction(id, dealId) {
-  const { sbDeleteInteraction } = await import('./api.js?v=20260518c');
+  const { sbDeleteInteraction } = await import('./api.js?v=20260520a');
   await sbDeleteInteraction(id);
   if (_interactionsCache[dealId]) {
     _interactionsCache[dealId] = _interactionsCache[dealId].filter(i => i.id !== id);
@@ -717,7 +722,7 @@ async function editInteractionDate(id, dealId) {
   const parsed = new Date(input);
   if (isNaN(parsed.getTime())) return;
 
-  const { sbUpdateInteraction } = await import('./api.js?v=20260518c');
+  const { sbUpdateInteraction } = await import('./api.js?v=20260520a');
   await sbUpdateInteraction(id, { created_at: parsed.toISOString() });
   item.createdAt = parsed.toISOString();
   closeTimelinePanel();
@@ -742,7 +747,7 @@ async function enrichLead(dealId) {
   const canEnrich = hasLinkedin || (hasContact && hasWebsite);
 
   if (!canEnrich) {
-    const { showToast } = await import('./api.js?v=20260518c');
+    const { showToast } = await import('./api.js?v=20260520a');
     showToast('Needs a LinkedIn URL or company name + website to enrich', 'warning');
     return;
   }
@@ -754,7 +759,7 @@ async function enrichLead(dealId) {
 
   try {
     const result = await invokeEdgeFunction('enrich-lead', { dealId });
-    const { showToast } = await import('./api.js?v=20260518c');
+    const { showToast } = await import('./api.js?v=20260520a');
     console.log('[enrich-lead] Response:', JSON.stringify(result));
 
     if (result.ok && result.phones && result.phones.length > 0) {
@@ -770,7 +775,7 @@ async function enrichLead(dealId) {
     }
   } catch (e) {
     showEnrichOverlay(false);
-    const { showToast } = await import('./api.js?v=20260518c');
+    const { showToast } = await import('./api.js?v=20260520a');
     console.error('[enrich-lead] Exception:', e);
     showToast('Enrichment failed: ' + e.message, 'error');
   }
@@ -1521,7 +1526,7 @@ export function confirmScheduleAndCopy(){
   sbUpdateDeal(dealId, camelToSnake({bookedDate:dateVal,bookedTime:timeVal})).catch(e=>console.error('Update deal failed:',e)).finally(()=>{pendingWrites.value--;});
   const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
   if(client && dateVal){
-    import('./calendly.js?v=20260518c').then(mod=>{
+    import('./calendly.js?v=20260520a').then(mod=>{
       const apptAddr=(deal.address||deal.location||'').trim();
       mod.saveAppointment(client.name, deal.company||deal.contact||'Unknown', dateVal, timeVal, '', apptAddr);
     });
