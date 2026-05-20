@@ -214,7 +214,7 @@ export function render(){
         </div>`:''}
       </div>`:''/* end search wrapper */}
       <span class="topbar-stat">${state.loadFailed?'⚠️ Offline (test data)':state.synced?'✓ Connected':'Connecting...'}${state.synced?' · ':' '}${totalDeals} deal${totalDeals!==1?'s':''}${state.syncing?' ↻':''}</span>
-      ${isAdmin()||isEmployee()?`<button class="btn btn-ghost" onclick="syncFromSheet()" style="display:inline-flex;align-items:center;gap:4px">${svgIcon('refresh-cw',12)} Sync</button>`:''}
+      ${isAdmin()||isEmployee()?`<button class="btn btn-ghost" onclick="syncFromSheet()" style="display:inline-flex;align-items:center;gap:4px"><span${state.syncing?' style="animation:spin .7s linear infinite;display:inline-flex"':''}>${svgIcon('refresh-cw',12)}</span> Sync</button>`:''}
       ${isAdmin()||isEmployee()?`<button class="btn btn-ghost" onclick="toggleViewMode()" title="Toggle board/list view" style="display:inline-flex;align-items:center;gap:4px">${state.viewMode==='board'?svgIcon('list',12)+' List':svgIcon('grid',12)+' Board'}</button>`:''}
       ${isAdmin()||isEmployee()?`<button class="btn ${state.bulkMode?'btn-primary':'btn-ghost'}" onclick="toggleBulkMode()" title="Bulk select" style="display:inline-flex;align-items:center;gap:4px">${state.bulkMode?svgIcon('check-square',12)+' Bulk Mode':svgIcon('square',12)+' Bulk'}</button>`:''}
       <button class="btn btn-primary" onclick="openNewDeal()">+ ${isClient()?'Lead':'Deal'}</button>

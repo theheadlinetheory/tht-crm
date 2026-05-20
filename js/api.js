@@ -392,9 +392,9 @@ export async function initialSync(isStartup) {
   }
   try {
     state.syncing = true;
+    render();
     if (isStartup) {
       import('./dashboard.js?v=20260518c').then(m => m.clearDashboardArchiveCache && m.clearDashboardArchiveCache()).catch(() => {});
-      render();
     }
     const [deals, activities, clients, appointments, trackerEntries, demoEntries, savedSettings, retargetHistory, retargetExports] = await Promise.all([
       sbGetDeals(), sbGetActivities(), sbGetClients(), sbGetAppointments(), sbGetTrackerEntries(), sbGetDemoEntries(), sbLoadSettings(), sbGetRetargetHistory().catch(() => []), sbGetRetargetExports().catch(() => [])
