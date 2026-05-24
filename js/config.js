@@ -136,9 +136,9 @@ export const SEQUENCE_TEMPLATES = [
     id: 'follow-up-founder',
     label: 'Follow-Up (Founder)',
     templates: [
-      { name: 'Day 1 — No Pickup Intro', body: `Hey {FIRST_NAME}, Aidan with The Headline Theory here. We were just emailing about INDUSTRY opportunities around {CITY}. Figured it would be easier to give you a breakdown and learn more about your business over the phone rather than email.\n\nWould today at TIME or tomorrow at TIME be a good time for me to give you a call?` },
+      { name: 'Day 1 — No Pickup Intro', body: `Hey {FIRST_NAME}, Aidan with The Headline Theory here. We were just emailing about INDUSTRY opportunities around {MAJOR_CITY}. Figured it would be easier to give you a breakdown and learn more about your business over the phone rather than email.\n\nWould today at TIME or tomorrow at TIME be a good time for me to give you a call?` },
       { name: 'Day 2 — Voicemail Follow-Up', body: `Hey {FIRST_NAME}, just tried giving you a ring but it went to voicemail. Does DAY at TIME or DAY at TIME work for me to give you a call back?` },
-      { name: 'Day 4 — Circle Back', body: `Hey {FIRST_NAME}, Aidan here. Just wanted to check in on this. Are you still interested in chatting about how we can consistently get your business in front of commercial decision makers in {CITY}?` },
+      { name: 'Day 4 — Circle Back', body: `Hey {FIRST_NAME}, Aidan here. Just wanted to check in on this. Are you still interested in chatting about how we can consistently get your business in front of commercial decision makers in {MAJOR_CITY}?` },
     ]
   },
   {

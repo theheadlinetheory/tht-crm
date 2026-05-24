@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // DEMO TRACKER — SDR commission tracking for acquisition calls
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites, pendingDealFields } from './app.js?v=20260524a';
-import { sbCreateDemoEntry, sbUpdateDemoEntry, sbDeleteDemoEntry, sbUpdateDeal, camelToSnake, normalizeRow } from './api.js?v=20260524a';
-import { render, refreshModal } from './render.js?v=20260524a';
-import { isAdmin, isEmployee } from './auth.js?v=20260524a';
-import { esc, str, svgIcon } from './utils.js?v=20260524a';
+import { state, pendingWrites, pendingDealFields } from './app.js?v=20260524b';
+import { sbCreateDemoEntry, sbUpdateDemoEntry, sbDeleteDemoEntry, sbUpdateDeal, camelToSnake, normalizeRow } from './api.js?v=20260524b';
+import { render, refreshModal } from './render.js?v=20260524b';
+import { isAdmin, isEmployee } from './auth.js?v=20260524b';
+import { esc, str, svgIcon } from './utils.js?v=20260524b';
 
 const DEMO_BASE_PAYOUT = 100;
 const DEMO_CLOSE_BONUS = 50;
