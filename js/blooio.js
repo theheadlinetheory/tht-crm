@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // BLOOIO — In-CRM texting via Blooio API (thread viewer + send)
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20260524b';
-import { showToast, sbCreateActivity, sbUpdateDeal, camelToSnake } from './api.js?v=20260524b';
-import { uid, getToday, esc, applyTemplate } from './utils.js?v=20260524b';
-import { refreshModal } from './render.js?v=20260524b';
-import { BLOOIO_BASE_URL, BLOOIO_API_KEY, SEQUENCE_TEMPLATES } from './config.js?v=20260524b';
+import { state, pendingWrites } from './app.js?v=20260524c';
+import { showToast, sbCreateActivity, sbUpdateDeal, camelToSnake } from './api.js?v=20260524c';
+import { uid, getToday, esc, applyTemplate } from './utils.js?v=20260524c';
+import { refreshModal } from './render.js?v=20260524c';
+import { BLOOIO_BASE_URL, BLOOIO_API_KEY, SEQUENCE_TEMPLATES, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260524c';
 
 let cachedFromNumber = null;
 
@@ -242,11 +242,29 @@ export function openBlooioModal(dealId, phoneField){
   }
 
   seqSelect.onchange = () => { populateTemplates(parseInt(seqSelect.value)); msgEl.value = ''; };
-  tplSelect.onchange = () => {
+  tplSelect.onchange = async () => {
     const si = parseInt(seqSelect.value), ti = parseInt(tplSelect.value);
     if(isNaN(si) || isNaN(ti) || !sequences[si]?.templates?.[ti]) return;
-    msgEl.value = applyTemplate(sequences[si].templates[ti].body, deal, '', '');
+    let text = applyTemplate(sequences[si].templates[ti].body, deal, '', '');
+    msgEl.value = text;
     msgEl.focus();
+    if(text.includes('TIME')){
+      try {
+        const resp = await fetch(`${SUPABASE_URL}/functions/v1/suggest-times`, {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${SUPABASE_ANON_KEY}` }
+        });
+        const data = await resp.json();
+        if(data.ok && data.slot1){
+          const s1 = data.slot1, s2 = data.slot2 || data.slot1;
+          text = text.replace(
+            /(?:today|tomorrow|DAY)\s+at\s+TIME\s+or\s+(?:today|tomorrow|DAY)\s+at\s+TIME/gi,
+            `${s1.day} at ${s1.time} or ${s2.day} at ${s2.time}`
+          );
+          msgEl.value = text;
+        }
+      } catch(e){ console.warn('suggest-times failed:', e); }
+    }
   };
 
   const stageToSeq = { 'Cold Email Response':'follow-up', 'Follow-up':'follow-up', 'Discovery Scheduled':'pre-call-nurture', 'Demo Scheduled':'pre-call-nurture' };
