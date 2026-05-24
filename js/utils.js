@@ -103,6 +103,21 @@ export function copyToClipboard(text, btnEl){
   });
 }
 
+const CITY_SHORT = { 'los angeles':'LA', 'new york':'NYC', 'san francisco':'SF', 'philadelphia':'Philly', 'san antonio':'San Antonio' };
+
+function extractMajorCity(campaignName){
+  if(!campaignName) return '';
+  let city = campaignName
+    .replace(/\b(landscaping|hvac|roofing|plumbing|painting|acquisition|subsequence|retarget|list\s*\d*)\b/gi, '')
+    .replace(/[-—]/g, '').replace(/\bgreater\b/gi, '').replace(/\d+/g, '')
+    .trim().replace(/\s+/g, ' ');
+  if(!city) return '';
+  const lower = city.toLowerCase();
+  if(CITY_SHORT[lower]) return CITY_SHORT[lower];
+  if(/^(bay area|twin cities)$/i.test(city)) return 'the ' + city;
+  return city;
+}
+
 export function applyTemplate(template, deal, clientName, clientFirst){
   const s = v => (v != null && String(v).trim()) || '';
   const addr = s(deal.address || deal.location);
@@ -119,6 +134,7 @@ export function applyTemplate(template, deal, clientName, clientFirst){
     '{WEBSITE}': s(deal.website),
     '{ADDRESS}': addr,
     '{CITY}': city,
+    '{MAJOR_CITY}': extractMajorCity(s(deal.campaignName)),
     '{JOB_TITLE}': s(deal.jobTitle),
     '{CLIENT_NAME}': s(clientName),
     '{CLIENT_FIRST}': s(clientFirst || 'there'),
