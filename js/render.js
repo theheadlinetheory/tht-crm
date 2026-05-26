@@ -2,30 +2,31 @@
 // RENDER — Main render loop, refreshModal, list view
 // ═══════════════════════════════════════════════════════════
 
-import { state, savedScrollLeft, setSavedScrollLeft, clientArchivedDeals } from './app.js?v=20260526b';
-import { ACQUISITION_STAGES, NURTURE_STAGES, ACTIVITY_ICONS } from './config.js?v=20260526b';
-import { esc, svgIcon, getToday, fmtDate, fmtTime12, str, stripHtml } from './utils.js?v=20260526b';
-import { isAdmin, isClient, isEmployee, currentUser, renderUserMenu, getOwnerForDeal, getOwnerNameForDeal, loadAssignableUsers } from './auth.js?v=20260526b';
-import { initialSync as syncFromSheet } from './api.js?v=20260526b';
-import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js?v=20260526b';
-import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWonDrop, renderDealModal, renderNewDealModal, renderAddClientModal, toggleBadgeDropdown } from './deal-modal.js?v=20260526b';
-import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from './activities.js?v=20260526b';
-import { renderDashboard } from './dashboard.js?v=20260526b';
-import { loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js?v=20260526b';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260526b';
-import { toggleBulkMode, bulkMoveStage, bulkSelectAll, bulkArchive, bulkAddActivity, toggleBulkSelect } from './deals.js?v=20260526b';
-import { openSettings } from './settings.js?v=20260526b';
-import { serviceAreaResults } from './maps.js?v=20260526b';
-import { lookupClientInfo, isRetainerClient, openClientInfoPanel, removeClient } from './client-info.js?v=20260526b';
-import { openCalendlyEmbed, removeAppointment, addManualAppointment } from './calendly.js?v=20260526b';
-import { doDragOver, doDragLeave, clearAllDragOver, doDrop } from './deals.js?v=20260526b';
-import { renderDueTodayBanner, renderNurtureTab, renderNurtureEntryModal, renderReactivateModal, renderSnoozeModal, loadNurtureData } from './rerun.js?v=20260526b';
-import { renderDemoTracker } from './demo-tracker.js?v=20260526b';
-import { renderRetargetingTab } from './retargeting.js?v=20260526b';
+import { state, savedScrollLeft, setSavedScrollLeft, clientArchivedDeals } from './app.js?v=20260526c';
+import { ACQUISITION_STAGES, NURTURE_STAGES, ACTIVITY_ICONS, detectCountry } from './config.js?v=20260526c';
+import { esc, svgIcon, getToday, fmtDate, fmtTime12, str, stripHtml } from './utils.js?v=20260526c';
+import { isAdmin, isClient, isEmployee, currentUser, renderUserMenu, getOwnerForDeal, getOwnerNameForDeal, loadAssignableUsers } from './auth.js?v=20260526c';
+import { initialSync as syncFromSheet } from './api.js?v=20260526c';
+import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js?v=20260526c';
+import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWonDrop, renderDealModal, renderNewDealModal, renderAddClientModal, toggleBadgeDropdown } from './deal-modal.js?v=20260526c';
+import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from './activities.js?v=20260526c';
+import { renderDashboard } from './dashboard.js?v=20260526c';
+import { loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js?v=20260526c';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260526c';
+import { toggleBulkMode, bulkMoveStage, bulkSelectAll, bulkArchive, bulkAddActivity, toggleBulkSelect } from './deals.js?v=20260526c';
+import { openSettings } from './settings.js?v=20260526c';
+import { serviceAreaResults } from './maps.js?v=20260526c';
+import { lookupClientInfo, isRetainerClient, openClientInfoPanel, removeClient } from './client-info.js?v=20260526c';
+import { openCalendlyEmbed, removeAppointment, addManualAppointment } from './calendly.js?v=20260526c';
+import { doDragOver, doDragLeave, clearAllDragOver, doDrop } from './deals.js?v=20260526c';
+import { renderDueTodayBanner, renderNurtureTab, renderNurtureEntryModal, renderReactivateModal, renderSnoozeModal, loadNurtureData } from './rerun.js?v=20260526c';
+import { renderDemoTracker } from './demo-tracker.js?v=20260526c';
+import { renderRetargetingTab } from './retargeting.js?v=20260526c';
 
 // ─── renderListView ───
 function renderListView(deals,stages){
   if(state.myDealsFilter && state.pipeline==='acquisition') deals = deals.filter(d => getOwnerNameForDeal(d) === currentUser.name);
+  if(state.countryFilter) deals = deals.filter(d => detectCountry(d).code === state.countryFilter);
   let h=`<div style="padding:16px 20px">
     <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;background:var(--card)">
       <table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -298,6 +299,37 @@ export function render(){
     }
   }
 
+  // ─── Country Filter Dropdown ───
+  if((state.pipeline==='acquisition' || state.pipeline==='client_leads') && state.acquisitionSubTab !== 'nurture' && state.clientLeadsSubTab !== 'tracker'){
+    const allDeals = getPipelineDeals();
+    const countries = [];
+    const seen = new Set();
+    for(const d of allDeals){
+      const c = detectCountry(d);
+      if(!seen.has(c.code)){ seen.add(c.code); countries.push(c); }
+    }
+    if(countries.length > 1){
+      const hasCF = state.countryFilter !== '';
+      const cfMatch = hasCF ? countries.find(c=>c.code===state.countryFilter) : null;
+      const cfLabel = cfMatch ? cfMatch.flag+' '+cfMatch.label : '🌐 All Countries';
+      html+=`<div style="padding:0 20px;margin-bottom:4px">
+        <div class="acq-filter-wrap">
+          <button class="acq-filter-toggle ${hasCF?'has-filter':''}" onclick="event.stopPropagation();state.showCountryFilterDropdown=!state.showCountryFilterDropdown;render()">
+            ${cfLabel} ▾
+          </button>
+          ${state.showCountryFilterDropdown?`<div class="acq-filter-dropdown" onclick="event.stopPropagation()">
+            <div class="acq-filter-option ${!hasCF?'selected':''}" onclick="state.countryFilter='';localStorage.setItem('tht_countryFilter','');state.showCountryFilterDropdown=false;render()">
+              ${!hasCF?'✓':' '} 🌐 All Countries
+            </div>
+            ${countries.sort((a,b)=>a.label.localeCompare(b.label)).map(c=>`<div class="acq-filter-option ${state.countryFilter===c.code?'selected':''}" onclick="state.countryFilter='${c.code}';localStorage.setItem('tht_countryFilter','${c.code}');state.showCountryFilterDropdown=false;render()">
+              ${state.countryFilter===c.code?'✓':' '} ${c.flag} ${esc(c.label)}
+            </div>`).join('')}
+          </div>`:''}
+        </div>
+      </div>`;
+    }
+  }
+
   // ─── Client Leads Sub-Tabs (Pipeline / Lead Tracker) ───
   if(state.pipeline==='client_leads' && !isClient() && !state.showEmployeeArchive){
     const clSubTab = state.clientLeadsSubTab || 'pipeline';
@@ -323,11 +355,11 @@ export function render(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading trends...</div>';
           if(!window._trendsLoading){
             window._trendsLoading=true;
-            import('./trends.js?v=20260526b').then(m=>{ window._trendsModule=m; render(); }).catch(()=>{ window._trendsLoading=false; });
+            import('./trends.js?v=20260526c').then(m=>{ window._trendsModule=m; render(); }).catch(()=>{ window._trendsLoading=false; });
           }
           if(!state.trackerLoaded && !window._trackerLoading){
             window._trackerLoading=true;
-            import('./lead-tracker.js?v=20260526b').then(m=>{
+            import('./lead-tracker.js?v=20260526c').then(m=>{
               window._trackerModule=m;
               m.loadTrackerEntries().then(()=>render()).catch(()=>render());
             }).catch(()=>{ window._trackerLoading=false; });
@@ -340,14 +372,14 @@ export function render(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading tracker...</div>';
           if(!window._trackerLoading){
             window._trackerLoading=true;
-            import('./lead-tracker.js?v=20260526b').then(m=>{
+            import('./lead-tracker.js?v=20260526c').then(m=>{
               window._trackerModule=m;
               if(!state.trackerLoaded){ m.loadTrackerEntries().then(()=>render()).catch(()=>render()); }
               else render();
             }).catch(()=>{ window._trackerLoading=false; });
             if(!window._invoiceLoading){
               window._invoiceLoading=true;
-              import('./invoice.js?v=20260526b').then(m=>{ window._invoiceModule=m; }).catch(()=>{ window._invoiceLoading=false; });
+              import('./invoice.js?v=20260526c').then(m=>{ window._invoiceModule=m; }).catch(()=>{ window._invoiceLoading=false; });
             }
           }
         }
@@ -355,7 +387,7 @@ export function render(){
           html+=window._invoiceModule.renderInvoiceModal();
         } else if(state.invoiceModal && !window._invoiceLoading){
           window._invoiceLoading=true;
-          import('./invoice.js?v=20260526b').then(m=>{ window._invoiceModule=m; render(); });
+          import('./invoice.js?v=20260526c').then(m=>{ window._invoiceModule=m; render(); });
         }
       }
       const trackerWrap=document.querySelector('.tracker-table-wrap');
@@ -476,6 +508,7 @@ export function render(){
     // For client portal, filter by clientStage instead of stage
     let sd = isClient() ? deals.filter(d=>d.clientStage===stage.id) : deals.filter(d=>d.stage===stage.id);
     if(state.myDealsFilter && state.pipeline==='acquisition') sd = sd.filter(d => getOwnerNameForDeal(d) === currentUser.name);
+    if(state.countryFilter) sd = sd.filter(d => detectCountry(d).code === state.countryFilter);
     const sv=sd.reduce((s,d)=>s+(Number(d.value)||0),0);
     const stageKey=btoa(unescape(encodeURIComponent(stage.id)));
 
@@ -555,7 +588,7 @@ export function render(){
           onclick="${state.bulkMode?`event.preventDefault();event.stopPropagation();toggleBulkSelect('${deal.id}')`:`openDeal('${deal.id}')`}">
           ${state.bulkMode?`<div class="bulk-check">${isBulkSel?'✓':''}</div>`:''}
           <div class="deal-card-top">
-            <div class="deal-company">${deal.hasNewText?'<span class="reply-indicator text-reply-indicator" title="New text reply received">'+svgIcon('message-circle',12,'#16a34a')+'</span>':''}${deal.hasNewReply?'<span class="reply-indicator" title="New email reply received">'+svgIcon('mail',12,'#3b82f6')+'</span>':''}${esc(deal.company||deal.contact||deal.email||"New Deal")}${isRetainerClient(deal)?'<span style="display:inline-block;margin-left:6px;font-size:9px;font-weight:700;background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:3px;vertical-align:middle;white-space:nowrap;letter-spacing:.3px">RETAINER</span>':''}</div>
+            <div class="deal-company">${(()=>{const c=detectCountry(deal);return c.code!=='US'?'<span title="'+c.label+'" style="font-size:12px;margin-right:3px;vertical-align:middle">'+c.flag+'</span>':'';})()}${deal.hasNewText?'<span class="reply-indicator text-reply-indicator" title="New text reply received">'+svgIcon('message-circle',12,'#16a34a')+'</span>':''}${deal.hasNewReply?'<span class="reply-indicator" title="New email reply received">'+svgIcon('mail',12,'#3b82f6')+'</span>':''}${esc(deal.company||deal.contact||deal.email||"New Deal")}${isRetainerClient(deal)?'<span style="display:inline-block;margin-left:6px;font-size:9px;font-weight:700;background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:3px;vertical-align:middle;white-space:nowrap;letter-spacing:.3px">RETAINER</span>':''}</div>
             ${isClient()?'':`<div class="status-indicator" onclick="event.stopPropagation();toggleBadgeDropdown('${deal.id}')">
               <div class="status-dot" style="background:${badge?badge.color:'#d1d5db'}"></div>
               ${badge?`<span class="status-count" style="color:${badge.color}">${badge.count}</span>`:''}
