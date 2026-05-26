@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // CLIENT-INFO — Client data, thread IDs, lookup functions
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, deletedClientIds } from './app.js?v=20260526d';
-import { CLIENT_PALETTE, CLIENT_INFO_SHEET_ID } from './config.js?v=20260526d';
-import { render } from './render.js?v=20260526d';
-import { str, uid, esc, isValidDate, getToday, svgIcon } from './utils.js?v=20260526d';
-import { sbCreateClient, sbDeleteClient, camelToSnake, apiPost, invokeEdgeFunction, showToast } from './api.js?v=20260526d';
-import { isClient, isAdmin } from './auth.js?v=20260526d';
+import { state, store, pendingWrites, deletedClientIds } from './app.js?v=20260526e';
+import { CLIENT_PALETTE, CLIENT_INFO_SHEET_ID } from './config.js?v=20260526e';
+import { render } from './render.js?v=20260526e';
+import { str, uid, esc, isValidDate, getToday, svgIcon } from './utils.js?v=20260526e';
+import { sbCreateClient, sbDeleteClient, camelToSnake, apiPost, invokeEdgeFunction, showToast } from './api.js?v=20260526e';
+import { isClient, isAdmin } from './auth.js?v=20260526e';
 
 // ─── Derive campaign keyword from client name ───
 const SKIP_PREFIXES = /^(the|a|an)\s+/i;
@@ -25,7 +25,7 @@ let _clientConfigLoaded = false;
 
 export async function loadClientConfig() {
   try {
-    const { sbGetClientConfig } = await import('./api.js?v=20260526d');
+    const { sbGetClientConfig } = await import('./api.js?v=20260526e');
     const data = await sbGetClientConfig();
     if (Array.isArray(data)) _clientConfigCache = data;
     _clientConfigLoaded = true;
@@ -212,7 +212,7 @@ export function removeClient(name){
 }
 
 // ─── Timezone Derivation ───
-function deriveTimezone(location) {
+export function deriveTimezone(location) {
   const l = (location || '').toUpperCase();
   const eastern = /\b(NY|NJ|CT|MA|PA|FL|GA|NC|SC|VA|MD|DE|ME|NH|VT|RI|OH|MI|IN|WV|DC)\b/;
   const central = /\b(TX|IL|MN|WI|MO|LA|AR|MS|AL|TN|KY|IA|KS|NE|ND|SD|OK)\b/;
@@ -222,6 +222,16 @@ function deriveTimezone(location) {
   if (central.test(l)) return 'CST';
   if (mountain.test(l)) return 'MST';
   if (pacific.test(l)) return 'PST';
+  const lo = l.toLowerCase();
+  if (/\b(sydney|melbourne|brisbane|canberra|gold coast|hobart)\b/.test(lo)) return 'AEST';
+  if (/\b(adelaide|darwin)\b/.test(lo)) return 'ACST';
+  if (/\b(perth)\b/.test(lo)) return 'AWST';
+  if (/\b(toronto|ottawa|montreal|quebec)\b/.test(lo)) return 'EST';
+  if (/\b(winnipeg)\b/.test(lo)) return 'CST';
+  if (/\b(calgary|edmonton)\b/.test(lo)) return 'MST';
+  if (/\b(vancouver|victoria)\b/.test(lo)) return 'PST';
+  if (/\b(london|manchester|birmingham|leeds|glasgow|bristol|liverpool|edinburgh)\b/.test(lo)) return 'GMT';
+  if (/\b(auckland|wellington|christchurch)\b/.test(lo)) return 'NZST';
   return '';
 }
 
