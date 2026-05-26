@@ -527,7 +527,7 @@ async function confirmPhoneAssign() {
     pendingDealFields[dealId] = { ...pendingDealFields[dealId], [k]: v };
   }
   if (state.selectedDeal && String(state.selectedDeal.id) === String(dealId)) state.selectedDeal = deal;
-  refreshModal();
+  refreshModal(true);
 
   const snakeUpdates = camelToSnake(updates);
   pendingWrites.value++;
