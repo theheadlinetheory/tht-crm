@@ -170,6 +170,23 @@ export const DEFAULT_CLIENT_STAGES = [
   { id: "Quote Given", label: "Quote Given / Waiting for Signature", color: "#d97706" },
 ];
 
+// ─── Country Detection from Campaign Name / Location ───
+const COUNTRY_RULES = [
+  { keywords: ['australia','sydney','melbourne','brisbane','perth','adelaide','canberra','gold coast'], code: 'AU', flag: '🇦🇺', label: 'Australia' },
+  { keywords: ['toronto','montreal','vancouver','calgary','ottawa','edmonton','winnipeg','canada'], code: 'CA', flag: '🇨🇦', label: 'Canada' },
+  { keywords: ['london','manchester','birmingham','leeds','glasgow','uk','united kingdom','bristol','liverpool'], code: 'GB', flag: '🇬🇧', label: 'UK' },
+  { keywords: ['auckland','wellington','christchurch','new zealand','nz'], code: 'NZ', flag: '🇳🇿', label: 'New Zealand' },
+];
+const US_DEFAULT = { code: 'US', flag: '🇺🇸', label: 'United States' };
+
+export function detectCountry(deal) {
+  const text = ((deal.campaignName || '') + ' ' + (deal.location || '') + ' ' + (deal.address || '')).toLowerCase();
+  for (const rule of COUNTRY_RULES) {
+    if (rule.keywords.some(kw => text.includes(kw))) return rule;
+  }
+  return US_DEFAULT;
+}
+
 // ─── Acquisition Pipeline Calendly URLs ───
 export const ACQ_CALENDLY_URLS = {
   demo:'https://calendly.com/aidan-theheadlinetheory/demo-call-with-the-headline-theory',
