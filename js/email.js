@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // EMAIL — Forward to client, lead tracker push, send to thread
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20260526e';
-import { render, refreshModal } from './render.js?v=20260526e';
-import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20260526e';
-import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20260526e';
-import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20260526e';
-import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20260526e';
-import { CRM_BASE_URL } from './config.js?v=20260526e';
+import { state, pendingWrites } from './app.js?v=20260526f';
+import { render, refreshModal } from './render.js?v=20260526f';
+import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20260526f';
+import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20260526f';
+import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20260526f';
+import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20260526f';
+import { CRM_BASE_URL } from './config.js?v=20260526f';
 
 function formatEmailBody(html){
   if(!html) return '';
@@ -186,7 +186,7 @@ export async function autoPushToTracker(deal){
   }
 
   // Insert into lead_tracker table
-  const { sbCreateTrackerEntry, normalizeRow } = await import('./api.js?v=20260526e');
+  const { sbCreateTrackerEntry, normalizeRow } = await import('./api.js?v=20260526f');
   const entry = await sbCreateTrackerEntry({
     deal_id: deal.id,
     client_name: clientName,
@@ -347,7 +347,7 @@ export async function executePassOff(dealId, clientName){
     }
 
     if(btn) btn.textContent='Archiving...';
-    const { deleteDeal }=await import('./deals.js?v=20260526e');
+    const { deleteDeal }=await import('./deals.js?v=20260526f');
     await deleteDeal(dealId,'Passed Off',clientName);
 
     document.getElementById('passoff-preview-overlay')?.remove();
