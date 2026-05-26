@@ -2,31 +2,31 @@
 // RENDER — Main render loop, refreshModal, list view
 // ═══════════════════════════════════════════════════════════
 
-import { state, savedScrollLeft, setSavedScrollLeft, clientArchivedDeals } from './app.js?v=20260526c';
-import { ACQUISITION_STAGES, NURTURE_STAGES, ACTIVITY_ICONS, detectCountry } from './config.js?v=20260526c';
-import { esc, svgIcon, getToday, fmtDate, fmtTime12, str, stripHtml } from './utils.js?v=20260526c';
-import { isAdmin, isClient, isEmployee, currentUser, renderUserMenu, getOwnerForDeal, getOwnerNameForDeal, loadAssignableUsers } from './auth.js?v=20260526c';
-import { initialSync as syncFromSheet } from './api.js?v=20260526c';
-import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js?v=20260526c';
-import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWonDrop, renderDealModal, renderNewDealModal, renderAddClientModal, toggleBadgeDropdown } from './deal-modal.js?v=20260526c';
-import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from './activities.js?v=20260526c';
-import { renderDashboard } from './dashboard.js?v=20260526c';
-import { loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js?v=20260526c';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260526c';
-import { toggleBulkMode, bulkMoveStage, bulkSelectAll, bulkArchive, bulkAddActivity, toggleBulkSelect } from './deals.js?v=20260526c';
-import { openSettings } from './settings.js?v=20260526c';
-import { serviceAreaResults } from './maps.js?v=20260526c';
-import { lookupClientInfo, isRetainerClient, openClientInfoPanel, removeClient } from './client-info.js?v=20260526c';
-import { openCalendlyEmbed, removeAppointment, addManualAppointment } from './calendly.js?v=20260526c';
-import { doDragOver, doDragLeave, clearAllDragOver, doDrop } from './deals.js?v=20260526c';
-import { renderDueTodayBanner, renderNurtureTab, renderNurtureEntryModal, renderReactivateModal, renderSnoozeModal, loadNurtureData } from './rerun.js?v=20260526c';
-import { renderDemoTracker } from './demo-tracker.js?v=20260526c';
-import { renderRetargetingTab } from './retargeting.js?v=20260526c';
+import { state, savedScrollLeft, setSavedScrollLeft, clientArchivedDeals } from './app.js?v=20260526d';
+import { ACQUISITION_STAGES, NURTURE_STAGES, ACTIVITY_ICONS, detectCountry } from './config.js?v=20260526d';
+import { esc, svgIcon, getToday, fmtDate, fmtTime12, str, stripHtml } from './utils.js?v=20260526d';
+import { isAdmin, isClient, isEmployee, currentUser, renderUserMenu, getOwnerForDeal, getOwnerNameForDeal, loadAssignableUsers } from './auth.js?v=20260526d';
+import { initialSync as syncFromSheet } from './api.js?v=20260526d';
+import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js?v=20260526d';
+import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWonDrop, renderDealModal, renderNewDealModal, renderAddClientModal, toggleBadgeDropdown } from './deal-modal.js?v=20260526d';
+import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from './activities.js?v=20260526d';
+import { renderDashboard } from './dashboard.js?v=20260526d';
+import { loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js?v=20260526d';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260526d';
+import { toggleBulkMode, bulkMoveStage, bulkSelectAll, bulkArchive, bulkAddActivity, toggleBulkSelect } from './deals.js?v=20260526d';
+import { openSettings } from './settings.js?v=20260526d';
+import { serviceAreaResults } from './maps.js?v=20260526d';
+import { lookupClientInfo, isRetainerClient, openClientInfoPanel, removeClient } from './client-info.js?v=20260526d';
+import { openCalendlyEmbed, removeAppointment, addManualAppointment } from './calendly.js?v=20260526d';
+import { doDragOver, doDragLeave, clearAllDragOver, doDrop } from './deals.js?v=20260526d';
+import { renderDueTodayBanner, renderNurtureTab, renderNurtureEntryModal, renderReactivateModal, renderSnoozeModal, loadNurtureData } from './rerun.js?v=20260526d';
+import { renderDemoTracker } from './demo-tracker.js?v=20260526d';
+import { renderRetargetingTab } from './retargeting.js?v=20260526d';
 
 // ─── renderListView ───
 function renderListView(deals,stages){
   if(state.myDealsFilter && state.pipeline==='acquisition') deals = deals.filter(d => getOwnerNameForDeal(d) === currentUser.name);
-  if(state.countryFilter) deals = deals.filter(d => detectCountry(d).code === state.countryFilter);
+  if(state.countryFilter && state.countryFilter.length) deals = deals.filter(d => state.countryFilter.includes(detectCountry(d).code));
   let h=`<div style="padding:16px 20px">
     <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;background:var(--card)">
       <table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -309,21 +309,21 @@ export function render(){
       if(!seen.has(c.code)){ seen.add(c.code); countries.push(c); }
     }
     if(countries.length > 1){
-      const hasCF = state.countryFilter !== '';
-      const cfMatch = hasCF ? countries.find(c=>c.code===state.countryFilter) : null;
-      const cfLabel = cfMatch ? cfMatch.flag+' '+cfMatch.label : '🌐 All Countries';
+      const cf = Array.isArray(state.countryFilter) ? state.countryFilter : [];
+      const hasCF = cf.length > 0;
+      const cfLabel = hasCF ? cf.map(code=>{const m=countries.find(c=>c.code===code);return m?m.flag:code;}).join(' ') : 'All Countries';
       html+=`<div style="padding:0 20px;margin-bottom:4px">
         <div class="acq-filter-wrap">
           <button class="acq-filter-toggle ${hasCF?'has-filter':''}" onclick="event.stopPropagation();state.showCountryFilterDropdown=!state.showCountryFilterDropdown;render()">
             ${cfLabel} ▾
           </button>
           ${state.showCountryFilterDropdown?`<div class="acq-filter-dropdown" onclick="event.stopPropagation()">
-            <div class="acq-filter-option ${!hasCF?'selected':''}" onclick="state.countryFilter='';localStorage.setItem('tht_countryFilter','');state.showCountryFilterDropdown=false;render()">
-              ${!hasCF?'✓':' '} 🌐 All Countries
+            <div class="acq-filter-option ${!hasCF?'selected':''}" onclick="state.countryFilter=[];localStorage.setItem('tht_countryFilter','[]');render()">
+              ${!hasCF?'✓':' '} All Countries
             </div>
-            ${countries.sort((a,b)=>a.label.localeCompare(b.label)).map(c=>`<div class="acq-filter-option ${state.countryFilter===c.code?'selected':''}" onclick="state.countryFilter='${c.code}';localStorage.setItem('tht_countryFilter','${c.code}');state.showCountryFilterDropdown=false;render()">
-              ${state.countryFilter===c.code?'✓':' '} ${c.flag} ${esc(c.label)}
-            </div>`).join('')}
+            ${countries.sort((a,b)=>a.label.localeCompare(b.label)).map(c=>{const sel=cf.includes(c.code);return `<div class="acq-filter-option ${sel?'selected':''}" onclick="const f=Array.isArray(state.countryFilter)?[...state.countryFilter]:[];const i=f.indexOf('${c.code}');if(i>=0)f.splice(i,1);else f.push('${c.code}');state.countryFilter=f;localStorage.setItem('tht_countryFilter',JSON.stringify(f));render()">
+              ${sel?'✓':' '} ${c.flag} ${esc(c.label)}
+            </div>`;}).join('')}
           </div>`:''}
         </div>
       </div>`;
@@ -355,11 +355,11 @@ export function render(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading trends...</div>';
           if(!window._trendsLoading){
             window._trendsLoading=true;
-            import('./trends.js?v=20260526c').then(m=>{ window._trendsModule=m; render(); }).catch(()=>{ window._trendsLoading=false; });
+            import('./trends.js?v=20260526d').then(m=>{ window._trendsModule=m; render(); }).catch(()=>{ window._trendsLoading=false; });
           }
           if(!state.trackerLoaded && !window._trackerLoading){
             window._trackerLoading=true;
-            import('./lead-tracker.js?v=20260526c').then(m=>{
+            import('./lead-tracker.js?v=20260526d').then(m=>{
               window._trackerModule=m;
               m.loadTrackerEntries().then(()=>render()).catch(()=>render());
             }).catch(()=>{ window._trackerLoading=false; });
@@ -372,14 +372,14 @@ export function render(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading tracker...</div>';
           if(!window._trackerLoading){
             window._trackerLoading=true;
-            import('./lead-tracker.js?v=20260526c').then(m=>{
+            import('./lead-tracker.js?v=20260526d').then(m=>{
               window._trackerModule=m;
               if(!state.trackerLoaded){ m.loadTrackerEntries().then(()=>render()).catch(()=>render()); }
               else render();
             }).catch(()=>{ window._trackerLoading=false; });
             if(!window._invoiceLoading){
               window._invoiceLoading=true;
-              import('./invoice.js?v=20260526c').then(m=>{ window._invoiceModule=m; }).catch(()=>{ window._invoiceLoading=false; });
+              import('./invoice.js?v=20260526d').then(m=>{ window._invoiceModule=m; }).catch(()=>{ window._invoiceLoading=false; });
             }
           }
         }
@@ -387,7 +387,7 @@ export function render(){
           html+=window._invoiceModule.renderInvoiceModal();
         } else if(state.invoiceModal && !window._invoiceLoading){
           window._invoiceLoading=true;
-          import('./invoice.js?v=20260526c').then(m=>{ window._invoiceModule=m; render(); });
+          import('./invoice.js?v=20260526d').then(m=>{ window._invoiceModule=m; render(); });
         }
       }
       const trackerWrap=document.querySelector('.tracker-table-wrap');
@@ -508,7 +508,7 @@ export function render(){
     // For client portal, filter by clientStage instead of stage
     let sd = isClient() ? deals.filter(d=>d.clientStage===stage.id) : deals.filter(d=>d.stage===stage.id);
     if(state.myDealsFilter && state.pipeline==='acquisition') sd = sd.filter(d => getOwnerNameForDeal(d) === currentUser.name);
-    if(state.countryFilter) sd = sd.filter(d => detectCountry(d).code === state.countryFilter);
+    if(state.countryFilter && state.countryFilter.length) sd = sd.filter(d => state.countryFilter.includes(detectCountry(d).code));
     const sv=sd.reduce((s,d)=>s+(Number(d.value)||0),0);
     const stageKey=btoa(unescape(encodeURIComponent(stage.id)));
 

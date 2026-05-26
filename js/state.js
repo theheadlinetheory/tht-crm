@@ -4,7 +4,7 @@
 // All mutations go through store.* methods to prevent direct
 // state tampering and ensure consistent re-renders.
 
-import { render, refreshModal } from './render.js?v=20260526c';
+import { render, refreshModal } from './render.js?v=20260526d';
 
 // ─── Raw State (private — modules should use store.*) ───
 export const state = {
@@ -49,7 +49,7 @@ export const state = {
   campaignAssignments: {},
   acquisitionFilter: '',
   showAcqFilterDropdown: false,
-  countryFilter: localStorage.getItem('tht_countryFilter') || '',
+  countryFilter: JSON.parse(localStorage.getItem('tht_countryFilter') || '[]'),
   showCountryFilterDropdown: false,
   acquisitionSubTab: 'pipeline',
   clientLeadsSubTab: 'pipeline',
