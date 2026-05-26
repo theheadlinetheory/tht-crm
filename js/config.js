@@ -173,7 +173,7 @@ export const DEFAULT_CLIENT_STAGES = [
 // ─── Acquisition Pipeline Calendly URLs ───
 export const ACQ_CALENDLY_URLS = {
   demo:'https://calendly.com/aidan-theheadlinetheory/demo-call-with-the-headline-theory',
-  strategy:'https://calendly.com/aidan-theheadlinetheory/strategy-call-with-the-headline-theory-clone'
+  strategy:'https://calendly.com/aidan-theheadlinetheory/discovery-call-with-the-headline-theory-clone'
 };
 
 // ─── Timezone mapping for Calendly ───
