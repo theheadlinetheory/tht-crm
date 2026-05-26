@@ -8,7 +8,7 @@
 
 import { state, pendingWrites, pendingDealFields } from './app.js?v=20260526c';
 import { flushRealtimeQueue } from './api.js?v=20260526c';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260526c';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY, detectCountry } from './config.js?v=20260526c';
 import { render, refreshModal } from './render.js?v=20260526c';
 import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20260526c';
 import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20260526c';
@@ -869,10 +869,12 @@ export function renderDealModal(deal){
             let extra='';
             if((k==='phone'||k==='mobilePhone') && deal[k]){
               const ph=String(deal[k]).replace(/[^0-9+]/g,'');
+              const isIntl=detectCountry(deal).code!=='US';
               extra='<div id="phone-btns-'+k+'" style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap">'
                 +'<button onclick="navigator.clipboard.writeText(\''+esc(ph)+'\');this.textContent=\'Copied!\';setTimeout(()=>this.textContent=\'Copy\',1200);event.stopPropagation()" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#f3f4f6;color:#6b7280;border-color:#d1d5db;cursor:pointer;font-weight:600;font-size:11px">'+svgIcon('clipboard',12,'#6b7280')+' Copy</button>'
                 +(!isClient()?'<button onclick="callInJustCall(\''+esc(deal.id)+'\',\''+k+'\');event.stopPropagation()" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#f97316;color:#fff;border-color:#f97316;cursor:pointer;font-weight:600">'+svgIcon('phone',14,'#fff')+' Call</button>':'')
                 +'<button onclick="openBlooioModal(\''+esc(deal.id)+'\',\''+k+'\');event.stopPropagation()" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#059669;color:#fff;border-color:#059669;cursor:pointer;font-weight:600">'+svgIcon('message-circle',14,'#fff')+' Text</button>'
+                +(isIntl?'<a href="https://wa.me/'+esc(ph.replace(/^0+/,''))+'" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#25D366;color:#fff;border-color:#25D366;cursor:pointer;font-weight:600;text-decoration:none">'+svgIcon('message-circle',14,'#fff')+' WhatsApp</a>':'')
                 +'</div>';
             }
             if(k==='website'&&deal[k]){
