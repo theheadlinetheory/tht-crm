@@ -7,12 +7,12 @@
 // moved to a separate data file (e.g., service_area_data.js).
 // This module provides the functions that operate on that data.
 
-import { state, pendingWrites } from './app.js?v=20260527c';
-import { GEOCODIO_KEY, CA_PROVINCES, CA_POSTAL, CA_CITIES } from './config.js?v=20260527c';
-import { render, refreshModal } from './render.js?v=20260527c';
+import { state, pendingWrites } from './app.js?v=20260527d';
+import { GEOCODIO_KEY, CA_PROVINCES, CA_POSTAL, CA_CITIES, detectCountry } from './config.js?v=20260527d';
+import { render, refreshModal } from './render.js?v=20260527d';
 // api.js imports removed — no direct API calls in this module
-import { str, esc } from './utils.js?v=20260527c';
-import { findClientForDeal, lookupClientInfo } from './client-info.js?v=20260527c';
+import { str, esc } from './utils.js?v=20260527d';
+import { findClientForDeal, lookupClientInfo } from './client-info.js?v=20260527d';
 
 // These will be populated from the inline data or external file
 let SERVICE_AREA_POLYGONS = {};
@@ -83,12 +83,14 @@ export async function batchGeocode(addresses){
   const toGeocode = addresses.filter(a => !geocodeCache[a]);
   if(!toGeocode.length) return geocodeCache;
 
-  // Check for Canadian addresses
   const usAddrs = [];
   const caAddrs = [];
+  const intlAddrs = [];
   for(const addr of toGeocode){
     if(CA_PROVINCES.test(addr) || CA_POSTAL.test(addr) || CA_CITIES.test(addr)){
       caAddrs.push(addr);
+    } else if(/,\s*(australia|united kingdom|uk|new zealand)\s*$/i.test(addr)){
+      intlAddrs.push(addr);
     } else {
       usAddrs.push(addr);
     }
@@ -115,8 +117,8 @@ export async function batchGeocode(addresses){
     } catch(e){ console.warn('Geocodio batch error:', e); }
   }
 
-  // Geocode Canadian addresses one-by-one via Nominatim
-  for(const addr of caAddrs){
+  // Geocode Canadian + international addresses one-by-one via Nominatim
+  for(const addr of caAddrs.concat(intlAddrs)){
     try {
       const resp = await fetch('https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(addr));
       const data = await resp.json();
@@ -148,6 +150,10 @@ export async function runServiceAreaChecks(){
         const info=lookupClientInfo(client.name);
         if(info && info.location) addr = addr + ', ' + info.location;
       }
+    }
+    const ctry = detectCountry(d);
+    if(ctry.code !== 'US' && ctry.code !== 'CA'){
+      if(!addr.toLowerCase().includes(ctry.label.toLowerCase())) addr += ', ' + ctry.label;
     }
     addrMap[d.id]=addr;
     if(!geocodeCache[addr]) addresses.push(addr);
@@ -348,6 +354,10 @@ export async function geocodeAndCheckDeal(dealId){
       const info=lookupClientInfo(clientName);
       if(info && info.location) addr = addr + ', ' + info.location;
     }
+  }
+  const country = detectCountry(deal);
+  if(country.code !== 'US' && country.code !== 'CA'){
+    if(!addr.toLowerCase().includes(country.label.toLowerCase())) addr += ', ' + country.label;
   }
 
   await batchGeocode([addr]);
