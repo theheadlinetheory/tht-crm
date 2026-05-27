@@ -7,12 +7,12 @@
 // moved to a separate data file (e.g., service_area_data.js).
 // This module provides the functions that operate on that data.
 
-import { state, pendingWrites } from './app.js?v=20260527b';
-import { GEOCODIO_KEY, CA_PROVINCES, CA_POSTAL, CA_CITIES } from './config.js?v=20260527b';
-import { render, refreshModal } from './render.js?v=20260527b';
+import { state, pendingWrites } from './app.js?v=20260527c';
+import { GEOCODIO_KEY, CA_PROVINCES, CA_POSTAL, CA_CITIES } from './config.js?v=20260527c';
+import { render, refreshModal } from './render.js?v=20260527c';
 // api.js imports removed — no direct API calls in this module
-import { str, esc } from './utils.js?v=20260527b';
-import { findClientForDeal, lookupClientInfo } from './client-info.js?v=20260527b';
+import { str, esc } from './utils.js?v=20260527c';
+import { findClientForDeal, lookupClientInfo } from './client-info.js?v=20260527c';
 
 // These will be populated from the inline data or external file
 let SERVICE_AREA_POLYGONS = {};
