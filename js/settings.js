@@ -2,15 +2,15 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260527a';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260527a';
-import { render } from './render.js?v=20260527a';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbUpdateClientConfig, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast } from './api.js?v=20260527a';
-import { esc, str, svgIcon } from './utils.js?v=20260527a';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js?v=20260527a';
-import { lookupClientInfo, getClientConfig, loadClientConfig } from './client-info.js?v=20260527a';
-import { findPolygonForClient } from './maps.js?v=20260527a';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260527a';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260527b';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260527b';
+import { render } from './render.js?v=20260527b';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbUpdateClientConfig, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast } from './api.js?v=20260527b';
+import { esc, str, svgIcon } from './utils.js?v=20260527b';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js?v=20260527b';
+import { lookupClientInfo, getClientConfig, loadClientConfig } from './client-info.js?v=20260527b';
+import { findPolygonForClient } from './maps.js?v=20260527b';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260527b';
 
 export function getDefaultSettings(){
   return {
@@ -98,35 +98,38 @@ export function debouncedAutoSave(){
   _autoSaveTimer = setTimeout(async ()=>{
     try{
       applySettings(settingsDraft);
-      const clientUpdates = state.clients.filter(c=>c.id).map(c=>({
-        id:c.id,
-        notifyEmails:str(c.notifyEmails),
-        notifyEmail:str(c.notifyEmails),
-        campaignKeywords:str(c.campaignKeywords),
-        contactFirstName:str(c.contactFirstName),
-        contactLastName:str(c.contactLastName),
-        calendlyUrl:str(c.calendlyUrl),
-        enableForward:str(c.enableForward),
-        enableCalendly:str(c.enableCalendly),
-        enableAutoForward:str(c.enableAutoForward),
-        enableCopyInfo:str(c.enableCopyInfo),
-        enableTracker:str(c.enableTracker),
-        leadCost:str(c.leadCost),
-        paymentTerms:str(c.paymentTerms||'Net 7'),
-        serviceAreaUrl:str(c.serviceAreaUrl),
-        clientNotes:str(c.clientNotes||''),
-        warmCallNotesText:str(c.warmCallNotesText||''),
-        passoffInstructions:str(c.passoffInstructions||''),
-        clientStanding:str(c.clientStanding||'neutral'),
-        homeBase:str(c.homeBase||''),
-        timeZone:str(c.timeZone||''),
-        ghlLocationId:str(c.ghlLocationId||''),
-        ghlApiKey:str(c.ghlApiKey||''),
-        ghlPipelineId:str(c.ghlPipelineId||''),
-        ghlStageId:str(c.ghlStageId||''),
-        onboardingDocUrl:str(c.onboardingDocUrl||''),
-        onboardingParsedAt:c.onboardingParsedAt||null
-      }));
+      const clientUpdates = state.clients.filter(c=>c.id).map(c=>{
+        const u = {
+          id:c.id,
+          notifyEmails:str(c.notifyEmails),
+          notifyEmail:str(c.notifyEmails),
+          campaignKeywords:str(c.campaignKeywords),
+          contactFirstName:str(c.contactFirstName),
+          contactLastName:str(c.contactLastName),
+          calendlyUrl:str(c.calendlyUrl),
+          enableForward:str(c.enableForward),
+          enableCalendly:str(c.enableCalendly),
+          enableAutoForward:str(c.enableAutoForward),
+          enableCopyInfo:str(c.enableCopyInfo),
+          enableTracker:str(c.enableTracker),
+          leadCost:str(c.leadCost),
+          paymentTerms:str(c.paymentTerms||'Net 7'),
+          serviceAreaUrl:str(c.serviceAreaUrl),
+          clientNotes:str(c.clientNotes||''),
+          warmCallNotesText:str(c.warmCallNotesText||''),
+          passoffInstructions:str(c.passoffInstructions||''),
+          clientStanding:str(c.clientStanding||'neutral'),
+          homeBase:str(c.homeBase||''),
+          timeZone:str(c.timeZone||''),
+          onboardingDocUrl:str(c.onboardingDocUrl||''),
+          onboardingParsedAt:c.onboardingParsedAt||null
+        };
+        if(c.ghlLocationId) u.ghlLocationId = c.ghlLocationId;
+        if(c.ghlApiKey) u.ghlApiKey = c.ghlApiKey;
+        if(c.ghlPipelineId) u.ghlPipelineId = c.ghlPipelineId;
+        if(c.ghlStageId) u.ghlStageId = c.ghlStageId;
+        return u;
+      });
       await Promise.all([
         sbSaveSettings(settingsDraft),
         sbBatchUpdateClients(clientUpdates.map(c => ({id:c.id, ...camelToSnake(c)})))
@@ -1117,36 +1120,39 @@ export async function saveSettingsToSheet(){
   const oldBanner=document.getElementById('settings-save-banner');
   if(oldBanner) oldBanner.remove();
   try {
-    const clientUpdates = state.clients.filter(c=>c.id).map(c=>({
-      id:c.id,
-      notifyEmails:str(c.notifyEmails),
-      notifyEmail:str(c.notifyEmails),
-      campaignKeywords:str(c.campaignKeywords),
-      contactFirstName:str(c.contactFirstName),
-      contactLastName:str(c.contactLastName),
-      calendlyUrl:str(c.calendlyUrl),
-      enableForward:str(c.enableForward),
-      enableCalendly:str(c.enableCalendly),
-      enableAutoForward:str(c.enableAutoForward),
-      enableCopyInfo:str(c.enableCopyInfo),
-      enableTracker:str(c.enableTracker),
-      enablePassoff:str(c.enablePassoff),
-      leadCost:str(c.leadCost),
-      paymentTerms:str(c.paymentTerms||'Net 7'),
-      serviceAreaUrl:str(c.serviceAreaUrl),
-      clientNotes:str(c.clientNotes||''),
-      warmCallNotesText:str(c.warmCallNotesText||''),
-      passoffInstructions:str(c.passoffInstructions||''),
-      clientStanding:str(c.clientStanding||'neutral'),
-      homeBase:str(c.homeBase||''),
-      timeZone:str(c.timeZone||''),
-      ghlLocationId:str(c.ghlLocationId||''),
-      ghlApiKey:str(c.ghlApiKey||''),
-      ghlPipelineId:str(c.ghlPipelineId||''),
-      ghlStageId:str(c.ghlStageId||''),
-      onboardingDocUrl:str(c.onboardingDocUrl||''),
-      onboardingParsedAt:c.onboardingParsedAt||null
-    }));
+    const clientUpdates = state.clients.filter(c=>c.id).map(c=>{
+      const u = {
+        id:c.id,
+        notifyEmails:str(c.notifyEmails),
+        notifyEmail:str(c.notifyEmails),
+        campaignKeywords:str(c.campaignKeywords),
+        contactFirstName:str(c.contactFirstName),
+        contactLastName:str(c.contactLastName),
+        calendlyUrl:str(c.calendlyUrl),
+        enableForward:str(c.enableForward),
+        enableCalendly:str(c.enableCalendly),
+        enableAutoForward:str(c.enableAutoForward),
+        enableCopyInfo:str(c.enableCopyInfo),
+        enableTracker:str(c.enableTracker),
+        enablePassoff:str(c.enablePassoff),
+        leadCost:str(c.leadCost),
+        paymentTerms:str(c.paymentTerms||'Net 7'),
+        serviceAreaUrl:str(c.serviceAreaUrl),
+        clientNotes:str(c.clientNotes||''),
+        warmCallNotesText:str(c.warmCallNotesText||''),
+        passoffInstructions:str(c.passoffInstructions||''),
+        clientStanding:str(c.clientStanding||'neutral'),
+        homeBase:str(c.homeBase||''),
+        timeZone:str(c.timeZone||''),
+        onboardingDocUrl:str(c.onboardingDocUrl||''),
+        onboardingParsedAt:c.onboardingParsedAt||null
+      };
+      if(c.ghlLocationId) u.ghlLocationId = c.ghlLocationId;
+      if(c.ghlApiKey) u.ghlApiKey = c.ghlApiKey;
+      if(c.ghlPipelineId) u.ghlPipelineId = c.ghlPipelineId;
+      if(c.ghlStageId) u.ghlStageId = c.ghlStageId;
+      return u;
+    });
     await Promise.all([
       sbSaveSettings(settingsDraft),
       sbBatchUpdateClients(clientUpdates.map(c => ({id:c.id, ...camelToSnake(c)})))
@@ -1180,7 +1186,7 @@ export async function createNewUser(){
   msg.style.display='none';
 
   try {
-    const { auth } = await import('./auth.js?v=20260527a');
+    const { auth } = await import('./auth.js?v=20260527b');
     const cred = await auth.createUserWithEmailAndPassword(email, pass);
     await cred.user.updateProfile({ displayName: name });
     await db.collection('users').doc(cred.user.uid).set({
@@ -1492,7 +1498,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260527a');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260527b');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);
