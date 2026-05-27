@@ -7,12 +7,12 @@
 // moved to a separate data file (e.g., service_area_data.js).
 // This module provides the functions that operate on that data.
 
-import { state, pendingWrites } from './app.js?v=20260526f';
-import { GEOCODIO_KEY, CA_PROVINCES, CA_POSTAL, CA_CITIES } from './config.js?v=20260526f';
-import { render, refreshModal } from './render.js?v=20260526f';
+import { state, pendingWrites } from './app.js?v=20260527a';
+import { GEOCODIO_KEY, CA_PROVINCES, CA_POSTAL, CA_CITIES } from './config.js?v=20260527a';
+import { render, refreshModal } from './render.js?v=20260527a';
 // api.js imports removed — no direct API calls in this module
-import { str, esc } from './utils.js?v=20260526f';
-import { findClientForDeal, lookupClientInfo } from './client-info.js?v=20260526f';
+import { str, esc } from './utils.js?v=20260527a';
+import { findClientForDeal, lookupClientInfo } from './client-info.js?v=20260527a';
 
 // These will be populated from the inline data or external file
 let SERVICE_AREA_POLYGONS = {};
@@ -36,14 +36,17 @@ try { geocodeCache = JSON.parse(localStorage.getItem('tht_geocodeCache')||'{}');
 
 export function findPolygonForClient(clientName){
   if(!clientName) return null;
+  const client = state.clients.find(c => c.name === clientName);
+  if(client && client.serviceAreaPolygons){
+    const p = typeof client.serviceAreaPolygons === 'string' ? JSON.parse(client.serviceAreaPolygons) : client.serviceAreaPolygons;
+    if(p && (p.geometry || p.type)) return { key: clientName, polygon: p };
+  }
   const cn=clientName.toLowerCase().replace(/[^a-z0-9]/g,'');
   for(const [key, poly] of Object.entries(SERVICE_AREA_POLYGONS)){
     const kn=key.toLowerCase().replace(/[^a-z0-9]/g,'');
     if(cn.includes(kn) || kn.includes(cn)) return { key, polygon: poly };
-    // Check aliases
     const alias=POLYGON_ALIASES[kn];
     if(alias && (cn.includes(alias) || alias.includes(cn) || cn === alias)) return { key, polygon: poly };
-    // First-word match
     const cnFirst=cn.replace(/[^a-z]/g,'').slice(0,8);
     const knFirst=kn.replace(/[^a-z]/g,'').slice(0,8);
     if(cnFirst.length >= 5 && cnFirst === knFirst) return { key, polygon: poly };

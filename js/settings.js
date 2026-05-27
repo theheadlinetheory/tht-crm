@@ -2,15 +2,15 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260526f';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260526f';
-import { render } from './render.js?v=20260526f';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClientConfig, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast } from './api.js?v=20260526f';
-import { esc, str, svgIcon } from './utils.js?v=20260526f';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js?v=20260526f';
-import { lookupClientInfo, getClientConfig, loadClientConfig } from './client-info.js?v=20260526f';
-import { findPolygonForClient } from './maps.js?v=20260526f';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260526f';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260527a';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260527a';
+import { render } from './render.js?v=20260527a';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbUpdateClientConfig, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast } from './api.js?v=20260527a';
+import { esc, str, svgIcon } from './utils.js?v=20260527a';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js?v=20260527a';
+import { lookupClientInfo, getClientConfig, loadClientConfig } from './client-info.js?v=20260527a';
+import { findPolygonForClient } from './maps.js?v=20260527a';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260527a';
 
 export function getDefaultSettings(){
   return {
@@ -666,11 +666,12 @@ function renderClientsSettings(){
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">\uD83D\uDDFA\uFE0F Service Area</label>
         ${(()=>{
           const pm = findPolygonForClient(c.name);
+          const hasDb = c.serviceAreaPolygons && (typeof c.serviceAreaPolygons === 'object' ? c.serviceAreaPolygons.geometry : true);
           if(pm){
             const coordCount = JSON.stringify(pm.polygon).length;
-            return '<div style="display:flex;align-items:center;gap:6px;margin-top:3px;padding:6px 10px;background:#dcfce7;border:1px solid #86efac;border-radius:6px;font-size:11px;color:#166534"><span class="sa-badge sa-in" style="width:14px;height:14px;font-size:8px">&#10003;</span> Polygon configured ('+(coordCount/1024).toFixed(1)+'KB)</div>';
+            return '<div style="display:flex;align-items:center;gap:6px;margin-top:3px;padding:6px 10px;background:#dcfce7;border:1px solid #86efac;border-radius:6px;font-size:11px;color:#166534;justify-content:space-between"><span style="display:flex;align-items:center;gap:6px"><span class="sa-badge sa-in" style="width:14px;height:14px;font-size:8px">&#10003;</span> Polygon configured ('+(coordCount/1024).toFixed(1)+'KB)'+(hasDb?' \u2014 stored in DB':'')+'</span><button onclick="uploadKml(\''+esc(c.id)+'\')" style="font-size:10px;padding:3px 8px;border:1px solid #86efac;border-radius:4px;background:#fff;color:#166534;cursor:pointer;font-family:var(--font);font-weight:600">Replace KML</button></div>';
           }
-          return '<div style="margin-top:3px;padding:6px 10px;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;font-size:11px;color:#6b7280">No polygon data \u2014 leads will show "unknown" for service area</div>';
+          return '<div style="display:flex;align-items:center;gap:6px;margin-top:3px;padding:6px 10px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;font-size:11px;color:#991b1b;justify-content:space-between"><span>No polygon data \u2014 upload a KML file</span><button onclick="uploadKml(\''+esc(c.id)+'\')" style="font-size:10px;padding:3px 8px;border:1px solid #fecaca;border-radius:4px;background:#fff;color:#991b1b;cursor:pointer;font-family:var(--font);font-weight:600">Upload KML</button></div>';
         })()}
       </div>
 
@@ -1029,6 +1030,41 @@ export function updateClientField(clientId, field, value){
   if(c) c[field]=value;
 }
 
+export function uploadKml(clientId){
+  const input=document.createElement('input');
+  input.type='file';
+  input.accept='.kml,.kmz';
+  input.onchange=async()=>{
+    const file=input.files[0];
+    if(!file) return;
+    const c=state.clients.find(x=>str(x.id)===str(clientId));
+    if(!c) return;
+    try {
+      const text=await file.text();
+      const parser=new DOMParser();
+      const xml=parser.parseFromString(text,'text/xml');
+      const coords=[];
+      for(const pm of xml.querySelectorAll('Placemark')){
+        const coordEls=pm.querySelectorAll('coordinates');
+        for(const ce of coordEls){
+          const raw=ce.textContent.trim();
+          const ring=raw.split(/\s+/).map(s=>{const p=s.split(',');return [parseFloat(p[0]),parseFloat(p[1])];}).filter(p=>!isNaN(p[0])&&!isNaN(p[1]));
+          if(ring.length>=3) coords.push(ring);
+        }
+      }
+      if(!coords.length){ showToast('No polygon coordinates found in KML file','error'); return; }
+      const polygon={type:'Feature',properties:{name:c.name},geometry:coords.length===1?{type:'Polygon',coordinates:[coords[0]]}:{type:'MultiPolygon',coordinates:coords.map(r=>[r])}};
+      c.serviceAreaPolygons=polygon;
+      pendingWrites.value++;
+      try { await sbUpdateClient(c.id,{service_area_polygons:polygon}); }
+      finally { pendingWrites.value--; }
+      showToast('Service area polygon uploaded for '+c.name,'success');
+      render();
+    } catch(e){ console.error('KML parse error:',e); showToast('Failed to parse KML: '+e.message,'error'); }
+  };
+  input.click();
+}
+
 // ─── Client Config (client_config table) edits with debounced save ───
 const _pendingConfigUpdates = {};
 let _configSaveTimer = null;
@@ -1144,7 +1180,7 @@ export async function createNewUser(){
   msg.style.display='none';
 
   try {
-    const { auth } = await import('./auth.js?v=20260526f');
+    const { auth } = await import('./auth.js?v=20260527a');
     const cred = await auth.createUserWithEmailAndPassword(email, pass);
     await cred.user.updateProfile({ displayName: name });
     await db.collection('users').doc(cred.user.uid).set({
@@ -1375,6 +1411,7 @@ window.closeSettings = closeSettings;
 window.debouncedAutoSave = debouncedAutoSave;
 window.applySettings = applySettings;
 window.updateClientField = updateClientField;
+window.uploadKml = uploadKml;
 window.toggleClientField = toggleClientField;
 window.updateClientCalendly = updateClientCalendly;
 window.captureClientInputs = captureClientInputs;
@@ -1455,7 +1492,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260526f');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260527a');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);
