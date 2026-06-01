@@ -41,6 +41,18 @@ function getBillableEntries(client, month) {
   );
 }
 
+function getExistingInvoices(client, month) {
+  const byInvoice = {};
+  for (const e of state.trackerEntries) {
+    if (str(e.clientName) !== client || str(e.month) !== month || !str(e.stripeInvoiceId)) continue;
+    const invId = str(e.stripeInvoiceId);
+    if (!byInvoice[invId]) byInvoice[invId] = { invoiceId: invId, entries: [], paidStatus: '' };
+    byInvoice[invId].entries.push(e);
+    if (str(e.paidStatus)) byInvoice[invId].paidStatus = str(e.paidStatus);
+  }
+  return Object.values(byInvoice);
+}
+
 // ─── Parse lead cost to cents ───
 function parseCostCents(costStr) {
   const n = parseFloat(str(costStr).replace(/[^0-9.]/g, ''));
@@ -151,11 +163,58 @@ function renderSelectStep(m) {
     </div>`;
 }
 
+function renderExistingInvoiceCard(inv) {
+  const status = inv.paidStatus.toLowerCase();
+  const total = inv.entries.reduce((s, e) => s + parseCostCents(e.leadCost), 0);
+  const statusColor = status === 'paid' ? '#059669' : status === 'sent' ? '#4f46e5' : '#d97706';
+  const statusLabel = status === 'paid' ? 'Paid' : status === 'sent' ? 'Finalized' : 'Draft';
+
+  let leadList = inv.entries.map(e =>
+    `<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:12px">
+      <span>${esc(str(e.leadName))}</span>
+      <span style="color:var(--text-muted)">${formatDollars(parseCostCents(e.leadCost))}</span>
+    </div>`
+  ).join('');
+
+  let actions = '';
+  if (status === 'draft') {
+    actions = `<button class="btn btn-primary" style="width:100%;margin-top:8px" onclick="invoiceResumeFlow('${inv.invoiceId}','finalize')">Finalize & Send Email</button>`;
+  } else if (status === 'sent') {
+    actions = `<div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-primary" style="flex:2" onclick="invoiceResumeFlow('${inv.invoiceId}','email')">Send Email</button>
+      <button class="btn btn-ghost" style="flex:1;color:#dc2626;border-color:#dc2626" onclick="invoiceVoid('${inv.invoiceId}')">Void</button>
+    </div>`;
+  } else if (status === 'paid') {
+    actions = `<div style="text-align:center;padding:8px;color:#059669;font-size:12px;font-weight:600">Paid — No actions available</div>`;
+  }
+
+  return `<div style="border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:12px;background:#fafafa">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span style="font-size:12px;font-weight:600">${inv.entries.length} lead${inv.entries.length !== 1 ? 's' : ''} — ${formatDollars(total)}</span>
+      <span style="font-size:11px;font-weight:600;color:${statusColor};background:${statusColor}15;padding:2px 8px;border-radius:4px">${statusLabel}</span>
+    </div>
+    ${leadList}
+    <div style="margin-top:6px">
+      <a href="https://dashboard.stripe.com/invoices/${encodeURIComponent(inv.invoiceId)}" target="_blank" style="font-size:11px;color:var(--purple)">View in Stripe ↗</a>
+    </div>
+    ${actions}
+  </div>`;
+}
+
 function renderPreviewStep(m) {
   const entries = m.entries;
   const excluded = m.excluded;
   const included = entries.filter(e => !excluded.has(e.id));
   const subtotal = included.reduce((sum, e) => sum + parseCostCents(e.leadCost), 0);
+  const existing = getExistingInvoices(m.client, m.month);
+
+  let existingHtml = '';
+  if (existing.length) {
+    existingHtml = `<div style="margin-bottom:16px">
+      <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px">EXISTING INVOICES</div>
+      ${existing.map(inv => renderExistingInvoiceCard(inv)).join('')}
+    </div>`;
+  }
 
   let rows = '';
   for (const e of entries) {
@@ -169,19 +228,10 @@ function renderPreviewStep(m) {
     </tr>`;
   }
 
-  return `
-    <div class="invoice-header">
-      <h3 style="margin:0;font-size:16px">Invoice Preview — ${esc(m.client)}</h3>
-      <button class="btn btn-ghost" onclick="closeInvoiceModal()" style="padding:4px 8px">✕</button>
-    </div>
-    <div class="invoice-body">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <span style="font-size:12px;color:var(--text-muted)">${esc(m.month)} — ${included.length} of ${entries.length} leads</span>
-        <button class="btn btn-ghost" style="font-size:11px;padding:2px 8px" onclick="invoiceBack()">← Back</button>
-      </div>
-      ${entries.length === 0
-        ? '<div style="text-align:center;padding:20px;color:var(--text-muted)">No billable leads found for this client/month. Called-back and already-invoiced leads are excluded.</div>'
-        : `<div style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;margin-bottom:12px">
+  const newLeadsSection = entries.length === 0
+    ? (existing.length ? '' : '<div style="text-align:center;padding:20px;color:var(--text-muted)">No billable leads found for this client/month.</div>')
+    : `<div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px">${existing.length ? 'NEW UNBILLED LEADS' : ''}</div>
+      <div style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;margin-bottom:12px">
         <table style="width:100%;border-collapse:collapse;font-size:12px">
           <thead><tr style="background:#f8fafc;position:sticky;top:0">
             <th style="padding:6px 8px;width:30px"></th>
@@ -208,8 +258,20 @@ function renderPreviewStep(m) {
       </div>
       <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="invoiceCreateDraft()" ${included.length === 0 ? 'disabled' : ''}>
         Create Draft Invoice (${formatDollars(subtotal)})
-      </button>`
-      }
+      </button>`;
+
+  return `
+    <div class="invoice-header">
+      <h3 style="margin:0;font-size:16px">Invoice Preview — ${esc(m.client)}</h3>
+      <button class="btn btn-ghost" onclick="closeInvoiceModal()" style="padding:4px 8px">✕</button>
+    </div>
+    <div class="invoice-body">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:12px;color:var(--text-muted)">${esc(m.month)}</span>
+        <button class="btn btn-ghost" style="font-size:11px;padding:2px 8px" onclick="invoiceBack()">← Back</button>
+      </div>
+      ${existingHtml}
+      ${newLeadsSection}
     </div>`;
 }
 
@@ -464,5 +526,66 @@ window.invoiceSendEmail = async () => {
     alert('Email send failed: ' + e.message);
     m.step = 'emailPreview';
     render();
+  }
+};
+
+window.invoiceResumeFlow = async (invoiceId, action) => {
+  const entries = state.trackerEntries.filter(e => str(e.stripeInvoiceId) === invoiceId);
+  const m = state.invoiceModal;
+  if (!m) return;
+
+  m.entries = entries;
+  m.excluded = new Set();
+  m.result = { invoiceId };
+  m.subtotal = entries.reduce((s, e) => s + parseCostCents(e.leadCost), 0);
+
+  if (action === 'finalize') {
+    m.step = 'finalizing';
+    render();
+    try {
+      const finalized = await invokeEdgeFunction('finalize-stripe-invoice', { invoiceId });
+      for (const e of entries) e.paidStatus = 'Sent';
+      m.finalized = finalized;
+      m.step = 'emailPreview';
+      render();
+    } catch (e) {
+      alert('Finalization failed: ' + e.message);
+      m.step = 'preview';
+      render();
+    }
+  } else if (action === 'email') {
+    m.step = 'finalizing';
+    render();
+    try {
+      const finalized = await invokeEdgeFunction('finalize-stripe-invoice', { invoiceId });
+      m.finalized = finalized;
+      m.step = 'emailPreview';
+      render();
+    } catch (e) {
+      alert('Failed to load invoice: ' + e.message);
+      m.step = 'preview';
+      render();
+    }
+  }
+};
+
+window.invoiceVoid = async (invoiceId) => {
+  if (!confirm('Void this invoice? This cannot be undone. You will need to create a new invoice.')) return;
+  const m = state.invoiceModal;
+
+  try {
+    await invokeEdgeFunction('finalize-stripe-invoice', { invoiceId, action: 'void' });
+    for (const e of state.trackerEntries) {
+      if (str(e.stripeInvoiceId) === invoiceId) {
+        e.paidStatus = '';
+        e.stripeInvoiceId = '';
+        e.invoice = '';
+        e.paymentLink = '';
+      }
+    }
+    if (m) { m.step = 'preview'; m.entries = getBillableEntries(m.client, m.month); m.excluded = new Set(); }
+    render();
+  } catch (e) {
+    alert('Void failed: ' + e.message);
   }
 };
