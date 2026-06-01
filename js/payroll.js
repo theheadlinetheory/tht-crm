@@ -1,10 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // PAYROLL — Employee management, payment tracking & PayPal
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260601a';
-import { invokeEdgeFunction, showToast, supabase } from './api.js?v=20260601a';
-import { esc, str } from './utils.js?v=20260601a';
-import { render } from './render.js?v=20260601a';
+import { state } from './app.js?v=20260601b';
+import { invokeEdgeFunction, showToast, supabase } from './api.js?v=20260601b';
+import { esc, str } from './utils.js?v=20260601b';
+import { render } from './render.js?v=20260601b';
+import { loadTrackerEntries } from './lead-tracker.js?v=20260601b';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
@@ -26,29 +27,55 @@ function parseMDY(s) {
   return { m, y };
 }
 
-function getLeadCountForMonth(month, year) {
-  let good = 0, total = 0;
+function getLeadsForMonth(month, year) {
+  const good = [], calledBack = [];
   for (const e of state.trackerEntries) {
     const appt = str(e.apptDate);
     const added = str(e.dateAdded);
     const parsed = (appt && appt.includes('/')) ? parseMDY(appt) : parseMDY(added);
     if (!parsed || parsed.m !== month || parsed.y !== year) continue;
-    total++;
-    if (str(e.callbackStatus).toLowerCase() !== 'called back') good++;
+    if (str(e.callbackStatus).toLowerCase() === 'called back') calledBack.push(e);
+    else good.push(e);
   }
-  return { good, total, calledBack: total - good };
+  return { good, calledBack, total: good.length + calledBack.length };
+}
+
+let _payments = [];
+let _paymentsLoaded = false;
+
+async function loadPayments() {
+  const resp = await invokeEdgeFunction('paypal-payout', { action: 'list' });
+  _payments = resp.ok ? (resp.payments || []) : [];
+  _paymentsLoaded = true;
+}
+
+function getAlreadyPaidForMonth(empName, month, year) {
+  const monthStart = `${year}-${String(month).padStart(2,'0')}-01`;
+  const nextMonth = month === 12 ? `${year+1}-01-01` : `${year}-${String(month+1).padStart(2,'0')}-01`;
+  let basesPaid = 0, totalPaid = 0;
+  for (const p of _payments) {
+    if (p.employee_name !== empName) continue;
+    if (p.payment_date >= monthStart && p.payment_date < nextMonth) {
+      totalPaid += Number(p.total) || 0;
+      if (!p.booked_meetings) basesPaid++;
+    }
+  }
+  return { basesPaid, totalPaid };
 }
 
 function calcPayout(emp, month, year) {
   if (emp.pay_type === 'salary') {
     return { total: Number(emp.monthly_salary) || 0, breakdown: `Fixed: $${(Number(emp.monthly_salary) || 0).toLocaleString()}/mo` };
   }
-  const data = getLeadCountForMonth(month, year);
+  const leads = getLeadsForMonth(month, year);
   const perLead = Number(emp.per_lead) || 0;
   const basePay = Number(emp.base_pay) || 0;
-  const commission = data.good * perLead;
-  const base = basePay * 2;
-  return { total: commission + base, commission, base, leads: data.good, calledBack: data.calledBack, breakdown: `${data.good} × $${perLead} + $${base} base` };
+  const commission = leads.good.length * perLead;
+  const paid = getAlreadyPaidForMonth(emp.name, month, year);
+  const basesOwed = Math.max(0, 2 - paid.basesPaid);
+  const baseOwed = basesOwed * basePay;
+  const totalOwed = commission + baseOwed;
+  return { totalOwed, commission, baseOwed, basesOwed, basesPaid: paid.basesPaid, totalPaid: paid.totalPaid, leads, perLead, basePay };
 }
 
 // ─── Render ───
@@ -58,8 +85,12 @@ export function renderPayroll() {
     state._payrollMonth = now.getMonth() + 1;
     state._payrollYear = now.getFullYear();
   }
-  if (!_employeesLoaded) {
-    loadEmployees().then(() => render());
+  if (!_employeesLoaded || !_paymentsLoaded || !state.trackerLoaded) {
+    Promise.all([
+      _employeesLoaded ? Promise.resolve() : loadEmployees(),
+      _paymentsLoaded ? Promise.resolve() : loadPayments(),
+      state.trackerLoaded ? Promise.resolve() : loadTrackerEntries(),
+    ]).then(() => render());
     return '<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading payroll...</div>';
   }
 
@@ -87,6 +118,10 @@ export function renderPayroll() {
     const typeLabel = emp.pay_type === 'salary' ? 'Fixed Salary' : 'Commission';
     const typeBg = emp.pay_type === 'salary' ? '#dbeafe' : '#f0fdf4';
     const typeColor = emp.pay_type === 'salary' ? '#2563eb' : '#16a34a';
+    const displayTotal = emp.pay_type === 'salary' ? payout.total : payout.totalOwed;
+    const displayBreakdown = emp.pay_type === 'salary'
+      ? `Fixed: $${payout.total.toLocaleString()}/mo`
+      : `$${payout.baseOwed} base + $${payout.commission} leads = $${payout.totalOwed} remaining`;
 
     html += `<div style="border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px;background:var(--card)">
       <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
@@ -99,34 +134,68 @@ export function renderPayroll() {
         </div>
         <div style="display:flex;align-items:center;gap:8px">
           <div style="text-align:right">
-            <div style="font-size:24px;font-weight:700;color:#7c3aed">$${payout.total.toLocaleString()}</div>
-            <div style="font-size:11px;color:var(--text-muted)">${esc(payout.breakdown)}</div>
+            <div style="font-size:24px;font-weight:700;color:#7c3aed">$${displayTotal.toLocaleString()}</div>
+            <div style="font-size:11px;color:var(--text-muted)">${esc(displayBreakdown)}</div>
           </div>
           <button class="btn btn-ghost" onclick="payrollEditEmployee('${emp.id}')" style="padding:4px 6px" title="Edit">${editIcon()}</button>
         </div>
       </div>`;
 
     if (emp.pay_type === 'commission') {
-      html += `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
+      const goodLeads = payout.leads.good;
+      const calledBack = payout.leads.calledBack;
+
+      html += `<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:16px">
         <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:10px;text-align:center">
-          <div style="font-size:20px;font-weight:700;color:#16a34a">${payout.leads}</div>
+          <div style="font-size:20px;font-weight:700;color:#16a34a">${goodLeads.length}</div>
           <div style="font-size:10px;color:#4d7c0f">Good Leads</div>
         </div>
         <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:10px;text-align:center">
-          <div style="font-size:20px;font-weight:700;color:#dc2626">${payout.calledBack}</div>
+          <div style="font-size:20px;font-weight:700;color:#dc2626">${calledBack.length}</div>
           <div style="font-size:10px;color:#991b1b">Called Back</div>
         </div>
         <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:6px;padding:10px;text-align:center">
-          <div style="font-size:20px;font-weight:700;color:#7c3aed">$${payout.base}</div>
-          <div style="font-size:10px;color:#5b21b6">Base Pay</div>
+          <div style="font-size:20px;font-weight:700;color:#7c3aed">$${payout.baseOwed}</div>
+          <div style="font-size:10px;color:#5b21b6">Base Owed (${payout.basesOwed} of 2)</div>
+        </div>
+        <div style="background:#fef9c3;border:1px solid #fde68a;border-radius:6px;padding:10px;text-align:center">
+          <div style="font-size:20px;font-weight:700;color:#a16207">$${payout.totalPaid}</div>
+          <div style="font-size:10px;color:#92400e">Already Paid</div>
         </div>
       </div>`;
+
+      if (goodLeads.length) {
+        html += `<div style="margin-bottom:16px">
+          <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--text-muted)">Qualified Leads ($${payout.perLead}/ea)</div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead><tr style="border-bottom:2px solid var(--border)">
+              <th style="text-align:left;padding:4px 8px">#</th>
+              <th style="text-align:left;padding:4px 8px">Lead</th>
+              <th style="text-align:left;padding:4px 8px">Client</th>
+              <th style="text-align:left;padding:4px 8px">Date</th>
+            </tr></thead>
+            <tbody>${goodLeads.map((lead, i) => `<tr style="border-bottom:1px solid #f3f4f6">
+              <td style="padding:4px 8px;color:var(--text-muted)">${i + 1}</td>
+              <td style="padding:4px 8px;font-weight:500">${esc(str(lead.leadName) || 'Unknown')}</td>
+              <td style="padding:4px 8px">${esc(str(lead.clientName) || '-')}</td>
+              <td style="padding:4px 8px">${esc(str(lead.apptDate) || str(lead.dateAdded) || '-')}</td>
+            </tr>`).join('')}</tbody>
+          </table>
+        </div>`;
+      }
+
+      if (calledBack.length) {
+        html += `<div style="margin-bottom:16px">
+          <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:#dc2626">Called Back (not paid)</div>
+          <div style="font-size:11px;color:var(--text-muted)">${calledBack.map(l => esc(str(l.leadName) || 'Unknown')).join(', ')}</div>
+        </div>`;
+      }
     }
 
     html += `<div style="display:flex;gap:8px;align-items:end">
         <div style="flex:1">
           <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px">Amount</label>
-          <input id="payroll-amt-${emp.id}" type="number" step="0.01" value="${payout.total}" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+          <input id="payroll-amt-${emp.id}" type="number" step="0.01" value="${displayTotal}" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
         </div>
         <div style="flex:1">
           <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px">Note</label>
@@ -328,13 +397,13 @@ window.payrollSend = async (id) => {
   try {
     const month = state._payrollMonth;
     const year = state._payrollYear;
-    const leads = emp.pay_type === 'commission' ? getLeadCountForMonth(month, year) : null;
+    const leads = emp.pay_type === 'commission' ? getLeadsForMonth(month, year) : null;
 
     const createResp = await invokeEdgeFunction('paypal-payout', {
       action: 'create',
       employee_name: emp.name,
       base_amount: emp.pay_type === 'salary' ? Number(emp.monthly_salary) : Number(emp.base_pay) * 2,
-      booked_meetings: leads?.good || null,
+      booked_meetings: leads?.good?.length || null,
       rate_per_meeting: emp.pay_type === 'commission' ? Number(emp.per_lead) : null,
       subtotal: amount,
       total: amount,
@@ -361,7 +430,8 @@ window.payrollSend = async (id) => {
 
     btn.textContent = sendViaPayPal ? 'Sent ✓' : 'Recorded ✓';
     btn.style.background = '#059669';
-    loadPayrollHistory();
+    _paymentsLoaded = false;
+    setTimeout(() => render(), 1500);
   } catch (err) {
     showToast(`Payment failed: ${err.message}`, 'error');
     btn.disabled = false;
