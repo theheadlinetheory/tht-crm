@@ -56,6 +56,41 @@ function getClientPaymentTerms(clientName) {
   return str(client?.paymentTerms) || 'Net 7';
 }
 
+// ─── Timeline stepper ───
+const TIMELINE_STEPS = [
+  { key: 'draft', label: 'Draft' },
+  { key: 'finalized', label: 'Finalized' },
+  { key: 'emailed', label: 'Emailed' },
+];
+
+function getTimelineState(step) {
+  if (step === 'done' || step === 'sending') return { draft: 'done', finalized: 'pending', emailed: 'pending' };
+  if (step === 'finalizing') return { draft: 'done', finalized: 'active', emailed: 'pending' };
+  if (step === 'emailPreview' || step === 'emailSending') return { draft: 'done', finalized: 'done', emailed: 'active' };
+  if (step === 'emailSent') return { draft: 'done', finalized: 'done', emailed: 'done' };
+  return null;
+}
+
+function renderTimeline(step) {
+  const ts = getTimelineState(step);
+  if (!ts) return '';
+  return `<div style="display:flex;align-items:center;justify-content:center;gap:0;margin:0 0 16px;padding:12px 16px">
+    ${TIMELINE_STEPS.map((s, i) => {
+      const status = ts[s.key];
+      const color = status === 'done' ? '#059669' : status === 'active' ? '#4f46e5' : '#d1d5db';
+      const bg = status === 'done' ? '#ecfdf5' : status === 'active' ? '#eef2ff' : '#f9fafb';
+      const icon = status === 'done' ? '✓' : String(i + 1);
+      const connector = i < TIMELINE_STEPS.length - 1
+        ? `<div style="flex:1;height:2px;background:${ts[TIMELINE_STEPS[i + 1].key] === 'pending' ? '#e5e7eb' : '#059669'};min-width:24px"></div>`
+        : '';
+      return `<div style="display:flex;align-items:center;gap:6px">
+        <div style="width:24px;height:24px;border-radius:50%;background:${bg};border:2px solid ${color};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:${color}">${icon}</div>
+        <span style="font-size:11px;font-weight:600;color:${color}">${s.label}</span>
+      </div>${connector}`;
+    }).join('')}
+  </div>`;
+}
+
 // ─── Render the invoice modal ───
 export function renderInvoiceModal() {
   const m = state.invoiceModal;
@@ -63,6 +98,8 @@ export function renderInvoiceModal() {
 
   let html = `<div class="modal-overlay" onclick="closeInvoiceModal()">
     <div class="invoice-modal" onclick="event.stopPropagation()">`;
+
+  html += renderTimeline(m.step);
 
   if (m.step === 'select') {
     html += renderSelectStep(m);
