@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════
 // INVOICE — Stripe invoice generation from Lead Tracker
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20260531i';
-import { invokeEdgeFunction } from './api.js?v=20260531i';
-import { esc, str } from './utils.js?v=20260531i';
-import { render } from './render.js?v=20260531i';
+import { state, pendingWrites } from './app.js?v=20260531j';
+import { invokeEdgeFunction } from './api.js?v=20260531j';
+import { esc, str } from './utils.js?v=20260531j';
+import { render } from './render.js?v=20260531j';
 
 // ─── Month helpers ───
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -332,9 +332,12 @@ function renderEmailPreviewStep(m) {
   const greeting = hasMultipleContacts(m.client) ? 'team' : (info.firstName || 'team');
 
   const defaultBody = `Hey ${greeting},\n\nInvoice for ${formatMonthDisplay(m.month)} is attached below.\n\nLooking forward to keeping the momentum going.`;
-  if (m.emailTo === undefined) m.emailTo = info.invoiceEmails;
-  if (m.emailCc === undefined) m.emailCc = 'lars@theheadlinetheory.com, aidan@theheadlinetheory.com';
-  if (m.emailBody === undefined) m.emailBody = defaultBody;
+  if (!m._emailInit) {
+    m.emailTo = info.invoiceEmails;
+    m.emailCc = 'lars@theheadlinetheory.com, aidan@theheadlinetheory.com';
+    m.emailBody = defaultBody;
+    m._emailInit = true;
+  }
   const toValue = m.emailTo;
   const ccValue = m.emailCc;
   const bodyValue = m.emailBody;
