@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════
 // INVOICE — Stripe invoice generation from Lead Tracker
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20260531g';
-import { invokeEdgeFunction } from './api.js?v=20260531g';
-import { esc, str } from './utils.js?v=20260531g';
-import { render } from './render.js?v=20260531g';
+import { state, pendingWrites } from './app.js?v=20260531h';
+import { invokeEdgeFunction } from './api.js?v=20260531h';
+import { esc, str } from './utils.js?v=20260531h';
+import { render } from './render.js?v=20260531h';
 
 // ─── Month helpers ───
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -348,7 +348,11 @@ function renderEmailPreviewStep(m) {
           <input id="invoice-email-to" type="text" value="${esc(toValue)}"
             style="flex:1;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text)">
         </div>
-        <div style="margin-bottom:4px"><strong>CC:</strong> lars@theheadlinetheory.com, aidan@theheadlinetheory.com</div>
+        <div style="margin-bottom:4px;display:flex;align-items:center;gap:4px">
+          <strong>CC:</strong>
+          <input id="invoice-email-cc" type="text" value="${esc(m.emailCc || 'lars@theheadlinetheory.com, aidan@theheadlinetheory.com')}"
+            style="flex:1;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text)">
+        </div>
         <div><strong>Subject:</strong> Invoice - Lead Generation Services - ${esc(formatMonthDisplay(m.month))}</div>
       </div>
       <textarea id="invoice-email-body" style="width:100%;min-height:140px;border:1px solid var(--border);border-radius:6px 6px 0 0;padding:12px;font-size:13px;line-height:1.6;font-family:var(--font);resize:vertical;border-bottom:none">${esc(bodyValue)}</textarea>
@@ -531,8 +535,10 @@ window.invoiceSendEmail = async () => {
 
   const emailBody = document.getElementById('invoice-email-body')?.value || '';
   const emailTo = document.getElementById('invoice-email-to')?.value || '';
+  const emailCc = document.getElementById('invoice-email-cc')?.value || '';
   m.emailBody = emailBody;
   m.emailTo = emailTo;
+  m.emailCc = emailCc;
   m.step = 'emailSending';
   render();
 
@@ -545,6 +551,7 @@ window.invoiceSendEmail = async () => {
       paymentLink: m.finalized.hostedInvoiceUrl,
     };
     if (emailTo) payload.toOverride = emailTo;
+    if (emailCc) payload.ccOverride = emailCc;
 
     const result = await invokeEdgeFunction('send-email', payload);
 
