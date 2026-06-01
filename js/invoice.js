@@ -31,6 +31,14 @@ function parseMonth(m) {
   return y * 100 + (mi >= 0 ? mi : 0);
 }
 
+function formatMonthDisplay(m) {
+  const parts = m.split('/');
+  if (parts.length !== 2) return m;
+  let y = parseInt(parts[1], 10);
+  if (y < 100) y += 2000;
+  return `${parts[0]} ${y}`;
+}
+
 // ─── Get billable entries for a client/month ───
 function getBillableEntries(client, month) {
   return state.trackerEntries.filter(e =>
@@ -245,7 +253,7 @@ function renderPreviewStep(m) {
       <div style="border-top:1px solid var(--border);padding-top:12px;font-size:13px">
         <div style="display:flex;justify-content:space-between;margin-bottom:4px">
           <span style="color:var(--text-muted)">Memo</span>
-          <span>Lead generation services — ${esc(m.month)}</span>
+          <span>Lead generation services — ${esc(formatMonthDisplay(m.month))}</span>
         </div>
         <div style="display:flex;justify-content:space-between;margin-bottom:4px">
           <span style="color:var(--text-muted)">Payment Terms</span>
@@ -322,7 +330,7 @@ function renderEmailPreviewStep(m) {
   const leadWord = leadCount === 1 ? 'lead' : 'leads';
   const greeting = hasMultipleContacts(m.client) ? 'team' : (info.firstName || 'team');
 
-  const defaultBody = `Hey ${greeting},\n\nInvoice for ${m.month} is attached below. ${leadCount} ${leadWord} this month.\n\nLooking forward to keeping the momentum going.`;
+  const defaultBody = `Hey ${greeting},\n\nInvoice for ${formatMonthDisplay(m.month)} is attached below. ${leadCount} ${leadWord} this month.\n\nLooking forward to keeping the momentum going.`;
 
   return `
     <div class="invoice-header">
@@ -333,7 +341,7 @@ function renderEmailPreviewStep(m) {
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;border:1px solid var(--border);border-radius:6px;padding:10px">
         <div style="margin-bottom:4px"><strong>From:</strong> aidan@theheadlinetheory.com</div>
         <div style="margin-bottom:4px"><strong>To:</strong> ${esc(info.email)}</div>
-        <div><strong>Subject:</strong> Invoice — Lead Generation Services — ${esc(m.month)}</div>
+        <div><strong>Subject:</strong> Invoice — Lead Generation Services — ${esc(formatMonthDisplay(m.month))}</div>
       </div>
       <textarea id="invoice-email-body" style="width:100%;min-height:140px;border:1px solid var(--border);border-radius:6px 6px 0 0;padding:12px;font-size:13px;line-height:1.6;font-family:var(--font);resize:vertical;border-bottom:none">${esc(defaultBody)}</textarea>
       <div style="border:1px solid var(--border);border-top:1px dashed var(--border);border-radius:0 0 6px 6px;padding:16px;background:#fafafa;font-size:13px;line-height:1.6">
