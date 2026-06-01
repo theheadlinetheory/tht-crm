@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════
 // INVOICE — Stripe invoice generation from Lead Tracker
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20260531e';
-import { invokeEdgeFunction } from './api.js?v=20260531e';
-import { esc, str } from './utils.js?v=20260531e';
-import { render } from './render.js?v=20260531e';
+import { state, pendingWrites } from './app.js?v=20260531f';
+import { invokeEdgeFunction } from './api.js?v=20260531f';
+import { esc, str } from './utils.js?v=20260531f';
+import { render } from './render.js?v=20260531f';
 
 // ─── Month helpers ───
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -332,6 +332,8 @@ function renderEmailPreviewStep(m) {
   const greeting = hasMultipleContacts(m.client) ? 'team' : (info.firstName || 'team');
 
   const defaultBody = `Hey ${greeting},\n\nInvoice for ${formatMonthDisplay(m.month)} is attached below. ${leadCount} ${leadWord} this month.\n\nLooking forward to keeping the momentum going.`;
+  const toValue = m.emailTo || info.invoiceEmails;
+  const bodyValue = m.emailBody || defaultBody;
 
   return `
     <div class="invoice-header">
@@ -341,11 +343,15 @@ function renderEmailPreviewStep(m) {
     <div class="invoice-body">
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;border:1px solid var(--border);border-radius:6px;padding:10px">
         <div style="margin-bottom:4px"><strong>From:</strong> aidan@theheadlinetheory.com</div>
-        <div style="margin-bottom:4px"><strong>To:</strong> ${esc(info.invoiceEmails)}</div>
+        <div style="margin-bottom:4px;display:flex;align-items:center;gap:4px">
+          <strong>To:</strong>
+          <input id="invoice-email-to" type="text" value="${esc(toValue)}"
+            style="flex:1;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text)">
+        </div>
         <div style="margin-bottom:4px"><strong>CC:</strong> lars@theheadlinetheory.com, aidan@theheadlinetheory.com</div>
         <div><strong>Subject:</strong> Invoice - Lead Generation Services - ${esc(formatMonthDisplay(m.month))}</div>
       </div>
-      <textarea id="invoice-email-body" style="width:100%;min-height:140px;border:1px solid var(--border);border-radius:6px 6px 0 0;padding:12px;font-size:13px;line-height:1.6;font-family:var(--font);resize:vertical;border-bottom:none">${esc(defaultBody)}</textarea>
+      <textarea id="invoice-email-body" style="width:100%;min-height:140px;border:1px solid var(--border);border-radius:6px 6px 0 0;padding:12px;font-size:13px;line-height:1.6;font-family:var(--font);resize:vertical;border-bottom:none">${esc(bodyValue)}</textarea>
       <div style="border:1px solid var(--border);border-top:1px dashed var(--border);border-radius:0 0 6px 6px;padding:16px;background:#fafafa;font-size:13px;line-height:1.6">
         <div style="text-align:center;margin:0 0 16px">
           <span style="display:inline-block;background:#4f46e5;color:#fff;padding:10px 28px;border-radius:6px;font-weight:600;font-size:13px">View & Pay Invoice</span>
@@ -385,8 +391,10 @@ function renderEmailSentStep(m) {
       <a href="https://dashboard.stripe.com/invoices/${encodeURIComponent(m.result?.invoiceId || '')}" target="_blank" class="btn btn-ghost" style="margin-bottom:8px;display:inline-flex;align-items:center;gap:4px">
         View in Stripe ↗
       </a>
-      <br>
-      <button class="btn btn-primary" style="margin-top:8px" onclick="closeInvoiceModal()">Done</button>
+      <div style="display:flex;gap:8px;margin-top:12px;justify-content:center">
+        <button class="btn btn-ghost" onclick="invoiceSendAgain()">Send Again</button>
+        <button class="btn btn-primary" onclick="closeInvoiceModal()">Done</button>
+      </div>
     </div>`;
 }
 
@@ -510,26 +518,37 @@ window.invoiceBackToDone = () => {
   }
 };
 
+window.invoiceSendAgain = () => {
+  if (state.invoiceModal) {
+    state.invoiceModal.step = 'emailPreview';
+    render();
+  }
+};
+
 window.invoiceSendEmail = async () => {
   const m = state.invoiceModal;
   if (!m?.finalized) return;
 
+  const emailBody = document.getElementById('invoice-email-body')?.value || '';
+  const emailTo = document.getElementById('invoice-email-to')?.value || '';
+  m.emailBody = emailBody;
+  m.emailTo = emailTo;
   m.step = 'emailSending';
   render();
 
   try {
-    const info = getClientInfo(m.client);
-    const emailBody = document.getElementById('invoice-email-body')?.value || '';
-
-    const result = await invokeEdgeFunction('send-email', {
+    const payload = {
       action: 'send_invoice_email',
       clientName: m.client,
       month: m.month,
       emailBody,
       paymentLink: m.finalized.hostedInvoiceUrl,
-    });
+    };
+    if (emailTo) payload.toOverride = emailTo;
 
-    m.emailSentTo = result.sentTo || info.email;
+    const result = await invokeEdgeFunction('send-email', payload);
+
+    m.emailSentTo = result.sentTo || emailTo;
     m.step = 'emailSent';
     render();
   } catch (e) {
