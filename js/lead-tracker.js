@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // LEAD TRACKER — Editable grid view for lead billing & status
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20260528a';
-import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow } from './api.js?v=20260528a';
-import { isAdmin, isEmployee } from './auth.js?v=20260528a';
-import { esc, svgIcon, str } from './utils.js?v=20260528a';
-import { render } from './render.js?v=20260528a';
+import { state, store, pendingWrites } from './app.js?v=20260531a';
+import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow } from './api.js?v=20260531a';
+import { isAdmin, isEmployee } from './auth.js?v=20260531a';
+import { esc, svgIcon, str } from './utils.js?v=20260531a';
+import { render } from './render.js?v=20260531a';
 
 // ─── Column Definitions ───
 const COLUMNS = [
@@ -368,7 +368,7 @@ window.trackerToggleCallback = (id) => toggleCallback(id);
 window.trackerAddRow = async () => {
   const today = new Date();
   const dateAdded = `${today.getMonth()+1}/${today.getDate()}/${String(today.getFullYear()).slice(-2)}`;
-  const fields = { dealId: '', clientName: '', month: '', leadName: '', leadEmail: '', dateAdded, apptTime: '', leadCost: '', invoice: '', paidStatus: '', datePaid: '', notes: '', paymentLink: '', callbackStatus: '' };
+  const fields = { dealId: '', clientName: '', month: '', leadName: '', leadEmail: '', dateAdded, apptDate: '', apptTime: '', leadCost: '', invoice: '', paidStatus: '', datePaid: '', notes: '', paymentLink: '', callbackStatus: '' };
   pendingWrites.value++;
   try {
     const snakeFields = camelToSnake(fields);
@@ -487,15 +487,22 @@ const PAYOUT_PER_LEAD = 27;
 const BIWEEKLY_BASE = 250;
 const MONTHLY_BASE = BIWEEKLY_BASE * 2;
 
+function parseMDY(s) {
+  const parts = s.split('/');
+  if (parts.length !== 3) return null;
+  const m = parseInt(parts[0], 10);
+  let y = parseInt(parts[2], 10);
+  if (y < 100) y += 2000;
+  return { m, y };
+}
+
 function getPayoutData(month, year) {
   const entries = state.trackerEntries.filter(e => {
-    const d = str(e.dateAdded);
-    const parts = d.split('/');
-    if (parts.length !== 3) return false;
-    const m = parseInt(parts[0], 10);
-    let y = parseInt(parts[2], 10);
-    if (y < 100) y += 2000;
-    return m === month && y === year;
+    const appt = str(e.apptDate);
+    const added = str(e.dateAdded);
+    const parsed = (appt && appt.includes('/')) ? parseMDY(appt) : parseMDY(added);
+    if (!parsed) return false;
+    return parsed.m === month && parsed.y === year;
   });
 
   const total = entries.length;
