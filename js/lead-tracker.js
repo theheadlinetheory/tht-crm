@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // LEAD TRACKER — Editable grid view for lead billing & status
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20260531j';
-import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow } from './api.js?v=20260531j';
-import { isAdmin, isEmployee } from './auth.js?v=20260531j';
-import { esc, svgIcon, str } from './utils.js?v=20260531j';
-import { render } from './render.js?v=20260531j';
+import { state, store, pendingWrites } from './app.js?v=20260601a';
+import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20260601a';
+import { isAdmin, isEmployee } from './auth.js?v=20260601a';
+import { esc, svgIcon, str } from './utils.js?v=20260601a';
+import { render } from './render.js?v=20260601a';
 
 // ─── Column Definitions ───
 const COLUMNS = [
@@ -514,6 +514,7 @@ window.trackerFillDown = async (fromId, field, value) => {
 const PAYOUT_PER_LEAD = 27;
 const BIWEEKLY_BASE = 250;
 const MONTHLY_BASE = BIWEEKLY_BASE * 2;
+const IOANNIS_PAYPAL = 'ioannis.serafeim@gmail.com';
 
 function parseMDY(s) {
   const parts = s.split('/');
@@ -609,6 +610,23 @@ function renderPayoutModal() {
           <span>Total Payout</span><span style="color:#7c3aed">$${data.grandTotal.toLocaleString()}</span>
         </div>
       </div>
+
+      <div style="margin-top:16px;display:flex;gap:8px">
+        <div style="flex:1">
+          <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px">Amount to send</label>
+          <input id="payout-amount" type="number" step="0.01" value="${data.grandTotal}" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+        </div>
+        <div style="flex:1">
+          <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px">Note</label>
+          <input id="payout-note" type="text" value="${months[month-1]} ${year} leads" placeholder="Payment note" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+        </div>
+      </div>
+      <button id="payout-send-btn" class="btn btn-primary" style="width:100%;margin-top:8px" onclick="payoutSendPayPal(${data.good}, ${month}, ${year})">Send via PayPal → ${IOANNIS_PAYPAL}</button>
+
+      <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px">
+        <h4 style="margin:0 0 10px;font-size:13px;color:var(--text-muted)">Payment History</h4>
+        <div id="payout-history" style="font-size:12px;color:var(--text-muted)">Loading...</div>
+      </div>
     </div>
   </div>`;
 
@@ -625,6 +643,79 @@ window.openPayoutReport = () => {
   overlay.onclick = () => overlay.remove();
   document.body.appendChild(overlay);
   renderPayoutModal();
+  loadPayoutHistory();
 };
-window.payoutSetMonth = (m) => { state._payoutMonth = m; renderPayoutModal(); };
-window.payoutSetYear = (y) => { state._payoutYear = y; renderPayoutModal(); };
+window.payoutSetMonth = (m) => { state._payoutMonth = m; renderPayoutModal(); loadPayoutHistory(); };
+window.payoutSetYear = (y) => { state._payoutYear = y; renderPayoutModal(); loadPayoutHistory(); };
+
+async function loadPayoutHistory() {
+  const el = document.getElementById('payout-history');
+  if (!el) return;
+  try {
+    const resp = await invokeEdgeFunction('paypal-payout', { action: 'list' });
+    if (!resp.ok || !resp.payments?.length) { el.innerHTML = '<div style="color:var(--text-muted)">No payments recorded yet.</div>'; return; }
+    el.innerHTML = `<table style="width:100%;border-collapse:collapse">
+      <thead><tr style="border-bottom:1px solid var(--border)">
+        <th style="text-align:left;padding:4px 6px">Date</th>
+        <th style="text-align:left;padding:4px 6px">Amount</th>
+        <th style="text-align:left;padding:4px 6px">Method</th>
+        <th style="text-align:left;padding:4px 6px">Status</th>
+        <th style="text-align:left;padding:4px 6px">Notes</th>
+      </tr></thead>
+      <tbody>${resp.payments.map(p => `<tr style="border-bottom:1px solid #f3f4f6">
+        <td style="padding:4px 6px">${p.payment_date}</td>
+        <td style="padding:4px 6px;font-weight:600">$${Number(p.total).toFixed(2)}</td>
+        <td style="padding:4px 6px">${esc(p.payment_method)}</td>
+        <td style="padding:4px 6px"><span style="padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;background:${p.status === 'Paid' ? '#dcfce7;color:#16a34a' : p.status === 'Sent' ? '#dbeafe;color:#2563eb' : '#fef3c7;color:#d97706'}">${esc(p.status)}</span></td>
+        <td style="padding:4px 6px;color:var(--text-muted)">${esc(p.notes || '')}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  } catch { el.innerHTML = '<div style="color:#dc2626">Failed to load history.</div>'; }
+}
+
+window.payoutSendPayPal = async (goodLeads, month, year) => {
+  const btn = document.getElementById('payout-send-btn');
+  const amount = parseFloat(document.getElementById('payout-amount')?.value || '0');
+  const note = document.getElementById('payout-note')?.value || '';
+  if (!amount || amount <= 0) { showToast('Enter a valid amount', 'error'); return; }
+
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  if (!confirm(`Send $${amount.toFixed(2)} to ${IOANNIS_PAYPAL} via PayPal?`)) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Creating payment...';
+  try {
+    const createResp = await invokeEdgeFunction('paypal-payout', {
+      action: 'create',
+      employee_name: 'Ioannis',
+      base_amount: BIWEEKLY_BASE * 2,
+      booked_meetings: goodLeads,
+      rate_per_meeting: PAYOUT_PER_LEAD,
+      subtotal: amount,
+      total: amount,
+      payment_date: new Date().toISOString().split('T')[0],
+      payment_method: 'AH paypal',
+      notes: note || `${months[month-1]} ${year} leads`,
+    });
+    if (!createResp.ok) throw new Error(createResp.error || 'Failed to create record');
+
+    btn.textContent = 'Sending via PayPal...';
+    const sendResp = await invokeEdgeFunction('paypal-payout', {
+      action: 'send',
+      paymentId: createResp.payment.id,
+      recipientEmail: IOANNIS_PAYPAL,
+      amount: amount.toFixed(2),
+      note: note || `THT Payment - ${months[month-1]} ${year}`,
+    });
+    if (!sendResp.ok) throw new Error(sendResp.error || 'PayPal send failed');
+
+    showToast(`$${amount.toFixed(2)} sent to ${IOANNIS_PAYPAL}`, 'success');
+    btn.textContent = 'Sent ✓';
+    btn.style.background = '#059669';
+    loadPayoutHistory();
+  } catch (err) {
+    showToast(`Payout failed: ${err.message}`, 'error');
+    btn.disabled = false;
+    btn.textContent = `Send via PayPal → ${IOANNIS_PAYPAL}`;
+  }
+};
