@@ -334,7 +334,7 @@ function renderEmailPreviewStep(m) {
   const defaultBody = `Hey ${greeting},\n\nInvoice for ${formatMonthDisplay(m.month)} is attached below.\n\nLooking forward to keeping the momentum going.`;
   if (!m._emailInit) {
     m.emailTo = info.invoiceEmails;
-    m.emailCc = 'lars@theheadlinetheory.com, aidan@theheadlinetheory.com';
+    m.emailCc = 'lars@theheadlinetheory.com';
     m.emailBody = defaultBody;
     m._emailInit = true;
   }
