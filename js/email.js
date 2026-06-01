@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // EMAIL — Forward to client, lead tracker push, send to thread
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20260531i';
-import { render, refreshModal } from './render.js?v=20260531i';
-import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20260531i';
-import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20260531i';
-import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20260531i';
-import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20260531i';
-import { CRM_BASE_URL } from './config.js?v=20260531i';
+import { state, pendingWrites } from './app.js?v=20260531j';
+import { render, refreshModal } from './render.js?v=20260531j';
+import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20260531j';
+import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20260531j';
+import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20260531j';
+import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20260531j';
+import { CRM_BASE_URL } from './config.js?v=20260531j';
 
 function formatEmailBody(html){
   if(!html) return '';
@@ -191,7 +191,7 @@ export async function autoPushToTracker(deal){
   const month = `${months[billingDate.getMonth()]}/${String(billingDate.getFullYear()).slice(-2)}`;
 
   // Insert into lead_tracker table
-  const { sbCreateTrackerEntry, normalizeRow } = await import('./api.js?v=20260531i');
+  const { sbCreateTrackerEntry, normalizeRow } = await import('./api.js?v=20260531j');
   const entry = await sbCreateTrackerEntry({
     deal_id: deal.id,
     client_name: clientName,
@@ -353,7 +353,7 @@ export async function executePassOff(dealId, clientName){
     }
 
     if(btn) btn.textContent='Archiving...';
-    const { deleteDeal }=await import('./deals.js?v=20260531i');
+    const { deleteDeal }=await import('./deals.js?v=20260531j');
     await deleteDeal(dealId,'Passed Off',clientName);
 
     document.getElementById('passoff-preview-overlay')?.remove();
