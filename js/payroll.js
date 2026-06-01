@@ -1,17 +1,21 @@
 // ═══════════════════════════════════════════════════════════
-// PAYROLL — Employee payment tracking & PayPal payouts
+// PAYROLL — Employee management, payment tracking & PayPal
 // ═══════════════════════════════════════════════════════════
 import { state } from './app.js?v=20260601a';
-import { invokeEdgeFunction, showToast } from './api.js?v=20260601a';
+import { invokeEdgeFunction, showToast, supabase } from './api.js?v=20260601a';
 import { esc, str } from './utils.js?v=20260601a';
 import { render } from './render.js?v=20260601a';
 
-const EMPLOYEES = [
-  { name: 'Ioannis', type: 'commission', basePay: 250, perLead: 27, paypalEmail: 'ioannis.serafeim@gmail.com', biweekly: true },
-  { name: 'Tim', type: 'salary', monthlySalary: 1750, paypalEmail: '', biweekly: false },
-];
-
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+let _employees = [];
+let _employeesLoaded = false;
+
+async function loadEmployees() {
+  const { data } = await supabase.from('employees').select('*').order('created_at');
+  _employees = data || [];
+  _employeesLoaded = true;
+}
 
 function parseMDY(s) {
   const parts = s.split('/');
@@ -36,21 +40,32 @@ function getLeadCountForMonth(month, year) {
 }
 
 function calcPayout(emp, month, year) {
-  if (emp.type === 'salary') return { total: emp.monthlySalary, breakdown: `Fixed salary: $${emp.monthlySalary.toLocaleString()}` };
+  if (emp.pay_type === 'salary') {
+    return { total: Number(emp.monthly_salary) || 0, breakdown: `Fixed: $${(Number(emp.monthly_salary) || 0).toLocaleString()}/mo` };
+  }
   const data = getLeadCountForMonth(month, year);
-  const commission = data.good * emp.perLead;
-  const base = emp.biweekly ? emp.basePay * 2 : emp.basePay;
-  return { total: commission + base, commission, base, leads: data.good, calledBack: data.calledBack, breakdown: `${data.good} leads × $${emp.perLead} + base $${base}` };
+  const perLead = Number(emp.per_lead) || 0;
+  const basePay = Number(emp.base_pay) || 0;
+  const commission = data.good * perLead;
+  const base = basePay * 2;
+  return { total: commission + base, commission, base, leads: data.good, calledBack: data.calledBack, breakdown: `${data.good} × $${perLead} + $${base} base` };
 }
 
+// ─── Render ───
 export function renderPayroll() {
   if (!state._payrollMonth) {
     const now = new Date();
     state._payrollMonth = now.getMonth() + 1;
     state._payrollYear = now.getFullYear();
   }
+  if (!_employeesLoaded) {
+    loadEmployees().then(() => render());
+    return '<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading payroll...</div>';
+  }
+
   const month = state._payrollMonth;
   const year = state._payrollYear;
+  const active = _employees.filter(e => e.status === 'active');
 
   let html = `<div style="max-width:900px;margin:0 auto;padding:20px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
@@ -62,29 +77,36 @@ export function renderPayroll() {
         <select onchange="payrollSetYear(+this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
           ${[year-1, year, year+1].map(y => `<option value="${y}" ${y===year?'selected':''}>${y}</option>`).join('')}
         </select>
+        <button class="btn btn-primary" onclick="payrollAddEmployee()" style="font-size:12px">+ Add Employee</button>
       </div>
     </div>`;
 
-  for (const emp of EMPLOYEES) {
+  for (const emp of active) {
     const payout = calcPayout(emp, month, year);
-    const hasPayPal = !!emp.paypalEmail;
-    const typeLabel = emp.type === 'salary' ? 'Fixed Salary' : 'Commission';
-    const typeBg = emp.type === 'salary' ? '#dbeafe' : '#f0fdf4';
-    const typeColor = emp.type === 'salary' ? '#2563eb' : '#16a34a';
+    const hasPayPal = !!emp.paypal_email;
+    const typeLabel = emp.pay_type === 'salary' ? 'Fixed Salary' : 'Commission';
+    const typeBg = emp.pay_type === 'salary' ? '#dbeafe' : '#f0fdf4';
+    const typeColor = emp.pay_type === 'salary' ? '#2563eb' : '#16a34a';
 
     html += `<div style="border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px;background:var(--card)">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
         <div>
-          <h3 style="margin:0;font-size:16px">${esc(emp.name)}</h3>
-          <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:${typeBg};color:${typeColor};font-weight:600">${typeLabel}</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <h3 style="margin:0;font-size:16px">${esc(emp.name)}</h3>
+            <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:${typeBg};color:${typeColor};font-weight:600">${typeLabel}</span>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${esc(emp.role || '')}${hasPayPal ? ` · ${esc(emp.paypal_email)}` : ' · No PayPal'}</div>
         </div>
-        <div style="text-align:right">
-          <div style="font-size:24px;font-weight:700;color:#7c3aed">$${payout.total.toLocaleString()}</div>
-          <div style="font-size:11px;color:var(--text-muted)">${esc(payout.breakdown)}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="text-align:right">
+            <div style="font-size:24px;font-weight:700;color:#7c3aed">$${payout.total.toLocaleString()}</div>
+            <div style="font-size:11px;color:var(--text-muted)">${esc(payout.breakdown)}</div>
+          </div>
+          <button class="btn btn-ghost" onclick="payrollEditEmployee('${emp.id}')" style="padding:4px 6px" title="Edit">${editIcon()}</button>
         </div>
       </div>`;
 
-    if (emp.type === 'commission') {
+    if (emp.pay_type === 'commission') {
       html += `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
         <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:10px;text-align:center">
           <div style="font-size:20px;font-weight:700;color:#16a34a">${payout.leads}</div>
@@ -104,15 +126,15 @@ export function renderPayroll() {
     html += `<div style="display:flex;gap:8px;align-items:end">
         <div style="flex:1">
           <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px">Amount</label>
-          <input id="payroll-amt-${esc(emp.name)}" type="number" step="0.01" value="${payout.total}" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+          <input id="payroll-amt-${emp.id}" type="number" step="0.01" value="${payout.total}" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
         </div>
         <div style="flex:1">
           <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px">Note</label>
-          <input id="payroll-note-${esc(emp.name)}" type="text" value="${MONTHS[month-1]} ${year}" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+          <input id="payroll-note-${emp.id}" type="text" value="${MONTHS[month-1]} ${year}" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
         </div>
-        <button id="payroll-btn-${esc(emp.name)}" class="btn btn-primary" style="white-space:nowrap" onclick="payrollSend('${esc(emp.name)}')">${hasPayPal ? 'Send via PayPal' : 'Record Payment'}</button>
+        <button id="payroll-btn-${emp.id}" class="btn btn-primary" style="white-space:nowrap" onclick="payrollSend('${emp.id}')">${hasPayPal ? 'Send via PayPal' : 'Record Payment'}</button>
       </div>
-      ${!hasPayPal ? `<div style="font-size:11px;color:#d97706;margin-top:6px">PayPal not configured — payment will be recorded only, not sent.</div>` : ''}
+      ${!hasPayPal ? `<div style="font-size:11px;color:#d97706;margin-top:6px">PayPal not configured — payment will be recorded only.</div>` : ''}
     </div>`;
   }
 
@@ -124,6 +146,75 @@ export function renderPayroll() {
   return html;
 }
 
+function editIcon() {
+  return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+}
+
+// ─── Employee Modal ───
+function showEmployeeModal(emp) {
+  const isEdit = !!emp;
+  const e = emp || { name: '', pay_type: 'commission', base_pay: 250, per_lead: 27, monthly_salary: 0, paypal_email: '', role: '', notes: '' };
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'payroll-emp-modal';
+  overlay.onclick = (ev) => { if (ev.target === overlay) overlay.remove(); };
+
+  overlay.innerHTML = `<div class="modal" style="width:460px" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>${isEdit ? 'Edit' : 'Add'} Employee</h3>
+      <button class="modal-close" onclick="document.getElementById('payroll-emp-modal').remove()">×</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Name</label>
+        <input id="emp-name" type="text" value="${esc(e.name)}" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Role</label>
+        <input id="emp-role" type="text" value="${esc(e.role || '')}" placeholder="e.g. Appointment Setter" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Pay Type</label>
+        <select id="emp-pay-type" onchange="payrollTogglePayFields()" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+          <option value="commission" ${e.pay_type==='commission'?'selected':''}>Commission (per lead + base)</option>
+          <option value="salary" ${e.pay_type==='salary'?'selected':''}>Fixed Salary</option>
+        </select>
+      </div>
+      <div id="emp-commission-fields" style="${e.pay_type==='salary'?'display:none':''}">
+        <div style="display:flex;gap:8px">
+          <div style="flex:1">
+            <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Base Pay (biweekly)</label>
+            <input id="emp-base-pay" type="number" step="0.01" value="${e.base_pay || 0}" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+          </div>
+          <div style="flex:1">
+            <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Per Lead</label>
+            <input id="emp-per-lead" type="number" step="0.01" value="${e.per_lead || 0}" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+          </div>
+        </div>
+      </div>
+      <div id="emp-salary-fields" style="${e.pay_type!=='salary'?'display:none':''}">
+        <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Monthly Salary</label>
+        <input id="emp-monthly-salary" type="number" step="0.01" value="${e.monthly_salary || 0}" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">PayPal Email</label>
+        <input id="emp-paypal" type="email" value="${esc(e.paypal_email || '')}" placeholder="Leave blank if not available" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Notes</label>
+        <input id="emp-notes" type="text" value="${esc(e.notes || '')}" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn btn-primary" style="flex:1" onclick="payrollSaveEmployee('${isEdit ? emp.id : ''}')">${isEdit ? 'Save Changes' : 'Add Employee'}</button>
+        ${isEdit ? `<button class="btn btn-ghost" style="color:#dc2626" onclick="payrollDeactivateEmployee('${emp.id}')">Deactivate</button>` : ''}
+      </div>
+    </div>
+  </div>`;
+
+  document.body.appendChild(overlay);
+}
+
+// ─── Payment History ───
 export function loadPayrollHistory() {
   invokeEdgeFunction('paypal-payout', { action: 'list' }).then(resp => {
     const el = document.getElementById('payroll-history');
@@ -157,20 +248,79 @@ export function loadPayrollHistory() {
   });
 }
 
+// ─── Window Handlers ───
 window.payrollSetMonth = (m) => { state._payrollMonth = m; render(); };
 window.payrollSetYear = (y) => { state._payrollYear = y; render(); };
 
-window.payrollSend = async (name) => {
-  const emp = EMPLOYEES.find(e => e.name === name);
+window.payrollAddEmployee = () => showEmployeeModal(null);
+window.payrollEditEmployee = (id) => {
+  const emp = _employees.find(e => e.id === id);
+  if (emp) showEmployeeModal(emp);
+};
+
+window.payrollTogglePayFields = () => {
+  const type = document.getElementById('emp-pay-type')?.value;
+  const commFields = document.getElementById('emp-commission-fields');
+  const salFields = document.getElementById('emp-salary-fields');
+  if (commFields) commFields.style.display = type === 'commission' ? '' : 'none';
+  if (salFields) salFields.style.display = type === 'salary' ? '' : 'none';
+};
+
+window.payrollSaveEmployee = async (id) => {
+  const fields = {
+    name: document.getElementById('emp-name')?.value?.trim(),
+    role: document.getElementById('emp-role')?.value?.trim() || '',
+    pay_type: document.getElementById('emp-pay-type')?.value || 'commission',
+    base_pay: parseFloat(document.getElementById('emp-base-pay')?.value || '0'),
+    per_lead: parseFloat(document.getElementById('emp-per-lead')?.value || '0'),
+    monthly_salary: parseFloat(document.getElementById('emp-monthly-salary')?.value || '0'),
+    paypal_email: document.getElementById('emp-paypal')?.value?.trim() || '',
+    notes: document.getElementById('emp-notes')?.value?.trim() || '',
+    updated_at: new Date().toISOString(),
+  };
+  if (!fields.name) { showToast('Name is required', 'error'); return; }
+
+  try {
+    if (id) {
+      await supabase.from('employees').update(fields).eq('id', id);
+    } else {
+      fields.status = 'active';
+      await supabase.from('employees').insert(fields);
+    }
+    document.getElementById('payroll-emp-modal')?.remove();
+    _employeesLoaded = false;
+    showToast(id ? 'Employee updated' : 'Employee added', 'success');
+    render();
+  } catch (err) {
+    showToast(`Save failed: ${err.message}`, 'error');
+  }
+};
+
+window.payrollDeactivateEmployee = async (id) => {
+  const emp = _employees.find(e => e.id === id);
+  if (!emp || !confirm(`Deactivate ${emp.name}?`)) return;
+  try {
+    await supabase.from('employees').update({ status: 'inactive', updated_at: new Date().toISOString() }).eq('id', id);
+    document.getElementById('payroll-emp-modal')?.remove();
+    _employeesLoaded = false;
+    showToast(`${emp.name} deactivated`, 'success');
+    render();
+  } catch (err) {
+    showToast(`Failed: ${err.message}`, 'error');
+  }
+};
+
+window.payrollSend = async (id) => {
+  const emp = _employees.find(e => e.id === id);
   if (!emp) return;
-  const amount = parseFloat(document.getElementById(`payroll-amt-${name}`)?.value || '0');
-  const note = document.getElementById(`payroll-note-${name}`)?.value || '';
+  const amount = parseFloat(document.getElementById(`payroll-amt-${id}`)?.value || '0');
+  const note = document.getElementById(`payroll-note-${id}`)?.value || '';
   if (!amount || amount <= 0) { showToast('Enter a valid amount', 'error'); return; }
 
-  const btn = document.getElementById(`payroll-btn-${name}`);
-  const sendViaPayPal = !!emp.paypalEmail;
+  const btn = document.getElementById(`payroll-btn-${id}`);
+  const sendViaPayPal = !!emp.paypal_email;
 
-  if (!confirm(`${sendViaPayPal ? 'Send' : 'Record'} $${amount.toFixed(2)} to ${name}${sendViaPayPal ? ` (${emp.paypalEmail})` : ''}?`)) return;
+  if (!confirm(`${sendViaPayPal ? 'Send' : 'Record'} $${amount.toFixed(2)} to ${emp.name}${sendViaPayPal ? ` (${emp.paypal_email})` : ''}?`)) return;
 
   btn.disabled = true;
   btn.textContent = 'Creating record...';
@@ -178,14 +328,14 @@ window.payrollSend = async (name) => {
   try {
     const month = state._payrollMonth;
     const year = state._payrollYear;
-    const leads = emp.type === 'commission' ? getLeadCountForMonth(month, year) : null;
+    const leads = emp.pay_type === 'commission' ? getLeadCountForMonth(month, year) : null;
 
     const createResp = await invokeEdgeFunction('paypal-payout', {
       action: 'create',
-      employee_name: name,
-      base_amount: emp.type === 'salary' ? emp.monthlySalary : emp.basePay * 2,
+      employee_name: emp.name,
+      base_amount: emp.pay_type === 'salary' ? Number(emp.monthly_salary) : Number(emp.base_pay) * 2,
       booked_meetings: leads?.good || null,
-      rate_per_meeting: emp.type === 'commission' ? emp.perLead : null,
+      rate_per_meeting: emp.pay_type === 'commission' ? Number(emp.per_lead) : null,
       subtotal: amount,
       total: amount,
       payment_date: new Date().toISOString().split('T')[0],
@@ -199,14 +349,14 @@ window.payrollSend = async (name) => {
       const sendResp = await invokeEdgeFunction('paypal-payout', {
         action: 'send',
         paymentId: createResp.payment.id,
-        recipientEmail: emp.paypalEmail,
+        recipientEmail: emp.paypal_email,
         amount: amount.toFixed(2),
-        note: note || `THT Payment - ${name}`,
+        note: note || `THT Payment - ${emp.name}`,
       });
       if (!sendResp.ok) throw new Error(sendResp.error);
-      showToast(`$${amount.toFixed(2)} sent to ${emp.paypalEmail}`, 'success');
+      showToast(`$${amount.toFixed(2)} sent to ${emp.paypal_email}`, 'success');
     } else {
-      showToast(`$${amount.toFixed(2)} recorded for ${name}`, 'success');
+      showToast(`$${amount.toFixed(2)} recorded for ${emp.name}`, 'success');
     }
 
     btn.textContent = sendViaPayPal ? 'Sent ✓' : 'Recorded ✓';
@@ -215,6 +365,6 @@ window.payrollSend = async (name) => {
   } catch (err) {
     showToast(`Payment failed: ${err.message}`, 'error');
     btn.disabled = false;
-    btn.textContent = emp.paypalEmail ? 'Send via PayPal' : 'Record Payment';
+    btn.textContent = emp.paypal_email ? 'Send via PayPal' : 'Record Payment';
   }
 };
