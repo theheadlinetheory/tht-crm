@@ -2,15 +2,15 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260531c';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260531c';
-import { render } from './render.js?v=20260531c';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbUpdateClientConfig, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast } from './api.js?v=20260531c';
-import { esc, str, svgIcon } from './utils.js?v=20260531c';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js?v=20260531c';
-import { lookupClientInfo, getClientConfig, loadClientConfig } from './client-info.js?v=20260531c';
-import { findPolygonForClient } from './maps.js?v=20260531c';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260531c';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260531d';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260531d';
+import { render } from './render.js?v=20260531d';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbUpdateClientConfig, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast } from './api.js?v=20260531d';
+import { esc, str, svgIcon } from './utils.js?v=20260531d';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js?v=20260531d';
+import { lookupClientInfo, getClientConfig, loadClientConfig } from './client-info.js?v=20260531d';
+import { findPolygonForClient } from './maps.js?v=20260531d';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260531d';
 
 export function getDefaultSettings(){
   return {
@@ -113,6 +113,7 @@ export function debouncedAutoSave(){
           enableCopyInfo:str(c.enableCopyInfo),
           enableTracker:str(c.enableTracker),
           leadCost:str(c.leadCost),
+          invoiceEmails:str(c.invoiceEmails||''),
           paymentTerms:str(c.paymentTerms||'Net 7'),
           clientNotes:str(c.clientNotes||''),
           warmCallNotesText:str(c.warmCallNotesText||''),
@@ -522,10 +523,17 @@ function renderClientsSettings(){
       </div>
 
       <div style="margin-bottom:8px">
-        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Client Email</label>
+        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Client Email (Lead Delivery)</label>
         <input type="text" placeholder="client@example.com" value="${esc(str(c.notifyEmails))}"
           oninput="updateClientField('${esc(c.id)}','notifyEmails',this.value)"
           style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+      </div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Invoice Emails</label>
+        <input type="text" placeholder="billing@example.com, cfo@example.com" value="${esc(str(c.invoiceEmails))}"
+          oninput="updateClientField('${esc(c.id)}','invoiceEmails',this.value)"
+          style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+        <div style="font-size:9px;color:var(--text-muted);margin-top:2px">Comma-separated. These receive invoice emails (Lars always CC'd).</div>
       </div>
 
       ${(()=>{
@@ -1125,6 +1133,7 @@ export async function saveSettingsToSheet(){
         enableTracker:str(c.enableTracker),
         enablePassoff:str(c.enablePassoff),
         leadCost:str(c.leadCost),
+        invoiceEmails:str(c.invoiceEmails||''),
         paymentTerms:str(c.paymentTerms||'Net 7'),
         clientNotes:str(c.clientNotes||''),
         warmCallNotesText:str(c.warmCallNotesText||''),
@@ -1174,7 +1183,7 @@ export async function createNewUser(){
   msg.style.display='none';
 
   try {
-    const { auth } = await import('./auth.js?v=20260531c');
+    const { auth } = await import('./auth.js?v=20260531d');
     const cred = await auth.createUserWithEmailAndPassword(email, pass);
     await cred.user.updateProfile({ displayName: name });
     await db.collection('users').doc(cred.user.uid).set({
@@ -1486,7 +1495,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260531c');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260531d');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);

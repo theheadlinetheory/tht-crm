@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════
 // INVOICE — Stripe invoice generation from Lead Tracker
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20260531c';
-import { invokeEdgeFunction } from './api.js?v=20260531c';
-import { esc, str } from './utils.js?v=20260531c';
-import { render } from './render.js?v=20260531c';
+import { state, pendingWrites } from './app.js?v=20260531d';
+import { invokeEdgeFunction } from './api.js?v=20260531d';
+import { esc, str } from './utils.js?v=20260531d';
+import { render } from './render.js?v=20260531d';
 
 // ─── Month helpers ───
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -295,6 +295,7 @@ function getClientInfo(clientName) {
   return {
     firstName: str(client?.contactFirstName) || clientName,
     email: str(client?.notifyEmail) || '',
+    invoiceEmails: str(client?.invoiceEmails) || str(client?.notifyEmail) || '',
     paymentTerms: str(client?.paymentTerms) || 'Net 7',
   };
 }
@@ -340,8 +341,8 @@ function renderEmailPreviewStep(m) {
     <div class="invoice-body">
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;border:1px solid var(--border);border-radius:6px;padding:10px">
         <div style="margin-bottom:4px"><strong>From:</strong> aidan@theheadlinetheory.com</div>
-        <div style="margin-bottom:4px"><strong>To:</strong> ${esc(info.email)}</div>
-        <div style="margin-bottom:4px"><strong>CC:</strong> lars@theheadlinetheory.com</div>
+        <div style="margin-bottom:4px"><strong>To:</strong> ${esc(info.invoiceEmails)}</div>
+        <div style="margin-bottom:4px"><strong>CC:</strong> lars@theheadlinetheory.com, aidan@theheadlinetheory.com</div>
         <div><strong>Subject:</strong> Invoice — Lead Generation Services — ${esc(formatMonthDisplay(m.month))}</div>
       </div>
       <textarea id="invoice-email-body" style="width:100%;min-height:140px;border:1px solid var(--border);border-radius:6px 6px 0 0;padding:12px;font-size:13px;line-height:1.6;font-family:var(--font);resize:vertical;border-bottom:none">${esc(defaultBody)}</textarea>
