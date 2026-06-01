@@ -332,9 +332,9 @@ function renderEmailPreviewStep(m) {
   const greeting = hasMultipleContacts(m.client) ? 'team' : (info.firstName || 'team');
 
   const defaultBody = `Hey ${greeting},\n\nInvoice for ${formatMonthDisplay(m.month)} is attached below.\n\nLooking forward to keeping the momentum going.`;
-  if (!m.emailTo) m.emailTo = info.invoiceEmails;
-  if (!m.emailCc) m.emailCc = 'lars@theheadlinetheory.com, aidan@theheadlinetheory.com';
-  if (!m.emailBody) m.emailBody = defaultBody;
+  if (m.emailTo === undefined) m.emailTo = info.invoiceEmails;
+  if (m.emailCc === undefined) m.emailCc = 'lars@theheadlinetheory.com, aidan@theheadlinetheory.com';
+  if (m.emailBody === undefined) m.emailBody = defaultBody;
   const toValue = m.emailTo;
   const ccValue = m.emailCc;
   const bodyValue = m.emailBody;
