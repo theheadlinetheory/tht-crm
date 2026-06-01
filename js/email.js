@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // EMAIL — Forward to client, lead tracker push, send to thread
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20260528a';
-import { render, refreshModal } from './render.js?v=20260528a';
-import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20260528a';
-import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20260528a';
-import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20260528a';
-import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20260528a';
-import { CRM_BASE_URL } from './config.js?v=20260528a';
+import { state, pendingWrites } from './app.js?v=20260531a';
+import { render, refreshModal } from './render.js?v=20260531a';
+import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20260531a';
+import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20260531a';
+import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20260531a';
+import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20260531a';
+import { CRM_BASE_URL } from './config.js?v=20260531a';
 
 function formatEmailBody(html){
   if(!html) return '';
@@ -166,27 +166,32 @@ export async function autoPushToTracker(deal){
   const leadName=deal.company||deal.contact||'Unknown';
   const leadEmail=deal.email||'';
 
-  // Generate month and date strings
+  // Generate date strings
   const now = new Date();
   const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  const month = `${months[now.getMonth()]}/${String(now.getFullYear()).slice(-2)}`;
   const dateAdded = `${now.getMonth()+1}/${now.getDate()}/${String(now.getFullYear()).slice(-2)}`;
 
   // Look up lead cost from client record
   const leadCost = client && str(client.leadCost).trim() ? `$${str(client.leadCost).replace(/[^0-9.]/g,'')}` : '$0';
 
-  // Build appointment time from deal's booked date/time
+  // Build appointment date and time from deal's booked date/time
   let apptTime = '';
+  let apptDate = '';
   if (deal.bookedDate && /^\d{4}-\d{2}-\d{2}$/.test(deal.bookedDate)) {
     const dt = new Date(deal.bookedDate + 'T' + (deal.bookedTime || '12:00'));
     const dayName = dt.toLocaleDateString('en-US', { weekday: 'long' });
     const datePart = dt.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
     const timePart = deal.bookedTime ? dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
     apptTime = timePart ? `${dayName}, ${datePart}, ${timePart}` : `${dayName}, ${datePart}`;
+    apptDate = `${dt.getMonth()+1}/${dt.getDate()}/${String(dt.getFullYear()).slice(-2)}`;
   }
 
+  // Billing month = appointment month if available, else push month
+  const billingDate = apptDate ? new Date(deal.bookedDate + 'T12:00') : now;
+  const month = `${months[billingDate.getMonth()]}/${String(billingDate.getFullYear()).slice(-2)}`;
+
   // Insert into lead_tracker table
-  const { sbCreateTrackerEntry, normalizeRow } = await import('./api.js?v=20260528a');
+  const { sbCreateTrackerEntry, normalizeRow } = await import('./api.js?v=20260531a');
   const entry = await sbCreateTrackerEntry({
     deal_id: deal.id,
     client_name: clientName,
@@ -196,6 +201,7 @@ export async function autoPushToTracker(deal){
     date_added: dateAdded,
     lead_cost: leadCost,
     appt_time: apptTime,
+    appt_date: apptDate,
   });
 
   // Update deal
@@ -347,7 +353,7 @@ export async function executePassOff(dealId, clientName){
     }
 
     if(btn) btn.textContent='Archiving...';
-    const { deleteDeal }=await import('./deals.js?v=20260528a');
+    const { deleteDeal }=await import('./deals.js?v=20260531a');
     await deleteDeal(dealId,'Passed Off',clientName);
 
     document.getElementById('passoff-preview-overlay')?.remove();
