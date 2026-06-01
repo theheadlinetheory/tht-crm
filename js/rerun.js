@@ -1,14 +1,14 @@
 // ═══════════════════════════════════════════════════════════
 // NURTURE — Two-bucket nurture pipeline (Not Now + Service Area Taken)
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20260531f';
-import { render } from './render.js?v=20260531f';
-import { sbGetRerunQueue, sbAddToRerun, sbUpdateRerunItem, sbUpdateRerunStatus, sbUpdateDeal, sbUpdateActivity, sbArchiveDeal, sbDeleteDeal, camelToSnake, normalizeRow, invokeEdgeFunction } from './api.js?v=20260531f';
-import { esc, getToday, fmtDate, svgIcon } from './utils.js?v=20260531f';
-import { registerActions } from './delegate.js?v=20260531f';
-import { statCard, filterSelect, modalWrap, modalHeader, modalFooter } from './html-helpers.js?v=20260531f';
-import { NURTURE_NOT_NOW_SEQUENCE, ACQUISITION_STAGES } from './config.js?v=20260531f';
-import { isAdmin } from './auth.js?v=20260531f';
+import { state, store, pendingWrites } from './app.js?v=20260531g';
+import { render } from './render.js?v=20260531g';
+import { sbGetRerunQueue, sbAddToRerun, sbUpdateRerunItem, sbUpdateRerunStatus, sbUpdateDeal, sbUpdateActivity, sbArchiveDeal, sbDeleteDeal, camelToSnake, normalizeRow, invokeEdgeFunction } from './api.js?v=20260531g';
+import { esc, getToday, fmtDate, svgIcon } from './utils.js?v=20260531g';
+import { registerActions } from './delegate.js?v=20260531g';
+import { statCard, filterSelect, modalWrap, modalHeader, modalFooter } from './html-helpers.js?v=20260531g';
+import { NURTURE_NOT_NOW_SEQUENCE, ACQUISITION_STAGES } from './config.js?v=20260531g';
+import { isAdmin } from './auth.js?v=20260531g';
 
 // ─── Data Loading ───
 
