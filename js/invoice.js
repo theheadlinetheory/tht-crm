@@ -233,7 +233,7 @@ function renderEmailPreviewStep(m) {
       </div>
       <div style="border:1px solid var(--border);border-radius:6px;padding:16px;background:#fafafa;font-size:13px;line-height:1.6">
         <p style="margin:0 0 12px">Hey ${esc(info.firstName)},</p>
-        <p style="margin:0 0 12px">Invoice for ${esc(m.month)} is attached below. ${leadCount} ${leadWord} at your current rate.</p>
+        <p style="margin:0 0 12px">Invoice for ${esc(m.month)} is attached below. ${leadCount} ${leadWord} this month.</p>
         <p style="margin:0 0 12px">Total: ${formatDollars(m.subtotal)}${dueStr ? `<br>Due by: ${esc(dueStr)}` : ''}</p>
         <div style="text-align:center;margin:16px 0">
           <span style="display:inline-block;background:#4f46e5;color:#fff;padding:10px 28px;border-radius:6px;font-weight:600;font-size:13px">View & Pay Invoice</span>
