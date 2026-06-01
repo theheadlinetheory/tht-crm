@@ -69,12 +69,17 @@ export function renderInvoiceModal() {
   } else if (m.step === 'preview') {
     html += renderPreviewStep(m);
   } else if (m.step === 'sending') {
-    html += `<div style="text-align:center;padding:40px">
-      <div style="font-size:16px;font-weight:600;margin-bottom:12px">Creating Invoice...</div>
-      <div style="color:var(--text-muted);font-size:13px">Creating draft in Stripe. This may take a moment.</div>
-    </div>`;
+    html += renderLoadingStep('Creating Invoice...', 'Creating draft in Stripe. This may take a moment.');
   } else if (m.step === 'done') {
     html += renderDoneStep(m);
+  } else if (m.step === 'finalizing') {
+    html += renderLoadingStep('Finalizing Invoice...', 'Finalizing in Stripe to generate payment link.');
+  } else if (m.step === 'emailPreview') {
+    html += renderEmailPreviewStep(m);
+  } else if (m.step === 'emailSending') {
+    html += renderLoadingStep('Sending Email...', 'Sending invoice email to client.');
+  } else if (m.step === 'emailSent') {
+    html += renderEmailSentStep(m);
   }
 
   html += `</div></div>`;
@@ -171,6 +176,22 @@ function renderPreviewStep(m) {
     </div>`;
 }
 
+function renderLoadingStep(title, subtitle) {
+  return `<div style="text-align:center;padding:40px">
+    <div style="font-size:16px;font-weight:600;margin-bottom:12px">${title}</div>
+    <div style="color:var(--text-muted);font-size:13px">${subtitle}</div>
+  </div>`;
+}
+
+function getClientInfo(clientName) {
+  const client = state.clients.find(c => str(c.name) === clientName);
+  return {
+    firstName: str(client?.contactFirstName) || clientName,
+    email: str(client?.notifyEmail) || '',
+    paymentTerms: str(client?.paymentTerms) || 'Net 7',
+  };
+}
+
 function renderDoneStep(m) {
   const r = m.result;
   return `
@@ -184,6 +205,72 @@ function renderDoneStep(m) {
       <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">${r.lineItems} line items for ${esc(m.client)} — ${esc(r.paymentTerms || 'Net 7')}</div>
       <a href="https://dashboard.stripe.com/invoices/${encodeURIComponent(r.invoiceId)}" target="_blank" class="btn btn-ghost" style="margin-bottom:8px;display:inline-flex;align-items:center;gap:4px">
         Review in Stripe ↗
+      </a>
+      <br>
+      <button class="btn btn-primary" style="margin-top:8px;width:100%" onclick="invoiceFinalizeAndEmail()">Finalize & Send Email</button>
+      <button class="btn btn-ghost" style="margin-top:6px;width:100%" onclick="closeInvoiceModal()">Skip — Done</button>
+    </div>`;
+}
+
+function renderEmailPreviewStep(m) {
+  const info = getClientInfo(m.client);
+  const paymentTerms = info.paymentTerms;
+  const dueStr = m.finalized?.dueDate
+    ? new Date(m.finalized.dueDate * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    : '';
+
+  return `
+    <div class="invoice-header">
+      <h3 style="margin:0;font-size:16px">Email Preview</h3>
+      <button class="btn btn-ghost" onclick="closeInvoiceModal()" style="padding:4px 8px">✕</button>
+    </div>
+    <div class="invoice-body">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;border:1px solid var(--border);border-radius:6px;padding:10px">
+        <div style="margin-bottom:4px"><strong>From:</strong> aidan@theheadlinetheory.com</div>
+        <div style="margin-bottom:4px"><strong>To:</strong> ${esc(info.email)}</div>
+        <div><strong>Subject:</strong> Invoice — Lead Generation Services — ${esc(m.month)}</div>
+      </div>
+      <div style="border:1px solid var(--border);border-radius:6px;padding:16px;background:#fafafa;font-size:13px;line-height:1.6">
+        <p style="margin:0 0 12px">Hi ${esc(info.firstName)},</p>
+        <p style="margin:0 0 12px">Your invoice for lead generation services — ${esc(m.month)} is ready.</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0">
+          <tr>
+            <td style="padding:6px 0;color:#6b7280">Amount Due</td>
+            <td style="padding:6px 0;text-align:right;font-weight:600;font-size:14px">${formatDollars(m.subtotal)}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;color:#6b7280;border-top:1px solid #e5e7eb">Payment Terms</td>
+            <td style="padding:6px 0;text-align:right;border-top:1px solid #e5e7eb">${esc(paymentTerms)}</td>
+          </tr>
+          ${dueStr ? `<tr>
+            <td style="padding:6px 0;color:#6b7280;border-top:1px solid #e5e7eb">Due Date</td>
+            <td style="padding:6px 0;text-align:right;border-top:1px solid #e5e7eb">${esc(dueStr)}</td>
+          </tr>` : ''}
+        </table>
+        <div style="text-align:center;margin:16px 0">
+          <span style="display:inline-block;background:#4f46e5;color:#fff;padding:10px 28px;border-radius:6px;font-weight:600;font-size:13px">View & Pay Invoice</span>
+        </div>
+        <p style="color:#6b7280;font-size:12px;margin:16px 0 0">Thanks,<br>Aidan Hutchinson<br>The Headline Theory</p>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button class="btn btn-ghost" style="flex:1" onclick="invoiceBackToDone()">← Back</button>
+        <button class="btn btn-primary" style="flex:2" onclick="invoiceSendEmail()">Send Email</button>
+      </div>
+    </div>`;
+}
+
+function renderEmailSentStep(m) {
+  return `
+    <div class="invoice-header">
+      <h3 style="margin:0;font-size:16px;color:#059669">Invoice Sent</h3>
+      <button class="btn btn-ghost" onclick="closeInvoiceModal()" style="padding:4px 8px">✕</button>
+    </div>
+    <div class="invoice-body" style="text-align:center">
+      <div style="font-size:40px;margin:12px 0">✉️</div>
+      <div style="font-size:14px;font-weight:600;margin-bottom:4px">Invoice email sent</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Sent to ${esc(m.emailSentTo || '')} from aidan@theheadlinetheory.com</div>
+      <a href="https://dashboard.stripe.com/invoices/${encodeURIComponent(m.result?.invoiceId || '')}" target="_blank" class="btn btn-ghost" style="margin-bottom:8px;display:inline-flex;align-items:center;gap:4px">
+        View in Stripe ↗
       </a>
       <br>
       <button class="btn btn-primary" style="margin-top:8px" onclick="closeInvoiceModal()">Done</button>
@@ -265,12 +352,80 @@ window.invoiceCreateDraft = async () => {
       entry.stripeInvoiceId = result.invoiceId || '';
     }
 
+    const included2 = m.entries.filter(e => !m.excluded.has(e.id));
+    m.subtotal = included2.reduce((sum, e) => sum + parseCostCents(e.leadCost), 0);
     m.step = 'done';
     m.result = result;
     render();
   } catch (e) {
     alert('Invoice creation failed: ' + e.message);
     m.step = 'preview';
+    render();
+  }
+};
+
+window.invoiceFinalizeAndEmail = async () => {
+  const m = state.invoiceModal;
+  if (!m?.result?.invoiceId) return;
+
+  m.step = 'finalizing';
+  render();
+
+  try {
+    const finalized = await invokeEdgeFunction('finalize-stripe-invoice', {
+      invoiceId: m.result.invoiceId,
+    });
+
+    for (const entry of m.entries.filter(e => !m.excluded.has(e.id))) {
+      entry.paidStatus = 'Sent';
+    }
+
+    m.finalized = finalized;
+    m.step = 'emailPreview';
+    render();
+  } catch (e) {
+    alert('Finalization failed: ' + e.message);
+    m.step = 'done';
+    render();
+  }
+};
+
+window.invoiceBackToDone = () => {
+  if (state.invoiceModal) {
+    state.invoiceModal.step = 'done';
+    render();
+  }
+};
+
+window.invoiceSendEmail = async () => {
+  const m = state.invoiceModal;
+  if (!m?.finalized) return;
+
+  m.step = 'emailSending';
+  render();
+
+  try {
+    const info = getClientInfo(m.client);
+    const dueStr = m.finalized.dueDate
+      ? new Date(m.finalized.dueDate * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      : '';
+
+    const result = await invokeEdgeFunction('send-email', {
+      action: 'send_invoice_email',
+      clientName: m.client,
+      month: m.month,
+      total: formatDollars(m.subtotal),
+      paymentLink: m.finalized.hostedInvoiceUrl,
+      paymentTerms: info.paymentTerms,
+      dueDate: dueStr,
+    });
+
+    m.emailSentTo = result.sentTo || info.email;
+    m.step = 'emailSent';
+    render();
+  } catch (e) {
+    alert('Email send failed: ' + e.message);
+    m.step = 'emailPreview';
     render();
   }
 };
