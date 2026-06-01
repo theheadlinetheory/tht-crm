@@ -337,6 +337,9 @@ export function renderLeadTracker() {
     html += `<td class="tracker-actions">`;
     if (isAdmin()) {
       html += `<button class="tracker-action-btn ${isPaid ? 'active' : ''}" onclick="trackerMarkPaid('${entry.id}')" title="${isPaid ? 'Unmark paid' : 'Mark as Paid'}">${isPaid ? '✓ Paid' : '$ Pay'}</button>`;
+      if (str(entry.stripeInvoiceId) && str(entry.paidStatus).toLowerCase() !== 'paid') {
+        html += `<button class="tracker-action-btn" onclick="trackerSendInvoiceEmail('${esc(str(entry.stripeInvoiceId))}','${esc(str(entry.clientName))}')" title="Send invoice email">✉ Email</button>`;
+      }
     }
     html += `<button class="tracker-action-btn ${isCalledBackStatus ? 'active' : ''}" onclick="trackerToggleCallback('${entry.id}')" title="${isCalledBackStatus ? 'Undo callback' : 'Flag as Bad Lead (not charged)'}">${isCalledBackStatus ? '↩ Undo' : '🚫 CB'}</button>`;
     html += `</td></tr>`;
@@ -364,6 +367,31 @@ window.trackerSort = (field) => {
 window.trackerEditCell = (id, field) => { state.trackerEditingCell = { id, field }; render(); };
 window.trackerSaveCell = (id, field, value) => saveTrackerCell(id, field, value);
 window.trackerMarkPaid = (id) => markPaid(id);
+window.trackerSendInvoiceEmail = async (invoiceId, clientName) => {
+  const entries = state.trackerEntries.filter(e => str(e.stripeInvoiceId) === invoiceId);
+  const month = str(entries[0]?.month) || '';
+
+  state.invoiceModal = {
+    step: 'finalizing',
+    client: clientName,
+    month,
+    entries,
+    excluded: new Set(),
+    result: { invoiceId },
+  };
+  render();
+
+  try {
+    const finalized = await invokeEdgeFunction('finalize-stripe-invoice', { invoiceId });
+    state.invoiceModal.finalized = finalized;
+    state.invoiceModal.step = 'emailPreview';
+    render();
+  } catch (e) {
+    alert('Failed to load invoice: ' + e.message);
+    state.invoiceModal = null;
+    render();
+  }
+};
 window.trackerToggleCallback = (id) => toggleCallback(id);
 window.trackerAddRow = async () => {
   const today = new Date();
