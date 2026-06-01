@@ -1,0 +1,183 @@
+// ═══════════════════════════════════════════════════════════
+// UTILS — Pure helper functions
+// ═══════════════════════════════════════════════════════════
+
+export function getToday(){
+  const d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
+export function TODAY(){ return getToday(); }
+
+export function fmt$(v){
+  return new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",minimumFractionDigits:0}).format(v||0);
+}
+
+export function uid(){
+  return Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+}
+
+export function esc(s){
+  const d=document.createElement('div');
+  d.textContent=s;
+  return d.innerHTML;
+}
+
+export function str(v){
+  return v===null||v===undefined?'':String(v);
+}
+
+export function isValidDate(s){
+  return s && /^\d{4}-\d{2}-\d{2}$/.test(s);
+}
+
+export function svgIcon(name, size=14, color='currentColor') {
+  const s = `width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"`;
+  const icons = {
+    clipboard: `<svg ${s}><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>`,
+    mail: `<svg ${s}><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`,
+    calendar: `<svg ${s}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
+    send: `<svg ${s}><path d="m22 2-7 20-4-9-9-4Z"/><path d="m22 2-11 11"/></svg>`,
+    'bar-chart': `<svg ${s}><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>`,
+    'refresh-cw': `<svg ${s}><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>`,
+    list: `<svg ${s}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`,
+    square: `<svg ${s}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>`,
+    'check-square': `<svg ${s}><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`,
+    archive: `<svg ${s}><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>`,
+    settings: `<svg ${s}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>`,
+    'message-circle': `<svg ${s}><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z"/></svg>`,
+    phone: `<svg ${s}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>`,
+    'upload': `<svg ${s}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`,
+    grid: `<svg ${s}><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>`,
+    check: `<svg ${s}><polyline points="20 6 9 17 4 12"/></svg>`,
+    clock: `<svg ${s}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+    refresh: `<svg ${s}><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>`,
+    bell: `<svg ${s}><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`,
+    'x-circle': `<svg ${s}><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
+  };
+  return icons[name] || '';
+}
+
+export function fmtDate(d){
+  if(!d) return '';
+  const s=(d||'').slice(0,10);
+  if(!s||s.length<10) return s;
+  const today=getToday();
+  const tom=new Date();tom.setDate(tom.getDate()+1);
+  const tomStr=tom.getFullYear()+'-'+String(tom.getMonth()+1).padStart(2,'0')+'-'+String(tom.getDate()).padStart(2,'0');
+  if(s===today) return 'Today';
+  if(s===tomStr) return 'Tomorrow';
+  const parts=s.split('-');
+  const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return months[parseInt(parts[1])-1]+' '+parseInt(parts[2]);
+}
+
+// Format 24h time to 12h AM/PM
+export function fmtTime12(t){
+  if(!t) return '';
+  const [h,m]=t.split(':').map(Number);
+  const ampm=h>=12?'PM':'AM';
+  const h12=h%12||12;
+  return h12+':'+String(m).padStart(2,'0')+' '+ampm;
+}
+
+// Format ISO timestamp to readable local time
+export function fmtTimestamp(iso){
+  if(!iso) return '';
+  try{
+    const d=new Date(iso);
+    if(isNaN(d.getTime())) return '';
+    const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return months[d.getMonth()]+' '+d.getDate()+' '+fmtTime12(d.getHours()+':'+String(d.getMinutes()).padStart(2,'0'));
+  }catch(e){return '';}
+}
+
+export function stripHtml(s){
+  if(!s) return '';
+  return String(s).replace(/<style[^>]*>[\s\S]*?<\/style>/gi,'').replace(/<script[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<[^>]*>/g,' ').replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').replace(/&quot;/gi,'"').replace(/&#39;/gi,"'").replace(/\s+/g,' ').trim();
+}
+
+export function copyToClipboard(text, btnEl){
+  navigator.clipboard.writeText(text).then(()=>{
+    if(btnEl){const orig=btnEl.textContent;btnEl.textContent='Copied!';setTimeout(()=>btnEl.textContent=orig,1500);}
+  });
+}
+
+const CITY_SHORT = { 'los angeles':'LA', 'new york':'NYC', 'san francisco':'SF', 'philadelphia':'Philly', 'san antonio':'San Antonio' };
+
+const INDUSTRIES = ['landscaping','hvac','roofing','plumbing','painting','cleaning','pressure washing','hardscaping','fencing','concrete','paving','irrigation','tree service','lawn care','snow removal','pest control','electrical','flooring'];
+
+function extractMajorCity(campaignName){
+  if(!campaignName) return '';
+  let city = campaignName
+    .replace(/\b(landscaping|hvac|roofing|plumbing|painting|cleaning|pressure\s*washing|hardscaping|fencing|concrete|paving|irrigation|tree\s*service|lawn\s*care|snow\s*removal|pest\s*control|electrical|flooring|acquisition|subsequence|retarget|list\s*\d*)\b/gi, '')
+    .replace(/[-—]/g, '').replace(/\bgreater\b/gi, '').replace(/\d+/g, '')
+    .trim().replace(/\s+/g, ' ');
+  if(!city) return '';
+  const lower = city.toLowerCase();
+  if(CITY_SHORT[lower]) return CITY_SHORT[lower];
+  if(/^(bay area|twin cities)$/i.test(city)) return 'the ' + city;
+  return city;
+}
+
+function extractIndustry(campaignName){
+  if(!campaignName) return '';
+  const lower = campaignName.toLowerCase();
+  for(const ind of INDUSTRIES){
+    if(lower.includes(ind)) return ind.split(' ').map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
+  }
+  return '';
+}
+
+export function applyTemplate(template, deal, clientName, clientFirst){
+  const s = v => (v != null && String(v).trim()) || '';
+  const addr = s(deal.address || deal.location);
+  const loc = s(deal.location || deal.address);
+  const city = loc.includes(',') ? loc.split(',')[0].trim() : loc;
+  const firstName = s(deal.contact).split(/\s+/)[0] || '';
+  const replacements = {
+    '{BUSINESS}': s(deal.company || deal.contact),
+    '{CONTACT}': s(deal.contact),
+    '{FIRST_NAME}': firstName,
+    '{EMAIL}': s(deal.email),
+    '{PHONE}': s(deal.phone),
+    '{MOBILE_PHONE}': s(deal.mobilePhone),
+    '{WEBSITE}': s(deal.website),
+    '{ADDRESS}': addr,
+    '{CITY}': city,
+    '{MAJOR_CITY}': extractMajorCity(s(deal.campaignName)),
+    '{INDUSTRY}': extractIndustry(s(deal.campaignName)),
+    '{JOB_TITLE}': s(deal.jobTitle),
+    '{CLIENT_NAME}': s(clientName),
+    '{CLIENT_FIRST}': s(clientFirst || 'there'),
+    '{NOTES}': s(deal.notes),
+    '{MEETING_TIME}': buildMeetingTimeStr(deal),
+  };
+  let result = template;
+  for(const [key, val] of Object.entries(replacements)){
+    result = result.split(key).join(val);
+  }
+  const lines = result.split('\n');
+  const filtered = lines.filter(line => {
+    const trimmed = line.trim();
+    if(!trimmed) return true;
+    const labelMatch = trimmed.match(/^(.+?):\s*$/);
+    return !labelMatch;
+  });
+  return filtered.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+function buildMeetingTimeStr(deal){
+  if(!deal.bookedDate || !/^\d{4}-\d{2}-\d{2}$/.test(deal.bookedDate)) return '[Day] at [Time]';
+  const dt = new Date(deal.bookedDate + 'T' + (deal.bookedTime || '12:00'));
+  const dayName = dt.toLocaleDateString('en-US', {weekday:'long'});
+  const dayPart = dt.toLocaleDateString('en-US', {month:'long', day:'numeric'});
+  const timePart = deal.bookedTime ? dt.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'}) : '';
+  const now = new Date();
+  const diffDays = Math.round((dt - now) / (1000*60*60*24));
+  const prefix = diffDays >= 0 && diffDays <= 7 ? 'This ' + dayName : diffDays > 7 && diffDays <= 14 ? 'Next ' + dayName : dayName;
+  return timePart ? prefix + ', ' + dayPart + ' at ' + timePart : prefix + ', ' + dayPart;
+}
+
+// Expose to inline HTML handlers
+window.copyToClipboard = copyToClipboard;
