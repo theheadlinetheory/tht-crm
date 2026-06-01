@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════
 // INVOICE — Stripe invoice generation from Lead Tracker
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20260531h';
-import { invokeEdgeFunction } from './api.js?v=20260531h';
-import { esc, str } from './utils.js?v=20260531h';
-import { render } from './render.js?v=20260531h';
+import { state, pendingWrites } from './app.js?v=20260531i';
+import { invokeEdgeFunction } from './api.js?v=20260531i';
+import { esc, str } from './utils.js?v=20260531i';
+import { render } from './render.js?v=20260531i';
 
 // ─── Month helpers ───
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -332,8 +332,16 @@ function renderEmailPreviewStep(m) {
   const greeting = hasMultipleContacts(m.client) ? 'team' : (info.firstName || 'team');
 
   const defaultBody = `Hey ${greeting},\n\nInvoice for ${formatMonthDisplay(m.month)} is attached below.\n\nLooking forward to keeping the momentum going.`;
-  const toValue = m.emailTo || info.invoiceEmails;
-  const bodyValue = m.emailBody || defaultBody;
+  if (!m.emailTo) m.emailTo = info.invoiceEmails;
+  if (!m.emailCc) m.emailCc = 'lars@theheadlinetheory.com, aidan@theheadlinetheory.com';
+  if (!m.emailBody) m.emailBody = defaultBody;
+  const toValue = m.emailTo;
+  const ccValue = m.emailCc;
+  const bodyValue = m.emailBody;
+  const toEmails = toValue.split(',').map(e => e.trim()).filter(Boolean);
+  const ccEmails = ccValue.split(',').map(e => e.trim()).filter(Boolean);
+  const chipStyle = 'display:inline-flex;align-items:center;gap:3px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:4px;padding:2px 6px 2px 8px;font-size:11px;color:#4338ca';
+  const xBtn = (field, email) => `<span onclick="invoiceRemoveEmail('${field}','${esc(email)}')" style="cursor:pointer;font-size:13px;color:#6366f1;font-weight:700;line-height:1">&times;</span>`;
 
   return `
     <div class="invoice-header">
@@ -343,15 +351,21 @@ function renderEmailPreviewStep(m) {
     <div class="invoice-body">
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;border:1px solid var(--border);border-radius:6px;padding:10px">
         <div style="margin-bottom:4px"><strong>From:</strong> aidan@theheadlinetheory.com</div>
-        <div style="margin-bottom:4px;display:flex;align-items:center;gap:4px">
+        <div style="margin-bottom:6px">
           <strong>To:</strong>
-          <input id="invoice-email-to" type="text" value="${esc(toValue)}"
-            style="flex:1;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text)">
+          <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px">
+            ${toEmails.map(e => `<span style="${chipStyle}">${esc(e)} ${xBtn('to', e)}</span>`).join('')}
+            <input id="invoice-add-to" type="text" placeholder="+ add" onkeydown="if(event.key==='Enter'){event.preventDefault();invoiceAddEmail('to')}"
+              style="width:100px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:var(--font);background:var(--card);color:var(--text)">
+          </div>
         </div>
-        <div style="margin-bottom:4px;display:flex;align-items:center;gap:4px">
+        <div style="margin-bottom:6px">
           <strong>CC:</strong>
-          <input id="invoice-email-cc" type="text" value="${esc(m.emailCc || 'lars@theheadlinetheory.com, aidan@theheadlinetheory.com')}"
-            style="flex:1;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text)">
+          <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px">
+            ${ccEmails.map(e => `<span style="${chipStyle}">${esc(e)} ${xBtn('cc', e)}</span>`).join('')}
+            <input id="invoice-add-cc" type="text" placeholder="+ add" onkeydown="if(event.key==='Enter'){event.preventDefault();invoiceAddEmail('cc')}"
+              style="width:100px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:var(--font);background:var(--card);color:var(--text)">
+          </div>
         </div>
         <div><strong>Subject:</strong> Invoice - Lead Generation Services - ${esc(formatMonthDisplay(m.month))}</div>
       </div>
@@ -529,16 +543,38 @@ window.invoiceSendAgain = () => {
   }
 };
 
+window.invoiceRemoveEmail = (field, email) => {
+  const m = state.invoiceModal;
+  if (!m) return;
+  const key = field === 'to' ? 'emailTo' : 'emailCc';
+  const current = (m[key] || '').split(',').map(e => e.trim()).filter(Boolean);
+  m[key] = current.filter(e => e !== email).join(', ');
+  m.emailBody = document.getElementById('invoice-email-body')?.value || m.emailBody;
+  render();
+};
+
+window.invoiceAddEmail = (field) => {
+  const m = state.invoiceModal;
+  if (!m) return;
+  const input = document.getElementById(`invoice-add-${field}`);
+  const val = (input?.value || '').trim();
+  if (!val || !val.includes('@')) return;
+  const key = field === 'to' ? 'emailTo' : 'emailCc';
+  const current = (m[key] || '').split(',').map(e => e.trim()).filter(Boolean);
+  if (!current.includes(val)) current.push(val);
+  m[key] = current.join(', ');
+  m.emailBody = document.getElementById('invoice-email-body')?.value || m.emailBody;
+  render();
+};
+
 window.invoiceSendEmail = async () => {
   const m = state.invoiceModal;
   if (!m?.finalized) return;
 
-  const emailBody = document.getElementById('invoice-email-body')?.value || '';
-  const emailTo = document.getElementById('invoice-email-to')?.value || '';
-  const emailCc = document.getElementById('invoice-email-cc')?.value || '';
-  m.emailBody = emailBody;
-  m.emailTo = emailTo;
-  m.emailCc = emailCc;
+  m.emailBody = document.getElementById('invoice-email-body')?.value || m.emailBody || '';
+  const emailBody = m.emailBody;
+  const emailTo = m.emailTo || '';
+  const emailCc = m.emailCc || '';
   m.step = 'emailSending';
   render();
 
