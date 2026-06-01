@@ -174,6 +174,23 @@ export function render(){
     return;
   }
 
+  // ─── Payroll Tab ───
+  if(state.pipeline==='payroll'){
+    if(!window._payrollModule && !window._payrollLoading){
+      window._payrollLoading=true;
+      import('./payroll.js?v=20260601a').then(m=>{ window._payrollModule=m; render(); }).catch(()=>{ window._payrollLoading=false; });
+    }
+    let html=`<div class="topbar"><div style="display:flex;align-items:center"><div class="topbar-tabs">${pipelineTabsHtml()}</div></div><div class="topbar-right">${renderUserMenu()}</div></div>`;
+    if(window._payrollModule){
+      html+=window._payrollModule.renderPayroll();
+    } else {
+      html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading payroll...</div>';
+    }
+    app.innerHTML=html;
+    if(window._payrollModule) window._payrollModule.loadPayrollHistory();
+    return;
+  }
+
   // ─── Lead Tracker redirect (legacy URL compat) ───
   if(state.pipeline==='lead_tracker'){
     state.pipeline='client_leads';
