@@ -212,13 +212,18 @@ function renderDoneStep(m) {
     </div>`;
 }
 
+function hasMultipleContacts(clientName) {
+  const extras = ['Dallas Land Care', 'Canopy Land Solutions'];
+  return extras.some(e => e.toLowerCase() === clientName.toLowerCase());
+}
+
 function renderEmailPreviewStep(m) {
   const info = getClientInfo(m.client);
   const leadCount = m.entries.filter(e => !m.excluded.has(e.id)).length;
   const leadWord = leadCount === 1 ? 'lead' : 'leads';
-  const dueStr = m.finalized?.dueDate
-    ? new Date(m.finalized.dueDate * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-    : '';
+  const greeting = hasMultipleContacts(m.client) ? 'team' : (info.firstName || 'team');
+
+  const defaultBody = `Hey ${greeting},\n\nInvoice for ${m.month} is attached below. ${leadCount} ${leadWord} this month.\n\nLooking forward to keeping the momentum going.`;
 
   return `
     <div class="invoice-header">
@@ -231,15 +236,25 @@ function renderEmailPreviewStep(m) {
         <div style="margin-bottom:4px"><strong>To:</strong> ${esc(info.email)}</div>
         <div><strong>Subject:</strong> Invoice — Lead Generation Services — ${esc(m.month)}</div>
       </div>
-      <div style="border:1px solid var(--border);border-radius:6px;padding:16px;background:#fafafa;font-size:13px;line-height:1.6">
-        <p style="margin:0 0 12px">Hey ${esc(info.firstName)},</p>
-        <p style="margin:0 0 12px">Invoice for ${esc(m.month)} is attached below. ${leadCount} ${leadWord} this month.</p>
-        <p style="margin:0 0 12px">Total: ${formatDollars(m.subtotal)}${dueStr ? `<br>Due by: ${esc(dueStr)}` : ''}</p>
-        <div style="text-align:center;margin:16px 0">
+      <textarea id="invoice-email-body" style="width:100%;min-height:140px;border:1px solid var(--border);border-radius:6px 6px 0 0;padding:12px;font-size:13px;line-height:1.6;font-family:var(--font);resize:vertical;border-bottom:none">${esc(defaultBody)}</textarea>
+      <div style="border:1px solid var(--border);border-top:1px dashed var(--border);border-radius:0 0 6px 6px;padding:16px;background:#fafafa;font-size:13px;line-height:1.6">
+        <div style="text-align:center;margin:0 0 16px">
           <span style="display:inline-block;background:#4f46e5;color:#fff;padding:10px 28px;border-radius:6px;font-weight:600;font-size:13px">View & Pay Invoice</span>
         </div>
-        <p style="margin:16px 0 0">Looking forward to keeping the momentum going.</p>
-        <p style="margin:8px 0 0">Aidan</p>
+        <div style="margin-top:12px;font-size:13px">Best,</div>
+        <table cellpadding="0" cellspacing="0" border="0" style="font-family:Arial,sans-serif;color:#131820;margin-top:8px">
+          <tr>
+            <td style="padding-right:12px;text-align:center;vertical-align:middle">
+              <img src="https://theheadlinetheory.com/assets/logo-Dt8p9qSb.png" width="80" alt="THT" style="display:block">
+            </td>
+            <td style="border-left:1px solid #67717d;padding:0"> </td>
+            <td style="padding-left:12px;vertical-align:middle">
+              <div style="font-size:15px;font-weight:bold">Aidan Hutchinson</div>
+              <div style="font-size:12px;font-weight:bold;color:#1e8c4e;margin-bottom:4px">Co-Founder</div>
+              <div style="font-size:11px;line-height:1.5">(415) 578-8464<br>aidan@theheadlinetheory.com<br>theheadlinetheory.com</div>
+            </td>
+          </tr>
+        </table>
       </div>
       <div style="display:flex;gap:8px;margin-top:16px">
         <button class="btn btn-ghost" style="flex:1" onclick="invoiceBackToDone()">← Back</button>
@@ -395,20 +410,14 @@ window.invoiceSendEmail = async () => {
 
   try {
     const info = getClientInfo(m.client);
-    const dueStr = m.finalized.dueDate
-      ? new Date(m.finalized.dueDate * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-      : '';
-
-    const leadCount = m.entries.filter(e => !m.excluded.has(e.id)).length;
+    const emailBody = document.getElementById('invoice-email-body')?.value || '';
 
     const result = await invokeEdgeFunction('send-email', {
       action: 'send_invoice_email',
       clientName: m.client,
       month: m.month,
-      total: formatDollars(m.subtotal),
+      emailBody,
       paymentLink: m.finalized.hostedInvoiceUrl,
-      dueDate: dueStr,
-      leadCount,
     });
 
     m.emailSentTo = result.sentTo || info.email;
