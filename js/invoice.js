@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════
 // INVOICE — Stripe invoice generation from Lead Tracker
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20260531f';
-import { invokeEdgeFunction } from './api.js?v=20260531f';
-import { esc, str } from './utils.js?v=20260531f';
-import { render } from './render.js?v=20260531f';
+import { state, pendingWrites } from './app.js?v=20260531g';
+import { invokeEdgeFunction } from './api.js?v=20260531g';
+import { esc, str } from './utils.js?v=20260531g';
+import { render } from './render.js?v=20260531g';
 
 // ─── Month helpers ───
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -331,7 +331,7 @@ function renderEmailPreviewStep(m) {
   const leadWord = leadCount === 1 ? 'lead' : 'leads';
   const greeting = hasMultipleContacts(m.client) ? 'team' : (info.firstName || 'team');
 
-  const defaultBody = `Hey ${greeting},\n\nInvoice for ${formatMonthDisplay(m.month)} is attached below. ${leadCount} ${leadWord} this month.\n\nLooking forward to keeping the momentum going.`;
+  const defaultBody = `Hey ${greeting},\n\nInvoice for ${formatMonthDisplay(m.month)} is attached below.\n\nLooking forward to keeping the momentum going.`;
   const toValue = m.emailTo || info.invoiceEmails;
   const bodyValue = m.emailBody || defaultBody;
 
