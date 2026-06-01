@@ -214,7 +214,8 @@ function renderDoneStep(m) {
 
 function renderEmailPreviewStep(m) {
   const info = getClientInfo(m.client);
-  const paymentTerms = info.paymentTerms;
+  const leadCount = m.entries.filter(e => !m.excluded.has(e.id)).length;
+  const leadWord = leadCount === 1 ? 'lead' : 'leads';
   const dueStr = m.finalized?.dueDate
     ? new Date(m.finalized.dueDate * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
     : '';
@@ -231,26 +232,14 @@ function renderEmailPreviewStep(m) {
         <div><strong>Subject:</strong> Invoice — Lead Generation Services — ${esc(m.month)}</div>
       </div>
       <div style="border:1px solid var(--border);border-radius:6px;padding:16px;background:#fafafa;font-size:13px;line-height:1.6">
-        <p style="margin:0 0 12px">Hi ${esc(info.firstName)},</p>
-        <p style="margin:0 0 12px">Your invoice for lead generation services — ${esc(m.month)} is ready.</p>
-        <table style="width:100%;border-collapse:collapse;margin:16px 0">
-          <tr>
-            <td style="padding:6px 0;color:#6b7280">Amount Due</td>
-            <td style="padding:6px 0;text-align:right;font-weight:600;font-size:14px">${formatDollars(m.subtotal)}</td>
-          </tr>
-          <tr>
-            <td style="padding:6px 0;color:#6b7280;border-top:1px solid #e5e7eb">Payment Terms</td>
-            <td style="padding:6px 0;text-align:right;border-top:1px solid #e5e7eb">${esc(paymentTerms)}</td>
-          </tr>
-          ${dueStr ? `<tr>
-            <td style="padding:6px 0;color:#6b7280;border-top:1px solid #e5e7eb">Due Date</td>
-            <td style="padding:6px 0;text-align:right;border-top:1px solid #e5e7eb">${esc(dueStr)}</td>
-          </tr>` : ''}
-        </table>
+        <p style="margin:0 0 12px">Hey ${esc(info.firstName)},</p>
+        <p style="margin:0 0 12px">Invoice for ${esc(m.month)} is attached below. ${leadCount} ${leadWord} at your current rate.</p>
+        <p style="margin:0 0 12px">Total: ${formatDollars(m.subtotal)}${dueStr ? `<br>Due by: ${esc(dueStr)}` : ''}</p>
         <div style="text-align:center;margin:16px 0">
           <span style="display:inline-block;background:#4f46e5;color:#fff;padding:10px 28px;border-radius:6px;font-weight:600;font-size:13px">View & Pay Invoice</span>
         </div>
-        <p style="color:#6b7280;font-size:12px;margin:16px 0 0">Thanks,<br>Aidan Hutchinson<br>The Headline Theory</p>
+        <p style="margin:16px 0 0">Looking forward to keeping the momentum going.</p>
+        <p style="margin:8px 0 0">Aidan</p>
       </div>
       <div style="display:flex;gap:8px;margin-top:16px">
         <button class="btn btn-ghost" style="flex:1" onclick="invoiceBackToDone()">← Back</button>
@@ -410,14 +399,16 @@ window.invoiceSendEmail = async () => {
       ? new Date(m.finalized.dueDate * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
       : '';
 
+    const leadCount = m.entries.filter(e => !m.excluded.has(e.id)).length;
+
     const result = await invokeEdgeFunction('send-email', {
       action: 'send_invoice_email',
       clientName: m.client,
       month: m.month,
       total: formatDollars(m.subtotal),
       paymentLink: m.finalized.hostedInvoiceUrl,
-      paymentTerms: info.paymentTerms,
       dueDate: dueStr,
+      leadCount,
     });
 
     m.emailSentTo = result.sentTo || info.email;
