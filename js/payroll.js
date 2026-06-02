@@ -349,12 +349,14 @@ window.payrollSaveEmployee = async (id) => {
   if (!fields.name) { showToast('Name is required', 'error'); return; }
 
   try {
+    let result;
     if (id) {
-      await supabase.from('employees').update(fields).eq('id', id);
+      result = await supabase.from('employees').update(fields).eq('id', id);
     } else {
       fields.status = 'active';
-      await supabase.from('employees').insert(fields);
+      result = await supabase.from('employees').insert(fields);
     }
+    if (result.error) throw new Error(result.error.message);
     document.getElementById('payroll-emp-modal')?.remove();
     _employeesLoaded = false;
     showToast(id ? 'Employee updated' : 'Employee added', 'success');
@@ -368,7 +370,8 @@ window.payrollDeactivateEmployee = async (id) => {
   const emp = _employees.find(e => e.id === id);
   if (!emp || !confirm(`Deactivate ${emp.name}?`)) return;
   try {
-    await supabase.from('employees').update({ status: 'inactive', updated_at: new Date().toISOString() }).eq('id', id);
+    const { error } = await supabase.from('employees').update({ status: 'inactive', updated_at: new Date().toISOString() }).eq('id', id);
+    if (error) throw new Error(error.message);
     document.getElementById('payroll-emp-modal')?.remove();
     _employeesLoaded = false;
     showToast(`${emp.name} deactivated`, 'success');
