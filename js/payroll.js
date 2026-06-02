@@ -89,7 +89,7 @@ export function renderPayroll() {
       _employeesLoaded ? Promise.resolve() : loadEmployees(),
       _paymentsLoaded ? Promise.resolve() : loadPayments(),
       state.trackerLoaded ? Promise.resolve() : import('./lead-tracker.js?v=20260601b').then(m => m.loadTrackerEntries()),
-    ]).then(() => render());
+    ]).then(() => { if (state.pipeline === 'payroll') render(); });
     return '<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading payroll...</div>';
   }
 
