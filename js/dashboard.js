@@ -104,7 +104,9 @@ export function renderDashboard(){
 
   // Load archive data if not cached
   if (!_dashboardArchiveCache) {
-    ensureArchiveLoaded().then(() => render());
+    if (!_dashboardArchiveLoading) {
+      ensureArchiveLoaded().then(() => { if (state.pipeline === 'dashboard') render(); });
+    }
     h += `<div style="padding:60px;text-align:center;color:var(--text-muted)">
       <div class="loading-spinner"></div>
       <div style="margin-top:12px;font-size:13px">Loading dashboard data...</div>
