@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════
 // PAYROLL — Employee management, payment tracking & PayPal
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260601b';
-import { invokeEdgeFunction, showToast, supabase } from './api.js?v=20260601b';
-import { esc, str } from './utils.js?v=20260601b';
-import { render } from './render.js?v=20260601b';
+import { state } from './app.js?v=20260602a';
+import { invokeEdgeFunction, showToast, supabase } from './api.js?v=20260602a';
+import { esc, str } from './utils.js?v=20260602a';
+import { render } from './render.js?v=20260602a';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
@@ -62,19 +62,37 @@ function getAlreadyPaidForMonth(empName, month, year) {
   return { basesPaid, totalPaid };
 }
 
+function getDemoEntriesForMonth(month, year) {
+  const monthNames = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
+  const label = `${monthNames[month]}/${String(year).slice(-2)}`;
+  const all = (state.demoEntries || []).filter(e => str(e.month) === label);
+  const showed = all.filter(e => str(e.showStatus) === 'Showed');
+  const noShows = all.filter(e => str(e.showStatus) === 'No-Show');
+  const qualified = showed.filter(e => str(e.outcome).startsWith('Qualified'));
+  const closedWon = showed.filter(e => str(e.outcome) === 'Qualified — Closed Won');
+  const totalPayout = qualified.reduce((s, e) => s + (Number(e.payout) || 0), 0);
+  return { all, showed, noShows, qualified, closedWon, totalPayout };
+}
+
 function calcPayout(emp, month, year) {
   if (emp.pay_type === 'salary') {
     return { total: Number(emp.monthly_salary) || 0, breakdown: `Fixed: $${(Number(emp.monthly_salary) || 0).toLocaleString()}/mo` };
   }
+  const paid = getAlreadyPaidForMonth(emp.name + (emp.commission_source === 'demo_tracker' ? ' (SDR)' : ''), month, year);
+
+  if (emp.commission_source === 'demo_tracker') {
+    const demos = getDemoEntriesForMonth(month, year);
+    return { totalOwed: demos.totalPayout, commission: demos.totalPayout, baseOwed: 0, basesOwed: 0, basesPaid: 0, totalPaid: paid.totalPaid, demos, source: 'demo_tracker' };
+  }
+
   const leads = getLeadsForMonth(month, year);
   const perLead = Number(emp.per_lead) || 0;
   const basePay = Number(emp.base_pay) || 0;
   const commission = leads.good.length * perLead;
-  const paid = getAlreadyPaidForMonth(emp.name, month, year);
   const basesOwed = Math.max(0, 2 - paid.basesPaid);
   const baseOwed = basesOwed * basePay;
   const totalOwed = commission + baseOwed;
-  return { totalOwed, commission, baseOwed, basesOwed, basesPaid: paid.basesPaid, totalPaid: paid.totalPaid, leads, perLead, basePay };
+  return { totalOwed, commission, baseOwed, basesOwed, basesPaid: paid.basesPaid, totalPaid: paid.totalPaid, leads, perLead, basePay, source: 'lead_tracker' };
 }
 
 // ─── Render ───
@@ -88,7 +106,7 @@ export function renderPayroll() {
     Promise.all([
       _employeesLoaded ? Promise.resolve() : loadEmployees(),
       _paymentsLoaded ? Promise.resolve() : loadPayments(),
-      state.trackerLoaded ? Promise.resolve() : import('./lead-tracker.js?v=20260601b').then(m => m.loadTrackerEntries()),
+      state.trackerLoaded ? Promise.resolve() : import('./lead-tracker.js?v=20260602a').then(m => m.loadTrackerEntries()),
     ]).then(() => { if (state.pipeline === 'payroll') render(); });
     return '<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading payroll...</div>';
   }
@@ -120,7 +138,9 @@ export function renderPayroll() {
     const displayTotal = emp.pay_type === 'salary' ? payout.total : payout.totalOwed;
     const displayBreakdown = emp.pay_type === 'salary'
       ? `Fixed: $${payout.total.toLocaleString()}/mo`
-      : `$${payout.baseOwed} base + $${payout.commission} leads = $${payout.totalOwed} remaining`;
+      : payout.source === 'demo_tracker'
+        ? `${payout.demos.qualified.length} qualified × payout = $${payout.commission}`
+        : `$${payout.baseOwed} base + $${payout.commission} leads = $${payout.totalOwed} remaining`;
 
     html += `<div style="border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px;background:var(--card)">
       <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
@@ -140,7 +160,56 @@ export function renderPayroll() {
         </div>
       </div>`;
 
-    if (emp.pay_type === 'commission') {
+    if (emp.pay_type === 'commission' && payout.source === 'demo_tracker') {
+      const d = payout.demos;
+      html += `<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:16px">
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:10px;text-align:center">
+          <div style="font-size:20px;font-weight:700;color:#16a34a">${d.qualified.length}</div>
+          <div style="font-size:10px;color:#4d7c0f">Qualified Shows</div>
+        </div>
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:10px;text-align:center">
+          <div style="font-size:20px;font-weight:700;color:#2563eb">${d.closedWon.length}</div>
+          <div style="font-size:10px;color:#1e40af">Closed Won</div>
+        </div>
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:10px;text-align:center">
+          <div style="font-size:20px;font-weight:700;color:#dc2626">${d.noShows.length}</div>
+          <div style="font-size:10px;color:#991b1b">No-Shows</div>
+        </div>
+        <div style="background:#fef9c3;border:1px solid #fde68a;border-radius:6px;padding:10px;text-align:center">
+          <div style="font-size:20px;font-weight:700;color:#a16207">$${payout.totalPaid}</div>
+          <div style="font-size:10px;color:#92400e">Already Paid</div>
+        </div>
+      </div>`;
+
+      if (d.qualified.length) {
+        html += `<div style="margin-bottom:16px">
+          <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--text-muted)">Qualified Demos ($100/show + $50 close bonus)</div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead><tr style="border-bottom:2px solid var(--border)">
+              <th style="text-align:left;padding:4px 8px">#</th>
+              <th style="text-align:left;padding:4px 8px">Lead</th>
+              <th style="text-align:left;padding:4px 8px">Type</th>
+              <th style="text-align:left;padding:4px 8px">Outcome</th>
+              <th style="text-align:right;padding:4px 8px">Payout</th>
+            </tr></thead>
+            <tbody>${d.qualified.map((e, i) => `<tr style="border-bottom:1px solid #f3f4f6">
+              <td style="padding:4px 8px;color:var(--text-muted)">${i + 1}</td>
+              <td style="padding:4px 8px;font-weight:500">${esc(str(e.leadName) || 'Unknown')}</td>
+              <td style="padding:4px 8px">${esc(str(e.callType) || '-')}</td>
+              <td style="padding:4px 8px">${esc(str(e.outcome) || '-')}</td>
+              <td style="padding:4px 8px;text-align:right;font-weight:600;color:#059669">$${Number(e.payout) || 0}</td>
+            </tr>`).join('')}</tbody>
+          </table>
+        </div>`;
+      }
+
+      if (d.noShows.length) {
+        html += `<div style="margin-bottom:16px">
+          <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:#dc2626">No-Shows (not paid)</div>
+          <div style="font-size:11px;color:var(--text-muted)">${d.noShows.map(e => esc(str(e.leadName) || 'Unknown')).join(', ')}</div>
+        </div>`;
+      }
+    } else if (emp.pay_type === 'commission') {
       const goodLeads = payout.leads.good;
       const calledBack = payout.leads.calledBack;
 
@@ -221,7 +290,7 @@ function editIcon() {
 // ─── Employee Modal ───
 function showEmployeeModal(emp) {
   const isEdit = !!emp;
-  const e = emp || { name: '', pay_type: 'commission', base_pay: 250, per_lead: 27, monthly_salary: 0, paypal_email: '', role: '', notes: '' };
+  const e = emp || { name: '', pay_type: 'commission', base_pay: 250, per_lead: 27, monthly_salary: 0, paypal_email: '', role: '', notes: '', commission_source: 'lead_tracker' };
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.id = 'payroll-emp-modal';
@@ -249,15 +318,27 @@ function showEmployeeModal(emp) {
         </select>
       </div>
       <div id="emp-commission-fields" style="${e.pay_type==='salary'?'display:none':''}">
-        <div style="display:flex;gap:8px">
-          <div style="flex:1">
-            <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Base Pay (biweekly)</label>
-            <input id="emp-base-pay" type="number" step="0.01" value="${e.base_pay || 0}" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+        <div style="margin-bottom:8px">
+          <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Commission Source</label>
+          <select id="emp-commission-source" onchange="payrollToggleCommissionSource()" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+            <option value="lead_tracker" ${(e.commission_source||'lead_tracker')==='lead_tracker'?'selected':''}>Lead Tracker (client appointments)</option>
+            <option value="demo_tracker" ${e.commission_source==='demo_tracker'?'selected':''}>Demo Tracker (acquisition demos)</option>
+          </select>
+        </div>
+        <div id="emp-lead-tracker-fields" style="${e.commission_source==='demo_tracker'?'display:none':''}">
+          <div style="display:flex;gap:8px">
+            <div style="flex:1">
+              <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Base Pay (biweekly)</label>
+              <input id="emp-base-pay" type="number" step="0.01" value="${e.base_pay || 0}" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+            </div>
+            <div style="flex:1">
+              <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Per Lead</label>
+              <input id="emp-per-lead" type="number" step="0.01" value="${e.per_lead || 0}" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+            </div>
           </div>
-          <div style="flex:1">
-            <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px">Per Lead</label>
-            <input id="emp-per-lead" type="number" step="0.01" value="${e.per_lead || 0}" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
-          </div>
+        </div>
+        <div id="emp-demo-tracker-fields" style="${e.commission_source==='demo_tracker'?'':'display:none'}">
+          <div style="font-size:12px;color:var(--text-muted);padding:8px;background:#f5f3ff;border-radius:6px">$100 per qualified show + $50 close bonus (set in demo tracker)</div>
         </div>
       </div>
       <div id="emp-salary-fields" style="${e.pay_type!=='salary'?'display:none':''}">
@@ -334,6 +415,14 @@ window.payrollTogglePayFields = () => {
   if (salFields) salFields.style.display = type === 'salary' ? '' : 'none';
 };
 
+window.payrollToggleCommissionSource = () => {
+  const src = document.getElementById('emp-commission-source')?.value;
+  const leadFields = document.getElementById('emp-lead-tracker-fields');
+  const demoFields = document.getElementById('emp-demo-tracker-fields');
+  if (leadFields) leadFields.style.display = src === 'demo_tracker' ? 'none' : '';
+  if (demoFields) demoFields.style.display = src === 'demo_tracker' ? '' : 'none';
+};
+
 window.payrollSaveEmployee = async (id) => {
   const fields = {
     name: document.getElementById('emp-name')?.value?.trim(),
@@ -343,6 +432,7 @@ window.payrollSaveEmployee = async (id) => {
     per_lead: parseFloat(document.getElementById('emp-per-lead')?.value || '0'),
     monthly_salary: parseFloat(document.getElementById('emp-monthly-salary')?.value || '0'),
     paypal_email: document.getElementById('emp-paypal')?.value?.trim() || '',
+    commission_source: document.getElementById('emp-commission-source')?.value || 'lead_tracker',
     notes: document.getElementById('emp-notes')?.value?.trim() || '',
     updated_at: new Date().toISOString(),
   };
@@ -399,14 +489,17 @@ window.payrollSend = async (id) => {
   try {
     const month = state._payrollMonth;
     const year = state._payrollYear;
-    const leads = emp.pay_type === 'commission' ? getLeadsForMonth(month, year) : null;
+    const isDemo = emp.commission_source === 'demo_tracker';
+    const leads = (emp.pay_type === 'commission' && !isDemo) ? getLeadsForMonth(month, year) : null;
+    const demos = isDemo ? getDemoEntriesForMonth(month, year) : null;
+    const empLabel = emp.name + (isDemo ? ' (SDR)' : '');
 
     const createResp = await invokeEdgeFunction('paypal-payout', {
       action: 'create',
-      employee_name: emp.name,
-      base_amount: emp.pay_type === 'salary' ? Number(emp.monthly_salary) : Number(emp.base_pay) * 2,
-      booked_meetings: leads?.good?.length || null,
-      rate_per_meeting: emp.pay_type === 'commission' ? Number(emp.per_lead) : null,
+      employee_name: empLabel,
+      base_amount: emp.pay_type === 'salary' ? Number(emp.monthly_salary) : isDemo ? 0 : Number(emp.base_pay) * 2,
+      booked_meetings: isDemo ? demos?.qualified?.length : leads?.good?.length || null,
+      rate_per_meeting: isDemo ? null : (emp.pay_type === 'commission' ? Number(emp.per_lead) : null),
       subtotal: amount,
       total: amount,
       payment_date: new Date().toISOString().split('T')[0],
