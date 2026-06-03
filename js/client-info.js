@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // CLIENT-INFO — Client data, thread IDs, lookup functions
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, deletedClientIds } from './app.js?v=20260602a';
-import { CLIENT_PALETTE, CLIENT_INFO_SHEET_ID } from './config.js?v=20260602a';
-import { render } from './render.js?v=20260602a';
-import { str, uid, esc, isValidDate, getToday, svgIcon } from './utils.js?v=20260602a';
-import { sbCreateClient, sbDeleteClient, camelToSnake, apiPost, invokeEdgeFunction, showToast } from './api.js?v=20260602a';
-import { isClient, isAdmin } from './auth.js?v=20260602a';
+import { state, store, pendingWrites, deletedClientIds } from './app.js?v=20260603a';
+import { CLIENT_PALETTE, CLIENT_INFO_SHEET_ID } from './config.js?v=20260603a';
+import { render } from './render.js?v=20260603a';
+import { str, uid, esc, isValidDate, getToday, svgIcon } from './utils.js?v=20260603a';
+import { sbCreateClient, sbDeleteClient, camelToSnake, apiPost, invokeEdgeFunction, showToast } from './api.js?v=20260603a';
+import { isClient, isAdmin } from './auth.js?v=20260603a';
 
 // ─── Derive campaign keyword from client name ───
 const SKIP_PREFIXES = /^(the|a|an)\s+/i;
@@ -25,7 +25,7 @@ let _clientConfigLoaded = false;
 
 export async function loadClientConfig() {
   try {
-    const { sbGetClientConfig } = await import('./api.js?v=20260602a');
+    const { sbGetClientConfig } = await import('./api.js?v=20260603a');
     const data = await sbGetClientConfig();
     if (Array.isArray(data)) _clientConfigCache = data;
     _clientConfigLoaded = true;
@@ -315,16 +315,22 @@ export async function autoCreateClient(deal) {
     showToast('Warning: GHL sub-account creation failed — create manually', 'warning');
   });
 
-  // 4. Create SmartLead email account tags (Group A + Group B)
+  // 4. Create SmartLead client record + email account tags (Group A + Group B)
   invokeEdgeFunction('create-smartlead-client', {
     clientName,
+    clientId: c.id,
   }).then(result => {
+    if (result.smartleadClientId) {
+      c.smartleadClientId = String(result.smartleadClientId);
+    }
     if (result.tags && result.tags.length === 2) {
-      showToast('SmartLead tags created: ' + result.tags.map(t => t.name).join(', '), 'success');
+      const parts = ['SmartLead tags created: ' + result.tags.map(t => t.name).join(', ')];
+      if (result.smartleadClientId) parts.push('Client record linked (ID: ' + result.smartleadClientId + ')');
+      showToast(parts.join(' — '), 'success');
     }
   }).catch(e => {
-    console.error('SmartLead tag creation failed:', e);
-    showToast('Warning: SmartLead tag creation failed — create manually', 'warning');
+    console.error('SmartLead setup failed:', e);
+    showToast('Warning: SmartLead setup failed — create manually', 'warning');
   });
 
   // 5. Push row to Client Info Sheet
