@@ -270,6 +270,7 @@ export function renderPayroll() {
           <input id="payroll-note-${emp.id}" type="text" value="${MONTHS[month-1]} ${year}" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
         </div>
         <button id="payroll-btn-${emp.id}" class="btn btn-primary" style="white-space:nowrap" onclick="payrollSend('${emp.id}')">${hasPayPal ? 'Send via PayPal' : 'Record Payment'}</button>
+        ${hasPayPal ? `<button class="btn btn-ghost" style="white-space:nowrap;font-size:12px" onclick="payrollRecord('${emp.id}')">Record Only</button>` : ''}
       </div>
       ${!hasPayPal ? `<div style="font-size:11px;color:#d97706;margin-top:6px">PayPal not configured — payment will be recorded only.</div>` : ''}
     </div>`;
@@ -531,5 +532,42 @@ window.payrollSend = async (id) => {
     showToast(`Payment failed: ${err.message}`, 'error');
     btn.disabled = false;
     btn.textContent = emp.paypal_email ? 'Send via PayPal' : 'Record Payment';
+  }
+};
+
+window.payrollRecord = async (id) => {
+  const emp = _employees.find(e => e.id === id);
+  if (!emp) return;
+  const amount = parseFloat(document.getElementById(`payroll-amt-${id}`)?.value || '0');
+  const note = document.getElementById(`payroll-note-${id}`)?.value || '';
+  if (!amount || amount <= 0) { showToast('Enter a valid amount', 'error'); return; }
+  if (!confirm(`Record $${amount.toFixed(2)} for ${emp.name} (no PayPal send)?`)) return;
+
+  try {
+    const month = state._payrollMonth;
+    const year = state._payrollYear;
+    const isDemo = emp.commission_source === 'demo_tracker';
+    const leads = (emp.pay_type === 'commission' && !isDemo) ? getLeadsForMonth(month, year) : null;
+    const demos = isDemo ? getDemoEntriesForMonth(month, year) : null;
+    const empLabel = emp.name + (isDemo ? ' (SDR)' : '');
+
+    const createResp = await invokeEdgeFunction('paypal-payout', {
+      action: 'create',
+      employee_name: empLabel,
+      base_amount: isDemo ? 0 : Number(emp.base_pay) * 2,
+      booked_meetings: isDemo ? demos?.qualified?.length : leads?.good?.length || null,
+      rate_per_meeting: isDemo ? null : Number(emp.per_lead),
+      subtotal: amount,
+      total: amount,
+      payment_date: new Date().toISOString().split('T')[0],
+      payment_method: 'Combined (PayPal)',
+      notes: note + ' (included in combined payment)',
+    });
+    if (!createResp.ok) throw new Error(createResp.error);
+    showToast(`$${amount.toFixed(2)} recorded for ${emp.name}`, 'success');
+    _paymentsLoaded = false;
+    setTimeout(() => render(), 1500);
+  } catch (err) {
+    showToast(`Record failed: ${err.message}`, 'error');
   }
 };
