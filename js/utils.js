@@ -107,24 +107,27 @@ const CITY_SHORT = { 'los angeles':'LA', 'new york':'NYC', 'san francisco':'SF',
 
 const INDUSTRIES = ['landscaping','hvac','roofing','plumbing','painting','cleaning','pressure washing','hardscaping','fencing','concrete','paving','irrigation','tree service','lawn care','snow removal','pest control','electrical','flooring'];
 
-function extractMajorCity(campaignName){
-  if(!campaignName) return '';
+function extractMajorCity(campaignName, fallbackLocation){
+  if(!campaignName) return fallbackLocation || '';
   let city = campaignName
-    .replace(/\b(landscaping|hvac|roofing|plumbing|painting|cleaning|pressure\s*washing|hardscaping|fencing|concrete|paving|irrigation|tree\s*service|lawn\s*care|snow\s*removal|pest\s*control|electrical|flooring|acquisition|subsequence|retarget|list\s*\d*)\b/gi, '')
+    .replace(/\bai[\s-]*ark\b/gi, '')
+    .replace(/\b(landscaping|hvac|roofing|plumbing|painting|cleaning|pressure\s*washing|hardscaping|fencing|concrete|paving|irrigation|tree\s*service|lawn\s*care|snow\s*removal|pest\s*control|electrical|flooring|acquisition|subsequence|retarget|list\s*\d*|copy|v\d+)\b/gi, '')
     .replace(/[-—]/g, '').replace(/\bgreater\b/gi, '').replace(/\d+/g, '')
     .trim().replace(/\s+/g, ' ');
-  if(!city) return '';
+  if(!city) return fallbackLocation || '';
   const lower = city.toLowerCase();
   if(CITY_SHORT[lower]) return CITY_SHORT[lower];
   if(/^(bay area|twin cities)$/i.test(city)) return 'the ' + city;
   return city;
 }
 
+const ALL_CAPS_INDUSTRIES = new Set(['hvac']);
+
 function extractIndustry(campaignName){
   if(!campaignName) return '';
   const lower = campaignName.toLowerCase();
   for(const ind of INDUSTRIES){
-    if(lower.includes(ind)) return ind.split(' ').map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
+    if(lower.includes(ind)) return ALL_CAPS_INDUSTRIES.has(ind) ? ind.toUpperCase() : ind.split(' ').map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
   }
   return '';
 }
@@ -145,7 +148,7 @@ export function applyTemplate(template, deal, clientName, clientFirst){
     '{WEBSITE}': s(deal.website),
     '{ADDRESS}': addr,
     '{CITY}': city,
-    '{MAJOR_CITY}': extractMajorCity(s(deal.campaignName)),
+    '{MAJOR_CITY}': extractMajorCity(s(deal.campaignName), city),
     '{INDUSTRY}': extractIndustry(s(deal.campaignName)),
     '{JOB_TITLE}': s(deal.jobTitle),
     '{CLIENT_NAME}': s(clientName),
