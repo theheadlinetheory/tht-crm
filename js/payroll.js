@@ -49,12 +49,11 @@ async function loadPayments() {
 }
 
 function getAlreadyPaidForMonth(empName, month, year) {
-  const monthStart = `${year}-${String(month).padStart(2,'0')}-01`;
-  const nextMonth = month === 12 ? `${year+1}-01-01` : `${year}-${String(month+1).padStart(2,'0')}-01`;
+  const period = `${year}-${String(month).padStart(2,'0')}`;
   let basesPaid = 0, totalPaid = 0;
   for (const p of _payments) {
     if (p.employee_name !== empName) continue;
-    if (p.payment_date >= monthStart && p.payment_date < nextMonth) {
+    if (p.pay_period === period) {
       totalPaid += Number(p.total) || 0;
       if (!p.booked_meetings) basesPaid++;
     }
@@ -495,6 +494,7 @@ window.payrollSend = async (id) => {
     const demos = isDemo ? getDemoEntriesForMonth(month, year) : null;
     const empLabel = emp.name + (isDemo ? ' (SDR)' : '');
 
+    const payPeriod = `${year}-${String(month).padStart(2,'0')}`;
     const createResp = await invokeEdgeFunction('paypal-payout', {
       action: 'create',
       employee_name: empLabel,
@@ -506,6 +506,7 @@ window.payrollSend = async (id) => {
       payment_date: new Date().toISOString().split('T')[0],
       payment_method: sendViaPayPal ? 'AH paypal' : 'Manual',
       notes: note,
+      pay_period: payPeriod,
     });
     if (!createResp.ok) throw new Error(createResp.error);
 
@@ -551,6 +552,7 @@ window.payrollRecord = async (id) => {
     const demos = isDemo ? getDemoEntriesForMonth(month, year) : null;
     const empLabel = emp.name + (isDemo ? ' (SDR)' : '');
 
+    const payPeriod = `${year}-${String(month).padStart(2,'0')}`;
     const createResp = await invokeEdgeFunction('paypal-payout', {
       action: 'create',
       employee_name: empLabel,
@@ -562,6 +564,7 @@ window.payrollRecord = async (id) => {
       payment_date: new Date().toISOString().split('T')[0],
       payment_method: 'Combined (PayPal)',
       notes: note + ' (included in combined payment)',
+      pay_period: payPeriod,
     });
     if (!createResp.ok) throw new Error(createResp.error);
     showToast(`$${amount.toFixed(2)} recorded for ${emp.name}`, 'success');
