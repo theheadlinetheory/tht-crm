@@ -398,9 +398,30 @@ export async function initialSync(isStartup) {
     if (isStartup) {
       import('./dashboard.js?v=20260603a').then(m => m.clearDashboardArchiveCache && m.clearDashboardArchiveCache()).catch(() => {});
     }
-    const [deals, activities, clients, appointments, trackerEntries, demoEntries, savedSettings, retargetHistory, retargetExports] = await Promise.all([
+    const fetchAll = () => Promise.all([
       sbGetDeals(), sbGetActivities(), sbGetClients(), sbGetAppointments(), sbGetTrackerEntries(), sbGetDemoEntries(), sbLoadSettings(), sbGetRetargetHistory().catch(() => []), sbGetRetargetExports().catch(() => [])
     ]);
+    const withTimeout = (promise, ms) => Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+    ]);
+    let result;
+    const MAX_RETRIES = 3;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        result = await withTimeout(fetchAll(), 15000);
+        break;
+      } catch (retryErr) {
+        if (attempt < MAX_RETRIES) {
+          state.loadError = `Connection slow — retrying (${attempt}/${MAX_RETRIES})...`;
+          render();
+          await new Promise(r => setTimeout(r, 2000));
+        } else {
+          throw new Error('Could not connect to server. Check your internet connection or try a VPN.');
+        }
+      }
+    }
+    const [deals, activities, clients, appointments, trackerEntries, demoEntries, savedSettings, retargetHistory, retargetExports] = result;
     // Guard: if background sync returns drastically fewer deals, keep old data
     if (!isStartup && state.deals.length > 10 && (!deals || deals.length < state.deals.length * 0.5)) {
       console.warn(`[Sync] Deals dropped from ${state.deals.length} to ${deals?.length ?? 0} — keeping old data`);
