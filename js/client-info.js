@@ -265,7 +265,7 @@ export async function autoCreateClient(deal) {
     campaignKeywords: deriveKeyword(clientName),
     notifyEmails: str(deal.email || ''),
     serviceAreaUrl: '',
-    enableAutoForward: deal.email ? 'TRUE' : 'FALSE',
+    enableAutoForward: 'FALSE',
     enableForward: deal.email ? 'TRUE' : 'FALSE',
     enableCalendly: 'FALSE',
     enableCopyInfo: 'FALSE',
