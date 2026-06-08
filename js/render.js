@@ -126,8 +126,7 @@ export function render(){
 
   // ─── Loading Screen ───
   if(!state.synced && !state.loadFailed){
-    const retryMsg = state.loadError ? `<div style="font-size:12px;color:#d97706;margin-top:8px">${esc(state.loadError)}</div>` : '';
-    app.innerHTML=`<div class="loading-screen"><div class="loading-logo"><span>T</span></div><div class="loading-text">Loading your deals...</div><div class="loading-spinner"></div>${retryMsg}</div>`;
+    app.innerHTML=`<div class="loading-screen"><div class="loading-logo"><span>T</span></div><div class="loading-text">Loading your deals...</div><div class="loading-spinner"></div></div>`;
     return;
   }
 

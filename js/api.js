@@ -398,11 +398,9 @@ export async function initialSync(isStartup) {
     if (isStartup) {
       import('./dashboard.js?v=20260603a').then(m => m.clearDashboardArchiveCache && m.clearDashboardArchiveCache()).catch(() => {});
     }
-    const fetchAll = Promise.all([
+    const [deals, activities, clients, appointments, trackerEntries, demoEntries, savedSettings, retargetHistory, retargetExports] = await Promise.all([
       sbGetDeals(), sbGetActivities(), sbGetClients(), sbGetAppointments(), sbGetTrackerEntries(), sbGetDemoEntries(), sbLoadSettings(), sbGetRetargetHistory().catch(() => []), sbGetRetargetExports().catch(() => [])
     ]);
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Connection timed out. Check your internet connection or try a VPN.')), 20000));
-    const [deals, activities, clients, appointments, trackerEntries, demoEntries, savedSettings, retargetHistory, retargetExports] = await Promise.race([fetchAll, timeout]);
     // Guard: if background sync returns drastically fewer deals, keep old data
     if (!isStartup && state.deals.length > 10 && (!deals || deals.length < state.deals.length * 0.5)) {
       console.warn(`[Sync] Deals dropped from ${state.deals.length} to ${deals?.length ?? 0} — keeping old data`);
