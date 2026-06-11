@@ -1093,6 +1093,14 @@ async function flushClientConfigUpdates() {
 window.updateClientConfig = updateClientConfig;
 
 export function toggleClientField(clientId, field, checked){
+  if (field === 'enableAutoForward' && checked) {
+    const ok = confirm('WARNING: Turning this on will automatically forward ALL positive replies to this client without review.\n\nAre you sure you want to enable auto-forward?');
+    if (!ok) {
+      const body=document.querySelector('.settings-body');
+      if(body) body.innerHTML=renderClientsSettings();
+      return;
+    }
+  }
   captureClientInputs();
   const c=state.clients.find(x=>str(x.id)===str(clientId));
   if(c){
