@@ -18,12 +18,18 @@ export async function loadArchive(silent){
     const data=await sbGetArchive();
     if(Array.isArray(data)){
       const parsed = data.map(row => {
-        let deal = { id: row.id, archivedAt: row.archived_at };
-        try {
-          const orig = typeof row.original_data === 'string' ? JSON.parse(row.original_data) : row.original_data;
-          Object.assign(deal, orig);
-        } catch(e) {}
-        if(row.archive_status) deal.archiveStatus=row.archive_status;
+        const deal = {
+          id: row.id,
+          archivedAt: row.archived_at,
+          archiveStatus: row.archive_status,
+          company: row.company || '',
+          contact: row.contact || '',
+          email: row.email || '',
+          pipeline: row.pipeline || '',
+          stage: row.stage || '',
+          clientName: row.client_name || row.stage || '',
+          location: row.location || '',
+        };
         if(deal.archiveStatus && deal.archiveStatus.startsWith('Passed Off')) deal.archiveStatus='Passed Off';
         return deal;
       });
