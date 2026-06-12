@@ -980,10 +980,10 @@ export const sbSaveSettings = (settings) => sbCall(async () => {
 
 // Archive
 export const sbGetArchive = () => sbCall(async () => {
-  const PAGE = 500;
+  const PAGE = 1000;
   let all = [];
   for (let off = 0; ; off += PAGE) {
-    const { data, error } = await supabase.from('archive').select('id,original_data,archived_at,archive_status').range(off, off + PAGE - 1);
+    const { data, error } = await supabase.from('archive_list').select('*').range(off, off + PAGE - 1);
     if (error) throw error;
     all = all.concat(data || []);
     if (!data || data.length < PAGE) break;
