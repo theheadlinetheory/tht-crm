@@ -980,9 +980,15 @@ export const sbSaveSettings = (settings) => sbCall(async () => {
 
 // Archive
 export const sbGetArchive = () => sbCall(async () => {
-  const { data, error } = await supabase.from('archive').select('*');
-  if (error) throw error;
-  return data;
+  const PAGE = 500;
+  let all = [];
+  for (let off = 0; ; off += PAGE) {
+    const { data, error } = await supabase.from('archive').select('id,original_data,archived_at,archive_status').range(off, off + PAGE - 1);
+    if (error) throw error;
+    all = all.concat(data || []);
+    if (!data || data.length < PAGE) break;
+  }
+  return all;
 }, { label: 'Load archive' });
 
 export const sbGetArchivedDeals = () => sbCall(async () => {
