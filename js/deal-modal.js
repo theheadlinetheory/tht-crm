@@ -1372,14 +1372,15 @@ export function renderDealModal(deal){
     </div>`;
 
   if(state.showSop){
+    const isClient = deal.pipeline === 'Client';
     const seq=state.sopSeq||'follow-up';
     const sopDays=getSopDays(deal);
     const tabStyle=(id)=>seq===id?'background:#059669;color:#fff;border-color:#059669':'';
     h+=`<div class="sop-grid">
       <div style="display:flex;gap:6px;margin-bottom:10px;width:100%">
         <button class="sop-day-btn" style="flex:1;${tabStyle('follow-up')}" onclick="state.sopSeq='follow-up';refreshModal()">Follow-Up</button>
-        <button class="sop-day-btn" style="flex:1;${tabStyle('pre-call')}" onclick="state.sopSeq='pre-call';refreshModal()">Pre-Call Nurture</button>
-        <button class="sop-day-btn" style="flex:1;${tabStyle('no-show')}" onclick="state.sopSeq='no-show';refreshModal()">No Show</button>
+        ${isClient?'':`<button class="sop-day-btn" style="flex:1;${tabStyle('pre-call')}" onclick="state.sopSeq='pre-call';refreshModal()">Pre-Call Nurture</button>
+        <button class="sop-day-btn" style="flex:1;${tabStyle('no-show')}" onclick="state.sopSeq='no-show';refreshModal()">No Show</button>`}
       </div>
       ${seq==='follow-up'?`
         <div style="width:100%;margin-bottom:8px;display:flex;align-items:center;gap:8px">
@@ -1388,13 +1389,13 @@ export function renderDealModal(deal){
         </div>
         ${Object.entries(sopDays).map(([day,acts])=>`
         <button class="sop-day-btn" onclick="doAssignSequenceWithDate('${deal.id}','${day}')">${day} <span style="font-weight:400;color:#6ee7b7">(${acts.length})</span></button>`).join("")}`:''}
-      ${seq==='pre-call'?`
+      ${!isClient&&seq==='pre-call'?`
         ${deal.bookedDate&&/^\d{4}-\d{2}-\d{2}$/.test(deal.bookedDate)?`
         <button class="sop-day-btn" style="background:#2563eb;color:#fff;border-color:#2563eb;width:100%" onclick="generateAppointmentSequence(state.deals.find(d=>d.id==='${esc(deal.id)}'));state.showSop=false;refreshModal()">
           ${svgIcon('calendar',12,'#fff')} Generate Pre-Call Sequence
           <span style="font-weight:400;color:#bfdbfe">(${(()=>{const dd=Math.round((new Date(deal.bookedDate+'T00:00:00')-new Date(TODAY()+'T00:00:00'))/(1000*60*60*24));return dd+'d out'})()})</span>
         </button>`:`<div style="font-size:12px;color:#6b7280;padding:8px 0">Set a booked date on this deal first.</div>`}`:''}
-      ${seq==='no-show'?`
+      ${!isClient&&seq==='no-show'?`
         <button class="sop-day-btn" style="background:#ef4444;color:#fff;border-color:#ef4444;width:100%" onclick="assignNoShowSequence(state.deals.find(d=>d.id==='${esc(deal.id)}'));state.showSop=false;refreshModal()">
           ${svgIcon('send',12,'#fff')} Start No Show Sequence
           <span style="font-weight:400;color:#fecaca">(3 emails over 5 days)</span>
