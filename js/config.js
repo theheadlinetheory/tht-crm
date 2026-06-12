@@ -106,9 +106,7 @@ export const SOP_DAYS = {
 };
 
 export const CLIENT_SOP_DAYS = {
-  "Day 1": [{type:"Text",subject:"Initial text"},{type:"Call",subject:"Call #1"},{type:"Text",subject:"Post-call text"},{type:"Email",subject:"Initial email"}],
-  "Day 2": [{type:"Call",subject:"Morning call"},{type:"Text",subject:"Follow-up text"},{type:"Email",subject:"Follow-up email"}],
-  "Day 3": [{type:"Call",subject:"Morning call"},{type:"Email",subject:"Follow-up email"}],
+  "Follow-Up": [{type:"Call",subject:"Morning call"},{type:"Email",subject:"Email follow-up"},{type:"Call",subject:"Afternoon call"}],
 };
 
 export const NURTURE_NOT_NOW_SEQUENCE = [
