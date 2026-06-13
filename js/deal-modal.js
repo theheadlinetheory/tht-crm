@@ -197,7 +197,7 @@ window.showArchiveReasonPicker = function(dealId){
     <div style="display:flex;flex-direction:column;gap:8px">
       <button class="btn" style="width:100%;justify-content:start;padding:10px 14px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca" onclick="document.getElementById('archive-reason-picker').remove();deleteDeal('${dealId}','Closed Lost')">Closed Lost</button>
       <button class="btn" style="width:100%;justify-content:start;padding:10px 14px;background:#fef9c3;color:#a16207;border:1px solid #fde68a" onclick="document.getElementById('archive-reason-picker').remove();deleteDeal('${dealId}','Bad Lead')">Bad Lead</button>
-      <button class="btn" style="width:100%;justify-content:start;padding:10px 14px;background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb" onclick="document.getElementById('archive-reason-picker').remove();deleteDeal('${dealId}','Went Cold')">Went Cold</button>
+      <button class="btn" style="width:100%;justify-content:start;padding:10px 14px;background:#f0fdf4;color:#059669;border:1px solid #a7f3d0" onclick="document.getElementById('archive-reason-picker').remove();moveDeal('${dealId}','Revisit')">Move to Nurture</button>
       <button class="btn" style="width:100%;justify-content:start;padding:10px 14px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe" onclick="var r=prompt('Enter reason:');if(r){document.getElementById('archive-reason-picker').remove();deleteDeal('${dealId}',r);}">Custom...</button>
     </div>
     <button class="btn btn-ghost" style="width:100%;margin-top:12px;font-size:12px" onclick="document.getElementById('archive-reason-picker').remove()">Cancel</button>
