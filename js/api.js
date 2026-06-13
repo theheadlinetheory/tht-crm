@@ -252,6 +252,8 @@ const FIELD_MAP = {
   ghl_api_key: 'ghlApiKey',
   ghl_pipeline_id: 'ghlPipelineId',
   ghl_stage_id: 'ghlStageId',
+  client_sheet_id: 'clientSheetId',
+  has_inbox_mgmt: 'hasInboxMgmt',
   onboarding_doc_url: 'onboardingDocUrl',
   onboarding_parsed_at: 'onboardingParsedAt',
   auto_followup_started_at: 'autoFollowupStartedAt',
