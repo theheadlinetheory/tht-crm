@@ -133,7 +133,32 @@ export async function bulkAddActivity(){
 
 export async function bulkArchive(){
   const ids=[...state.bulkSelected];
-  if(!confirm('Archive '+ids.length+' deal'+(ids.length!==1?'s':'')+'? They can be restored later.')) return;
+  if(!ids.length) return;
+
+  const existing = document.getElementById('archive-reason-picker');
+  if (existing) existing.remove();
+  const div = document.createElement('div');
+  div.id = 'archive-reason-picker';
+  div.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:center';
+  div.onclick = (e) => { if (e.target === div) div.remove(); };
+
+  const count = ids.length;
+  const label = count + ' deal' + (count !== 1 ? 's' : '');
+
+  div.innerHTML = `<div style="background:#fff;border-radius:12px;padding:24px;width:340px;box-shadow:0 8px 30px rgba(0,0,0,.2)">
+    <h3 style="margin:0 0 16px;font-size:16px">Archive ${label} — why?</h3>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn" style="width:100%;justify-content:start;padding:10px 14px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca" onclick="document.getElementById('archive-reason-picker').remove();doBulkArchiveWithReason('Closed Lost')">Closed Lost</button>
+      <button class="btn" style="width:100%;justify-content:start;padding:10px 14px;background:#fef9c3;color:#a16207;border:1px solid #fde68a" onclick="document.getElementById('archive-reason-picker').remove();doBulkArchiveWithReason('Bad Lead')">Bad Lead</button>
+      <button class="btn" style="width:100%;justify-content:start;padding:10px 14px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe" onclick="var r=prompt('Enter reason:');if(r){document.getElementById('archive-reason-picker').remove();doBulkArchiveWithReason(r);}">Custom...</button>
+    </div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:12px;font-size:12px" onclick="document.getElementById('archive-reason-picker').remove()">Cancel</button>
+  </div>`;
+  document.body.appendChild(div);
+}
+
+async function executeBulkArchive(reason){
+  const ids=[...state.bulkSelected];
   for(const id of ids){
     deletedDealIds.add(String(id));
     store.removeDeal(id, {silent: true});
@@ -143,9 +168,11 @@ export async function bulkArchive(){
   store.set({bulkSelected: new Set(), bulkMode: false});
   pendingWrites.value++;
   try{
-    for(const id of ids){ const d=state.deals.find(x=>x.id===id); await sbArchiveDeal(id, JSON.stringify({...d, archiveStatus:'Deleted/Lost'})); await sbDeleteDeal(id); invokeEdgeFunction('push-lead-tracker',{action:'remove-lead',dealId:id}).catch(e=>console.warn('Sheet removal:',e.message)); }
+    for(const id of ids){ const d=state.deals.find(x=>x.id===id); await sbArchiveDeal(id, JSON.stringify({...d, archiveStatus:reason})); await sbDeleteDeal(id); invokeEdgeFunction('push-lead-tracker',{action:'remove-lead',dealId:id}).catch(e=>console.warn('Sheet removal:',e.message)); }
+    clearDashboardArchiveCache();
   }finally{ pendingWrites.value--; }
 }
+window.doBulkArchiveWithReason = (reason) => executeBulkArchive(reason);
 
 export async function bulkRestoreFromArchive(){
   const ids=[...state.bulkSelected];
