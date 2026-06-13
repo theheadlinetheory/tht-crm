@@ -994,16 +994,26 @@ export const sbGetArchive = () => sbCall(async () => {
 }, { label: 'Load archive' });
 
 export const sbGetArchivedDeals = () => sbCall(async () => {
-  const { data, error } = await supabase.from('archive').select('*');
-  if (error) throw error;
-  return (data || []).map(row => {
-    let deal = { id: row.id, archivedAt: row.archived_at };
-    try {
-      const orig = typeof row.original_data === 'string' ? JSON.parse(row.original_data) : row.original_data;
-      Object.assign(deal, orig);
-    } catch(e) {}
-    return deal;
-  });
+  const PAGE = 1000;
+  let all = [];
+  for (let off = 0; ; off += PAGE) {
+    const { data, error } = await supabase.from('archive_list').select('*').range(off, off + PAGE - 1);
+    if (error) throw error;
+    all = all.concat(data || []);
+    if (!data || data.length < PAGE) break;
+  }
+  return all.map(row => ({
+    id: row.id,
+    archivedAt: row.archived_at,
+    archiveStatus: row.archive_status,
+    company: row.company || '',
+    contact: row.contact || '',
+    email: row.email || '',
+    pipeline: row.pipeline || '',
+    stage: row.stage || '',
+    clientName: row.client_name || row.stage || '',
+    location: row.location || '',
+  }));
 }, { label: 'Load archived deals for dashboard' });
 
 export const sbArchiveDeal = (id, originalData) => sbCall(async () => {
