@@ -401,8 +401,17 @@ export function renderNurtureEntryModal(dealId) {
     </div>
 
     <div style="margin-bottom:12px">
-      <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Note (optional)</label>
-      <input type="text" id="nurture-note" placeholder="Reason for nurturing..." style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+      <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Reason</label>
+      <select id="nurture-reason" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);margin-bottom:8px">
+        <option value="">Select a reason...</option>
+        <option value="Went cold">Went cold</option>
+        <option value="Not ready right now">Not ready right now</option>
+        <option value="Budget issues">Budget issues</option>
+        <option value="Already has a provider">Already has a provider</option>
+        <option value="Wants to revisit later">Wants to revisit later</option>
+        <option value="Other">Other</option>
+      </select>
+      <input type="text" id="nurture-note" placeholder="Additional notes..." style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
     </div>
   </div>`;
   body += modalFooter('closeNurtureModal', 'confirmNurtureEntry', 'Move to Nurture');
@@ -487,8 +496,11 @@ registerActions({
     const bucket = bucketEl ? bucketEl.value : (state._nurtureEntryBucket || 'not_now');
     const dateEl = document.getElementById('nurture-follow-up-date');
     const followUpDate = bucket === 'not_now' && dateEl ? dateEl.value : '';
+    const reasonEl = document.getElementById('nurture-reason');
+    const reason = reasonEl ? reasonEl.value : '';
     const noteEl = document.getElementById('nurture-note');
-    const note = noteEl ? noteEl.value : '';
+    const noteText = noteEl ? noteEl.value : '';
+    const note = [reason, noteText].filter(Boolean).join(' — ');
 
     // Close modal
     state._nurtureEntryDealId = null;
