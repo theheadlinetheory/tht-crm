@@ -375,7 +375,9 @@ export function renderNurtureTab() {
 
 export function renderNurtureEntryModal(dealId) {
   const deal = state.deals.find(d => String(d.id) === String(dealId));
-  const dealName = deal ? (deal.company || deal.contact || 'Unknown') : 'Unknown';
+  const isBulk = !!state._nurtureEntryBulk;
+  const bulkCount = isBulk ? (state._bulkNurtureIds || []).length : 0;
+  const dealName = isBulk ? `${bulkCount} deal${bulkCount !== 1 ? 's' : ''}` : (deal ? (deal.company || deal.contact || 'Unknown') : 'Unknown');
   const defaultDate = new Date(Date.now() + 90 * 86400000);
   const defaultDateStr = defaultDate.getFullYear() + '-' +
     String(defaultDate.getMonth() + 1).padStart(2, '0') + '-' +
@@ -503,32 +505,33 @@ registerActions({
     const note = [reason, noteText].filter(Boolean).join(' — ');
 
     // Close modal
+    const isBulk = !!state._nurtureEntryBulk;
+    const bulkIds = isBulk ? (state._bulkNurtureIds || []) : [dealId];
     state._nurtureEntryDealId = null;
     state._nurtureEntryBucket = null;
+    state._nurtureEntryBulk = false;
+    state._bulkNurtureIds = null;
 
-    // Update deal pipeline/stage to Nurture
-    const deal = state.deals.find(d => String(d.id) === String(dealId));
-    if (deal) {
-      const nurtureStage = bucket === 'not_now' ? 'Not Now' : 'Service Area Taken';
-      deal.pipeline = 'Nurture';
-      deal.stage = nurtureStage;
-      render();
+    const nurtureStage = bucket === 'not_now' ? 'Not Now' : 'Service Area Taken';
 
-      pendingWrites.value++;
-      sbUpdateDeal(dealId, camelToSnake({ pipeline: 'Nurture', stage: nurtureStage }))
-        .catch(e => console.error('Failed to update deal pipeline:', e))
-        .finally(() => { pendingWrites.value--; });
-    }
+    for (const id of bulkIds) {
+      const deal = state.deals.find(d => String(d.id) === String(id));
+      if (deal) {
+        deal.pipeline = 'Nurture';
+        deal.stage = nurtureStage;
 
-    // Clear existing activities for this deal
-    clearDealActivities(dealId);
+        pendingWrites.value++;
+        sbUpdateDeal(id, camelToSnake({ pipeline: 'Nurture', stage: nurtureStage }))
+          .catch(e => console.error('Failed to update deal pipeline:', e))
+          .finally(() => { pendingWrites.value--; });
+      }
 
-    // Add to nurture queue
-    await addToNurture(dealId, bucket, followUpDate, note);
+      clearDealActivities(id);
+      await addToNurture(id, bucket, followUpDate, note);
 
-    // Create nurture sequence for not_now items
-    if (bucket === 'not_now' && followUpDate) {
-      createNurtureSequence(dealId, followUpDate);
+      if (bucket === 'not_now' && followUpDate) {
+        createNurtureSequence(id, followUpDate);
+      }
     }
 
     render();
