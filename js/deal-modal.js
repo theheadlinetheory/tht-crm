@@ -1219,22 +1219,33 @@ export function renderDealModal(deal){
         </div>`;
       }
 
-      // Push to GHL button (all roles)
+      // Push to Client Sheet button
       {
-        const ghlConfigured = matchedClient.ghlConfigured || (str(matchedClient.ghlLocationId).trim() && str(matchedClient.ghlApiKey).trim());
-        const ghlPushed = deal.pushedToGhl;
-        const ghlDisabled = !ghlConfigured;
-        const ghlTitle = !ghlConfigured ? 'GHL not configured for this client'
-          : ghlPushed ? 'Last pushed ' + new Date(deal.pushedToGhl).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) + ' — click to re-push'
-          : 'Push contact + opportunity to ' + esc(matchedClient.name) + "'s GoHighLevel";
-        h+=`<div style="margin:0 0 8px 0">
-          <button id="push-ghl-btn" class="btn ${ghlPushed?'btn-ghost':ghlConfigured?'btn-primary':'btn-ghost'}" style="width:100%;justify-content:center;gap:6px;font-size:13px${ghlDisabled?';opacity:0.5':''}"
-            onclick="${ghlDisabled?'':'pushToGhl(\''+deal.id+'\')'}" ${ghlDisabled?'disabled':''} title="${esc(ghlTitle)}">
-            ${ghlPushed?'<span style="color:#059669">\u2713 Pushed to GHL</span> <span style="font-size:11px;color:#6b7280">(re-push)</span>':svgIcon('upload',14)+' Push to GHL'}
-          </button>
-        </div>`;
+        const hasSheet = !!str(matchedClient.clientSheetId).trim();
+        const sheetPushed = deal.pushedToTracker;
+        if (hasSheet) {
+          h+=`<div style="margin:0 0 8px 0">
+            <button id="push-client-sheet-btn" class="btn ${sheetPushed?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px"
+              onclick="pushToClientSheet('${deal.id}')" title="Push lead to ${esc(matchedClient.name)}'s Lead Tracker sheet">
+              ${sheetPushed?'<span style="color:#059669">\u2713 Pushed to Client Sheet</span> <span style="font-size:11px;color:#6b7280">(re-push)</span>':svgIcon('upload',14)+' Push to Client Sheet'}
+            </button>
+          </div>`;
+        }
       }
 
+      // Push to GHL button (only for clients with GHL configured)
+      {
+        const ghlConfigured = matchedClient.ghlConfigured || (str(matchedClient.ghlLocationId).trim() && str(matchedClient.ghlApiKey).trim());
+        if (ghlConfigured) {
+          const ghlPushed = deal.pushedToGhl;
+          h+=`<div style="margin:0 0 8px 0">
+            <button id="push-ghl-btn" class="btn ${ghlPushed?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px"
+              onclick="pushToGhl('${deal.id}')" title="Push to ${esc(matchedClient.name)}'s GoHighLevel">
+              ${ghlPushed?'<span style="color:#059669">\u2713 Pushed to GHL</span> <span style="font-size:11px;color:#6b7280">(re-push)</span>':svgIcon('upload',14)+' Push to GHL'}
+            </button>
+          </div>`;
+        }
+      }
 
       // Show warning if no actions are enabled
       const hasPolygon = !!findPolygonForClient(matchedClient.name);
@@ -1687,6 +1698,43 @@ window.bookAvailabilitySlot = function(dealId) {
     refreshModal();
   }
   render();
+};
+
+window.pushToClientSheet = async function(dealId) {
+  const btn = document.getElementById('push-client-sheet-btn');
+  if (!btn || btn.disabled) return;
+
+  const deal = state.deals.find(d => String(d.id) === String(dealId));
+  if (deal && deal.pushedToTracker) {
+    if (!confirm('This deal was already pushed to the client sheet. Push again?')) return;
+  }
+
+  const origText = btn.innerHTML;
+  btn.innerHTML = '<span style="width:14px;height:14px;border:2px solid #ccc;border-top-color:#333;border-radius:50%;animation:spin .6s linear infinite;display:inline-block"></span> Pushing...';
+  btn.disabled = true;
+
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 25000);
+    const result = await invokeEdgeFunction('push-to-client-sheet', { dealId }, ctrl.signal);
+    clearTimeout(timer);
+
+    if (deal) {
+      deal.pushedToTracker = new Date().toISOString();
+      if (state.selectedDeal && String(state.selectedDeal.id) === String(dealId)) {
+        state.selectedDeal = deal;
+      }
+    }
+    btn.innerHTML = '<span style="color:#059669">✓ Pushed to Client Sheet</span>';
+    showToast('Lead pushed to ' + (result.client || 'client') + "'s sheet", 'success');
+    setTimeout(() => refreshModal(), 1000);
+  } catch (e) {
+    const msg = e.name === 'AbortError' ? 'Request timed out' : (e.message || 'Unknown error');
+    btn.innerHTML = origText;
+    btn.disabled = false;
+    showToast('Push failed: ' + msg, 'error');
+    alert('Client sheet push failed: ' + msg);
+  }
 };
 
 window.pushToGhl = async function(dealId) {
