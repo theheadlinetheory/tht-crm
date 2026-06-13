@@ -185,6 +185,26 @@ export function closeDealModal(){
   render();
 }
 
+window.showArchiveReasonPicker = function(dealId){
+  const existing = document.getElementById('archive-reason-picker');
+  if (existing) existing.remove();
+  const div = document.createElement('div');
+  div.id = 'archive-reason-picker';
+  div.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:center';
+  div.onclick = (e) => { if (e.target === div) div.remove(); };
+  div.innerHTML = `<div style="background:#fff;border-radius:12px;padding:24px;width:340px;box-shadow:0 8px 30px rgba(0,0,0,.2)">
+    <h3 style="margin:0 0 16px;font-size:16px">Why are you archiving this?</h3>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn" style="width:100%;justify-content:start;padding:10px 14px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca" onclick="document.getElementById('archive-reason-picker').remove();deleteDeal('${dealId}','Closed Lost')">Closed Lost</button>
+      <button class="btn" style="width:100%;justify-content:start;padding:10px 14px;background:#fef9c3;color:#a16207;border:1px solid #fde68a" onclick="document.getElementById('archive-reason-picker').remove();deleteDeal('${dealId}','Bad Lead')">Bad Lead</button>
+      <button class="btn" style="width:100%;justify-content:start;padding:10px 14px;background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb" onclick="document.getElementById('archive-reason-picker').remove();deleteDeal('${dealId}','Went Cold')">Went Cold</button>
+      <button class="btn" style="width:100%;justify-content:start;padding:10px 14px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe" onclick="var r=prompt('Enter reason:');if(r){document.getElementById('archive-reason-picker').remove();deleteDeal('${dealId}',r);}">Custom...</button>
+    </div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:12px;font-size:12px" onclick="document.getElementById('archive-reason-picker').remove()">Cancel</button>
+  </div>`;
+  document.body.appendChild(div);
+};
+
 window.markDealUnread = function(dealId){
   const deal = state.deals.find(d => String(d.id) === String(dealId));
   if(!deal) return;
@@ -1472,7 +1492,7 @@ export function renderDealModal(deal){
   h+=`${renderDealRetargetHistory(deal.id)}
     <div class="modal-footer">
       <div style="display:flex;gap:8px;align-items:center">
-        ${isAdmin()||isEmployee()?`<button class="btn btn-danger" onclick="if(confirm('Archive this deal?'))deleteDeal('${deal.id}','Deleted/Lost')">Archive</button>`:''}
+        ${isAdmin()||isEmployee()?`<button class="btn btn-danger" onclick="showArchiveReasonPicker('${deal.id}')">Archive</button>`:''}
         ${isClient()?`<button class="btn btn-danger" onclick="if(confirm('Archive this lead?'))archiveDeal('${deal.id}','manual')">Archive</button>`:''}
         <button class="btn" style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;font-size:12px" onclick="markDealUnread('${deal.id}')" title="Mark as unread so the blue highlight comes back">${svgIcon('mail',12,'#2563eb')} Mark Unread</button>
       </div>
