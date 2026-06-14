@@ -101,7 +101,8 @@ export function renderColdCallingTab() {
   h += `<div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;background:var(--card)">
     <table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead><tr style="background:#f9fafb;border-bottom:2px solid var(--border)">
-        <th style="padding:8px 10px;text-align:left;font-weight:600;width:30px">#</th>
+        <th style="padding:8px 10px;text-align:center;font-weight:600;width:30px">#</th>
+        <th style="padding:8px 10px;text-align:center;font-weight:600;width:30px">Grade</th>
         <th style="padding:8px 10px;text-align:left;font-weight:600">Company</th>
         <th style="padding:8px 10px;text-align:left;font-weight:600">Contact</th>
         <th style="padding:8px 10px;text-align:left;font-weight:600">Title</th>
@@ -118,8 +119,12 @@ export function renderColdCallingTab() {
     const name = [lead.firstName, lead.lastName].filter(Boolean).join(' ') || lead.email;
     const rowBg = dialled ? 'background:#f0fdf4' : '';
 
+    const gradeColor = lead.grade === 'A' ? '#16a34a' : lead.grade === 'B' ? '#d97706' : '#9ca3af';
+    const gradeBg = lead.grade === 'A' ? '#f0fdf4' : lead.grade === 'B' ? '#fffbeb' : '#f9fafb';
+
     h += `<tr style="border-bottom:1px solid #f3f4f6;${rowBg}">
-      <td style="padding:6px 10px;color:var(--text-muted)">${i + 1}</td>
+      <td style="padding:6px 10px;color:var(--text-muted);text-align:center">${i + 1}</td>
+      <td style="padding:6px 10px;text-align:center"><span style="font-size:11px;font-weight:700;color:${gradeColor};background:${gradeBg};padding:2px 8px;border-radius:4px">${lead.grade || '-'}</span></td>
       <td style="padding:6px 10px;font-weight:500">${esc(lead.companyName || '-')}</td>
       <td style="padding:6px 10px">${esc(name)}</td>
       <td style="padding:6px 10px;color:var(--text-muted)">${esc(lead.title || '-')}</td>
