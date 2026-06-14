@@ -70,7 +70,7 @@ export function renderColdCallingTab() {
     return '<div style="padding:40px;text-align:center;color:var(--text-muted)">Loading campaigns...</div>';
   }
 
-  let h = '<div style="max-width:900px;margin:0 auto;padding:16px 20px">';
+  let h = '<div style="max-width:1200px;margin:0 auto;padding:16px 20px">';
 
   h += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
     <div style="display:flex;align-items:center;gap:12px">
