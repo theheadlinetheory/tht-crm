@@ -246,10 +246,9 @@ export function render(){
   ${(() => {
     const overdue = renderOverdueBanner();
     const booked = renderBookedMeetingsBanner();
-    const parts = [overdue, booked].filter(Boolean);
-    const strip = parts.length ? `<div style="padding:8px 16px;background:#fafafa;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;overflow-x:auto">${parts.join('<span style="color:#d1d5db">|</span>')}</div>` : '';
     const nurture = state.pipeline==='acquisition' ? renderDueTodayBanner() : '';
-    return strip + nurture;
+    const parts = [overdue, booked, nurture].filter(Boolean);
+    return parts.length ? `<div style="padding:6px 16px;background:#fafafa;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;overflow-x:auto;font-size:12px">${parts.join('<span style="color:#d1d5db">|</span>')}</div>` : '';
   })()}`;
 
   // ─── Acquisition Sub-Tabs (Pipeline / Nurture) ───
@@ -260,15 +259,17 @@ export function render(){
     }
     const subTab = state.acquisitionSubTab || 'pipeline';
     const subCs = 'padding:6px 16px;font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;border-radius:6px;margin-right:4px';
-    html += `<div style="padding:0 20px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
-      <div style="display:flex;gap:4px">
+    html += `<div style="padding:0 20px;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;gap:4px;align-items:center">
         <button onclick="state.acquisitionSubTab='pipeline';render()" style="${subCs};background:${subTab==='pipeline'?'var(--purple)':'#f3f4f6'};color:${subTab==='pipeline'?'#fff':'var(--text-muted)'}">Pipeline</button>
         <button onclick="state.acquisitionSubTab='nurture';render()" style="${subCs};background:${subTab==='nurture'?'var(--purple)':'#f3f4f6'};color:${subTab==='nurture'?'#fff':'var(--text-muted)'}">Nurture</button>
         ${(isAdmin()||isEmployee())?`<button onclick="state.acquisitionSubTab='demo_tracker';render()" style="${subCs};background:${subTab==='demo_tracker'?'var(--purple)':'#f3f4f6'};color:${subTab==='demo_tracker'?'#fff':'var(--text-muted)'}">Demo Tracker</button>`:''}
       </div>
-      ${subTab==='pipeline'?`<button onclick="state.myDealsFilter=!state.myDealsFilter;render()" style="padding:4px 12px;font-size:11px;font-weight:600;font-family:var(--font);cursor:pointer;border:1px solid ${state.myDealsFilter?'var(--purple)':'var(--border)'};border-radius:6px;background:${state.myDealsFilter?'#f3e8ff':'#fff'};color:${state.myDealsFilter?'var(--purple)':'var(--text-muted)'}">
-        ${state.myDealsFilter?'★ My Deals':'☆ My Deals'}
-      </button>`:''}
+      ${subTab==='pipeline'?`<div style="display:flex;gap:6px;align-items:center">
+        <button onclick="state.myDealsFilter=!state.myDealsFilter;render()" style="padding:4px 12px;font-size:11px;font-weight:600;font-family:var(--font);cursor:pointer;border:1px solid ${state.myDealsFilter?'var(--purple)':'var(--border)'};border-radius:6px;background:${state.myDealsFilter?'#f3e8ff':'#fff'};color:${state.myDealsFilter?'var(--purple)':'var(--text-muted)'}">
+          ${state.myDealsFilter?'★ My Deals':'☆ My Deals'}
+        </button>
+      </div>`:''}
     </div>`;
 
     // If nurture sub-tab is selected, render nurture content and return

@@ -55,7 +55,8 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .deal-card.has-text-reply.has-reply { border-left: 3px solid #16a34a; background: linear-gradient(90deg, #f0fdf4 0%, #eff6ff 6%, var(--card) 14%); }
 .reply-indicator { display:inline-flex; align-items:center; margin-right:5px; vertical-align:middle; animation: replyPulse 2s ease-in-out infinite; }
 @keyframes replyPulse { 0%,100%{opacity:1} 50%{opacity:.5} }
-.deal-card div, .deal-card span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deal-company, .deal-detail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deal-bottom, .deal-bottom span { overflow: visible; white-space: normal; }
 .deal-card.badge-open { z-index: 100; }
 .deal-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.1); transform: translateY(-1px); }
 .deal-card.dragging { opacity: .5; }
