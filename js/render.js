@@ -21,6 +21,7 @@ import { openCalendlyEmbed, removeAppointment, addManualAppointment } from './ca
 import { doDragOver, doDragLeave, clearAllDragOver, doDrop } from './deals.js?v=20260603a';
 import { renderDueTodayBanner, renderNurtureTab, renderNurtureEntryModal, renderReactivateModal, renderSnoozeModal, loadNurtureData } from './rerun.js?v=20260603a';
 import { renderDemoTracker } from './demo-tracker.js?v=20260603a';
+import { renderColdCallingTab } from './cold-calling.js?v=20260603a';
 import { renderRetargetingTab } from './retargeting.js?v=20260603a';
 
 // ─── renderListView ───
@@ -264,6 +265,7 @@ export function render(){
         <button onclick="state.acquisitionSubTab='pipeline';render()" style="${subCs};background:${subTab==='pipeline'?'var(--purple)':'#f3f4f6'};color:${subTab==='pipeline'?'#fff':'var(--text-muted)'}">Pipeline</button>
         <button onclick="state.acquisitionSubTab='nurture';render()" style="${subCs};background:${subTab==='nurture'?'var(--purple)':'#f3f4f6'};color:${subTab==='nurture'?'#fff':'var(--text-muted)'}">Nurture</button>
         ${(isAdmin()||isEmployee())?`<button onclick="state.acquisitionSubTab='demo_tracker';render()" style="${subCs};background:${subTab==='demo_tracker'?'var(--purple)':'#f3f4f6'};color:${subTab==='demo_tracker'?'#fff':'var(--text-muted)'}">Demo Tracker</button>`:''}
+        ${(isAdmin()||isEmployee())?`<button onclick="state.acquisitionSubTab='cold_calls';render()" style="${subCs};background:${subTab==='cold_calls'?'var(--purple)':'#f3f4f6'};color:${subTab==='cold_calls'?'#fff':'var(--text-muted)'}">Cold Calls</button>`:''}
       </div>
       ${subTab==='pipeline'?`<div style="display:flex;gap:6px;align-items:center">
         <button onclick="state.myDealsFilter=!state.myDealsFilter;render()" style="padding:4px 12px;font-size:11px;font-weight:600;font-family:var(--font);cursor:pointer;border:1px solid ${state.myDealsFilter?'var(--purple)':'var(--border)'};border-radius:6px;background:${state.myDealsFilter?'#f3e8ff':'#fff'};color:${state.myDealsFilter?'var(--purple)':'var(--text-muted)'}">
@@ -286,6 +288,13 @@ export function render(){
     // If demo tracker sub-tab is selected, render demo tracker and return
     if(subTab === 'demo_tracker'){
       html += renderDemoTracker();
+      app.innerHTML = html;
+      return;
+    }
+
+    // If cold calls sub-tab is selected, render cold calling and return
+    if(subTab === 'cold_calls'){
+      html += renderColdCallingTab();
       app.innerHTML = html;
       return;
     }
