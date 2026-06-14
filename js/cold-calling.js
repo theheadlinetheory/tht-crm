@@ -1,6 +1,6 @@
 import { state } from './app.js?v=20260603a';
 import { invokeEdgeFunction, showToast } from './api.js?v=20260603a';
-import { esc } from './utils.js?v=20260603a';
+import { esc, svgIcon } from './utils.js?v=20260603a';
 import { render } from './render.js?v=20260603a';
 
 let _campaigns = null;
@@ -98,6 +98,14 @@ export function renderColdCallingTab() {
     return h;
   }
 
+  const callableLeads = _leads.filter(l => l.phone && l.grade !== 'C');
+  h += `<div style="display:flex;gap:8px;margin-bottom:12px">
+    <button class="btn btn-primary" id="push-to-dialer-btn" onclick="pushToJustCallDialer()" style="display:flex;align-items:center;gap:6px">
+      ${svgIcon('phone',14,'#fff')} Push ${callableLeads.length} A/B Leads to JustCall Dialer
+    </button>
+    <span style="font-size:11px;color:var(--text-muted);align-self:center">Skips C-grade and leads without phone numbers</span>
+  </div>`;
+
   h += `<div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;background:var(--card)">
     <table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead><tr style="background:#f9fafb;border-bottom:2px solid var(--border)">
@@ -159,5 +167,28 @@ window.coldCallDial = function(leadId, phone) {
     window.justCallDial(phone);
   } else {
     window.open('tel:' + phone);
+  }
+};
+
+window.pushToJustCallDialer = async function() {
+  const callableLeads = _leads.filter(l => l.phone && l.grade !== 'C');
+  if (!callableLeads.length) { showToast('No callable leads to push', 'error'); return; }
+  if (!_selectedCampaign) return;
+
+  const btn = document.getElementById('push-to-dialer-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = 'Pushing...'; }
+
+  try {
+    const campName = `Cold Calls - ${_selectedCampaign.name} - ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+    const result = await invokeEdgeFunction('justcall-dialer', {
+      action: 'bulk-dial',
+      leads: callableLeads,
+      campaignName: campName,
+    });
+    showToast(`${result.added} leads pushed to JustCall campaign "${campName}"`, 'success');
+    if (btn) btn.innerHTML = 'Pushed to JustCall';
+  } catch (e) {
+    showToast('Failed to push to dialer: ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.innerHTML = 'Push to JustCall Dialer'; }
   }
 };
