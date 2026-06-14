@@ -4,60 +4,63 @@ import { esc, svgIcon } from './utils.js?v=20260603a';
 import { render } from './render.js?v=20260603a';
 
 let _campaigns = null;
-let _campaignsLoadedAt = 0;
-let _campaignsLoading = false;
 let _leads = [];
 let _loading = false;
+let _syncing = false;
 let _selectedCampaign = null;
 let _dialCount = 0;
-let _dialledIds = new Set();
 
-const CACHE_TTL = 10 * 60 * 1000;
-
-async function loadCampaigns(force = false) {
-  if (_campaignsLoading) return;
-  if (!force && _campaigns && Date.now() - _campaignsLoadedAt < CACHE_TTL) return;
-  _campaignsLoading = true;
+async function loadCampaigns() {
   try {
     const resp = await invokeEdgeFunction('fetch-cold-leads', { action: 'list-campaigns' });
     _campaigns = resp.campaigns || [];
-    _campaignsLoadedAt = Date.now();
   } catch (e) {
     showToast('Failed to load campaigns: ' + e.message, 'error');
     if (!_campaigns) _campaigns = [];
   }
-  _campaignsLoading = false;
 }
 
-async function loadLeads(campaignId, campaignName) {
+async function syncCampaigns() {
+  _syncing = true;
+  render();
+  try {
+    await invokeEdgeFunction('fetch-cold-leads', { action: 'sync-campaigns' });
+    await loadCampaigns();
+    showToast('Campaigns synced from SmartLead', 'success');
+  } catch (e) {
+    showToast('Sync failed: ' + e.message, 'error');
+  }
+  _syncing = false;
+  render();
+}
+
+async function loadLeads(campaignId) {
   _loading = true;
   _leads = [];
-  _selectedCampaign = { id: campaignId, name: campaignName };
-  _dialCount = 0;
-  _dialledIds = new Set();
   render();
-
   try {
-    const resp = await invokeEdgeFunction('fetch-cold-leads', {
-      action: 'fetch-leads',
-      campaignId,
-      campaignName,
-    });
+    const resp = await invokeEdgeFunction('fetch-cold-leads', { action: 'get-leads', campaignId });
     _leads = resp.leads || [];
+    _dialCount = _leads.filter(l => l.dialled).length;
   } catch (e) {
     showToast('Failed to load leads: ' + e.message, 'error');
-    _leads = [];
   }
-
   _loading = false;
   render();
 }
 
-function markDialled(leadId) {
-  if (!_dialledIds.has(leadId)) {
-    _dialledIds.add(leadId);
-    _dialCount++;
+async function syncLeads(campaignId, campaignName) {
+  _syncing = true;
+  render();
+  try {
+    const resp = await invokeEdgeFunction('fetch-cold-leads', { action: 'sync-leads', campaignId, campaignName });
+    showToast(`${resp.synced} leads synced for ${campaignName}`, 'success');
+    await loadLeads(campaignId);
+    await loadCampaigns();
+  } catch (e) {
+    showToast('Lead sync failed: ' + e.message, 'error');
   }
+  _syncing = false;
   render();
 }
 
@@ -74,13 +77,14 @@ export function renderColdCallingTab() {
       <h2 style="margin:0;font-size:18px">Cold Calls</h2>
       <select id="cold-call-campaign" onchange="coldCallSelectCampaign(this)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);min-width:200px">
         <option value="">Select a campaign...</option>
-        ${_campaigns.map(c => `<option value="${c.id}" ${_selectedCampaign?.id === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
+        ${_campaigns.map(c => `<option value="${c.id}" ${_selectedCampaign?.id === c.id ? 'selected' : ''}>${esc(c.name)}${c.lead_count ? ' (' + c.lead_count + ')' : ''}</option>`).join('')}
       </select>
+      <button class="btn btn-ghost" onclick="coldCallSyncCampaigns()" style="font-size:11px;padding:4px 8px" title="Refresh campaign list from SmartLead"${_syncing ? ' disabled' : ''}>${svgIcon('refresh-cw', 12)}</button>
     </div>
     <div style="display:flex;align-items:center;gap:12px">
       <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 16px;text-align:center">
         <div style="font-size:24px;font-weight:700;color:#16a34a">${_dialCount}</div>
-        <div style="font-size:10px;color:#4d7c0f">Dials Today</div>
+        <div style="font-size:10px;color:#4d7c0f">Dialled</div>
       </div>
       <div style="background:#f3f4f6;border:1px solid var(--border);border-radius:8px;padding:8px 16px;text-align:center">
         <div style="font-size:24px;font-weight:700;color:var(--text-primary)">${_leads.length}</div>
@@ -89,31 +93,39 @@ export function renderColdCallingTab() {
     </div>
   </div>`;
 
+  if (_syncing) {
+    h += '<div style="padding:40px;text-align:center;color:var(--text-muted)"><div class="loading-spinner"></div><div style="margin-top:12px">Syncing from SmartLead...</div></div></div>';
+    return h;
+  }
+
   if (_loading) {
-    h += '<div style="padding:40px;text-align:center;color:var(--text-muted)"><div class="loading-spinner"></div><div style="margin-top:12px">Pulling unresponsive leads from SmartLead...</div></div>';
-    h += '</div>';
+    h += '<div style="padding:40px;text-align:center;color:var(--text-muted)"><div class="loading-spinner"></div><div style="margin-top:12px">Loading leads...</div></div></div>';
     return h;
   }
 
   if (!_selectedCampaign) {
-    h += '<div style="padding:40px;text-align:center;color:var(--text-muted)">Select a campaign to load cold call leads.</div>';
-    h += '</div>';
+    h += `<div style="padding:40px;text-align:center;color:var(--text-muted)">
+      ${_campaigns.length === 0 ? `<div>No campaigns synced yet.</div><button class="btn btn-primary" style="margin-top:12px" onclick="coldCallSyncCampaigns()">Sync Campaigns from SmartLead</button>` : 'Select a campaign to view cold call leads.'}
+    </div></div>`;
     return h;
   }
+
+  const syncedAt = _selectedCampaign.synced_at ? new Date(_selectedCampaign.synced_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'never';
+
+  h += `<div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
+    <button class="btn btn-ghost" onclick="coldCallSyncLeads()" style="font-size:11px;display:flex;align-items:center;gap:4px">${svgIcon('refresh-cw', 12)} Sync Leads from SmartLead</button>
+    <span style="font-size:10px;color:var(--text-muted)">Last synced: ${syncedAt}</span>`;
+
+  if (_leads.length > 0) {
+    const callableLeads = _leads.filter(l => l.phone && l.grade !== 'C');
+    h += `<button class="btn btn-primary" id="push-to-dialer-btn" onclick="pushToJustCallDialer()" style="font-size:11px;margin-left:auto;display:flex;align-items:center;gap:4px">${svgIcon('phone', 12, '#fff')} Push ${callableLeads.length} A/B to JustCall</button>`;
+  }
+  h += '</div>';
 
   if (_leads.length === 0) {
-    h += '<div style="padding:40px;text-align:center;color:var(--text-muted)">No unresponsive leads found in this campaign.</div>';
-    h += '</div>';
+    h += '<div style="padding:40px;text-align:center;color:var(--text-muted)">No leads synced for this campaign. Click "Sync Leads" to pull from SmartLead.</div></div>';
     return h;
   }
-
-  const callableLeads = _leads.filter(l => l.phone && l.grade !== 'C');
-  h += `<div style="display:flex;gap:8px;margin-bottom:12px">
-    <button class="btn btn-primary" id="push-to-dialer-btn" onclick="pushToJustCallDialer()" style="display:flex;align-items:center;gap:6px">
-      ${svgIcon('phone',14,'#fff')} Push ${callableLeads.length} A/B Leads to JustCall Dialer
-    </button>
-    <span style="font-size:11px;color:var(--text-muted);align-self:center">Skips C-grade and leads without phone numbers</span>
-  </div>`;
 
   h += `<div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;background:var(--card)">
     <table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -132,17 +144,16 @@ export function renderColdCallingTab() {
 
   for (let i = 0; i < _leads.length; i++) {
     const lead = _leads[i];
-    const dialled = _dialledIds.has(lead.id);
-    const name = [lead.firstName, lead.lastName].filter(Boolean).join(' ') || lead.email;
+    const dialled = lead.dialled;
+    const name = [lead.first_name, lead.last_name].filter(Boolean).join(' ') || lead.email;
     const rowBg = dialled ? 'background:#f0fdf4' : '';
-
     const gradeColor = lead.grade === 'A' ? '#16a34a' : lead.grade === 'B' ? '#d97706' : '#9ca3af';
     const gradeBg = lead.grade === 'A' ? '#f0fdf4' : lead.grade === 'B' ? '#fffbeb' : '#f9fafb';
 
     h += `<tr style="border-bottom:1px solid #f3f4f6;${rowBg}">
       <td style="padding:6px 10px;color:var(--text-muted);text-align:center">${i + 1}</td>
       <td style="padding:6px 10px;text-align:center"><span style="font-size:11px;font-weight:700;color:${gradeColor};background:${gradeBg};padding:2px 8px;border-radius:4px">${lead.grade || '-'}</span></td>
-      <td style="padding:6px 10px;font-weight:500">${esc(lead.companyName || '-')}</td>
+      <td style="padding:6px 10px;font-weight:500">${esc(lead.company_name || '-')}</td>
       <td style="padding:6px 10px">${esc(name)}</td>
       <td style="padding:6px 10px;color:var(--text-muted)">${esc(lead.title || '-')}</td>
       <td style="padding:6px 10px">${lead.phone ? `<a href="tel:${esc(lead.phone)}" style="color:#2563eb;text-decoration:none">${esc(lead.phone)}</a>` : '<span style="color:#d1d5db">No phone</span>'}</td>
@@ -164,14 +175,27 @@ export function renderColdCallingTab() {
 }
 
 window.coldCallSelectCampaign = function(el) {
-  const id = el.value;
-  if (!id) return;
-  const campaign = _campaigns.find(c => String(c.id) === id);
-  if (campaign) loadLeads(campaign.id, campaign.name);
+  const id = Number(el.value);
+  if (!id) { _selectedCampaign = null; _leads = []; render(); return; }
+  const campaign = _campaigns.find(c => c.id === id);
+  if (campaign) {
+    _selectedCampaign = campaign;
+    loadLeads(campaign.id);
+  }
 };
 
-window.coldCallDial = function(leadId, phone) {
-  markDialled(leadId);
+window.coldCallSyncCampaigns = () => syncCampaigns();
+window.coldCallSyncLeads = () => {
+  if (_selectedCampaign) syncLeads(_selectedCampaign.id, _selectedCampaign.name);
+};
+
+window.coldCallDial = async function(leadId, phone) {
+  try {
+    await invokeEdgeFunction('fetch-cold-leads', { action: 'mark-dialled', leadId });
+    const lead = _leads.find(l => l.id === leadId);
+    if (lead) { lead.dialled = true; _dialCount = _leads.filter(l => l.dialled).length; }
+    render();
+  } catch (_) { /* non-fatal */ }
   if (window.justCallDial) {
     window.justCallDial(phone);
   } else {
@@ -180,24 +204,30 @@ window.coldCallDial = function(leadId, phone) {
 };
 
 window.pushToJustCallDialer = async function() {
-  const callableLeads = _leads.filter(l => l.phone && l.grade !== 'C');
+  const callableLeads = _leads.filter(l => l.phone && l.grade !== 'C' && !l.dialled);
   if (!callableLeads.length) { showToast('No callable leads to push', 'error'); return; }
   if (!_selectedCampaign) return;
 
   const btn = document.getElementById('push-to-dialer-btn');
-  if (btn) { btn.disabled = true; btn.innerHTML = 'Pushing...'; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Pushing...'; }
 
   try {
     const campName = `Cold Calls - ${_selectedCampaign.name} - ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
     const result = await invokeEdgeFunction('justcall-dialer', {
       action: 'bulk-dial',
-      leads: callableLeads,
+      leads: callableLeads.map(l => ({
+        phone: l.phone,
+        firstName: l.first_name,
+        lastName: l.last_name,
+        email: l.email,
+        companyName: l.company_name,
+      })),
       campaignName: campName,
     });
-    showToast(`${result.added} leads pushed to JustCall campaign "${campName}"`, 'success');
-    if (btn) btn.innerHTML = 'Pushed to JustCall';
+    showToast(`${result.added} leads pushed to JustCall "${campName}"`, 'success');
+    if (btn) btn.textContent = 'Pushed';
   } catch (e) {
-    showToast('Failed to push to dialer: ' + e.message, 'error');
-    if (btn) { btn.disabled = false; btn.innerHTML = 'Push to JustCall Dialer'; }
+    showToast('Failed: ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Push to JustCall'; }
   }
 };
