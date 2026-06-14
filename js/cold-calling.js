@@ -4,20 +4,29 @@ import { esc, svgIcon } from './utils.js?v=20260603a';
 import { render } from './render.js?v=20260603a';
 
 let _campaigns = null;
+let _campaignsLoadedAt = 0;
+let _campaignsLoading = false;
 let _leads = [];
 let _loading = false;
 let _selectedCampaign = null;
 let _dialCount = 0;
 let _dialledIds = new Set();
 
-async function loadCampaigns() {
+const CACHE_TTL = 10 * 60 * 1000;
+
+async function loadCampaigns(force = false) {
+  if (_campaignsLoading) return;
+  if (!force && _campaigns && Date.now() - _campaignsLoadedAt < CACHE_TTL) return;
+  _campaignsLoading = true;
   try {
     const resp = await invokeEdgeFunction('fetch-cold-leads', { action: 'list-campaigns' });
     _campaigns = resp.campaigns || [];
+    _campaignsLoadedAt = Date.now();
   } catch (e) {
     showToast('Failed to load campaigns: ' + e.message, 'error');
-    _campaigns = [];
+    if (!_campaigns) _campaigns = [];
   }
+  _campaignsLoading = false;
 }
 
 async function loadLeads(campaignId, campaignName) {
