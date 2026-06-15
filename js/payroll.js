@@ -141,7 +141,7 @@ export function renderPayroll() {
         ? `${payout.demos.qualified.length} qualified × payout = $${payout.commission}`
         : `$${payout.baseOwed} base + $${payout.commission} leads = $${payout.totalOwed} remaining`;
 
-    html += `<div style="border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px;background:var(--card)">
+    html += `<div data-payroll style="border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px;background:var(--card)">
       <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
         <div>
           <div style="display:flex;align-items:center;gap:8px">

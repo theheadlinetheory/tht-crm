@@ -120,6 +120,13 @@ function pipelineTabsHtml(){
 // ─── render ───
 export function render(){
   try{
+  // Skip re-render if user is typing in a payroll/settings input
+  const focused = document.activeElement;
+  if (focused && (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA' || focused.tagName === 'SELECT')) {
+    const inPayroll = focused.closest && (focused.id?.startsWith('payroll-') || focused.closest('[data-payroll]'));
+    if (inPayroll) return;
+  }
+
   const app=document.getElementById("app");
   // Save scroll position before destroying DOM
   const board=document.querySelector('.board');
