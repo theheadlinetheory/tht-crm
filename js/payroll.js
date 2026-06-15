@@ -398,6 +398,7 @@ export function loadPayrollHistory() {
         <th style="text-align:left;padding:6px 8px">Method</th>
         <th style="text-align:left;padding:6px 8px">Status</th>
         <th style="text-align:left;padding:6px 8px">Notes</th>
+        <th style="padding:6px 8px"></th>
       </tr></thead>
       <tbody>${resp.payments.map(p => {
         const statusBg = p.status === 'Paid' ? '#dcfce7' : p.status === 'Sent' ? '#dbeafe' : '#fef3c7';
@@ -409,6 +410,10 @@ export function loadPayrollHistory() {
           <td style="padding:6px 8px">${esc(p.payment_method)}</td>
           <td style="padding:6px 8px"><span style="padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;background:${statusBg};color:${statusColor}">${esc(p.status)}</span></td>
           <td style="padding:6px 8px;color:var(--text-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis">${esc(p.notes || '')}</td>
+          <td style="padding:6px 8px;white-space:nowrap">
+            <button class="btn btn-ghost" style="font-size:10px;padding:2px 6px" onclick="payrollEditPayment('${p.id}')">Edit</button>
+            <button class="btn btn-ghost" style="font-size:10px;padding:2px 6px;color:#dc2626" onclick="payrollDeletePayment('${p.id}')">Delete</button>
+          </td>
         </tr>`;
       }).join('')}</tbody>
     </table>`;
@@ -419,6 +424,76 @@ export function loadPayrollHistory() {
 }
 
 // ─── Window Handlers ───
+window.payrollEditPayment = async (paymentId) => {
+  const resp = await invokeEdgeFunction('paypal-payout', { action: 'list' });
+  const p = (resp.payments || []).find(x => x.id === paymentId);
+  if (!p) { showToast('Payment not found', 'error'); return; }
+
+  const overlay = document.createElement('div');
+  overlay.id = 'payroll-edit-modal';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:center';
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `<div data-payroll style="background:#fff;border-radius:12px;padding:24px;width:420px;box-shadow:0 8px 30px rgba(0,0,0,.2)">
+    <h3 style="margin:0 0 16px;font-size:16px">Edit Payment</h3>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div><label style="font-size:11px;font-weight:600;color:#6b7280;display:block;margin-bottom:3px">Employee</label><input id="ep-name" value="${p.employee_name}" style="width:100%;padding:6px 10px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:var(--font)"></div>
+      <div style="display:flex;gap:8px">
+        <div style="flex:1"><label style="font-size:11px;font-weight:600;color:#6b7280;display:block;margin-bottom:3px">Amount</label><input id="ep-total" type="number" step="0.01" value="${p.total}" style="width:100%;padding:6px 10px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:var(--font)"></div>
+        <div style="flex:1"><label style="font-size:11px;font-weight:600;color:#6b7280;display:block;margin-bottom:3px">Date</label><input id="ep-date" type="date" value="${p.payment_date}" style="width:100%;padding:6px 10px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:var(--font)"></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <div style="flex:1"><label style="font-size:11px;font-weight:600;color:#6b7280;display:block;margin-bottom:3px">Status</label><select id="ep-status" style="width:100%;padding:6px 10px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:var(--font)">
+          <option value="Pending" ${p.status==='Pending'?'selected':''}>Pending</option>
+          <option value="Sent" ${p.status==='Sent'?'selected':''}>Sent</option>
+          <option value="Paid" ${p.status==='Paid'?'selected':''}>Paid</option>
+        </select></div>
+        <div style="flex:1"><label style="font-size:11px;font-weight:600;color:#6b7280;display:block;margin-bottom:3px">Pay Period</label><input id="ep-period" value="${p.pay_period||''}" placeholder="YYYY-MM" style="width:100%;padding:6px 10px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:var(--font)"></div>
+      </div>
+      <div><label style="font-size:11px;font-weight:600;color:#6b7280;display:block;margin-bottom:3px">Notes</label><input id="ep-notes" value="${p.notes||''}" style="width:100%;padding:6px 10px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:var(--font)"></div>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button class="btn btn-primary" style="flex:1" onclick="payrollSavePaymentEdit('${paymentId}')">Save</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('payroll-edit-modal').remove()">Cancel</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+};
+
+window.payrollSavePaymentEdit = async (paymentId) => {
+  const updates = {
+    employee_name: document.getElementById('ep-name')?.value,
+    total: parseFloat(document.getElementById('ep-total')?.value || '0'),
+    subtotal: parseFloat(document.getElementById('ep-total')?.value || '0'),
+    payment_date: document.getElementById('ep-date')?.value,
+    status: document.getElementById('ep-status')?.value,
+    pay_period: document.getElementById('ep-period')?.value || null,
+    notes: document.getElementById('ep-notes')?.value || null,
+  };
+  try {
+    await supabase.from('employee_payments').update(updates).eq('id', paymentId);
+    document.getElementById('payroll-edit-modal')?.remove();
+    _paymentsLoaded = false;
+    showToast('Payment updated', 'success');
+    loadPayrollHistory();
+    render();
+  } catch (e) {
+    showToast('Update failed: ' + e.message, 'error');
+  }
+};
+
+window.payrollDeletePayment = async (paymentId) => {
+  if (!confirm('Delete this payment record? This cannot be undone.')) return;
+  try {
+    await supabase.from('employee_payments').delete().eq('id', paymentId);
+    _paymentsLoaded = false;
+    showToast('Payment deleted', 'success');
+    loadPayrollHistory();
+    render();
+  } catch (e) {
+    showToast('Delete failed: ' + e.message, 'error');
+  }
+};
+
 window.payrollSetBaseMode = (empId, mode, amount, note) => {
   state['_payrollBaseOnly_' + empId] = mode;
   const amtEl = document.getElementById('payroll-amt-' + empId);
