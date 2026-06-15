@@ -1752,13 +1752,15 @@ window.pushToClientSheet = async function(dealId) {
       }
     }
     btn.innerHTML = '<span style="color:#059669">✓ Pushed to Client Sheet</span>';
-    showToast('Lead pushed to ' + (result.client || 'client') + "'s sheet", 'success');
+    const { showToast: toast } = await import('./api.js?v=20260603a');
+    toast('Lead pushed to ' + (result.client || 'client') + "'s sheet", 'success');
     setTimeout(() => refreshModal(), 1000);
   } catch (e) {
     const msg = e.name === 'AbortError' ? 'Request timed out' : (e.message || 'Unknown error');
     btn.innerHTML = origText;
     btn.disabled = false;
-    showToast('Push failed: ' + msg, 'error');
+    const { showToast: toast2 } = await import('./api.js?v=20260603a');
+    toast2('Push failed: ' + msg, 'error');
     alert('Client sheet push failed: ' + msg);
   }
 };
