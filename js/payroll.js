@@ -259,6 +259,17 @@ export function renderPayroll() {
       }
     }
 
+    if (emp.pay_type === 'commission' && payout.source === 'lead_tracker') {
+      const halfBase = Number(emp.base_pay) || 0;
+      const fullBase = halfBase * 2;
+      const baseMode = state['_payrollBaseOnly_' + emp.id] || '';
+      html += `<div style="display:flex;gap:6px;margin-bottom:8px">
+        <button class="btn ${!baseMode?'btn-primary':'btn-ghost'}" style="font-size:11px;padding:4px 12px" onclick="payrollSetBaseMode('${emp.id}','',${displayTotal},'${MONTHS[month-1]} ${year}')">Full ($${displayTotal})</button>
+        <button class="btn ${baseMode==='half'?'btn-primary':'btn-ghost'}" style="font-size:11px;padding:4px 12px" onclick="payrollSetBaseMode('${emp.id}','half',${halfBase},'${MONTHS[month-1]} 1-15 base')">Half Base ($${halfBase})</button>
+        <button class="btn ${baseMode==='full_base'?'btn-primary':'btn-ghost'}" style="font-size:11px;padding:4px 12px" onclick="payrollSetBaseMode('${emp.id}','full_base',${fullBase},'${MONTHS[month-1]} base (full)')">Full Base ($${fullBase})</button>
+      </div>`;
+    }
+
     html += `<div style="display:flex;gap:8px;align-items:end">
         <div style="flex:1">
           <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px">Amount</label>
@@ -398,6 +409,13 @@ export function loadPayrollHistory() {
 }
 
 // ─── Window Handlers ───
+window.payrollSetBaseMode = (empId, mode, amount, note) => {
+  state['_payrollBaseOnly_' + empId] = mode;
+  const amtEl = document.getElementById('payroll-amt-' + empId);
+  const noteEl = document.getElementById('payroll-note-' + empId);
+  if (amtEl) amtEl.value = amount;
+  if (noteEl) noteEl.value = note;
+};
 window.payrollSetMonth = (m) => { state._payrollMonth = m; render(); };
 window.payrollSetYear = (y) => { state._payrollYear = y; render(); };
 
