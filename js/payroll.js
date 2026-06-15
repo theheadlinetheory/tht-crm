@@ -259,6 +259,16 @@ export function renderPayroll() {
       }
     }
 
+    if (emp.pay_type === 'salary') {
+      const fullSalary = Number(emp.monthly_salary) || 0;
+      const halfSalary = Math.round(fullSalary / 2 * 100) / 100;
+      const salaryMode = state['_payrollBaseOnly_' + emp.id] || '';
+      html += `<div style="display:flex;gap:6px;margin-bottom:8px">
+        <button class="btn ${!salaryMode?'btn-primary':'btn-ghost'}" style="font-size:11px;padding:4px 12px" onclick="payrollSetBaseMode('${emp.id}','',${fullSalary},'${MONTHS[month-1]} ${year}')">Full ($${fullSalary})</button>
+        <button class="btn ${salaryMode==='half'?'btn-primary':'btn-ghost'}" style="font-size:11px;padding:4px 12px" onclick="payrollSetBaseMode('${emp.id}','half',${halfSalary},'${MONTHS[month-1]} 1-15')">Half ($${halfSalary})</button>
+      </div>`;
+    }
+
     if (emp.pay_type === 'commission' && payout.source === 'lead_tracker') {
       const halfBase = Number(emp.base_pay) || 0;
       const fullBase = halfBase * 2;
