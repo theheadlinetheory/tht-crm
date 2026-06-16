@@ -190,7 +190,7 @@ export function detectCountry(deal) {
 export const ACQ_CALENDLY_URLS = {
   demo:'https://calendly.com/aidan-theheadlinetheory/demo-call-with-the-headline-theory',
   strategy:'https://calendly.com/aidan-theheadlinetheory/discovery-call-with-the-headline-theory-clone',
-  strategy_ioannis:'https://calendly.com/contact-theheadlinetheory/discovery-call-with-the-headline-theory-clone'
+  strategy_ioannis:'https://calendly.com/contact-theheadlinetheory/strategy-call-with-the-headline-theory'
 };
 
 // ─── Timezone mapping for Calendly ───
