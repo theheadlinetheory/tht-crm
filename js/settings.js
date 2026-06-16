@@ -113,6 +113,10 @@ export function debouncedAutoSave(){
           enableCopyInfo:str(c.enableCopyInfo),
           enableTracker:str(c.enableTracker),
           leadCost:str(c.leadCost),
+          setupFeeTotal:str(c.setupFeeTotal||''),
+          setupFeeDeposit:str(c.setupFeeDeposit||''),
+          setupFeeSpreadCount:str(c.setupFeeSpreadCount||''),
+          setupFeeLeadsBilled:str(c.setupFeeLeadsBilled||''),
           invoiceEmails:str(c.invoiceEmails||''),
           paymentTerms:str(c.paymentTerms||'Net 7'),
           clientNotes:str(c.clientNotes||''),
@@ -587,6 +591,43 @@ function renderClientsSettings(){
           <option value="Net 15" ${str(c.paymentTerms||'Net 7')==='Net 15'?'selected':''}>Net 15</option>
           <option value="Net 30" ${str(c.paymentTerms||'Net 7')==='Net 30'?'selected':''}>Net 30</option>
         </select>
+      </div>
+
+      <div style="margin-bottom:8px;padding:10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px">
+        <div style="font-size:10px;font-weight:700;color:#0369a1;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Setup Fee Installments</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <div>
+            <label style="font-size:10px;color:var(--text-muted);display:block;margin-bottom:2px">Total Fee</label>
+            <input type="number" step="0.01" placeholder="0" value="${str(c.setupFeeTotal)||''}"
+              oninput="updateClientField('${esc(c.id)}','setupFeeTotal',this.value)"
+              style="width:90px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font)">
+          </div>
+          <div>
+            <label style="font-size:10px;color:var(--text-muted);display:block;margin-bottom:2px">Deposit Paid</label>
+            <input type="number" step="0.01" placeholder="0" value="${str(c.setupFeeDeposit)||''}"
+              oninput="updateClientField('${esc(c.id)}','setupFeeDeposit',this.value)"
+              style="width:90px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font)">
+          </div>
+          <div>
+            <label style="font-size:10px;color:var(--text-muted);display:block;margin-bottom:2px">Spread Over # Leads</label>
+            <input type="number" placeholder="0" value="${str(c.setupFeeSpreadCount)||''}"
+              oninput="updateClientField('${esc(c.id)}','setupFeeSpreadCount',this.value)"
+              style="width:70px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font)">
+          </div>
+          <div>
+            <label style="font-size:10px;color:var(--text-muted);display:block;margin-bottom:2px">Leads Billed</label>
+            <input type="number" placeholder="0" value="${str(c.setupFeeLeadsBilled)||''}"
+              oninput="updateClientField('${esc(c.id)}','setupFeeLeadsBilled',this.value)"
+              style="width:70px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font)">
+          </div>
+        </div>
+        ${(()=>{
+          const total=Number(c.setupFeeTotal)||0;const deposit=Number(c.setupFeeDeposit)||0;const spread=Number(c.setupFeeSpreadCount)||0;const billed=Number(c.setupFeeLeadsBilled)||0;
+          if(!total||!spread) return '';
+          const remaining=total-deposit;const perLead=Math.round(remaining/spread*100)/100;const leadCost=Number(c.leadCost)||0;
+          const left=Math.max(0,spread-billed);
+          return '<div style="font-size:11px;color:#0369a1;margin-top:6px">$'+remaining+' remaining / '+spread+' leads = <strong>$'+perLead+'/lead</strong> added to first '+spread+' leads ($'+(leadCost+perLead)+' total). '+left+' installment'+(left!==1?'s':'')+' left.</div>';
+        })()}
       </div>`:''}
 
       ${isOn('enableCalendly')?`<div style="margin-bottom:8px">
@@ -1141,6 +1182,10 @@ export async function saveSettingsToSheet(){
         enableTracker:str(c.enableTracker),
         enablePassoff:str(c.enablePassoff),
         leadCost:str(c.leadCost),
+        setupFeeTotal:str(c.setupFeeTotal||''),
+        setupFeeDeposit:str(c.setupFeeDeposit||''),
+        setupFeeSpreadCount:str(c.setupFeeSpreadCount||''),
+        setupFeeLeadsBilled:str(c.setupFeeLeadsBilled||''),
         invoiceEmails:str(c.invoiceEmails||''),
         paymentTerms:str(c.paymentTerms||'Net 7'),
         clientNotes:str(c.clientNotes||''),
