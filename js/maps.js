@@ -248,9 +248,17 @@ export function renderServiceAreaMap(containerId, dealId, opts){
   }
 
   // Fix tiles not loading when container isn't fully rendered yet
-  setTimeout(()=>{ map.invalidateSize(); },200);
-  setTimeout(()=>{ map.invalidateSize(); },500);
-  setTimeout(()=>{ map.invalidateSize(); },1000);
+  const refit = () => {
+    map.invalidateSize();
+    if(polyLayers.length){
+      try { map.fitBounds(L.featureGroup(polyLayers).getBounds().pad(0.1)); } catch(_e){}
+    } else if(hasPin) {
+      map.setView([lat, lng], defaultZoom);
+    }
+  };
+  setTimeout(refit, 200);
+  setTimeout(refit, 500);
+  setTimeout(refit, 1000);
 
   return map;
 }
