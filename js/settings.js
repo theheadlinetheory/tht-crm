@@ -514,6 +514,9 @@ function renderClientsSettings(){
         <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid ${isOn('enableCrmLink')?'#0891b2':'var(--border)'};border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableCrmLink')?'#ecfeff':'var(--card)'}">
           <input type="checkbox" ${isOn('enableCrmLink')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableCrmLink',this.checked)"> ${svgIcon('link',12)} CRM Link in Email
         </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid ${isOn('hasInboxMgmt')?'#059669':'var(--border)'};border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('hasInboxMgmt')?'#ecfdf5':'var(--card)'}">
+          <input type="checkbox" ${isOn('hasInboxMgmt')?'checked':''} onchange="toggleClientField('${esc(c.id)}','hasInboxMgmt',this.checked)"> ${svgIcon('bell',12)} Reply Notifications
+        </label>
         <div style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--card)">
           ${svgIcon('clock',12)}
           <select onchange="updateClientField('${esc(c.id)}','timeZone',this.value);debouncedAutoSave()"
