@@ -86,10 +86,11 @@ export async function batchGeocode(addresses){
   const usAddrs = [];
   const caAddrs = [];
   const intlAddrs = [];
+  const AU_PATTERN = /\b(nsw|vic|qld|tas|act|sa|wa|nt)\s+\d{4}\b|,\s*australia\s*$|\.com\.au\b/i;
   for(const addr of toGeocode){
     if(CA_PROVINCES.test(addr) || CA_POSTAL.test(addr) || CA_CITIES.test(addr)){
       caAddrs.push(addr);
-    } else if(/,\s*(australia|united kingdom|uk|new zealand)\s*$/i.test(addr)){
+    } else if(/,\s*(australia|united kingdom|uk|new zealand)\s*$/i.test(addr) || AU_PATTERN.test(addr)){
       intlAddrs.push(addr);
     } else {
       usAddrs.push(addr);
