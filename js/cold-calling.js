@@ -1,7 +1,8 @@
-import { state } from './app.js?v=20260603a';
-import { invokeEdgeFunction, showToast } from './api.js?v=20260603a';
-import { esc, svgIcon } from './utils.js?v=20260603a';
-import { render } from './render.js?v=20260603a';
+import { state } from './app.js?v=20260616a';
+import { invokeEdgeFunction, showToast } from './api.js?v=20260616a';
+import { esc, svgIcon } from './utils.js?v=20260616a';
+import { render } from './render.js?v=20260616a';
+import { renderPowerDialer } from './power-dialer.js?v=20260616a';
 
 let _campaigns = null;
 let _leads = [];
@@ -65,12 +66,24 @@ async function syncLeads(campaignId, campaignName) {
 }
 
 export function renderColdCallingTab() {
-  if (!_campaigns) {
-    loadCampaigns().then(() => render());
-    return '<div style="padding:40px;text-align:center;color:var(--text-muted)">Loading campaigns...</div>';
-  }
+  const mode = state.coldCallMode || 'smartlead';
+  const toggleCs = 'padding:5px 14px;font-size:11px;font-weight:600;font-family:var(--font);cursor:pointer;border:1px solid var(--border);transition:all .15s';
 
   let h = '<div style="max-width:1200px;margin:0 auto;padding:16px 20px">';
+  h += `<div style="display:flex;gap:0;margin-bottom:16px">
+    <button onclick="state.coldCallMode='smartlead';render()" style="${toggleCs};border-radius:6px 0 0 6px;${mode === 'smartlead' ? 'background:var(--purple);color:#fff;border-color:var(--purple)' : 'background:#fff;color:var(--text-muted)'}">SmartLead Leads</button>
+    <button onclick="state.coldCallMode='power_dialer';render()" style="${toggleCs};border-radius:0 6px 6px 0;border-left:0;${mode === 'power_dialer' ? 'background:var(--purple);color:#fff;border-color:var(--purple)' : 'background:#fff;color:var(--text-muted)'}">Power Dialer</button>
+  </div>`;
+
+  if (mode === 'power_dialer') {
+    return h + renderPowerDialer() + '</div>';
+  }
+
+  // SmartLead mode below
+  if (!_campaigns) {
+    loadCampaigns().then(() => render());
+    return h + '<div style="padding:40px;text-align:center;color:var(--text-muted)">Loading campaigns...</div></div>';
+  }
 
   h += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
     <div style="display:flex;align-items:center;gap:12px">
