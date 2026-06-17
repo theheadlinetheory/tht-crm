@@ -8,7 +8,7 @@
 // This module provides the functions that operate on that data.
 
 import { state, pendingWrites } from './app.js?v=20260616a';
-import { GEOCODIO_KEY, CA_PROVINCES, CA_POSTAL, CA_CITIES, detectCountry } from './config.js?v=20260616a';
+import { GEOCODIO_KEY, GOOGLE_MAPS_API_KEY, CA_PROVINCES, CA_POSTAL, CA_CITIES, detectCountry } from './config.js?v=20260616a';
 import { render, refreshModal } from './render.js?v=20260616a';
 // api.js imports removed — no direct API calls in this module
 import { str, esc } from './utils.js?v=20260616a';
@@ -118,15 +118,16 @@ export async function batchGeocode(addresses){
     } catch(e){ console.warn('Geocodio batch error:', e); }
   }
 
-  // Geocode Canadian + international addresses one-by-one via Nominatim
+  // Geocode Canadian + international addresses via Google Maps Geocoding API
   for(const addr of caAddrs.concat(intlAddrs)){
     try {
-      const resp = await fetch('https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(addr));
+      const resp = await fetch('https://maps.googleapis.com/maps/api/geocode/json?address='+encodeURIComponent(addr)+'&key='+GOOGLE_MAPS_API_KEY);
       const data = await resp.json();
-      if(data && data.length){
-        geocodeCache[addr]={lat:parseFloat(data[0].lat),lng:parseFloat(data[0].lon)};
+      if(data.results && data.results.length){
+        const loc = data.results[0].geometry.location;
+        geocodeCache[addr]={lat:loc.lat,lng:loc.lng};
       }
-    } catch(e){ console.warn('Nominatim error for', addr, e); }
+    } catch(e){ console.warn('Google geocode error for', addr, e); }
   }
 
   saveGeocodeCache();
