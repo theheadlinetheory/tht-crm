@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // EMAIL — Forward to client, lead tracker push, send to thread
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20260603a';
-import { render, refreshModal } from './render.js?v=20260603a';
-import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20260603a';
-import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20260603a';
-import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20260603a';
-import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20260603a';
-import { CRM_BASE_URL } from './config.js?v=20260603a';
+import { state, pendingWrites } from './app.js?v=20260616a';
+import { render, refreshModal } from './render.js?v=20260616a';
+import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20260616a';
+import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20260616a';
+import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20260616a';
+import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20260616a';
+import { CRM_BASE_URL } from './config.js?v=20260616a';
 
 function formatEmailBody(html){
   if(!html) return '';
@@ -86,7 +86,7 @@ function showForwardPreview(deal, client){
       </table>
       <div style="margin-top:20px">
         ${smartleadUrl?`<span style="display:inline-block;background:#2563eb;color:#fff;padding:10px 24px;border-radius:6px;font-weight:bold;font-size:14px">Click to Reply \u2192</span>`:''}
-        <span style="display:inline-block;background:#fff;color:#2563eb;padding:10px 24px;border-radius:6px;font-weight:bold;font-size:14px;border:2px solid #2563eb;margin-left:8px">View in CRM \u2192</span>
+        ${str(client.enableCrmLink).toUpperCase()==='TRUE'?`<span style="display:inline-block;background:#fff;color:#2563eb;padding:10px 24px;border-radius:6px;font-weight:bold;font-size:14px;border:2px solid #2563eb;margin-left:8px">View in CRM \u2192</span>`:''}
       </div>
       <p style="margin-top:20px;color:#888;font-size:12px">Go get em while they're hot!</p>
     </div>`;
@@ -191,7 +191,7 @@ export async function autoPushToTracker(deal){
   const month = `${months[billingDate.getMonth()]}/${String(billingDate.getFullYear()).slice(-2)}`;
 
   // Insert into lead_tracker table
-  const { sbCreateTrackerEntry, normalizeRow } = await import('./api.js?v=20260603a');
+  const { sbCreateTrackerEntry, normalizeRow } = await import('./api.js?v=20260616a');
   const entry = await sbCreateTrackerEntry({
     deal_id: deal.id,
     client_name: clientName,
@@ -280,7 +280,7 @@ export async function openPassOffPreview(dealId, clientName){
       ${emailBody?`<div style="margin:16px 0;padding:12px 16px;background:#f3f4f6;border-left:3px solid #4f46e5;border-radius:4px;font-size:13px;color:#374151;overflow-y:auto;max-height:300px"><strong>Their reply:</strong><br>${formatEmailBody(emailBody)}</div>`:''}
       <div style="margin-top:20px">
         ${smartleadUrl?`<span style="display:inline-block;background:#2563eb;color:#fff;padding:10px 24px;border-radius:6px;font-weight:bold;font-size:14px">Click to Reply →</span>`:''}
-        <span style="display:inline-block;background:#fff;color:#2563eb;padding:10px 24px;border-radius:6px;font-weight:bold;font-size:14px;border:2px solid #2563eb;margin-left:8px">View in CRM →</span>
+        ${str(client.enableCrmLink).toUpperCase()==='TRUE'?`<span style="display:inline-block;background:#fff;color:#2563eb;padding:10px 24px;border-radius:6px;font-weight:bold;font-size:14px;border:2px solid #2563eb;margin-left:8px">View in CRM →</span>`:''}
       </div>
       <p style="margin-top:20px;color:#888;font-size:12px">Go get em while they're hot!</p>
     </div>`;
@@ -353,7 +353,7 @@ export async function executePassOff(dealId, clientName){
     }
 
     if(btn) btn.textContent='Archiving...';
-    const { deleteDeal }=await import('./deals.js?v=20260603a');
+    const { deleteDeal }=await import('./deals.js?v=20260616a');
     await deleteDeal(dealId,'Passed Off',clientName);
 
     document.getElementById('passoff-preview-overlay')?.remove();

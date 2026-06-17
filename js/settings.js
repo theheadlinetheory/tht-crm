@@ -2,15 +2,15 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260603a';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260603a';
-import { render } from './render.js?v=20260603a';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbUpdateClientConfig, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast } from './api.js?v=20260603a';
-import { esc, str, svgIcon } from './utils.js?v=20260603a';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js?v=20260603a';
-import { lookupClientInfo, getClientConfig, loadClientConfig } from './client-info.js?v=20260603a';
-import { findPolygonForClient } from './maps.js?v=20260603a';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260603a';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260616a';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260616a';
+import { render } from './render.js?v=20260616a';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbUpdateClientConfig, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast } from './api.js?v=20260616a';
+import { esc, str, svgIcon } from './utils.js?v=20260616a';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js?v=20260616a';
+import { lookupClientInfo, getClientConfig, loadClientConfig } from './client-info.js?v=20260616a';
+import { findPolygonForClient } from './maps.js?v=20260616a';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260616a';
 
 export function getDefaultSettings(){
   return {
@@ -510,6 +510,9 @@ function renderClientsSettings(){
         </label>
         <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid ${isOn('enablePassoff')?'#7c3aed':'var(--border)'};border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enablePassoff')?'#f5f3ff':'var(--card)'}">
           <input type="checkbox" ${isOn('enablePassoff')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enablePassoff',this.checked);if(this.checked)toggleClientField('${esc(c.id)}','enableTracker',false)"> ${svgIcon('send',12)} Pass-Off Mode
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid ${isOn('enableCrmLink')?'#0891b2':'var(--border)'};border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableCrmLink')?'#ecfeff':'var(--card)'}">
+          <input type="checkbox" ${isOn('enableCrmLink')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableCrmLink',this.checked)"> ${svgIcon('link',12)} CRM Link in Email
         </label>
         <div style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--card)">
           ${svgIcon('clock',12)}
@@ -1236,7 +1239,7 @@ export async function createNewUser(){
   msg.style.display='none';
 
   try {
-    const { auth } = await import('./auth.js?v=20260603a');
+    const { auth } = await import('./auth.js?v=20260616a');
     const cred = await auth.createUserWithEmailAndPassword(email, pass);
     await cred.user.updateProfile({ displayName: name });
     await db.collection('users').doc(cred.user.uid).set({
@@ -1548,7 +1551,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260603a');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260616a');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);
