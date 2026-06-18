@@ -8,34 +8,10 @@ import { render as _render } from './render.js?v=20260618e';
 function render() { state._pdRenderRequested = true; _render(); }
 import { getBestNumberForLead, loadNumberHealth } from './number-health.js?v=20260618e';
 import { currentUser } from './auth.js?v=20260618e';
-import { JUSTCALL_USER_MAP, ACQ_CALENDLY_URLS } from './config.js?v=20260618e';
-import { openCalendlyEmbed } from './calendly.js?v=20260618e';
+import { JUSTCALL_USER_MAP } from './config.js?v=20260618e';
 import { renderList, renderSetup, renderDialer, renderAnalytics, STANDARD_FIELDS, DISPOSITIONS, formatPhone, fmtDuration } from './pd-views.js?v=20260618e';
-
-const COUNTRY_CODES = [
-  { code: '1', label: 'US / Canada (+1)', national: 10 },
-  { code: '44', label: 'United Kingdom (+44)', national: 10 },
-  { code: '61', label: 'Australia (+61)', national: 9 },
-  { code: '64', label: 'New Zealand (+64)', national: 9 },
-  { code: '91', label: 'India (+91)', national: 10 },
-  { code: '49', label: 'Germany (+49)', national: 11 },
-  { code: '33', label: 'France (+33)', national: 9 },
-  { code: '52', label: 'Mexico (+52)', national: 10 },
-  { code: '55', label: 'Brazil (+55)', national: 11 },
-  { code: '971', label: 'UAE (+971)', national: 9 },
-];
-
-const AUTO_DETECT = {
-  'phone': ['phone', 'mobile phone', 'mobile', 'phone number', 'cell', 'telephone'],
-  'name': ['name', 'first name', 'firstname', 'contact', 'contact name'],
-  'company': ['company', 'organization', 'org', 'company name', 'business'],
-  'email': ['email', 'email address', 'email business', 'e-mail'],
-  'linkedin': ['linkedin', 'linkedin url', 'profile url', 'linkedin/profile url'],
-  'lead_source': ['lead source', 'source', 'mx records', 'origin'],
-  'address': ['address', 'location', 'city', 'state'],
-  'occupation': ['occupation', 'title', 'job title', 'role', 'position'],
-  'alternate_phone': ['alternate phone', 'alt phone', 'secondary phone', 'other phone'],
-};
+import { initMiniMap, cleanupMaps, showCampaignSettings, showScriptEditor, bookCall, showStrategyPicker } from './pd-actions.js?v=20260618e';
+import { COUNTRY_CODES, parseCSV, autoDetectMapping, normalizePhone, splitPhones, buildContacts } from './pd-csv.js?v=20260618e';
 
 // ─── Module State ───
 let _campaigns = null;
@@ -60,51 +36,6 @@ let _showDisposition = false;
 let _leadCreated = false;
 let _saving = false;
 let _callHistory = null;
-let _miniMap = null;
-let _miniMapAddr = '';
-
-function initMiniMap() {
-  const el = document.getElementById('pd-mini-map');
-  if (!el) return;
-  const addr = el.dataset.addr;
-  if (!addr || addr === _miniMapAddr) return;
-  _miniMapAddr = addr;
-  if (_miniMap) { _miniMap.remove(); _miniMap = null; }
-  fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addr)}&format=json&limit=1`)
-    .then(r => r.json()).then(results => {
-      if (!results.length || !document.getElementById('pd-mini-map')) return;
-      const lat = parseFloat(results[0].lat), lng = parseFloat(results[0].lon);
-      _miniMap = L.map('pd-mini-map', { zoomControl: false, attributionControl: false, scrollWheelZoom: true }).setView([lat, lng], 12);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(_miniMap);
-      L.marker([lat, lng]).addTo(_miniMap);
-    }).catch(() => {});
-}
-
-window.pdExpandMap = () => {
-  const el = document.getElementById('pd-mini-map');
-  const addr = el?.dataset.addr;
-  if (!addr) return;
-  const div = document.createElement('div');
-  div.id = 'pd-map-expand';
-  div.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,.6);display:flex;justify-content:center;align-items:center';
-  div.onclick = (e) => { if (e.target === div) div.remove(); };
-  div.innerHTML = `<div style="background:#fff;border-radius:12px;overflow:hidden;width:700px;height:500px;box-shadow:0 8px 30px rgba(0,0,0,.3);display:flex;flex-direction:column">
-    <div style="padding:10px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)">
-      <span style="font-size:13px;font-weight:600">${addr}</span>
-      <button onclick="document.getElementById('pd-map-expand').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted)">&times;</button>
-    </div>
-    <div id="pd-expand-map-container" style="flex:1"></div>
-  </div>`;
-  document.body.appendChild(div);
-  fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addr)}&format=json&limit=1`)
-    .then(r => r.json()).then(results => {
-      if (!results.length) return;
-      const lat = parseFloat(results[0].lat), lng = parseFloat(results[0].lon);
-      const map = L.map('pd-expand-map-container', { scrollWheelZoom: true }).setView([lat, lng], 13);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
-      L.marker([lat, lng]).addTo(map);
-    }).catch(() => {});
-};
 
 // ─── Data Access ───
 
@@ -122,6 +53,18 @@ async function loadQueue(campaignId) {
     .range(0, 49);
   if (error) { showToast('Failed to load contacts: ' + error.message, 'error'); return; }
   _queue = (data || []).filter(c => (c.phone || '').replace(/\D/g, '').length >= 7 || (c.alternate_phone || '').replace(/\D/g, '').length >= 7);
+  for (const c of _queue) {
+    if (c.phone && c.phone.includes(',')) {
+      const parts = c.phone.split(',').map(p => p.trim()).filter(Boolean);
+      const cc = _activeCampaign?.field_mapping?._countryCode;
+      c.phone = normalizePhone(parts[0], cc);
+      if (!c.alternate_phone && parts.length > 1) c.alternate_phone = normalizePhone(parts[1], cc);
+    }
+    if ((c.phone || '').replace(/\D/g, '').length < 7 && (c.alternate_phone || '').replace(/\D/g, '').length >= 7) {
+      c.phone = c.alternate_phone;
+      c.alternate_phone = '';
+    }
+  }
   _queueIndex = 0;
 }
 
@@ -164,100 +107,6 @@ async function skipContact(contact) {
   _activeCampaign.skipped_contacts = (_activeCampaign.skipped_contacts || 0) + 1;
 }
 
-// ─── CSV Parsing ───
-
-function parseCSV(text) {
-  const rows = [];
-  let row = [], field = '', inQuotes = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    if (inQuotes) {
-      if (ch === '"' && text[i + 1] === '"') { field += '"'; i++; }
-      else if (ch === '"') inQuotes = false;
-      else field += ch;
-    } else {
-      if (ch === '"') inQuotes = true;
-      else if (ch === ',') { row.push(field.trim()); field = ''; }
-      else if (ch === '\n' || (ch === '\r' && text[i + 1] === '\n')) {
-        if (ch === '\r') i++;
-        row.push(field.trim()); field = '';
-        if (row.some(c => c)) rows.push(row);
-        row = [];
-      } else field += ch;
-    }
-  }
-  row.push(field.trim());
-  if (row.some(c => c)) rows.push(row);
-  if (rows.length < 2) return { headers: [], rows: [] };
-  return { headers: rows[0], rows: rows.slice(1) };
-}
-
-function autoDetectMapping(headers) {
-  const mapping = {};
-  for (const field of STANDARD_FIELDS) {
-    const aliases = AUTO_DETECT[field.key] || [];
-    const match = headers.find(h => aliases.includes(h.toLowerCase().trim()));
-    if (match) mapping[field.key] = match;
-  }
-  return mapping;
-}
-
-function buildContacts(headers, rows, mapping, customFields, countryCode) {
-  const mappedHeaders = new Set(Object.values(mapping));
-  const validCustom = (customFields || []).filter(cf => cf.label.trim() && cf.csvHeader);
-  validCustom.forEach(cf => mappedHeaders.add(cf.csvHeader));
-  const contacts = [];
-  let skippedNoPhone = 0;
-  for (const row of rows) {
-    const contact = {};
-    for (const [fieldKey, csvHeader] of Object.entries(mapping)) {
-      const idx = headers.indexOf(csvHeader);
-      if (idx >= 0) contact[fieldKey] = row[idx] || '';
-    }
-    const extraPhones = splitPhones(contact.phone, countryCode);
-    if (extraPhones?.length && !contact.alternate_phone) {
-      contact.alternate_phone = extraPhones[0];
-    }
-    contact.phone = normalizePhone(contact.phone, countryCode);
-    if (contact.alternate_phone) contact.alternate_phone = normalizePhone(contact.alternate_phone, countryCode);
-    const primaryDigits = (contact.phone || '').replace(/\D/g, '');
-    const altDigits = (contact.alternate_phone || '').replace(/\D/g, '');
-    if (primaryDigits.length < 7 && altDigits.length < 7) { skippedNoPhone++; continue; }
-    if (primaryDigits.length < 7 && altDigits.length >= 7) {
-      contact.phone = contact.alternate_phone;
-      contact.alternate_phone = '';
-    }
-    const custom = {};
-    for (const cf of validCustom) {
-      const idx = headers.indexOf(cf.csvHeader);
-      if (idx >= 0) custom[cf.key] = row[idx] || '';
-    }
-    headers.forEach((h, i) => { if (!mappedHeaders.has(h) && row[i]) custom[h] = row[i]; });
-    if (Object.keys(custom).length) contact.custom_fields = custom;
-    contacts.push(contact);
-  }
-  if (skippedNoPhone) buildContacts._skippedNoPhone = skippedNoPhone;
-  else buildContacts._skippedNoPhone = 0;
-  return contacts;
-}
-
-function normalizePhone(phone, cc) {
-  const code = cc || _activeCampaign?.field_mapping?._countryCode || '1';
-  const raw = (phone || '').split(',')[0].trim();
-  const d = raw.replace(/\D/g, '');
-  if (!d) return '';
-  if (d.startsWith(code)) return '+' + d;
-  const info = COUNTRY_CODES.find(c => c.code === code);
-  if (info && d.length === info.national) return '+' + code + d;
-  return '+' + code + d;
-}
-
-function splitPhones(phone, cc) {
-  const parts = (phone || '').split(',').map(p => p.trim()).filter(Boolean);
-  if (parts.length <= 1) return null;
-  return parts.slice(1).map(p => normalizePhone(p, cc));
-}
-
 // ─── Duration Timer ───
 
 function startTimer() {
@@ -281,8 +130,7 @@ function stopTimer() {
 
 function advanceToNext() {
   _showDisposition = false; _leadCreated = false;
-  _miniMapAddr = '';
-  if (_miniMap) { _miniMap.remove(); _miniMap = null; }
+  cleanupMaps();
   _queue.splice(_queueIndex, 1);
   if (_queueIndex >= _queue.length) _queueIndex = 0;
   if (!_queue.length) loadQueue(_activeCampaign.id).then(() => render());
@@ -392,7 +240,7 @@ window.pdHandleFile = (file) => {
     const { headers, rows } = parseCSV(e.target.result);
     if (!headers.length) { showToast('CSV appears empty', 'error'); return; }
     _csvHeaders = headers; _csvRows = rows; _csvFileName = file.name;
-    _fieldMapping = autoDetectMapping(headers); render();
+    _fieldMapping = autoDetectMapping(headers, STANDARD_FIELDS); render();
   };
   reader.readAsText(file);
 };
@@ -437,56 +285,7 @@ window.pdShowAnalytics = (id) => {
   _activeCampaign = campaign; _view = 'analytics'; _callHistory = null; render();
 };
 
-window.pdCampaignSettings = (id) => {
-  const campaign = _campaigns?.find(c => c.id === id);
-  if (!campaign) return;
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
-  overlay.onclick = () => overlay.remove();
-  const scriptVal = (campaign.script || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-  overlay.innerHTML = `<div class="modal" style="width:560px" onclick="event.stopPropagation()">
-    <div class="modal-header"><h3>Campaign Settings</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button></div>
-    <div class="modal-body">
-      <div style="margin-bottom:14px">
-        <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Campaign Name</label>
-        <input id="pd-settings-name" type="text" value="${campaign.name.replace(/"/g, '&quot;')}" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
-      </div>
-      <div style="margin-bottom:14px">
-        <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Call Script</label>
-        <textarea id="pd-settings-script" rows="10" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);line-height:1.6;resize:vertical">${scriptVal}</textarea>
-        <p style="font-size:10px;color:var(--text-muted);margin-top:4px">Use {{NAME}}, {{COMPANY}}, {{ADDRESS}} for merge fields</p>
-      </div>
-      <div style="margin-bottom:14px">
-        <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Status</label>
-        <select id="pd-settings-status" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
-          <option value="active"${campaign.status==='active'?' selected':''}>Active</option>
-          <option value="paused"${campaign.status==='paused'?' selected':''}>Paused</option>
-          <option value="completed"${campaign.status==='completed'?' selected':''}>Completed</option>
-        </select>
-      </div>
-    </div>
-    <div class="modal-footer" style="justify-content:flex-end;gap:8px">
-      <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
-      <button class="btn btn-primary" onclick="pdSaveCampaignSettings('${id}')">Save</button>
-    </div>
-  </div>`;
-  document.body.appendChild(overlay);
-};
-
-window.pdSaveCampaignSettings = async (id) => {
-  const name = document.getElementById('pd-settings-name')?.value?.trim();
-  const script = document.getElementById('pd-settings-script')?.value;
-  const status = document.getElementById('pd-settings-status')?.value;
-  if (!name) { showToast('Name is required', 'error'); return; }
-  const updates = { name, script, status };
-  const { error } = await supabase.from('dialer_campaigns').update(updates).eq('id', id);
-  if (error) { showToast('Save failed: ' + error.message, 'error'); return; }
-  const c = _campaigns?.find(c => c.id === id);
-  if (c) { Object.assign(c, updates); }
-  document.querySelector('.modal-overlay')?.remove();
-  showToast('Campaign settings saved', 'success');
-  render();
-};
+window.pdCampaignSettings = (id) => showCampaignSettings(id, _campaigns, render);
 
 window.pdLoadHistory = async (campaignId) => {
   const { data } = await supabase.from('dialer_contacts')
@@ -562,57 +361,9 @@ window.pdCreateLead = async () => {
   } catch (e) { showToast('Failed to create lead: ' + e.message, 'error'); }
 };
 
-window.pdEditScript = () => {
-  if (!_activeCampaign) return;
-  const existing = document.getElementById('pd-script-editor');
-  if (existing) { existing.remove(); return; }
-  const div = document.createElement('div');
-  div.id = 'pd-script-editor';
-  div.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:center';
-  div.onclick = (e) => { if (e.target === div) div.remove(); };
-  div.innerHTML = `<div style="background:#fff;border-radius:12px;padding:24px;width:560px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 30px rgba(0,0,0,.2)">
-    <h3 style="margin:0 0 12px;font-size:16px">Edit Call Script</h3>
-    <p style="font-size:11px;color:var(--text-muted);margin:0 0 12px">Use {name}, {company}, {address} for merge fields.</p>
-    <textarea id="pd-script-edit-ta" style="width:100%;height:250px;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:var(--font);line-height:1.6;resize:vertical;box-sizing:border-box">${_activeCampaign.script || ''}</textarea>
-    <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">
-      <button class="btn btn-ghost" style="font-size:12px" onclick="document.getElementById('pd-script-editor').remove()">Cancel</button>
-      <button class="btn btn-primary" style="font-size:12px" onclick="pdSaveScript()">Save</button>
-    </div>
-  </div>`;
-  document.body.appendChild(div);
-};
-
-window.pdSaveScript = async () => {
-  const ta = document.getElementById('pd-script-edit-ta');
-  if (!ta || !_activeCampaign) return;
-  const script = ta.value;
-  _activeCampaign.script = script;
-  await supabase.from('dialer_campaigns').update({ script }).eq('id', _activeCampaign.id);
-  document.getElementById('pd-script-editor')?.remove();
-  render();
-};
-
-window.pdBookCall = (type) => {
-  const contact = _queue[_queueIndex]; if (!contact) return;
-  const url = ACQ_CALENDLY_URLS[type]; if (!url) return;
-  openCalendlyEmbed(null, url, null, contact.name, contact.email);
-};
-
-window.pdShowStrategyPicker = () => {
-  const div = document.createElement('div');
-  div.id = 'strategy-call-picker';
-  div.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:center';
-  div.onclick = (e) => { if (e.target === div) div.remove(); };
-  div.innerHTML = `<div style="background:#fff;border-radius:12px;padding:24px;width:320px;box-shadow:0 8px 30px rgba(0,0,0,.2)">
-    <h3 style="margin:0 0 16px;font-size:16px">Who's booking the strategy call?</h3>
-    <div style="display:flex;flex-direction:column;gap:8px">
-      <button class="btn btn-primary" style="width:100%;padding:12px;font-size:13px;background:#7c3aed;border-color:#7c3aed" onclick="document.getElementById('strategy-call-picker').remove();pdBookCall('strategy')">Aidan</button>
-      <button class="btn btn-primary" style="width:100%;padding:12px;font-size:13px;background:#2563eb;border-color:#2563eb" onclick="document.getElementById('strategy-call-picker').remove();pdBookCall('strategy_ioannis')">Ioannis</button>
-    </div>
-    <button class="btn btn-ghost" style="width:100%;margin-top:12px;font-size:12px" onclick="document.getElementById('strategy-call-picker').remove()">Cancel</button>
-  </div>`;
-  document.body.appendChild(div);
-};
+window.pdEditScript = () => showScriptEditor(_activeCampaign, render);
+window.pdBookCall = (type) => bookCall(type, _queue, _queueIndex);
+window.pdShowStrategyPicker = () => showStrategyPicker(_queue, _queueIndex);
 
 window.pdRefreshContact = async () => {
   const contact = _queue[_queueIndex];
@@ -621,7 +372,7 @@ window.pdRefreshContact = async () => {
   if (data) { Object.assign(contact, data); render(); }
 };
 
-window.pdJumpTo = (idx) => { _queueIndex = idx; _showDisposition = false; _leadCreated = false; _miniMapAddr = ''; if (_miniMap) { _miniMap.remove(); _miniMap = null; } render(); };
+window.pdJumpTo = (idx) => { _queueIndex = idx; _showDisposition = false; _leadCreated = false; cleanupMaps(); render(); };
 window.pdEndDialing = () => { window.pdBackToList(); };
 window._pdSetupName = '';
 window._pdSetupOrder = 'lifo';

@@ -80,6 +80,10 @@ export function openCalendlyEmbed(dealId, baseCalUrl, clientName, overrideName, 
     guestPhone=deal.mobilePhone||deal.phone||'';
     notes=overrideNotes||deal.calNotes||'';
     if(!notes && deal.company) notes=deal.company;
+  } else {
+    guestName=overrideName||'';
+    guestEmail=overrideEmail||'';
+    notes=overrideNotes||'';
   }
 
   try {
