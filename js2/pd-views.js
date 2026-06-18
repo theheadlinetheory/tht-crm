@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // PD-VIEWS — Power Dialer rendering (pure HTML generators)
 // ═══════════════════════════════════════════════════════════
-import { esc, svgIcon, str } from './utils.js?v=20260618a';
+import { esc, svgIcon, str } from './utils.js?v=20260618b';
 
 const DISPOSITIONS = [
   'Interested - Appointment Set', 'Interested - Needs Follow-Up', 'Qualified Lead',
@@ -115,6 +115,7 @@ export function renderList(campaigns) {
       <td style="padding:8px 12px;text-align:center;font-weight:600;color:${connectRate >= 50 ? '#16a34a' : connectRate >= 20 ? '#d97706' : '#6b7280'}">${c.completed_contacts > 0 ? connectRate + '%' : '-'}</td>
       <td style="padding:8px 12px;text-align:center;display:flex;gap:4px;justify-content:center">
         <button class="btn btn-primary" style="font-size:11px;padding:4px 10px" onclick="pdPlayCampaign('${c.id}')" title="Start Dialing">${svgIcon('phone', 11, '#fff')}</button>
+        <button class="btn btn-ghost" style="font-size:11px;padding:4px 6px" onclick="pdCampaignSettings('${c.id}')" title="Settings">${svgIcon('settings', 11)}</button>
         <button class="btn btn-ghost" style="font-size:11px;padding:4px 6px" onclick="pdShowAnalytics('${c.id}')" title="Analytics">${svgIcon('bar-chart', 11)}</button>
         <button class="btn btn-ghost" style="font-size:11px;padding:4px 6px;color:#dc2626" onclick="pdDeleteCampaign('${c.id}')" title="Delete">×</button>
       </td>
