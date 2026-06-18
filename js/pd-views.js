@@ -132,7 +132,7 @@ export function renderSetup(ctx) {
   if (step === 1) {
     h += `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px">
       <label style="font-size:13px;font-weight:600;display:block;margin-bottom:8px">Campaign Name</label>
-      <input id="pd-campaign-name" value="${esc(name)}" onchange="window._pdSetupName=this.value" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font);margin-bottom:20px;box-sizing:border-box" placeholder="e.g. HVAC C-Suite US">
+      <input id="pd-campaign-name" value="${esc(name)}" oninput="pdNameChanged(this.value)" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font);margin-bottom:20px;box-sizing:border-box" placeholder="e.g. HVAC C-Suite US">
       <label style="font-size:13px;font-weight:600;display:block;margin-bottom:8px">Upload Contacts (CSV)</label>
       <div id="pd-drop-zone" style="border:2px dashed var(--border);border-radius:8px;padding:40px;text-align:center;cursor:pointer" onclick="document.getElementById('pd-file-input').click()">
         <input type="file" id="pd-file-input" accept=".csv" style="display:none" onchange="pdHandleFile(this.files[0])">
