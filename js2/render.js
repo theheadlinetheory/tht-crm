@@ -23,6 +23,7 @@ import { renderDueTodayBanner, renderNurtureTab, renderNurtureEntryModal, render
 import { renderDemoTracker } from './demo-tracker.js?v=20260618a';
 import { renderColdCallingTab } from './cold-calling.js?v=20260618a';
 import { renderRetargetingTab } from './retargeting.js?v=20260618a';
+import { isPowerDialerActive } from './power-dialer.js?v=20260618a';
 
 // ─── renderListView ───
 function renderListView(deals,stages){
@@ -126,6 +127,10 @@ export function render(){
     const inPayroll = focused.closest && (focused.id?.startsWith('payroll-') || focused.closest('[data-payroll]'));
     if (inPayroll) return;
   }
+
+  // Skip background re-renders while power dialer is active (preserves scroll)
+  if (state.pipeline === 'acquisition' && state.acquisitionSubTab === 'cold_calls' && state.coldCallMode === 'power_dialer' && isPowerDialerActive() && !state._pdRenderRequested) return;
+  state._pdRenderRequested = false;
 
   const app=document.getElementById("app");
   // Save scroll position before destroying DOM
