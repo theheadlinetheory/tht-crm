@@ -2,15 +2,15 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260618b';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260618b';
-import { render } from './render.js?v=20260618b';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbUpdateClientConfig, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast } from './api.js?v=20260618b';
-import { esc, str, svgIcon } from './utils.js?v=20260618b';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js?v=20260618b';
-import { lookupClientInfo, getClientConfig, loadClientConfig } from './client-info.js?v=20260618b';
-import { findPolygonForClient } from './maps.js?v=20260618b';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260618b';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260618c';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260618c';
+import { render } from './render.js?v=20260618c';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbUpdateClientConfig, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast } from './api.js?v=20260618c';
+import { esc, str, svgIcon } from './utils.js?v=20260618c';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js?v=20260618c';
+import { lookupClientInfo, getClientConfig, loadClientConfig } from './client-info.js?v=20260618c';
+import { findPolygonForClient } from './maps.js?v=20260618c';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260618c';
 
 export function getDefaultSettings(){
   return {
@@ -281,7 +281,7 @@ export function refreshSettingsBody(){
       window._dialerFieldsLoaded = true;
       supabase.from('crm_settings').select('value').eq('key','dialer_default_fields').single()
         .then(({ data }) => { window._dialerDefaultFields = data?.value ? JSON.parse(data.value) : []; refreshSettingsBody(); });
-      import('./number-health.js?v=20260618b').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
+      import('./number-health.js?v=20260618c').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
     }
     h=renderDialerSettings();
   }
@@ -1291,7 +1291,7 @@ export async function createNewUser(){
   msg.style.display='none';
 
   try {
-    const { auth } = await import('./auth.js?v=20260618b');
+    const { auth } = await import('./auth.js?v=20260618c');
     const cred = await auth.createUserWithEmailAndPassword(email, pass);
     await cred.user.updateProfile({ displayName: name });
     await db.collection('users').doc(cred.user.uid).set({
@@ -1603,7 +1603,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260618b');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260618c');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);

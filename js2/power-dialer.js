@@ -1,16 +1,16 @@
 // ═══════════════════════════════════════════════════════════
 // POWER DIALER — State, data access, CSV parsing, handlers
 // ═══════════════════════════════════════════════════════════
-import { supabase, showToast, sbCreateDeal, camelToSnake } from './api.js?v=20260618b';
-import { state } from './app.js?v=20260618b';
-import { uid, getToday } from './utils.js?v=20260618b';
-import { render as _render } from './render.js?v=20260618b';
+import { supabase, showToast, sbCreateDeal, camelToSnake } from './api.js?v=20260618c';
+import { state } from './app.js?v=20260618c';
+import { uid, getToday } from './utils.js?v=20260618c';
+import { render as _render } from './render.js?v=20260618c';
 function render() { state._pdRenderRequested = true; _render(); }
-import { getBestNumberForLead, loadNumberHealth } from './number-health.js?v=20260618b';
-import { currentUser } from './auth.js?v=20260618b';
-import { JUSTCALL_USER_MAP, ACQ_CALENDLY_URLS } from './config.js?v=20260618b';
-import { openCalendlyEmbed } from './calendly.js?v=20260618b';
-import { renderList, renderSetup, renderDialer, renderAnalytics, STANDARD_FIELDS, DISPOSITIONS, formatPhone, fmtDuration } from './pd-views.js?v=20260618b';
+import { getBestNumberForLead, loadNumberHealth } from './number-health.js?v=20260618c';
+import { currentUser } from './auth.js?v=20260618c';
+import { JUSTCALL_USER_MAP, ACQ_CALENDLY_URLS } from './config.js?v=20260618c';
+import { openCalendlyEmbed } from './calendly.js?v=20260618c';
+import { renderList, renderSetup, renderDialer, renderAnalytics, STANDARD_FIELDS, DISPOSITIONS, formatPhone, fmtDuration } from './pd-views.js?v=20260618c';
 
 const COUNTRY_CODES = [
   { code: '1', label: 'US / Canada (+1)', national: 10 },
@@ -121,7 +121,7 @@ async function loadQueue(campaignId) {
     .order('position', { ascending: _activeCampaign?.dialing_order === 'fifo' })
     .range(0, 49);
   if (error) { showToast('Failed to load contacts: ' + error.message, 'error'); return; }
-  _queue = (data || []).filter(c => (c.phone || '').replace(/\D/g, '').length >= 7);
+  _queue = (data || []).filter(c => (c.phone || '').replace(/\D/g, '').length >= 7 || (c.alternate_phone || '').replace(/\D/g, '').length >= 7);
   _queueIndex = 0;
 }
 
@@ -214,10 +214,19 @@ function buildContacts(headers, rows, mapping, customFields, countryCode) {
       const idx = headers.indexOf(csvHeader);
       if (idx >= 0) contact[fieldKey] = row[idx] || '';
     }
-    const digits = (contact.phone || '').replace(/\D/g, '');
-    if (digits.length < 7) { skippedNoPhone++; continue; }
+    const extraPhones = splitPhones(contact.phone, countryCode);
+    if (extraPhones?.length && !contact.alternate_phone) {
+      contact.alternate_phone = extraPhones[0];
+    }
     contact.phone = normalizePhone(contact.phone, countryCode);
     if (contact.alternate_phone) contact.alternate_phone = normalizePhone(contact.alternate_phone, countryCode);
+    const primaryDigits = (contact.phone || '').replace(/\D/g, '');
+    const altDigits = (contact.alternate_phone || '').replace(/\D/g, '');
+    if (primaryDigits.length < 7 && altDigits.length < 7) { skippedNoPhone++; continue; }
+    if (primaryDigits.length < 7 && altDigits.length >= 7) {
+      contact.phone = contact.alternate_phone;
+      contact.alternate_phone = '';
+    }
     const custom = {};
     for (const cf of validCustom) {
       const idx = headers.indexOf(cf.csvHeader);
@@ -234,12 +243,19 @@ function buildContacts(headers, rows, mapping, customFields, countryCode) {
 
 function normalizePhone(phone, cc) {
   const code = cc || _activeCampaign?.field_mapping?._countryCode || '1';
-  const d = (phone || '').replace(/\D/g, '');
+  const raw = (phone || '').split(',')[0].trim();
+  const d = raw.replace(/\D/g, '');
   if (!d) return '';
   if (d.startsWith(code)) return '+' + d;
   const info = COUNTRY_CODES.find(c => c.code === code);
   if (info && d.length === info.national) return '+' + code + d;
   return '+' + code + d;
+}
+
+function splitPhones(phone, cc) {
+  const parts = (phone || '').split(',').map(p => p.trim()).filter(Boolean);
+  if (parts.length <= 1) return null;
+  return parts.slice(1).map(p => normalizePhone(p, cc));
 }
 
 // ─── Duration Timer ───
@@ -488,10 +504,11 @@ window.pdDeleteCampaign = (id) => {
   });
 };
 
-window.pdDial = () => {
+window.pdDial = (phoneType) => {
   const contact = _queue[_queueIndex];
-  if (!contact?.phone) { showToast('No phone number', 'error'); return; }
-  const phone = normalizePhone(contact.phone);
+  const rawPhone = phoneType === 'alt' ? contact?.alternate_phone : contact?.phone;
+  if (!rawPhone) { showToast('No phone number', 'error'); return; }
+  const phone = normalizePhone(rawPhone);
   const best = getBestNumberForLead(phone);
   let src = 'https://app.justcall.io/dialer?numbers=' + encodeURIComponent(phone);
   if (best?.number) src += '&caller_id=' + encodeURIComponent(best.number);

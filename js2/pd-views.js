@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // PD-VIEWS — Power Dialer rendering (pure HTML generators)
 // ═══════════════════════════════════════════════════════════
-import { esc, svgIcon, str } from './utils.js?v=20260618b';
+import { esc, svgIcon, str } from './utils.js?v=20260618c';
 
 const DISPOSITIONS = [
   'Interested - Appointment Set', 'Interested - Needs Follow-Up', 'Qualified Lead',
@@ -261,6 +261,13 @@ export function renderDialer(ctx) {
   const contact = queue[queueIndex];
   if (!contact) return renderDialer(Object.assign({}, ctx, { queue: [] }));
 
+  if (contact.phone && contact.phone.includes(',') && !contact._phoneSplit) {
+    const parts = contact.phone.split(',').map(p => p.trim()).filter(Boolean);
+    contact.phone = parts[0];
+    if (!contact.alternate_phone && parts.length > 1) contact.alternate_phone = parts[1];
+    contact._phoneSplit = true;
+  }
+
   const completed = campaign.completed_contacts || 0, skipped = campaign.skipped_contacts || 0;
   const answered = campaign.answered_calls || 0, total = campaign.total_contacts || 0;
   let h = '';
@@ -301,10 +308,13 @@ export function renderDialer(ctx) {
     const wsIsUrl = websiteVal.startsWith('http://') || websiteVal.startsWith('https://');
     const wsIsDomain = !wsIsUrl && /^[a-z0-9-]+(\.[a-z]{2,})+$/i.test(websiteVal.trim());
     const wsHref = wsIsUrl ? websiteVal : wsIsDomain ? 'https://' + websiteVal.trim() : '';
+    const altPhone = contact.alternate_phone || '';
+    const hasAlt = altPhone.replace(/\D/g, '').length >= 7;
     h += `<div style="text-align:center;margin-bottom:20px">
       <div style="width:60px;height:60px;border-radius:50%;background:#e5e7eb;margin:0 auto 10px;display:flex;align-items:center;justify-content:center">${svgIcon('phone', 24, '#6b7280')}</div>
       <div style="font-size:18px;font-weight:700">${esc(bestName(contact))}</div>
       <div style="font-size:14px;color:var(--text-muted)">${formatPhone(contact.phone)}</div>
+      ${hasAlt ? `<div style="font-size:12px;color:var(--text-muted);margin-top:2px">Alt: ${formatPhone(altPhone)}</div>` : ''}
       ${contact.company ? `<div style="font-size:13px;color:var(--text-muted)">${esc(contact.company)}</div>` : ''}
       ${wsHref ? `<a href="${esc(wsHref)}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;font-size:12px;color:#3b82f6;font-weight:500;text-decoration:none">${svgIcon('external-link', 12, '#3b82f6')} ${esc(websiteVal)}</a>` : ''}
     </div>`;
@@ -313,7 +323,8 @@ export function renderDialer(ctx) {
       <div style="font-size:18px;font-weight:700;color:#15803d">${suggestedNumber}${suggestedRegion ? ` <span style="font-size:12px;font-weight:500;color:#4d7c0f">(${suggestedRegion})</span>` : ''}</div>
     </div>`;
     h += `<div style="display:flex;gap:8px;justify-content:center;margin-bottom:20px">
-      <button class="btn btn-primary" style="font-size:14px;padding:10px 32px" onclick="pdDial()">Dial ${svgIcon('phone', 14, '#fff')}</button>
+      <button class="btn btn-primary" style="font-size:14px;padding:10px 32px" onclick="pdDial()">${hasAlt ? 'Dial Mobile' : 'Dial'} ${svgIcon('phone', 14, '#fff')}</button>
+      ${hasAlt ? `<button class="btn" style="font-size:12px;padding:10px 20px;background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd" onclick="pdDial('alt')">Dial Alt ${svgIcon('phone', 12, '#0369a1')}</button>` : ''}
       <button class="btn btn-ghost" style="font-size:12px;padding:10px 20px" onclick="pdSkip()">Skip</button>
       <button class="btn btn-ghost" style="font-size:12px;padding:10px 20px" onclick="pdShowDisp()">Log Outcome</button>
       <button class="btn btn-ghost" style="font-size:12px;padding:10px 16px" onclick="pdRefreshContact()" title="Fetch call data from JustCall">${svgIcon('refresh-cw', 12)}</button>
@@ -360,7 +371,7 @@ export function renderDialer(ctx) {
   }
   const fields = [['Name', contact.name], ['Phone', formatPhone(contact.phone)], ['Company', contact.company],
     ['Email', contact.email], ['LinkedIn', contact.linkedin],
-    ['Address', contact.address], ['Occupation', contact.occupation], ['Alt Phone', contact.alternate_phone]];
+    ['Address', contact.address], ['Occupation', contact.occupation], ['Alt Phone', formatPhone(contact.alternate_phone)]];
   for (const [label, val] of fields) {
     if (!val) continue;
     const isUrl = val.startsWith('http://') || val.startsWith('https://');
