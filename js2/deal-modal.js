@@ -212,16 +212,20 @@ window.triggerNurtureFromArchive = function(dealId){
 window.showArchiveReasonPicker = function(dealId){
   const existing = document.getElementById('archive-reason-picker');
   if (existing) existing.remove();
+  const deal = state.deals.find(d => String(d.id) === String(dealId));
+  const isAcq = deal?.pipeline === 'Acquisition';
   const div = document.createElement('div');
   div.id = 'archive-reason-picker';
   div.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:center';
   div.onclick = (e) => { if (e.target === div) div.remove(); };
+  const acqButtons = `
+      <button class="btn" style="width:100%;justify-content:start;padding:10px 14px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca" onclick="document.getElementById('archive-reason-picker').remove();deleteDeal('${dealId}','Closed Lost')">Closed Lost</button>
+      <button class="btn" style="width:100%;justify-content:start;padding:10px 14px;background:#f0fdf4;color:#059669;border:1px solid #a7f3d0" onclick="document.getElementById('archive-reason-picker').remove();triggerNurtureFromArchive('${dealId}')">Move to Nurture</button>`;
   div.innerHTML = `<div style="background:#fff;border-radius:12px;padding:24px;width:340px;box-shadow:0 8px 30px rgba(0,0,0,.2)">
     <h3 style="margin:0 0 16px;font-size:16px">Why are you archiving this?</h3>
     <div style="display:flex;flex-direction:column;gap:8px">
-      <button class="btn" style="width:100%;justify-content:start;padding:10px 14px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca" onclick="document.getElementById('archive-reason-picker').remove();deleteDeal('${dealId}','Closed Lost')">Closed Lost</button>
+      ${isAcq ? acqButtons : ''}
       <button class="btn" style="width:100%;justify-content:start;padding:10px 14px;background:#fef9c3;color:#a16207;border:1px solid #fde68a" onclick="document.getElementById('archive-reason-picker').remove();deleteDeal('${dealId}','Bad Lead')">Bad Lead</button>
-      <button class="btn" style="width:100%;justify-content:start;padding:10px 14px;background:#f0fdf4;color:#059669;border:1px solid #a7f3d0" onclick="document.getElementById('archive-reason-picker').remove();triggerNurtureFromArchive('${dealId}')">Move to Nurture</button>
       <button class="btn" style="width:100%;justify-content:start;padding:10px 14px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe" onclick="var r=prompt('Enter reason:');if(r){document.getElementById('archive-reason-picker').remove();deleteDeal('${dealId}',r);}">Custom...</button>
     </div>
     <button class="btn btn-ghost" style="width:100%;margin-top:12px;font-size:12px" onclick="document.getElementById('archive-reason-picker').remove()">Cancel</button>
@@ -629,8 +633,10 @@ function buildLifecycleEvents(deal) {
   }
   if (deal.bookedDate) {
     const label = deal.stage && deal.stage.toLowerCase().includes('demo') ? 'Demo scheduled' : 'Meeting scheduled';
+    const isAYC = deal.bookedFor === 'AYC';
     const dt = deal.bookedDate + (deal.bookedTime ? 'T' + deal.bookedTime : '');
-    events.push({ type: 'System', content: label + (deal.bookedFor ? ' with ' + deal.bookedFor : ''), date: dt, system: true });
+    const suffix = isAYC ? ' — At Your Convenience' : (deal.bookedFor ? ' with ' + deal.bookedFor : '');
+    events.push({ type: 'System', content: label + suffix, date: dt, system: true });
   }
   if (deal.forwardedAt) {
     events.push({ type: 'System', content: 'Forwarded to client', date: deal.forwardedAt, system: true });
@@ -868,6 +874,17 @@ window.openAddClient = openAddClient;
 window.changeDealPipeline = changeDealPipeline;
 window.changeDealOwner = changeDealOwner;
 window.updateDealField = updateDealField;
+window.markAtYourConvenience = async (dealId) => {
+  const today = new Date().toISOString().slice(0, 10);
+  await updateDealField('bookedDate', today);
+  await updateDealField('bookedTime', '');
+  await updateDealField('bookedFor', 'AYC');
+  const dateInput = document.getElementById('deal-bookedDate');
+  if (dateInput) dateInput.value = today;
+  const { showToast: toast } = await import('./api.js?v=20260618e');
+  toast('Marked as At Your Convenience', 'success');
+  refreshModal();
+};
 window.debouncedDealFieldSave = debouncedDealFieldSave;
 window.doSaveDeal = doSaveDeal;
 window.doCreateDeal = doCreateDeal;
@@ -1037,6 +1054,9 @@ export function renderDealModal(deal){
             <input type="time" id="deal-bookedTime" value="${esc(deal.bookedTime||'')}"
               onchange="updateDealField('bookedTime',this.value)"
               style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font);background:var(--card);color:var(--text)">
+            <button onclick="markAtYourConvenience('${esc(deal.id)}')" style="padding:6px 12px;font-size:11px;font-weight:600;font-family:var(--font);cursor:pointer;border:1px solid #c4b5fd;border-radius:6px;background:#f5f3ff;color:#7c3aed;white-space:nowrap${deal.bookedFor==='AYC'?';opacity:.5;pointer-events:none':''}">
+              ${deal.bookedFor==='AYC'?'✓ AYC':'At Your Convenience'}
+            </button>
           </div>
         </div>`;
 
@@ -1205,11 +1225,12 @@ export function renderDealModal(deal){
           const days=g.days.sort((a,b)=>dayOrder.indexOf(a)-dayOrder.indexOf(b)).map(d=>dayLabel[d]||d).join(', ');
           summaryHtml+=`<div style="font-size:12px;color:#166534">${esc(days)}: ${fmt12(g.start)} – ${fmt12(g.end)}</div>`;
         }
-        const alreadyBooked=deal.bookedDate&&deal.bookedTime;
+        const alreadyBooked=deal.bookedDate&&(deal.bookedTime||deal.bookedFor==='AYC');
+        const bookedLabel=deal.bookedFor==='AYC'?'At Your Convenience':`${fmtDate(deal.bookedDate)} at ${fmtTime12(deal.bookedTime)}`;
         h+=`<div style="margin:0 0 12px 0;padding:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px">
           <div style="font-size:11px;font-weight:700;color:#166534;margin-bottom:6px">${svgIcon('calendar',12)} Book Meeting — ${esc(matchedClient.name)}'s Availability</div>
           <div style="margin-bottom:10px;padding:6px 10px;background:#dcfce7;border-radius:6px">${summaryHtml}</div>
-          ${alreadyBooked?`<div style="font-size:12px;color:#059669;font-weight:600;margin-bottom:8px">Currently booked: ${fmtDate(deal.bookedDate)} at ${fmtTime12(deal.bookedTime)}</div>`:''}
+          ${alreadyBooked?`<div style="font-size:12px;color:#059669;font-weight:600;margin-bottom:8px">Currently booked: ${bookedLabel}</div>`:''}
           <div style="display:flex;gap:8px;margin-bottom:8px">
             <input type="date" id="avail-book-date" value="${esc(deal.bookedDate||'')}" min="${rules.minNoticeDays ? (()=>{const _d=new Date();_d.setDate(_d.getDate()+rules.minNoticeDays);return _d.toISOString().slice(0,10)})() : getToday()}"
               style="flex:1;padding:6px 10px;border:1px solid #86efac;border-radius:6px;font-size:13px;font-family:var(--font);background:#fff;color:var(--text)">
