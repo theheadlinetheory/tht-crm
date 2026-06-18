@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 import { state } from './app.js?v=20260616a';
 import { refreshModal } from './render.js?v=20260616a';
-import { apiGet, invokeEdgeFunction } from './api.js?v=20260616a';
+import { apiPost, invokeEdgeFunction } from './api.js?v=20260616a';
 import { esc } from './utils.js?v=20260616a';
 
 // ─── SmartLead Thread Viewer ───
@@ -14,9 +14,10 @@ export async function loadSmartleadThread(dealId) {
   if(!deal||!deal.slLeadId||!deal.slCampaignId){ resetThreadBtn(dealId,'No SmartLead data'); return; }
   if(slThreadCache[dealId]) return;
   try {
-    const resp=await apiGet('get_smartlead_thread&leadId='+deal.slLeadId+'&campaignId='+deal.slCampaignId);
-    if(Array.isArray(resp) && resp.length){
-      slThreadCache[dealId]=resp;
+    const resp=await apiPost('get_smartlead_thread',{slLeadId:deal.slLeadId,slCampaignId:deal.slCampaignId});
+    const messages=resp?.messages||resp;
+    if(Array.isArray(messages) && messages.length){
+      slThreadCache[dealId]=messages;
       refreshModal();
     } else {
       resetThreadBtn(dealId,'No thread found');

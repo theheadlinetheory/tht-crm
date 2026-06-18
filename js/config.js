@@ -171,19 +171,24 @@ export const DEFAULT_CLIENT_STAGES = [
 
 // ─── Country Detection from Campaign Name / Location ───
 const COUNTRY_RULES = [
-  { keywords: ['australia','.com.au','.au','new south wales','queensland','victoria, au','nsw 2','qld 4','vic 3','sydney','melbourne','brisbane','perth','adelaide','canberra','gold coast','hobart','darwin','newcastle nsw','wollongong','geelong','cairns','townsville','toowoomba'], code: 'AU', flag: '🇦🇺', label: 'Australia' },
-  { keywords: ['toronto','montreal','vancouver','calgary','ottawa','edmonton','winnipeg','canada'], code: 'CA', flag: '🇨🇦', label: 'Canada' },
-  { keywords: ['london','manchester','birmingham','leeds','glasgow','uk','united kingdom','bristol','liverpool'], code: 'GB', flag: '🇬🇧', label: 'UK' },
-  { keywords: ['auckland','wellington','christchurch','new zealand','nz'], code: 'NZ', flag: '🇳🇿', label: 'New Zealand' },
+  { patterns: [/\baustralia\b/,/\.com\.au\b/,/\.au$/,/\b(nsw|qld|vic|tas|act|wa|nt)\s+\d{4}\b/,/\bsa\s+5\d{3}\b/,/\bnew south wales\b/,/\bqueensland\b/,/\bsydney\b/,/\bmelbourne\b/,/\bbrisbane\b/,/\bperth\b/,/\badelaide\b/,/\bcanberra\b/,/\bgold coast\b/,/\bhobart\b/,/\bdarwin\b/,/\bnewcastle nsw\b/,/\bwollongong\b/,/\bgeelong\b/,/\bcairns\b/,/\btownsville\b/,/\btoowoomba\b/], code: 'AU', flag: '\u{1F1E6}\u{1F1FA}', label: 'Australia' },
+  { patterns: [/\btoronto\b/,/\bmontreal\b/,/\bvancouver\b/,/\bcalgary\b/,/\bottawa\b/,/\bedmonton\b/,/\bwinnipeg\b/,/\bcanada\b/], code: 'CA', flag: '\u{1F1E8}\u{1F1E6}', label: 'Canada' },
+  { patterns: [/\blondon\b/,/\bmanchester\b/,/\bbirmingham\b/,/\bleeds\b/,/\bglasgow\b/,/\bunited kingdom\b/,/\bbristol\b/,/\bliverpool\b/,/\buk\b/,/\.co\.uk\b/], code: 'GB', flag: '\u{1F1EC}\u{1F1E7}', label: 'UK' },
+  { patterns: [/\bauckland\b/,/\bwellington\b/,/\bchristchurch\b/,/\bnew zealand\b/,/\bnz\b/,/\.co\.nz\b/], code: 'NZ', flag: '\u{1F1F3}\u{1F1FF}', label: 'New Zealand' },
 ];
-const US_DEFAULT = { code: 'US', flag: '🇺🇸', label: 'United States' };
+const US_DEFAULT = { code: 'US', flag: '\u{1F1FA}\u{1F1F8}', label: 'United States' };
 
 export function detectCountry(deal) {
-  const text = ((deal.campaignName || '') + ' ' + (deal.location || '') + ' ' + (deal.address || '') + ' ' + (deal.email || '') + ' ' + (deal.website || '')).toLowerCase();
+  const text = [deal.campaignName, deal.location, deal.address, deal.email, deal.website].filter(Boolean).join(' ').toLowerCase();
   for (const rule of COUNTRY_RULES) {
-    if (rule.keywords.some(kw => text.includes(kw))) return rule;
+    if (rule.patterns.some(p => p.test(text))) return rule;
   }
   return US_DEFAULT;
+}
+
+export function isInternationalAddress(addr) {
+  const text = addr.toLowerCase();
+  return COUNTRY_RULES.some(r => r.code !== 'CA' && r.patterns.some(p => p.test(text)));
 }
 
 // ─── Acquisition Pipeline Calendly URLs ───
