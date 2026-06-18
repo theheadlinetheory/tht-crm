@@ -338,7 +338,7 @@ export function renderDialer(ctx) {
   h += `<div style="width:260px;border-left:1px solid var(--border);overflow-y:auto;padding:16px;flex-shrink:0;background:#fafafa">
     <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:12px">Contact Details</div>`;
   const cf = contact.custom_fields || {};
-  const wsVal = contact.lead_source || cf['Company Website'] || cf['company_website'] || cf['Website'] || cf['website'] || '';
+  const wsVal = cf['Company Website'] || cf['company_website'] || cf['Website'] || cf['website'] || contact.lead_source || '';
   const wsIsLink = wsVal.startsWith('http://') || wsVal.startsWith('https://');
   const wsIsDom = !wsIsLink && /^[a-z0-9-]+(\.[a-z]{2,})+$/i.test(wsVal.trim());
   const wsLink = wsIsLink ? wsVal : wsIsDom ? 'https://' + wsVal.trim() : '';
