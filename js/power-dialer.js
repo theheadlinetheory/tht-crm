@@ -1,14 +1,14 @@
 // ═══════════════════════════════════════════════════════════
 // POWER DIALER — State, data access, CSV parsing, handlers
 // ═══════════════════════════════════════════════════════════
-import { supabase, showToast, sbCreateDeal, camelToSnake } from './api.js?v=20260616a';
-import { state } from './app.js?v=20260616a';
-import { uid, getToday } from './utils.js?v=20260616a';
-import { render } from './render.js?v=20260616a';
-import { getBestNumberForLead } from './number-health.js?v=20260616a';
-import { currentUser } from './auth.js?v=20260616a';
-import { JUSTCALL_USER_MAP } from './config.js?v=20260616a';
-import { renderList, renderSetup, renderDialer, renderAnalytics, STANDARD_FIELDS, DISPOSITIONS, formatPhone, fmtDuration } from './pd-views.js?v=20260616a';
+import { supabase, showToast, sbCreateDeal, camelToSnake } from './api.js?v=20260618a';
+import { state } from './app.js?v=20260618a';
+import { uid, getToday } from './utils.js?v=20260618a';
+import { render } from './render.js?v=20260618a';
+import { getBestNumberForLead } from './number-health.js?v=20260618a';
+import { currentUser } from './auth.js?v=20260618a';
+import { JUSTCALL_USER_MAP } from './config.js?v=20260618a';
+import { renderList, renderSetup, renderDialer, renderAnalytics, STANDARD_FIELDS, DISPOSITIONS, formatPhone, fmtDuration } from './pd-views.js?v=20260618a';
 
 const AUTO_DETECT = {
   'phone': ['phone', 'mobile phone', 'mobile', 'phone number', 'cell', 'telephone'],
