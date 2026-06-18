@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // PD-VIEWS — Power Dialer rendering (pure HTML generators)
 // ═══════════════════════════════════════════════════════════
-import { esc, svgIcon, str } from './utils.js?v=20260618c';
+import { esc, svgIcon, str } from './utils.js?v=20260618d';
 
 const DISPOSITIONS = [
   'Interested - Appointment Set', 'Interested - Needs Follow-Up', 'Qualified Lead',
