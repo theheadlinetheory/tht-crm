@@ -49,14 +49,20 @@ function bestName(contact) {
 
 export function mergeScript(script, contact) {
   const cleanName = bestName(contact);
-  let s = script
-    .replace(/\{name\}/gi, cleanName !== 'Unknown' ? cleanName : 'there')
-    .replace(/\{company\}/gi, str(contact.company) || 'your company')
-    .replace(/\{email\}/gi, str(contact.email))
-    .replace(/\{address\}/gi, str(contact.address))
-    .replace(/\{occupation\}/gi, str(contact.occupation))
-    .replace(/\{lead_source\}/gi, str(contact.lead_source));
-  s = s.replace(/\{(custom_\d+)\}/g, (_m, key) => str(contact.custom_fields?.[key]) || '');
+  const replacements = {
+    name: cleanName !== 'Unknown' ? cleanName : 'there',
+    company: str(contact.company) || 'your company',
+    email: str(contact.email),
+    address: str(contact.address),
+    occupation: str(contact.occupation),
+    lead_source: str(contact.lead_source),
+  };
+  let s = script;
+  for (const [key, val] of Object.entries(replacements)) {
+    s = s.replace(new RegExp(`\\{\\{?${key}\\}?\\}`, 'gi'), val);
+  }
+  s = s.replace(/\{\{?\d+%(\w+)\}?\}/gi, (_m, field) => replacements[field.toLowerCase()] || '');
+  s = s.replace(/\{\{?(custom_\d+)\}?\}/g, (_m, key) => str(contact.custom_fields?.[key]) || '');
   return s;
 }
 

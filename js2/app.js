@@ -192,8 +192,7 @@ export async function initApp(){
       setInterval(triggerBackendReplyCheck, REPLY_BACKEND_POLL_INTERVAL);
     }
     if(!isClient()) initJustCallDialer();
-    // Dialer number health disabled — uncomment when number_health table is populated
-    // if(!isClient()) import('./number-health.js?v=20260618a').then(m => m.loadNumberHealth()).catch(e => console.warn('Number health load failed:', e));
+    if(!isClient()) import('./number-health.js?v=20260618a').then(m => m.loadNumberHealth()).catch(e => console.warn('Number health load failed:', e));
     if(!isClient()) import('./warm-call.js?v=20260618a').catch(e => console.warn('Warm call module load failed:', e));
     // Load nurture data for Due Today banner
     if(!isClient()){
