@@ -163,23 +163,9 @@ export function render(){
     return;
   }
 
-  // ─── Retargeting Tab ───
+  // Retargeting is now an Acquisition sub-tab — legacy pipeline ID redirect
   if(state.pipeline==='retargeting'){
-    let html=`
-    <div class="topbar">
-      <div style="display:flex;align-items:center;">
-        <div class="topbar-tabs">
-          ${pipelineTabsHtml()}
-        </div>
-      </div>
-      <div class="topbar-right">
-        <button class="btn btn-ghost" onclick="syncFromSheet()" style="display:inline-flex;align-items:center;gap:4px">${svgIcon('refresh-cw',12)} Sync</button>
-        ${renderUserMenu()}
-      </div>
-    </div>`;
-    html+=renderRetargetingTab();
-    app.innerHTML=html;
-    return;
+    state.pipeline='acquisition'; state.acquisitionSubTab='retargeting'; render(); return;
   }
 
   // ─── Payroll Tab ───
@@ -273,6 +259,7 @@ export function render(){
         <button onclick="state.acquisitionSubTab='nurture';render()" style="${subCs};background:${subTab==='nurture'?'var(--purple)':'#f3f4f6'};color:${subTab==='nurture'?'#fff':'var(--text-muted)'}">Nurture</button>
         ${(isAdmin()||isEmployee())?`<button onclick="state.acquisitionSubTab='demo_tracker';render()" style="${subCs};background:${subTab==='demo_tracker'?'var(--purple)':'#f3f4f6'};color:${subTab==='demo_tracker'?'#fff':'var(--text-muted)'}">Demo Tracker</button>`:''}
         ${(isAdmin()||isEmployee())?`<button onclick="state.acquisitionSubTab='cold_calls';render()" style="${subCs};background:${subTab==='cold_calls'?'var(--purple)':'#f3f4f6'};color:${subTab==='cold_calls'?'#fff':'var(--text-muted)'}">Cold Calls</button>`:''}
+        ${isAdmin()?`<button onclick="state.acquisitionSubTab='retargeting';render()" style="${subCs};background:${subTab==='retargeting'?'var(--purple)':'#f3f4f6'};color:${subTab==='retargeting'?'#fff':'var(--text-muted)'}">Retargeting</button>`:''}
       </div>
       ${subTab==='pipeline'?`<div style="display:flex;gap:6px;align-items:center">
         <button onclick="state.myDealsFilter=!state.myDealsFilter;render()" style="padding:4px 12px;font-size:11px;font-weight:600;font-family:var(--font);cursor:pointer;border:1px solid ${state.myDealsFilter?'var(--purple)':'var(--border)'};border-radius:6px;background:${state.myDealsFilter?'#f3e8ff':'#fff'};color:${state.myDealsFilter?'var(--purple)':'var(--text-muted)'}">
@@ -302,6 +289,12 @@ export function render(){
     // If cold calls sub-tab is selected, render cold calling and return
     if(subTab === 'cold_calls'){
       html += renderColdCallingTab();
+      app.innerHTML = html;
+      return;
+    }
+
+    if(subTab === 'retargeting'){
+      html += renderRetargetingTab();
       app.innerHTML = html;
       return;
     }
