@@ -28,6 +28,7 @@ export function initMiniMap() {
       _miniMap = L.map('pd-mini-map', { zoomControl: false, attributionControl: false, scrollWheelZoom: true }).setView([lat, lng], 12);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(_miniMap);
       L.marker([lat, lng]).addTo(_miniMap);
+      setTimeout(() => _miniMap?.invalidateSize(), 200);
     }).catch(() => {});
 }
 
