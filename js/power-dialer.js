@@ -59,7 +59,7 @@ async function loadQueue(campaignId) {
     .order('position', { ascending: _activeCampaign?.dialing_order === 'fifo' })
     .range(0, 49);
   if (error) { showToast('Failed to load contacts: ' + error.message, 'error'); return; }
-  _queue = data || [];
+  _queue = (data || []).filter(c => (c.phone || '').replace(/\D/g, '').length >= 7);
   _queueIndex = 0;
 }
 
@@ -138,12 +138,16 @@ function buildContacts(headers, rows, mapping, customFields) {
   const mappedHeaders = new Set(Object.values(mapping));
   const validCustom = (customFields || []).filter(cf => cf.label.trim() && cf.csvHeader);
   validCustom.forEach(cf => mappedHeaders.add(cf.csvHeader));
-  return rows.map(row => {
+  const contacts = [];
+  let skippedNoPhone = 0;
+  for (const row of rows) {
     const contact = {};
     for (const [fieldKey, csvHeader] of Object.entries(mapping)) {
       const idx = headers.indexOf(csvHeader);
       if (idx >= 0) contact[fieldKey] = row[idx] || '';
     }
+    const digits = (contact.phone || '').replace(/\D/g, '');
+    if (digits.length < 7) { skippedNoPhone++; continue; }
     for (const cf of validCustom) {
       const idx = headers.indexOf(cf.csvHeader);
       if (idx >= 0) contact[cf.key] = row[idx] || '';
@@ -151,8 +155,11 @@ function buildContacts(headers, rows, mapping, customFields) {
     const custom = {};
     headers.forEach((h, i) => { if (!mappedHeaders.has(h) && row[i]) custom[h] = row[i]; });
     if (Object.keys(custom).length) contact.custom_fields = custom;
-    return contact;
-  });
+    contacts.push(contact);
+  }
+  if (skippedNoPhone) buildContacts._skippedNoPhone = skippedNoPhone;
+  else buildContacts._skippedNoPhone = 0;
+  return contacts;
 }
 
 function normalizePhone(phone) {
@@ -291,12 +298,13 @@ window.pdFinishSetup = async () => {
   const orderRadio = document.querySelector('input[name="pd-order"]:checked');
   if (orderRadio) _setupOrder = orderRadio.value;
   const contacts = buildContacts(_csvHeaders, _csvRows, _fieldMapping, _customFields);
-  if (!contacts.length) { showToast('No contacts to import', 'error'); return; }
+  const skipped = buildContacts._skippedNoPhone || 0;
+  if (!contacts.length) { showToast('No contacts with valid phone numbers', 'error'); return; }
   try {
-    showToast('Creating campaign...', 'success');
+    showToast(`Creating campaign...${skipped ? ` (${skipped} rows skipped — no phone)` : ''}`, 'success');
     const cfMeta = _customFields.filter(cf => cf.label.trim() && cf.csvHeader).map(cf => ({ key: cf.key, label: cf.label }));
     await saveCampaign(_setupName, _setupScript, _setupOrder, _fieldMapping, cfMeta, contacts);
-    showToast(`Campaign "${_setupName}" created with ${contacts.length} contacts`, 'success');
+    showToast(`Campaign "${_setupName}" created with ${contacts.length} contacts${skipped ? ` (${skipped} skipped — no phone)` : ''}`, 'success');
     _view = 'list'; _campaigns = null; render();
   } catch (e) { showToast('Failed to create campaign: ' + e.message, 'error'); }
 };
