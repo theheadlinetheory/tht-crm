@@ -4,7 +4,8 @@
 import { supabase, showToast, sbCreateDeal, camelToSnake } from './api.js?v=20260618a';
 import { state } from './app.js?v=20260618a';
 import { uid, getToday } from './utils.js?v=20260618a';
-import { render } from './render.js?v=20260618a';
+import { render as _render } from './render.js?v=20260618a';
+function render() { state._pdRenderRequested = true; _render(); }
 import { getBestNumberForLead } from './number-health.js?v=20260618a';
 import { currentUser } from './auth.js?v=20260618a';
 import { JUSTCALL_USER_MAP } from './config.js?v=20260618a';
@@ -225,6 +226,10 @@ function advanceToNext() {
 }
 
 // ─── Main Render Export ───
+
+export function isPowerDialerActive() {
+  return _view === 'dialer' || _view === 'setup';
+}
 
 export function renderPowerDialer() {
   let h = '<div style="padding:16px 20px">';
