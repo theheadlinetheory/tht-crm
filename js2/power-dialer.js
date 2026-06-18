@@ -106,23 +106,29 @@ async function skipContact(contact) {
 // ─── CSV Parsing ───
 
 function parseCSV(text) {
-  const lines = text.split(/\r?\n/).filter(l => l.trim());
-  if (lines.length < 2) return { headers: [], rows: [] };
-  const parseLine = (line) => {
-    const result = [];
-    let current = '', inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') { inQuotes = !inQuotes; continue; }
-      if (ch === ',' && !inQuotes) { result.push(current.trim()); current = ''; continue; }
-      current += ch;
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"' && text[i + 1] === '"') { field += '"'; i++; }
+      else if (ch === '"') inQuotes = false;
+      else field += ch;
+    } else {
+      if (ch === '"') inQuotes = true;
+      else if (ch === ',') { row.push(field.trim()); field = ''; }
+      else if (ch === '\n' || (ch === '\r' && text[i + 1] === '\n')) {
+        if (ch === '\r') i++;
+        row.push(field.trim()); field = '';
+        if (row.some(c => c)) rows.push(row);
+        row = [];
+      } else field += ch;
     }
-    result.push(current.trim());
-    return result;
-  };
-  const headers = parseLine(lines[0]);
-  const rows = lines.slice(1).map(l => parseLine(l)).filter(r => r.some(c => c));
-  return { headers, rows };
+  }
+  row.push(field.trim());
+  if (row.some(c => c)) rows.push(row);
+  if (rows.length < 2) return { headers: [], rows: [] };
+  return { headers: rows[0], rows: rows.slice(1) };
 }
 
 function autoDetectMapping(headers) {
