@@ -256,6 +256,7 @@ window.pdSetMapping = (fieldKey, csvHeader) => {
   if (csvHeader) _fieldMapping[fieldKey] = csvHeader; else delete _fieldMapping[fieldKey]; render();
 };
 
+window.pdNameChanged = (val) => { _setupName = val; };
 window.pdScriptChanged = (val) => { _setupScript = val; };
 
 window.pdAddCustomField = () => {
