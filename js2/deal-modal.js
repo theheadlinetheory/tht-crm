@@ -226,6 +226,7 @@ window.showArchiveReasonPicker = function(dealId){
     <div style="display:flex;flex-direction:column;gap:8px">
       ${isAcq ? acqButtons : ''}
       <button class="btn" style="width:100%;justify-content:start;padding:10px 14px;background:#fef9c3;color:#a16207;border:1px solid #fde68a" onclick="document.getElementById('archive-reason-picker').remove();deleteDeal('${dealId}','Bad Lead')">Bad Lead</button>
+      ${!isAcq?'<button class="btn" style="width:100%;justify-content:start;padding:10px 14px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca" onclick="document.getElementById(\'archive-reason-picker\').remove();deleteDeal(\''+dealId+'\',\'Not in Service Area\')">Not in Service Area</button>':''}
       <button class="btn" style="width:100%;justify-content:start;padding:10px 14px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe" onclick="var r=prompt('Enter reason:');if(r){document.getElementById('archive-reason-picker').remove();deleteDeal('${dealId}',r);}">Custom...</button>
     </div>
     <button class="btn btn-ghost" style="width:100%;margin-top:12px;font-size:12px" onclick="document.getElementById('archive-reason-picker').remove()">Cancel</button>
@@ -1290,9 +1291,9 @@ export function renderDealModal(deal){
         const sheetPushed = deal.pushedToTracker;
         if (hasSheet) {
           h+=`<div style="margin:0 0 8px 0">
-            <button id="push-client-sheet-btn" class="btn ${sheetPushed?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px"
+            <button id="push-client-sheet-btn" class="btn" style="width:100%;justify-content:center;gap:6px;font-size:13px;${sheetPushed?'background:#f5f3ff;color:#7c3aed;border:1px solid #c4b5fd':'background:#7c3aed;color:#fff;border:1px solid #6d28d9'}"
               onclick="pushToClientSheet('${deal.id}')" title="Push lead to ${esc(matchedClient.name)}'s Lead Tracker sheet">
-              ${sheetPushed?'<span style="color:#059669">\u2713 Pushed to Client Sheet</span> <span style="font-size:11px;color:#6b7280">(re-push)</span>':svgIcon('upload',14)+' Push to Client Sheet'}
+              ${sheetPushed?'<span>\u2713 Sent to '+esc(matchedClient.name)+'</span> <span style="font-size:11px;opacity:.7">(re-push)</span>':svgIcon('send',14)+' Send to '+esc(matchedClient.name)+'\'s Sheet'}
             </button>
           </div>`;
         }

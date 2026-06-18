@@ -473,9 +473,16 @@ export function render(){
         </select>`:''}
         <select data-action="archiveFilterStatusSelect" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
           <option value="">All Statuses</option>
+          ${archivePipeline==='client'?`
+          <option value="Bad Lead" ${state.archiveFilterStatus==='Bad Lead'?'selected':''}>Bad Lead</option>
+          <option value="Not in Service Area" ${state.archiveFilterStatus==='Not in Service Area'?'selected':''}>Not in Service Area</option>
+          <option value="Deleted/Lost" ${state.archiveFilterStatus==='Deleted/Lost'?'selected':''}>Deleted / Lost</option>
+          `:`
           <option value="Deleted/Lost" ${state.archiveFilterStatus==='Deleted/Lost'?'selected':''}>Deleted / Lost</option>
           <option value="Closed Won" ${state.archiveFilterStatus==='Closed Won'?'selected':''}>Closed Won</option>
           <option value="Passed Off" ${state.archiveFilterStatus==='Passed Off'?'selected':''}>Passed Off</option>
+          <option value="Bad Lead" ${state.archiveFilterStatus==='Bad Lead'?'selected':''}>Bad Lead</option>
+          `}
         </select>
         <select data-action="archiveSortSelect" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
           <option value="newest" ${state.archiveSortDir==='newest'?'selected':''}>Newest First</option>
@@ -510,9 +517,16 @@ export function render(){
         <td style="padding:8px 10px;color:var(--text-muted)">${esc(d.email||'')}</td>
         <td style="padding:8px 10px">${esc(d.clientName||d.stage||'')}</td>
         <td style="padding:8px 10px"><select data-action="updateArchiveStatus" data-id="${esc(d.id)}" style="padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;background:${stBg};color:${stColor};border:1px solid ${stColor}33;font-family:var(--font);cursor:pointer">
+          ${archivePipeline==='client'?`
+          <option value="Bad Lead" ${d.archiveStatus==='Bad Lead'?'selected':''}>Bad Lead</option>
+          <option value="Not in Service Area" ${d.archiveStatus==='Not in Service Area'?'selected':''}>Not in Service Area</option>
+          <option value="Deleted/Lost" ${d.archiveStatus==='Deleted/Lost'?'selected':''}>Deleted/Lost</option>
+          `:`
           <option value="Deleted/Lost" ${d.archiveStatus==='Deleted/Lost'?'selected':''}>Deleted/Lost</option>
           <option value="Closed Won" ${d.archiveStatus==='Closed Won'?'selected':''}>Closed Won</option>
           <option value="Passed Off" ${d.archiveStatus==='Passed Off'?'selected':''}>Passed Off</option>
+          <option value="Bad Lead" ${d.archiveStatus==='Bad Lead'?'selected':''}>Bad Lead</option>
+          `}
         </select></td>
         <td style="padding:8px 10px;color:var(--text-muted);white-space:nowrap">${dateStr}</td>
         <td style="padding:8px 10px"><button class="btn btn-ghost" style="font-size:11px;padding:3px 10px;background:#f0fdf4;color:#059669;border:1px solid #a7f3d0" data-action="restoreFromArchive" data-id="${esc(d.id)}">&#8617; Restore</button></td>
