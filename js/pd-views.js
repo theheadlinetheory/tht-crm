@@ -48,7 +48,7 @@ export function mergeScript(script, contact) {
     .replace(/\{address\}/gi, str(contact.address))
     .replace(/\{occupation\}/gi, str(contact.occupation))
     .replace(/\{lead_source\}/gi, str(contact.lead_source));
-  s = s.replace(/\{(custom_\d+)\}/g, (_m, key) => str(contact[key]) || '');
+  s = s.replace(/\{(custom_\d+)\}/g, (_m, key) => str(contact.custom_fields?.[key]) || '');
   return s;
 }
 
@@ -191,12 +191,12 @@ export function renderSetup(ctx) {
   }
 
   if (step === 3) {
-    const tokens = STANDARD_FIELDS.map(f => `{${f.key}}`);
+    const tokens = STANDARD_FIELDS.map(f => ({ insert: `{${f.key}}`, label: `{${f.key}}` }));
     const customFields = (ctx.customFields || []).filter(cf => cf.label.trim() && cf.csvHeader);
-    customFields.forEach(cf => tokens.push(`{${cf.key}}`));
+    customFields.forEach(cf => tokens.push({ insert: `{${cf.key}}`, label: `{${cf.label}}` }));
     h += `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px">
       <div style="font-size:13px;font-weight:600;margin-bottom:8px">Call Script</div>
-      <div style="margin-bottom:8px;display:flex;gap:4px;flex-wrap:wrap">${tokens.map(t => `<button class="btn btn-ghost" style="font-size:10px;padding:2px 6px" onclick="pdInsertToken('${t}')">${t}</button>`).join('')}</div>
+      <div style="margin-bottom:8px;display:flex;gap:4px;flex-wrap:wrap">${tokens.map(t => `<button class="btn btn-ghost" style="font-size:10px;padding:2px 6px" onclick="pdInsertToken('${esc(t.insert)}')">${esc(t.label)}</button>`).join('')}</div>
       <textarea id="pd-script" oninput="pdScriptChanged(this.value)" style="width:100%;height:120px;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font);resize:vertical;box-sizing:border-box" placeholder="Hey {name}, this is Aidan from The Headline Theory. I came across {company} while...">${esc(script)}</textarea>
       <div style="margin-top:16px;font-size:13px;font-weight:600;margin-bottom:8px">Dialing Order</div>
       <div style="display:flex;gap:12px">
@@ -304,17 +304,16 @@ export function renderDialer(ctx) {
       <div style="font-size:12px;font-weight:500">${href ? `<a href="${esc(href)}" target="_blank" style="color:#3b82f6">${esc(val)}</a>` : esc(val)}</div></div>`;
   }
   const cfMeta = campaign?.field_mapping?._customFields || [];
-  for (const cf of cfMeta) {
-    const val = contact[cf.key];
-    if (!val) continue;
-    h += `<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">${esc(cf.label)}</div>
-      <div style="font-size:12px;font-weight:500">${esc(String(val))}</div></div>`;
-  }
+  const cfLabelMap = Object.fromEntries(cfMeta.map(cf => [cf.key, cf.label]));
   if (contact.custom_fields && typeof contact.custom_fields === 'object') {
     for (const [k, v] of Object.entries(contact.custom_fields)) {
       if (!v) continue;
-      h += `<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">${esc(k)}</div>
-        <div style="font-size:12px;font-weight:500">${esc(String(v))}</div></div>`;
+      const label = cfLabelMap[k] || k;
+      const isUrl = String(v).startsWith('http://') || String(v).startsWith('https://');
+      const isDomain = !isUrl && /^[a-z0-9-]+(\.[a-z]{2,})+$/i.test(String(v).trim());
+      const href = isUrl ? v : isDomain ? 'https://' + String(v).trim() : '';
+      h += `<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">${esc(label)}</div>
+        <div style="font-size:12px;font-weight:500">${href ? `<a href="${esc(href)}" target="_blank" style="color:#3b82f6">${esc(String(v))}</a>` : esc(String(v))}</div></div>`;
     }
   }
   if (recordingUrl) {
