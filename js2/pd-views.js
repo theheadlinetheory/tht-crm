@@ -348,14 +348,13 @@ export function renderDialer(ctx) {
       <div style="font-size:13px;font-weight:600">${wsLink ? `<a href="${esc(wsLink)}" target="_blank" style="color:#2563eb;text-decoration:none">${esc(wsVal)}</a>` : esc(wsVal)}</div>
     </div>`;
   }
-  const mapAddr = contact.address || cf.city || cf['Company City'] || '';
+  const mapAddr = contact.address || cf['Company Location'] || cf.city || cf['Company City'] || '';
   if (mapAddr) {
-    const mapQ = encodeURIComponent(mapAddr);
     h += `<div style="margin-bottom:12px">
       <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">
-        LOCATION <button class="btn btn-ghost" style="font-size:9px;padding:2px 6px" onclick="window.open('https://www.google.com/maps/search/${mapQ}','_blank')">Expand ${svgIcon('external-link',10)}</button>
+        LOCATION <button class="btn btn-ghost" style="font-size:9px;padding:2px 6px" onclick="pdExpandMap()">Expand</button>
       </div>
-      <iframe src="https://maps.google.com/maps?q=${mapQ}&output=embed&z=12" style="width:100%;height:180px;border:1px solid var(--border);border-radius:6px" allowfullscreen loading="lazy"></iframe>
+      <div id="pd-mini-map" data-addr="${esc(mapAddr)}" style="width:100%;height:180px;border:1px solid var(--border);border-radius:6px;background:#f1f5f9"></div>
     </div>`;
   }
   const fields = [['Name', contact.name], ['Phone', formatPhone(contact.phone)], ['Company', contact.company],
