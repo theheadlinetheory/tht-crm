@@ -36,6 +36,7 @@ let _showDisposition = false;
 let _leadCreated = false;
 let _saving = false;
 let _callHistory = null;
+let _dialingAlt = false;
 
 // ─── Data Access ───
 
@@ -129,7 +130,7 @@ function stopTimer() {
 }
 
 function advanceToNext() {
-  _showDisposition = false; _leadCreated = false;
+  _showDisposition = false; _leadCreated = false; _dialingAlt = false;
   cleanupMaps();
   _queue.splice(_queueIndex, 1);
   if (_queueIndex >= _queue.length) _queueIndex = 0;
@@ -172,7 +173,8 @@ export function renderPowerDialer() {
       suggestedNumber: best ? formatPhone(best.number) : 'No suggestion',
       suggestedRegion: best?.region || '',
       recordingUrl: contact?.recording_url || '',
-      dialerSrc: contact ? buildDialerSrc(contact, best) : '',
+      dialerSrc: contact ? buildDialerSrc(contact, best, _dialingAlt ? normalizePhone(contact.alternate_phone) : null) : '',
+      dialingAlt: _dialingAlt,
     });
   } else if (_view === 'analytics') {
     h += renderAnalytics(_activeCampaign, _callHistory);
@@ -318,13 +320,16 @@ window.pdDeleteCampaign = (id) => {
 
 window.pdDial = (phoneType) => {
   const contact = _queue[_queueIndex];
-  const rawPhone = phoneType === 'alt' ? contact?.alternate_phone : contact?.phone;
-  if (!rawPhone) { showToast('No phone number', 'error'); return; }
+  if (phoneType === 'alt') _dialingAlt = true;
+  else if (phoneType === 'mobile') _dialingAlt = false;
+  const rawPhone = _dialingAlt ? contact?.alternate_phone : contact?.phone;
+  if (!rawPhone) { showToast('No phone number', 'error'); _dialingAlt = false; return; }
   const phone = normalizePhone(rawPhone);
   const best = getBestNumberForLead(phone);
   const src = buildDialerSrc(contact, best, phone);
   const iframe = document.getElementById('pd-dialer-iframe');
   if (iframe) iframe.src = src;
+  render();
 };
 
 window.pdSkip = async () => { const c = _queue[_queueIndex]; if (c) { await skipContact(c); advanceToNext(); } };
@@ -365,7 +370,7 @@ window.pdRefreshContact = async () => {
   if (data) { Object.assign(contact, data); render(); }
 };
 
-window.pdJumpTo = (idx) => { _queueIndex = idx; _showDisposition = false; _leadCreated = false; cleanupMaps(); render(); };
+window.pdJumpTo = (idx) => { _queueIndex = idx; _showDisposition = false; _leadCreated = false; _dialingAlt = false; cleanupMaps(); render(); };
 window.pdEndDialing = () => { window.pdBackToList(); };
 window._pdSetupName = '';
 window._pdSetupOrder = 'lifo';
