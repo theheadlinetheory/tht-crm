@@ -137,6 +137,17 @@ function advanceToNext() {
   else render();
 }
 
+function buildDialerSrc(contact, best, phoneOverride) {
+  const phone = phoneOverride || normalizePhone(contact.phone);
+  if (!phone) return '';
+  let src = 'https://app.justcall.io/dialer?numbers=' + encodeURIComponent(phone);
+  if (best?.number) src += '&caller_id=' + encodeURIComponent(best.number);
+  const jcId = currentUser?.email ? JUSTCALL_USER_MAP[currentUser.email.toLowerCase()] : null;
+  if (jcId) src += '&agent_id=' + jcId;
+  src += '&medium=custom&metadata_type=json&metadata=' + encodeURIComponent(JSON.stringify({ contact_id: contact.id, campaign_id: _activeCampaign?.id }));
+  return src;
+}
+
 // ─── Main Render Export ───
 
 export function isPowerDialerActive() {
@@ -144,13 +155,14 @@ export function isPowerDialerActive() {
 }
 
 export function renderPowerDialer() {
-  let h = '<div style="padding:16px 20px">';
+  const isDialer = _view === 'dialer';
+  let h = isDialer ? '<div>' : '<div style="padding:16px 20px">';
   if (_view === 'list') {
     if (!_campaigns) { loadCampaigns().then(() => render()); }
     h += renderList(_campaigns);
   } else if (_view === 'setup') {
     h += renderSetup({ step: _setupStep, name: _setupName, headers: _csvHeaders, rows: _csvRows, fileName: _csvFileName, mapping: _fieldMapping, countryCode: _countryCode, countryCodes: COUNTRY_CODES, customFields: _customFields, script: _setupScript, order: _setupOrder });
-  } else if (_view === 'dialer') {
+  } else if (isDialer) {
     const contact = _queue[_queueIndex];
     const best = contact ? getBestNumberForLead(normalizePhone(contact.phone)) : null;
     h += renderDialer({
@@ -160,11 +172,12 @@ export function renderPowerDialer() {
       suggestedNumber: best ? formatPhone(best.number) : 'No suggestion',
       suggestedRegion: best?.region || '',
       recordingUrl: contact?.recording_url || '',
+      dialerSrc: contact ? buildDialerSrc(contact, best) : '',
     });
   } else if (_view === 'analytics') {
     h += renderAnalytics(_activeCampaign, _callHistory);
   }
-  if (_view === 'dialer') requestAnimationFrame(initMiniMap);
+  if (isDialer) requestAnimationFrame(initMiniMap);
   return h + '</div>';
 }
 
@@ -309,29 +322,9 @@ window.pdDial = (phoneType) => {
   if (!rawPhone) { showToast('No phone number', 'error'); return; }
   const phone = normalizePhone(rawPhone);
   const best = getBestNumberForLead(phone);
-  let src = 'https://app.justcall.io/dialer?numbers=' + encodeURIComponent(phone);
-  if (best?.number) src += '&caller_id=' + encodeURIComponent(best.number);
-  const jcId = currentUser?.email ? JUSTCALL_USER_MAP[currentUser.email.toLowerCase()] : null;
-  if (jcId) src += '&agent_id=' + jcId;
-  src += '&medium=custom&metadata_type=json&metadata=' + encodeURIComponent(JSON.stringify({ contact_id: contact.id, campaign_id: _activeCampaign?.id }));
-
-  const widget = document.getElementById('justcall-widget');
-  const title = document.getElementById('justcall-widget-title');
-  const dialerEl = document.getElementById('justcall-dialer');
-  if (widget) { widget.style.display = 'flex'; widget.style.height = '90vh'; }
-  if (title) title.textContent = contact.name || contact.company || formatPhone(contact.phone);
-  if (dialerEl) dialerEl.style.display = '';
-
-  const existing = document.getElementById('justcall-dialer-iframe');
-  if (existing?.contentWindow) { existing.src = src; }
-  else if (dialerEl) {
-    dialerEl.innerHTML = '';
-    const iframe = document.createElement('iframe');
-    iframe.id = 'justcall-dialer-iframe'; iframe.src = src;
-    iframe.allow = 'microphone; autoplay; clipboard-read; clipboard-write; hid';
-    iframe.style.cssText = 'width:100%;height:100%;border:none';
-    dialerEl.appendChild(iframe);
-  }
+  const src = buildDialerSrc(contact, best, phone);
+  const iframe = document.getElementById('pd-dialer-iframe');
+  if (iframe) iframe.src = src;
 };
 
 window.pdSkip = async () => { const c = _queue[_queueIndex]; if (c) { await skipContact(c); advanceToNext(); } };

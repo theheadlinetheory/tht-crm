@@ -289,47 +289,49 @@ export function renderDialer(ctx) {
     </div>
   </div>`;
 
+  const { val: websiteVal, href: wsHref } = resolveWebsite(contact);
+  const altPhone = contact.alternate_phone || '';
+  const hasAlt = altPhone.replace(/\D/g, '').length >= 7;
+  const dialerSrc = ctx.dialerSrc || '';
+
   h += '<div style="display:flex;height:calc(100vh - 180px);overflow:hidden">';
 
-  // Left: Queue
-  h += `<div style="width:200px;border-right:1px solid var(--border);overflow-y:auto;background:#fafafa;flex-shrink:0">
-    <div style="padding:8px 10px;font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;border-bottom:1px solid var(--border)">Up Next</div>`;
-  for (let i = 0; i < Math.min(queue.length, 10); i++) {
-    const q = queue[i], isCurrent = i === queueIndex;
-    const displayName = bestName(q);
-    h += `<div style="padding:8px 10px;border-bottom:1px solid #f3f4f6;${isCurrent ? 'background:#ede9fe;border-left:3px solid var(--purple)' : ''};cursor:pointer" onclick="pdJumpTo(${i})">
-      <div style="font-size:12px;font-weight:${isCurrent ? '700' : '500'};color:${isCurrent ? 'var(--purple)' : 'var(--text-primary)'}">${esc(displayName)}</div>
-      <div style="font-size:11px;color:var(--text-muted)">${formatPhone(q.phone)}</div>
-    </div>`;
-  }
-  h += '</div>';
+  // Left: Embedded JustCall Dialer
+  h += `<div style="width:375px;border-right:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;background:#0f172a">
+    <div style="padding:8px 12px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+      <div style="display:flex;flex-direction:column;gap:1px">
+        <span style="color:#fff;font-size:12px;font-weight:600">${esc(bestName(contact))}</span>
+        <span style="color:#38bdf8;font-size:11px;font-weight:700;background:rgba(56,189,248,.15);padding:1px 6px;border-radius:4px">${suggestedRegion || 'Dialer'}</span>
+      </div>
+      ${hasAlt ? `<button onclick="pdDial('alt')" style="background:rgba(56,189,248,.15);border:1px solid rgba(56,189,248,.3);color:#38bdf8;font-size:10px;padding:4px 10px;border-radius:4px;cursor:pointer;font-family:var(--font);font-weight:600">Switch to Alt</button>` : ''}
+    </div>
+    <iframe id="pd-dialer-iframe" src="${esc(dialerSrc)}" allow="microphone; autoplay; clipboard-read; clipboard-write; hid" style="flex:1;width:100%;border:none;background:#fff"></iframe>
+  </div>`;
 
-  // Center
+  // Center: Contact info + script + actions
   h += '<div style="flex:1;overflow-y:auto;padding:20px">';
   if (showDisposition) {
     h += renderDisposition(contact, saving, leadCreated);
   } else {
-    const { val: websiteVal, href: wsHref } = resolveWebsite(contact);
-    const altPhone = contact.alternate_phone || '';
-    const hasAlt = altPhone.replace(/\D/g, '').length >= 7;
-    h += `<div style="text-align:center;margin-bottom:20px">
-      <div style="width:60px;height:60px;border-radius:50%;background:#e5e7eb;margin:0 auto 10px;display:flex;align-items:center;justify-content:center">${svgIcon('phone', 24, '#6b7280')}</div>
-      <div style="font-size:18px;font-weight:700">${esc(bestName(contact))}</div>
-      <div style="font-size:14px;color:var(--text-muted)">${formatPhone(contact.phone)}</div>
-      ${hasAlt ? `<div style="font-size:12px;color:var(--text-muted);margin-top:2px">Alt: ${formatPhone(altPhone)}</div>` : ''}
-      ${contact.company ? `<div style="font-size:13px;color:var(--text-muted)">${esc(contact.company)}</div>` : ''}
-      ${wsHref ? `<a href="${esc(wsHref)}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;font-size:12px;color:#3b82f6;font-weight:500;text-decoration:none">${svgIcon('external-link', 12, '#3b82f6')} ${esc(websiteVal)}</a>` : ''}
+    h += `<div style="margin-bottom:16px">
+      <div style="font-size:20px;font-weight:700;margin-bottom:4px">${esc(bestName(contact))}</div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <span style="font-size:13px;color:var(--text-muted)">${formatPhone(contact.phone)}</span>
+        ${hasAlt ? `<span style="font-size:12px;color:#0369a1;background:#f0f9ff;padding:2px 8px;border-radius:4px;border:1px solid #bae6fd">Alt: ${formatPhone(altPhone)}</span>` : ''}
+        ${contact.company ? `<span style="font-size:13px;color:var(--text-muted)">· ${esc(contact.company)}</span>` : ''}
+        ${wsHref ? `<a href="${esc(wsHref)}" target="_blank" style="font-size:12px;color:#3b82f6;text-decoration:none;display:inline-flex;align-items:center;gap:3px">${svgIcon('external-link', 11, '#3b82f6')} ${esc(websiteVal)}</a>` : ''}
+      </div>
     </div>`;
-    h += `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;text-align:center;margin-bottom:16px">
-      <div style="font-size:11px;font-weight:600;color:#16a34a;text-transform:uppercase;margin-bottom:4px">Use Number</div>
-      <div style="font-size:18px;font-weight:700;color:#15803d">${suggestedNumber}${suggestedRegion ? ` <span style="font-size:12px;font-weight:500;color:#4d7c0f">(${suggestedRegion})</span>` : ''}</div>
-    </div>`;
-    h += `<div style="display:flex;gap:8px;justify-content:center;margin-bottom:20px">
-      <button class="btn btn-primary" style="font-size:14px;padding:10px 32px" onclick="pdDial()">${hasAlt ? 'Dial Mobile' : 'Dial'} ${svgIcon('phone', 14, '#fff')}</button>
-      ${hasAlt ? `<button class="btn" style="font-size:12px;padding:10px 20px;background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd" onclick="pdDial('alt')">Dial Alt ${svgIcon('phone', 12, '#0369a1')}</button>` : ''}
-      <button class="btn btn-ghost" style="font-size:12px;padding:10px 20px" onclick="pdSkip()">Skip</button>
-      <button class="btn btn-ghost" style="font-size:12px;padding:10px 20px" onclick="pdShowDisp()">Log Outcome</button>
-      <button class="btn btn-ghost" style="font-size:12px;padding:10px 16px" onclick="pdRefreshContact()" title="Fetch call data from JustCall">${svgIcon('refresh-cw', 12)}</button>
+    h += `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-size:10px;font-weight:600;color:#16a34a;text-transform:uppercase">Calling From</div>
+        <div style="font-size:16px;font-weight:700;color:#15803d">${suggestedNumber}${suggestedRegion ? ` <span style="font-size:11px;font-weight:500;color:#4d7c0f">(${suggestedRegion})</span>` : ''}</div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-ghost" style="font-size:11px;padding:6px 14px" onclick="pdSkip()">Skip</button>
+        <button class="btn btn-ghost" style="font-size:11px;padding:6px 14px" onclick="pdShowDisp()">Log Outcome</button>
+        <button class="btn btn-ghost" style="font-size:11px;padding:6px 10px" onclick="pdRefreshContact()" title="Refresh">${svgIcon('refresh-cw', 11)}</button>
+      </div>
     </div>`;
     if (campaign.script) {
       const merged = mergeScript(campaign.script, contact);
@@ -348,27 +350,40 @@ export function renderDialer(ctx) {
   }
   h += '</div>';
 
-  // Right: Contact Details
-  h += `<div style="width:260px;border-left:1px solid var(--border);overflow-y:auto;padding:16px;flex-shrink:0;background:#fafafa">
-    <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:12px">Contact Details</div>`;
+  // Right: Queue + Contact Details
+  h += `<div style="width:280px;border-left:1px solid var(--border);overflow-y:auto;flex-shrink:0;background:#fafafa;display:flex;flex-direction:column">`;
+  // Queue section
+  h += `<div style="flex-shrink:0;border-bottom:1px solid var(--border)">
+    <div style="padding:8px 12px;font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;border-bottom:1px solid var(--border)">Up Next</div>`;
+  for (let i = 0; i < Math.min(queue.length, 8); i++) {
+    const q = queue[i], isCurrent = i === queueIndex;
+    h += `<div style="padding:6px 12px;border-bottom:1px solid #f3f4f6;${isCurrent ? 'background:#ede9fe;border-left:3px solid var(--purple)' : ''};cursor:pointer" onclick="pdJumpTo(${i})">
+      <div style="font-size:11px;font-weight:${isCurrent ? '700' : '500'};color:${isCurrent ? 'var(--purple)' : 'var(--text-primary)'}">${esc(bestName(q))}</div>
+      <div style="font-size:10px;color:var(--text-muted)">${formatPhone(q.phone)}${q.company ? ' · ' + esc(q.company) : ''}</div>
+    </div>`;
+  }
+  h += '</div>';
+  // Contact details section
+  h += '<div style="flex:1;overflow-y:auto;padding:12px">';
+  h += '<div style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:10px">Details</div>';
   const cf = contact.custom_fields || {};
   const { val: wsVal, href: wsLink } = resolveWebsite(contact);
   if (wsVal) {
-    h += `<div style="margin-bottom:12px;padding:10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px">
-      <div style="font-size:10px;color:#3b82f6;font-weight:600;margin-bottom:4px">Company Website</div>
-      <div style="font-size:13px;font-weight:600">${wsLink ? `<a href="${esc(wsLink)}" target="_blank" style="color:#2563eb;text-decoration:none">${esc(wsVal)}</a>` : esc(wsVal)}</div>
+    h += `<div style="margin-bottom:10px;padding:8px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px">
+      <div style="font-size:9px;color:#3b82f6;font-weight:600;margin-bottom:2px">WEBSITE</div>
+      <div style="font-size:12px;font-weight:600">${wsLink ? `<a href="${esc(wsLink)}" target="_blank" style="color:#2563eb;text-decoration:none">${esc(wsVal)}</a>` : esc(wsVal)}</div>
     </div>`;
   }
   const mapAddr = contact.address || cf['Company Location'] || cf.city || cf['Company City'] || '';
   if (mapAddr) {
-    h += `<div style="margin-bottom:12px">
-      <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">
+    h += `<div style="margin-bottom:10px">
+      <div style="font-size:9px;color:var(--text-muted);margin-bottom:4px;display:flex;align-items:center;justify-content:space-between">
         LOCATION <button class="btn btn-ghost" style="font-size:9px;padding:2px 6px" onclick="pdExpandMap()">Expand</button>
       </div>
-      <div id="pd-mini-map" data-addr="${esc(mapAddr)}" style="width:100%;height:180px;border:1px solid var(--border);border-radius:6px;background:#f1f5f9"></div>
+      <div id="pd-mini-map" data-addr="${esc(mapAddr)}" style="width:100%;height:140px;border:1px solid var(--border);border-radius:6px;background:#f1f5f9"></div>
     </div>`;
   }
-  const fields = [['Name', contact.name], ['Phone', formatPhone(contact.phone)], ['Company', contact.company],
+  const fields = [['Phone', formatPhone(contact.phone)], ['Company', contact.company],
     ['Email', contact.email], ['LinkedIn', contact.linkedin],
     ['Address', contact.address], ['Occupation', contact.occupation], ['Alt Phone', formatPhone(contact.alternate_phone)]];
   for (const [label, val] of fields) {
@@ -376,8 +391,8 @@ export function renderDialer(ctx) {
     const isUrl = val.startsWith('http://') || val.startsWith('https://');
     const isDomain = !isUrl && /^[a-z0-9-]+(\.[a-z]{2,})+$/i.test(val.trim());
     const href = isUrl ? val : isDomain ? 'https://' + val.trim() : '';
-    h += `<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">${label}</div>
-      <div style="font-size:12px;font-weight:500">${href ? `<a href="${esc(href)}" target="_blank" style="color:#3b82f6">${esc(val)}</a>` : esc(val)}</div></div>`;
+    h += `<div style="margin-bottom:8px"><div style="font-size:9px;color:var(--text-muted);margin-bottom:1px">${label}</div>
+      <div style="font-size:11px;font-weight:500">${href ? `<a href="${esc(href)}" target="_blank" style="color:#3b82f6">${esc(val)}</a>` : esc(val)}</div></div>`;
   }
   const cfMeta = campaign?.field_mapping?._customFields || [];
   const cfLabelMap = Object.fromEntries(cfMeta.map(cf => [cf.key, cf.label]));
@@ -388,17 +403,17 @@ export function renderDialer(ctx) {
       const isUrl = String(v).startsWith('http://') || String(v).startsWith('https://');
       const isDomain = !isUrl && /^[a-z0-9-]+(\.[a-z]{2,})+$/i.test(String(v).trim());
       const href = isUrl ? v : isDomain ? 'https://' + String(v).trim() : '';
-      h += `<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">${esc(label)}</div>
-        <div style="font-size:12px;font-weight:500">${href ? `<a href="${esc(href)}" target="_blank" style="color:#3b82f6">${esc(String(v))}</a>` : esc(String(v))}</div></div>`;
+      h += `<div style="margin-bottom:8px"><div style="font-size:9px;color:var(--text-muted);margin-bottom:1px">${esc(label)}</div>
+        <div style="font-size:11px;font-weight:500">${href ? `<a href="${esc(href)}" target="_blank" style="color:#3b82f6">${esc(String(v))}</a>` : esc(String(v))}</div></div>`;
     }
   }
   if (recordingUrl) {
-    h += `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
-      <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px">CALL RECORDING</div>
-      <audio controls preload="none" style="width:100%;height:32px" src="${esc(recordingUrl)}"></audio>
+    h += `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+      <div style="font-size:9px;color:var(--text-muted);margin-bottom:4px">RECORDING</div>
+      <audio controls preload="none" style="width:100%;height:28px" src="${esc(recordingUrl)}"></audio>
     </div>`;
   }
-  h += '</div></div>';
+  h += '</div></div></div>';
   return h;
 }
 
