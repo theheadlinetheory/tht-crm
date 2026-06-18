@@ -350,26 +350,26 @@ export function renderDialer(ctx) {
   }
   h += '</div>';
 
-  // Right: Contact Details (prominent) + Up Next (compact)
-  h += `<div style="width:320px;border-left:1px solid var(--border);overflow-y:auto;flex-shrink:0;background:#fafafa;display:flex;flex-direction:column">`;
-  // Contact details section — top, prominent
-  h += '<div style="flex:1;overflow-y:auto;padding:14px">';
-  h += '<div style="font-size:11px;font-weight:700;color:var(--text-primary);text-transform:uppercase;margin-bottom:12px;letter-spacing:.5px">Contact Details</div>';
+  // Right: Contact Details (prominent) + Up Next (3 items, faded)
+  h += `<div style="width:360px;border-left:1px solid var(--border);flex-shrink:0;background:#fafafa;display:flex;flex-direction:column;overflow:hidden">`;
+  // Contact details section — takes all available space
+  h += '<div style="flex:1;overflow-y:auto;padding:16px">';
+  h += '<div style="font-size:12px;font-weight:700;color:var(--text-primary);text-transform:uppercase;margin-bottom:14px;letter-spacing:.5px">Contact Details</div>';
   const cf = contact.custom_fields || {};
   const { val: wsVal, href: wsLink } = resolveWebsite(contact);
   if (wsVal) {
-    h += `<div style="margin-bottom:12px;padding:10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px">
-      <div style="font-size:10px;color:#3b82f6;font-weight:600;margin-bottom:3px">WEBSITE</div>
-      <div style="font-size:13px;font-weight:600">${wsLink ? `<a href="${esc(wsLink)}" target="_blank" style="color:#2563eb;text-decoration:none">${esc(wsVal)}</a>` : esc(wsVal)}</div>
+    h += `<div style="margin-bottom:14px;padding:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px">
+      <div style="font-size:10px;color:#3b82f6;font-weight:600;margin-bottom:4px">WEBSITE</div>
+      <div style="font-size:14px;font-weight:600">${wsLink ? `<a href="${esc(wsLink)}" target="_blank" style="color:#2563eb;text-decoration:none">${esc(wsVal)}</a>` : esc(wsVal)}</div>
     </div>`;
   }
   const mapAddr = contact.address || cf['Company Location'] || cf.city || cf['Company City'] || '';
   if (mapAddr) {
-    h += `<div style="margin-bottom:12px">
-      <div style="font-size:10px;color:var(--text-muted);margin-bottom:5px;display:flex;align-items:center;justify-content:space-between">
+    h += `<div style="margin-bottom:14px">
+      <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">
         LOCATION <button class="btn btn-ghost" style="font-size:9px;padding:2px 6px" onclick="pdExpandMap()">Expand</button>
       </div>
-      <div id="pd-mini-map" data-addr="${esc(mapAddr)}" style="width:100%;height:160px;border:1px solid var(--border);border-radius:6px;background:#f1f5f9"></div>
+      <div id="pd-mini-map" data-addr="${esc(mapAddr)}" style="width:100%;height:180px;border:1px solid var(--border);border-radius:8px;background:#f1f5f9"></div>
     </div>`;
   }
   const fields = [['Phone', formatPhone(contact.phone)], ['Company', contact.company],
@@ -380,8 +380,8 @@ export function renderDialer(ctx) {
     const isUrl = val.startsWith('http://') || val.startsWith('https://');
     const isDomain = !isUrl && /^[a-z0-9-]+(\.[a-z]{2,})+$/i.test(val.trim());
     const href = isUrl ? val : isDomain ? 'https://' + val.trim() : '';
-    h += `<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">${label}</div>
-      <div style="font-size:12px;font-weight:500">${href ? `<a href="${esc(href)}" target="_blank" style="color:#3b82f6">${esc(val)}</a>` : esc(val)}</div></div>`;
+    h += `<div style="margin-bottom:12px"><div style="font-size:10px;color:var(--text-muted);margin-bottom:3px">${label}</div>
+      <div style="font-size:13px;font-weight:500">${href ? `<a href="${esc(href)}" target="_blank" style="color:#3b82f6">${esc(val)}</a>` : esc(val)}</div></div>`;
   }
   const cfMeta = campaign?.field_mapping?._customFields || [];
   const cfLabelMap = Object.fromEntries(cfMeta.map(cf => [cf.key, cf.label]));
@@ -392,29 +392,38 @@ export function renderDialer(ctx) {
       const isUrl = String(v).startsWith('http://') || String(v).startsWith('https://');
       const isDomain = !isUrl && /^[a-z0-9-]+(\.[a-z]{2,})+$/i.test(String(v).trim());
       const href = isUrl ? v : isDomain ? 'https://' + String(v).trim() : '';
-      h += `<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">${esc(label)}</div>
-        <div style="font-size:12px;font-weight:500">${href ? `<a href="${esc(href)}" target="_blank" style="color:#3b82f6">${esc(String(v))}</a>` : esc(String(v))}</div></div>`;
+      h += `<div style="margin-bottom:12px"><div style="font-size:10px;color:var(--text-muted);margin-bottom:3px">${esc(label)}</div>
+        <div style="font-size:13px;font-weight:500">${href ? `<a href="${esc(href)}" target="_blank" style="color:#3b82f6">${esc(String(v))}</a>` : esc(String(v))}</div></div>`;
     }
   }
   if (recordingUrl) {
-    h += `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
-      <div style="font-size:10px;color:var(--text-muted);margin-bottom:5px">RECORDING</div>
+    h += `<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px">RECORDING</div>
       <audio controls preload="none" style="width:100%;height:32px" src="${esc(recordingUrl)}"></audio>
     </div>`;
   }
   h += '</div>';
-  // Queue section — bottom, compact
-  h += `<div style="flex-shrink:0;border-top:2px solid var(--border);max-height:200px;overflow-y:auto">
-    <div style="padding:6px 12px;font-size:9px;font-weight:600;color:var(--text-muted);text-transform:uppercase;border-bottom:1px solid var(--border);background:#f3f4f6">Up Next</div>`;
-  for (let i = 0; i < Math.min(queue.length, 8); i++) {
-    const q = queue[i], isCurrent = i === queueIndex;
-    h += `<div style="padding:5px 12px;border-bottom:1px solid #f3f4f6;${isCurrent ? 'background:#ede9fe;border-left:3px solid var(--purple)' : ''};cursor:pointer" onclick="pdJumpTo(${i})">
-      <div style="font-size:11px;font-weight:${isCurrent ? '700' : '500'};color:${isCurrent ? 'var(--purple)' : 'var(--text-primary)'}">
-        ${esc(bestName(q))} <span style="font-size:10px;color:var(--text-muted);font-weight:400">${formatPhone(q.phone)}</span>
-      </div>
-    </div>`;
+  // Up Next — only 3 items, bottom fades out
+  const nextItems = [];
+  for (let i = 0; i < Math.min(queue.length, queueIndex + 4); i++) {
+    if (i === queueIndex) continue;
+    if (nextItems.length >= 3) break;
+    nextItems.push({ q: queue[i], i });
   }
-  h += '</div></div></div>';
+  if (nextItems.length) {
+    h += `<div style="flex-shrink:0;border-top:1px solid var(--border);position:relative">
+      <div style="padding:6px 14px;font-size:9px;font-weight:600;color:var(--text-muted);text-transform:uppercase;background:#f3f4f6">Up Next</div>`;
+    nextItems.forEach((item, idx) => {
+      const opacity = idx === 2 ? '0.4' : idx === 1 ? '0.7' : '1';
+      h += `<div style="padding:5px 14px;border-top:1px solid #f3f4f6;cursor:pointer;opacity:${opacity}" onclick="pdJumpTo(${item.i})">
+        <div style="font-size:11px;font-weight:500;color:var(--text-primary)">
+          ${esc(bestName(item.q))} <span style="font-size:10px;color:var(--text-muted);font-weight:400">${formatPhone(item.q.phone)}</span>
+        </div>
+      </div>`;
+    });
+    h += '</div>';
+  }
+  h += '</div></div>';
   return h;
 }
 
