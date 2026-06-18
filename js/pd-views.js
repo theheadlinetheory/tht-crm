@@ -197,7 +197,7 @@ export function renderSetup(ctx) {
     h += `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px">
       <div style="font-size:13px;font-weight:600;margin-bottom:8px">Call Script</div>
       <div style="margin-bottom:8px;display:flex;gap:4px;flex-wrap:wrap">${tokens.map(t => `<button class="btn btn-ghost" style="font-size:10px;padding:2px 6px" onclick="pdInsertToken('${t}')">${t}</button>`).join('')}</div>
-      <textarea id="pd-script" style="width:100%;height:120px;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font);resize:vertical;box-sizing:border-box" placeholder="Hey {name}, this is Aidan from The Headline Theory. I came across {company} while...">${esc(script)}</textarea>
+      <textarea id="pd-script" oninput="pdScriptChanged(this.value)" style="width:100%;height:120px;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font);resize:vertical;box-sizing:border-box" placeholder="Hey {name}, this is Aidan from The Headline Theory. I came across {company} while...">${esc(script)}</textarea>
       <div style="margin-top:16px;font-size:13px;font-weight:600;margin-bottom:8px">Dialing Order</div>
       <div style="display:flex;gap:12px">
         <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="radio" name="pd-order" value="fifo" ${order === 'fifo' ? 'checked' : ''} onchange="window._pdSetupOrder='fifo'"> First in first out</label>
