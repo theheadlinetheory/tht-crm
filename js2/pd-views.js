@@ -121,7 +121,7 @@ export function renderList(campaigns) {
 // ─── Setup Wizard ───
 
 export function renderSetup(ctx) {
-  const { step, name, headers, rows, fileName, mapping, script, order } = ctx;
+  const { step, name, headers, rows, fileName, mapping, countryCode, countryCodes, script, order } = ctx;
   let h = '<div style="max-width:800px;margin:0 auto">';
 
   const steps = ['Upload CSV', 'Map Fields', 'Script & Settings'];
@@ -163,8 +163,18 @@ export function renderSetup(ctx) {
   }
 
   if (step === 2) {
+    const cc = countryCode || '1';
+    const ccList = countryCodes || [];
     h += `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px">
-      <div style="font-size:13px;font-weight:600;margin-bottom:12px">Map CSV Fields</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div style="font-size:13px;font-weight:600">Map CSV Fields</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <label style="font-size:11px;font-weight:600;color:var(--text-muted)">Country Code</label>
+          <select onchange="pdSetCountryCode(this.value)" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font)">
+            ${ccList.map(c => `<option value="${c.code}" ${c.code === cc ? 'selected' : ''}>${esc(c.label)}</option>`).join('')}
+          </select>
+        </div>
+      </div>
       <table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead><tr style="background:#f9fafb;border-bottom:2px solid var(--border)">
         <th style="padding:8px 10px;text-align:left;font-weight:600">Dialer Field</th>

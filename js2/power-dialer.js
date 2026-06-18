@@ -10,6 +10,19 @@ import { currentUser } from './auth.js?v=20260618a';
 import { JUSTCALL_USER_MAP } from './config.js?v=20260618a';
 import { renderList, renderSetup, renderDialer, renderAnalytics, STANDARD_FIELDS, DISPOSITIONS, formatPhone, fmtDuration } from './pd-views.js?v=20260618a';
 
+const COUNTRY_CODES = [
+  { code: '1', label: 'US / Canada (+1)', national: 10 },
+  { code: '44', label: 'United Kingdom (+44)', national: 10 },
+  { code: '61', label: 'Australia (+61)', national: 9 },
+  { code: '64', label: 'New Zealand (+64)', national: 9 },
+  { code: '91', label: 'India (+91)', national: 10 },
+  { code: '49', label: 'Germany (+49)', national: 11 },
+  { code: '33', label: 'France (+33)', national: 9 },
+  { code: '52', label: 'Mexico (+52)', national: 10 },
+  { code: '55', label: 'Brazil (+55)', national: 11 },
+  { code: '971', label: 'UAE (+971)', national: 9 },
+];
+
 const AUTO_DETECT = {
   'phone': ['phone', 'mobile phone', 'mobile', 'phone number', 'cell', 'telephone'],
   'name': ['name', 'first name', 'firstname', 'contact', 'contact name'],
@@ -31,6 +44,7 @@ let _csvHeaders = [];
 let _csvRows = [];
 let _csvFileName = '';
 let _fieldMapping = {};
+let _countryCode = '1';
 let _customFields = [];
 let _setupScript = '';
 let _setupOrder = 'lifo';
@@ -141,7 +155,7 @@ function autoDetectMapping(headers) {
   return mapping;
 }
 
-function buildContacts(headers, rows, mapping, customFields) {
+function buildContacts(headers, rows, mapping, customFields, countryCode) {
   const mappedHeaders = new Set(Object.values(mapping));
   const validCustom = (customFields || []).filter(cf => cf.label.trim() && cf.csvHeader);
   validCustom.forEach(cf => mappedHeaders.add(cf.csvHeader));
@@ -155,6 +169,8 @@ function buildContacts(headers, rows, mapping, customFields) {
     }
     const digits = (contact.phone || '').replace(/\D/g, '');
     if (digits.length < 7) { skippedNoPhone++; continue; }
+    contact.phone = normalizePhone(contact.phone, countryCode);
+    if (contact.alternate_phone) contact.alternate_phone = normalizePhone(contact.alternate_phone, countryCode);
     const custom = {};
     for (const cf of validCustom) {
       const idx = headers.indexOf(cf.csvHeader);
@@ -169,11 +185,14 @@ function buildContacts(headers, rows, mapping, customFields) {
   return contacts;
 }
 
-function normalizePhone(phone) {
+function normalizePhone(phone, cc) {
+  const code = cc || _activeCampaign?.field_mapping?._countryCode || '1';
   const d = (phone || '').replace(/\D/g, '');
-  if (d.length === 10) return '+1' + d;
-  if (d.length === 11 && d[0] === '1') return '+' + d;
-  return '+' + d;
+  if (!d) return '';
+  if (d.startsWith(code)) return '+' + d;
+  const info = COUNTRY_CODES.find(c => c.code === code);
+  if (info && d.length === info.national) return '+' + code + d;
+  return '+' + code + d;
 }
 
 // ─── Duration Timer ───
@@ -213,7 +232,7 @@ export function renderPowerDialer() {
     if (!_campaigns) { loadCampaigns().then(() => render()); }
     h += renderList(_campaigns);
   } else if (_view === 'setup') {
-    h += renderSetup({ step: _setupStep, name: _setupName, headers: _csvHeaders, rows: _csvRows, fileName: _csvFileName, mapping: _fieldMapping, customFields: _customFields, script: _setupScript, order: _setupOrder });
+    h += renderSetup({ step: _setupStep, name: _setupName, headers: _csvHeaders, rows: _csvRows, fileName: _csvFileName, mapping: _fieldMapping, countryCode: _countryCode, countryCodes: COUNTRY_CODES, customFields: _customFields, script: _setupScript, order: _setupOrder });
   } else if (_view === 'dialer') {
     const contact = _queue[_queueIndex];
     const best = contact ? getBestNumberForLead(normalizePhone(contact.phone)) : null;
@@ -235,7 +254,7 @@ export function renderPowerDialer() {
 
 window.pdStartSetup = () => {
   _view = 'setup'; _setupStep = 1; _setupName = ''; _csvHeaders = []; _csvRows = []; _csvFileName = '';
-  _fieldMapping = {}; _customFields = []; _setupScript = ''; _setupOrder = 'lifo'; render();
+  _fieldMapping = {}; _countryCode = '1'; _customFields = []; _setupScript = ''; _setupOrder = 'lifo'; render();
 };
 
 window.pdBackToList = () => {
@@ -306,16 +325,19 @@ window.pdClearCsv = () => {
   _csvHeaders = []; _csvRows = []; _csvFileName = ''; _fieldMapping = {}; render();
 };
 
+window.pdSetCountryCode = (code) => { _countryCode = code; };
+
 window.pdFinishSetup = async () => {
   const scriptEl = document.getElementById('pd-script');
   if (scriptEl) _setupScript = scriptEl.value;
   const orderRadio = document.querySelector('input[name="pd-order"]:checked');
   if (orderRadio) _setupOrder = orderRadio.value;
-  const contacts = buildContacts(_csvHeaders, _csvRows, _fieldMapping, _customFields);
+  const contacts = buildContacts(_csvHeaders, _csvRows, _fieldMapping, _customFields, _countryCode);
   const skipped = buildContacts._skippedNoPhone || 0;
   if (!contacts.length) { showToast('No contacts with valid phone numbers', 'error'); return; }
   try {
     showToast(`Creating campaign...${skipped ? ` (${skipped} rows skipped — no phone)` : ''}`, 'success');
+    _fieldMapping._countryCode = _countryCode;
     const cfMeta = _customFields.filter(cf => cf.label.trim() && cf.csvHeader).map(cf => ({ key: cf.key, label: cf.label }));
     await saveCampaign(_setupName, _setupScript, _setupOrder, _fieldMapping, cfMeta, contacts);
     showToast(`Campaign "${_setupName}" created with ${contacts.length} contacts${skipped ? ` (${skipped} skipped — no phone)` : ''}`, 'success');
