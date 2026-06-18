@@ -403,18 +403,17 @@ export function renderDialer(ctx) {
     </div>`;
   }
   h += '</div>';
-  // Up Next — only 3 items, bottom fades out
+  // Up Next — shows 3 visible, scrollable for more
   const nextItems = [];
-  for (let i = 0; i < Math.min(queue.length, queueIndex + 4); i++) {
+  for (let i = 0; i < queue.length; i++) {
     if (i === queueIndex) continue;
-    if (nextItems.length >= 3) break;
     nextItems.push({ q: queue[i], i });
   }
   if (nextItems.length) {
-    h += `<div style="flex-shrink:0;border-top:1px solid var(--border);position:relative">
-      <div style="padding:6px 14px;font-size:9px;font-weight:600;color:var(--text-muted);text-transform:uppercase;background:#f3f4f6">Up Next</div>`;
+    h += `<div style="flex-shrink:0;border-top:1px solid var(--border);max-height:140px;overflow-y:auto">
+      <div style="padding:6px 14px;font-size:9px;font-weight:600;color:var(--text-muted);text-transform:uppercase;background:#f3f4f6;position:sticky;top:0;z-index:1">Up Next (${nextItems.length})</div>`;
     nextItems.forEach((item, idx) => {
-      const opacity = idx === 2 ? '0.4' : idx === 1 ? '0.7' : '1';
+      const opacity = idx >= 3 ? '0.4' : idx === 2 ? '0.6' : '1';
       h += `<div style="padding:5px 14px;border-top:1px solid #f3f4f6;cursor:pointer;opacity:${opacity}" onclick="pdJumpTo(${item.i})">
         <div style="font-size:11px;font-weight:500;color:var(--text-primary)">
           ${esc(bestName(item.q))} <span style="font-size:10px;color:var(--text-muted);font-weight:400">${formatPhone(item.q.phone)}</span>
