@@ -403,6 +403,17 @@ function renderDisposition(contact, saving, leadCreated) {
         ${leadCreated ? '✓ Lead Created' : '+ Create Lead'}
       </button>
     </div>
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+      <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:8px">Book a Call</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" style="flex:1;font-size:12px;background:#2563eb;border-color:#2563eb;display:flex;align-items:center;justify-content:center;gap:4px" onclick="pdBookCall('demo')">
+          ${svgIcon('calendar',12,'#fff')} Demo Call
+        </button>
+        <button class="btn btn-primary" style="flex:1;font-size:12px;background:#7c3aed;border-color:#7c3aed;display:flex;align-items:center;justify-content:center;gap:4px" onclick="pdShowStrategyPicker()">
+          ${svgIcon('calendar',12,'#fff')} Strategy Call
+        </button>
+      </div>
+    </div>
   </div>`;
 }
 
