@@ -320,8 +320,15 @@ export function renderDialer(ctx) {
     if (campaign.script) {
       const merged = mergeScript(campaign.script, contact);
       h += `<div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:16px">
-        <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase">Call Script</div>
-        <div style="font-size:13px;line-height:1.6;white-space:pre-wrap">${esc(merged)}</div>
+        <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;display:flex;align-items:center;justify-content:space-between">
+          Call Script <button class="btn btn-ghost" style="font-size:10px;padding:2px 8px" onclick="pdEditScript()">Edit</button>
+        </div>
+        <div id="pd-script-display" style="font-size:13px;line-height:1.6;white-space:pre-wrap">${esc(merged)}</div>
+      </div>`;
+    } else {
+      h += `<div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">No call script set</div>
+        <button class="btn btn-ghost" style="font-size:11px" onclick="pdEditScript()">Add Script</button>
       </div>`;
     }
   }
