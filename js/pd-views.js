@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // PD-VIEWS — Power Dialer rendering (pure HTML generators)
 // ═══════════════════════════════════════════════════════════
-import { esc, svgIcon, str } from './utils.js?v=20260618a';
+import { esc, svgIcon, str } from './utils.js?v=20260618e';
 
 const DISPOSITIONS = [
   'Interested - Appointment Set', 'Interested - Needs Follow-Up', 'Qualified Lead',
@@ -49,14 +49,20 @@ function bestName(contact) {
 
 export function mergeScript(script, contact) {
   const cleanName = bestName(contact);
-  let s = script
-    .replace(/\{name\}/gi, cleanName !== 'Unknown' ? cleanName : 'there')
-    .replace(/\{company\}/gi, str(contact.company) || 'your company')
-    .replace(/\{email\}/gi, str(contact.email))
-    .replace(/\{address\}/gi, str(contact.address))
-    .replace(/\{occupation\}/gi, str(contact.occupation))
-    .replace(/\{lead_source\}/gi, str(contact.lead_source));
-  s = s.replace(/\{(custom_\d+)\}/g, (_m, key) => str(contact.custom_fields?.[key]) || '');
+  const replacements = {
+    name: cleanName !== 'Unknown' ? cleanName : 'there',
+    company: str(contact.company) || 'your company',
+    email: str(contact.email),
+    address: str(contact.address),
+    occupation: str(contact.occupation),
+    lead_source: str(contact.lead_source),
+  };
+  let s = script;
+  for (const [key, val] of Object.entries(replacements)) {
+    s = s.replace(new RegExp(`\\{\\{?${key}\\}?\\}`, 'gi'), val);
+  }
+  s = s.replace(/\{\{?\d+%(\w+)\}?\}/gi, (_m, field) => replacements[field.toLowerCase()] || '');
+  s = s.replace(/\{\{?(custom_\d+)\}?\}/g, (_m, key) => str(contact.custom_fields?.[key]) || '');
   return s;
 }
 
@@ -109,6 +115,7 @@ export function renderList(campaigns) {
       <td style="padding:8px 12px;text-align:center;font-weight:600;color:${connectRate >= 50 ? '#16a34a' : connectRate >= 20 ? '#d97706' : '#6b7280'}">${c.completed_contacts > 0 ? connectRate + '%' : '-'}</td>
       <td style="padding:8px 12px;text-align:center;display:flex;gap:4px;justify-content:center">
         <button class="btn btn-primary" style="font-size:11px;padding:4px 10px" onclick="pdPlayCampaign('${c.id}')" title="Start Dialing">${svgIcon('phone', 11, '#fff')}</button>
+        <button class="btn btn-ghost" style="font-size:11px;padding:4px 6px" onclick="pdCampaignSettings('${c.id}')" title="Settings">${svgIcon('settings', 11)}</button>
         <button class="btn btn-ghost" style="font-size:11px;padding:4px 6px" onclick="pdShowAnalytics('${c.id}')" title="Analytics">${svgIcon('bar-chart', 11)}</button>
         <button class="btn btn-ghost" style="font-size:11px;padding:4px 6px;color:#dc2626" onclick="pdDeleteCampaign('${c.id}')" title="Delete">×</button>
       </td>
@@ -121,7 +128,7 @@ export function renderList(campaigns) {
 // ─── Setup Wizard ───
 
 export function renderSetup(ctx) {
-  const { step, name, headers, rows, fileName, mapping, script, order } = ctx;
+  const { step, name, headers, rows, fileName, mapping, countryCode, countryCodes, script, order } = ctx;
   let h = '<div style="max-width:800px;margin:0 auto">';
 
   const steps = ['Upload CSV', 'Map Fields', 'Script & Settings'];
@@ -163,8 +170,18 @@ export function renderSetup(ctx) {
   }
 
   if (step === 2) {
+    const cc = countryCode || '1';
+    const ccList = countryCodes || [];
     h += `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px">
-      <div style="font-size:13px;font-weight:600;margin-bottom:12px">Map CSV Fields</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div style="font-size:13px;font-weight:600">Map CSV Fields</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <label style="font-size:11px;font-weight:600;color:var(--text-muted)">Country Code</label>
+          <select onchange="pdSetCountryCode(this.value)" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font)">
+            ${ccList.map(c => `<option value="${c.code}" ${c.code === cc ? 'selected' : ''}>${esc(c.label)}</option>`).join('')}
+          </select>
+        </div>
+      </div>
       <table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead><tr style="background:#f9fafb;border-bottom:2px solid var(--border)">
         <th style="padding:8px 10px;text-align:left;font-weight:600">Dialer Field</th>
@@ -244,6 +261,13 @@ export function renderDialer(ctx) {
   const contact = queue[queueIndex];
   if (!contact) return renderDialer(Object.assign({}, ctx, { queue: [] }));
 
+  if (contact.phone && contact.phone.includes(',') && !contact._phoneSplit) {
+    const parts = contact.phone.split(',').map(p => p.trim()).filter(Boolean);
+    contact.phone = parts[0];
+    if (!contact.alternate_phone && parts.length > 1) contact.alternate_phone = parts[1];
+    contact._phoneSplit = true;
+  }
+
   const completed = campaign.completed_contacts || 0, skipped = campaign.skipped_contacts || 0;
   const answered = campaign.answered_calls || 0, total = campaign.total_contacts || 0;
   let h = '';
@@ -280,14 +304,20 @@ export function renderDialer(ctx) {
   if (showDisposition) {
     h += renderDisposition(contact, saving, leadCreated);
   } else {
-    const websiteVal = contact.lead_source || '';
+    const _cf = contact.custom_fields || {};
+    const _ls = contact.lead_source || '';
+    const _lsMx = /mail\.protection|aspmx|mx\d|ppe-hosted|pphosted|mimecast/i.test(_ls);
+    const websiteVal = _cf['Company Website'] || _cf['company_website'] || _cf['Website'] || _cf['website'] || (_lsMx ? '' : _ls);
     const wsIsUrl = websiteVal.startsWith('http://') || websiteVal.startsWith('https://');
     const wsIsDomain = !wsIsUrl && /^[a-z0-9-]+(\.[a-z]{2,})+$/i.test(websiteVal.trim());
     const wsHref = wsIsUrl ? websiteVal : wsIsDomain ? 'https://' + websiteVal.trim() : '';
+    const altPhone = contact.alternate_phone || '';
+    const hasAlt = altPhone.replace(/\D/g, '').length >= 7;
     h += `<div style="text-align:center;margin-bottom:20px">
       <div style="width:60px;height:60px;border-radius:50%;background:#e5e7eb;margin:0 auto 10px;display:flex;align-items:center;justify-content:center">${svgIcon('phone', 24, '#6b7280')}</div>
       <div style="font-size:18px;font-weight:700">${esc(bestName(contact))}</div>
       <div style="font-size:14px;color:var(--text-muted)">${formatPhone(contact.phone)}</div>
+      ${hasAlt ? `<div style="font-size:12px;color:var(--text-muted);margin-top:2px">Alt: ${formatPhone(altPhone)}</div>` : ''}
       ${contact.company ? `<div style="font-size:13px;color:var(--text-muted)">${esc(contact.company)}</div>` : ''}
       ${wsHref ? `<a href="${esc(wsHref)}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;font-size:12px;color:#3b82f6;font-weight:500;text-decoration:none">${svgIcon('external-link', 12, '#3b82f6')} ${esc(websiteVal)}</a>` : ''}
     </div>`;
@@ -296,7 +326,8 @@ export function renderDialer(ctx) {
       <div style="font-size:18px;font-weight:700;color:#15803d">${suggestedNumber}${suggestedRegion ? ` <span style="font-size:12px;font-weight:500;color:#4d7c0f">(${suggestedRegion})</span>` : ''}</div>
     </div>`;
     h += `<div style="display:flex;gap:8px;justify-content:center;margin-bottom:20px">
-      <button class="btn btn-primary" style="font-size:14px;padding:10px 32px" onclick="pdDial()">Dial ${svgIcon('phone', 14, '#fff')}</button>
+      <button class="btn btn-primary" style="font-size:14px;padding:10px 32px" onclick="pdDial()">${hasAlt ? 'Dial Mobile' : 'Dial'} ${svgIcon('phone', 14, '#fff')}</button>
+      ${hasAlt ? `<button class="btn" style="font-size:12px;padding:10px 20px;background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd" onclick="pdDial('alt')">Dial Alt ${svgIcon('phone', 12, '#0369a1')}</button>` : ''}
       <button class="btn btn-ghost" style="font-size:12px;padding:10px 20px" onclick="pdSkip()">Skip</button>
       <button class="btn btn-ghost" style="font-size:12px;padding:10px 20px" onclick="pdShowDisp()">Log Outcome</button>
       <button class="btn btn-ghost" style="font-size:12px;padding:10px 16px" onclick="pdRefreshContact()" title="Fetch call data from JustCall">${svgIcon('refresh-cw', 12)}</button>
@@ -304,8 +335,15 @@ export function renderDialer(ctx) {
     if (campaign.script) {
       const merged = mergeScript(campaign.script, contact);
       h += `<div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:16px">
-        <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase">Call Script</div>
-        <div style="font-size:13px;line-height:1.6;white-space:pre-wrap">${esc(merged)}</div>
+        <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;display:flex;align-items:center;justify-content:space-between">
+          Call Script <button class="btn btn-ghost" style="font-size:10px;padding:2px 8px" onclick="pdEditScript()">Edit</button>
+        </div>
+        <div id="pd-script-display" style="font-size:13px;line-height:1.6;white-space:pre-wrap">${esc(merged)}</div>
+      </div>`;
+    } else {
+      h += `<div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">No call script set</div>
+        <button class="btn btn-ghost" style="font-size:11px" onclick="pdEditScript()">Add Script</button>
       </div>`;
     }
   }
@@ -314,9 +352,31 @@ export function renderDialer(ctx) {
   // Right: Contact Details
   h += `<div style="width:260px;border-left:1px solid var(--border);overflow-y:auto;padding:16px;flex-shrink:0;background:#fafafa">
     <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:12px">Contact Details</div>`;
+  const cf = contact.custom_fields || {};
+  const lsRaw = contact.lead_source || '';
+  const lsIsMx = /mail\.protection|aspmx|mx\d|ppe-hosted|pphosted|mimecast/i.test(lsRaw);
+  const wsVal = cf['Company Website'] || cf['company_website'] || cf['Website'] || cf['website'] || (lsIsMx ? '' : lsRaw);
+  const wsIsLink = wsVal.startsWith('http://') || wsVal.startsWith('https://');
+  const wsIsDom = !wsIsLink && /^[a-z0-9-]+(\.[a-z]{2,})+$/i.test(wsVal.trim());
+  const wsLink = wsIsLink ? wsVal : wsIsDom ? 'https://' + wsVal.trim() : '';
+  if (wsVal) {
+    h += `<div style="margin-bottom:12px;padding:10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px">
+      <div style="font-size:10px;color:#3b82f6;font-weight:600;margin-bottom:4px">Company Website</div>
+      <div style="font-size:13px;font-weight:600">${wsLink ? `<a href="${esc(wsLink)}" target="_blank" style="color:#2563eb;text-decoration:none">${esc(wsVal)}</a>` : esc(wsVal)}</div>
+    </div>`;
+  }
+  const mapAddr = contact.address || cf['Company Location'] || cf.city || cf['Company City'] || '';
+  if (mapAddr) {
+    h += `<div style="margin-bottom:12px">
+      <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">
+        LOCATION <button class="btn btn-ghost" style="font-size:9px;padding:2px 6px" onclick="pdExpandMap()">Expand</button>
+      </div>
+      <div id="pd-mini-map" data-addr="${esc(mapAddr)}" style="width:100%;height:180px;border:1px solid var(--border);border-radius:6px;background:#f1f5f9"></div>
+    </div>`;
+  }
   const fields = [['Name', contact.name], ['Phone', formatPhone(contact.phone)], ['Company', contact.company],
-    ['Email', contact.email], ['LinkedIn', contact.linkedin], ['Lead Source', contact.lead_source],
-    ['Address', contact.address], ['Occupation', contact.occupation], ['Alt Phone', contact.alternate_phone]];
+    ['Email', contact.email], ['LinkedIn', contact.linkedin],
+    ['Address', contact.address], ['Occupation', contact.occupation], ['Alt Phone', formatPhone(contact.alternate_phone)]];
   for (const [label, val] of fields) {
     if (!val) continue;
     const isUrl = val.startsWith('http://') || val.startsWith('https://');
@@ -337,16 +397,6 @@ export function renderDialer(ctx) {
       h += `<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">${esc(label)}</div>
         <div style="font-size:12px;font-weight:500">${href ? `<a href="${esc(href)}" target="_blank" style="color:#3b82f6">${esc(String(v))}</a>` : esc(String(v))}</div></div>`;
     }
-  }
-  const mapAddr = contact.address || contact.custom_fields?.city || '';
-  if (mapAddr) {
-    const mapQ = encodeURIComponent(mapAddr);
-    h += `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
-      <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">
-        LOCATION <button class="btn btn-ghost" style="font-size:9px;padding:2px 6px" onclick="window.open('https://www.google.com/maps/search/${mapQ}','_blank')">Expand ${svgIcon('external-link',10)}</button>
-      </div>
-      <iframe src="https://maps.google.com/maps?q=${mapQ}&output=embed&z=12" style="width:100%;height:180px;border:1px solid var(--border);border-radius:6px" allowfullscreen loading="lazy"></iframe>
-    </div>`;
   }
   if (recordingUrl) {
     h += `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
@@ -382,6 +432,17 @@ function renderDisposition(contact, saving, leadCreated) {
       <button class="btn btn-ghost" style="font-size:12px;color:#16a34a;border-color:#16a34a" onclick="pdCreateLead()" id="pd-create-lead-btn" ${leadCreated ? 'disabled style="font-size:12px;color:#6b7280;border-color:#e5e7eb"' : ''}>
         ${leadCreated ? '✓ Lead Created' : '+ Create Lead'}
       </button>
+    </div>
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+      <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:8px">Book a Call</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" style="flex:1;font-size:12px;background:#2563eb;border-color:#2563eb;display:flex;align-items:center;justify-content:center;gap:4px" onclick="pdBookCall('demo')">
+          ${svgIcon('calendar',12,'#fff')} Demo Call
+        </button>
+        <button class="btn btn-primary" style="flex:1;font-size:12px;background:#7c3aed;border-color:#7c3aed;display:flex;align-items:center;justify-content:center;gap:4px" onclick="pdShowStrategyPicker()">
+          ${svgIcon('calendar',12,'#fff')} Strategy Call
+        </button>
+      </div>
     </div>
   </div>`;
 }
