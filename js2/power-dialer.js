@@ -1,16 +1,16 @@
 // ═══════════════════════════════════════════════════════════
 // POWER DIALER — State, data access, CSV parsing, handlers
 // ═══════════════════════════════════════════════════════════
-import { supabase, showToast, sbCreateDeal, camelToSnake } from './api.js?v=20260618d';
-import { state } from './app.js?v=20260618d';
-import { uid, getToday } from './utils.js?v=20260618d';
-import { render as _render } from './render.js?v=20260618d';
+import { supabase, showToast, sbCreateDeal, camelToSnake } from './api.js?v=20260618e';
+import { state } from './app.js?v=20260618e';
+import { uid, getToday } from './utils.js?v=20260618e';
+import { render as _render } from './render.js?v=20260618e';
 function render() { state._pdRenderRequested = true; _render(); }
-import { getBestNumberForLead, loadNumberHealth } from './number-health.js?v=20260618d';
-import { currentUser } from './auth.js?v=20260618d';
-import { JUSTCALL_USER_MAP, ACQ_CALENDLY_URLS } from './config.js?v=20260618d';
-import { openCalendlyEmbed } from './calendly.js?v=20260618d';
-import { renderList, renderSetup, renderDialer, renderAnalytics, STANDARD_FIELDS, DISPOSITIONS, formatPhone, fmtDuration } from './pd-views.js?v=20260618d';
+import { getBestNumberForLead, loadNumberHealth } from './number-health.js?v=20260618e';
+import { currentUser } from './auth.js?v=20260618e';
+import { JUSTCALL_USER_MAP, ACQ_CALENDLY_URLS } from './config.js?v=20260618e';
+import { openCalendlyEmbed } from './calendly.js?v=20260618e';
+import { renderList, renderSetup, renderDialer, renderAnalytics, STANDARD_FIELDS, DISPOSITIONS, formatPhone, fmtDuration } from './pd-views.js?v=20260618e';
 
 const COUNTRY_CODES = [
   { code: '1', label: 'US / Canada (+1)', national: 10 },
