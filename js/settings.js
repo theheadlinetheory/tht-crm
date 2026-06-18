@@ -2,15 +2,15 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260618a';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260618a';
-import { render } from './render.js?v=20260618a';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbUpdateClientConfig, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast } from './api.js?v=20260618a';
-import { esc, str, svgIcon } from './utils.js?v=20260618a';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js?v=20260618a';
-import { lookupClientInfo, getClientConfig, loadClientConfig } from './client-info.js?v=20260618a';
-import { findPolygonForClient } from './maps.js?v=20260618a';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260618a';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260618e';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260618e';
+import { render } from './render.js?v=20260618e';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbUpdateClientConfig, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast } from './api.js?v=20260618e';
+import { esc, str, svgIcon } from './utils.js?v=20260618e';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js?v=20260618e';
+import { lookupClientInfo, getClientConfig, loadClientConfig } from './client-info.js?v=20260618e';
+import { findPolygonForClient } from './maps.js?v=20260618e';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260618e';
 
 export function getDefaultSettings(){
   return {
@@ -276,7 +276,15 @@ export function refreshSettingsBody(){
   else if(settingsTab==='clients') h=renderClientsSettings();
   else if(settingsTab==='users') h=renderUsersSettings();
   else if(settingsTab==='campaigns') h=renderCampaignAssignSettings();
-  else if(settingsTab==='dialer') h=renderDialerSettings();
+  else if(settingsTab==='dialer') {
+    if (!window._dialerFieldsLoaded) {
+      window._dialerFieldsLoaded = true;
+      supabase.from('crm_settings').select('value').eq('key','dialer_default_fields').single()
+        .then(({ data }) => { window._dialerDefaultFields = data?.value ? JSON.parse(data.value) : []; refreshSettingsBody(); });
+      import('./number-health.js?v=20260618e').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
+    }
+    h=renderDialerSettings();
+  }
   else if(settingsTab==='billing') h=renderBillingSettings();
   else if(settingsTab==='ai') h=renderAISettings();
   else if(settingsTab==='templates') h=renderTemplatesSettings();
@@ -1003,13 +1011,54 @@ function getOwnerColor(name){
 }
 
 function renderDialerSettings(){
+  let h = '';
   const mod = window.__numberHealthModule;
-  if(mod) return mod.renderNumberHealthSettings();
-  return `<div class="settings-section">
-    <h4>${svgIcon('phone',14)} Dialer Numbers</h4>
-    <p style="font-size:11px;color:var(--text-muted)">Loading number health data...</p>
+  if(mod) h += mod.renderNumberHealthSettings();
+  else h += `<div class="settings-section"><h4>${svgIcon('phone',14)} Dialer Numbers</h4><p style="font-size:11px;color:var(--text-muted)">Loading number health data...</p></div>`;
+  const fields = window._dialerDefaultFields || [];
+  h += `<div class="settings-section" style="margin-top:20px">
+    <h4 style="display:flex;align-items:center;gap:6px">${svgIcon('list',14)} Default Dialer Fields</h4>
+    <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">These fields appear on every new campaign alongside Phone, Name, Company, Email, etc.</p>
+    <div style="display:flex;flex-direction:column;gap:6px">`;
+  fields.forEach((f, i) => {
+    h += `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f9fafb;border:1px solid var(--border);border-radius:6px">
+      <span style="font-size:12px;font-weight:500;flex:1">${esc(f.label)}</span>
+      <span style="font-size:10px;color:var(--text-muted)">${esc(f.key)}</span>
+      <button onclick="pdRemoveDefaultField(${i})" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px;padding:2px 4px" title="Remove">×</button>
+    </div>`;
+  });
+  h += `</div>
+    <div style="display:flex;gap:6px;margin-top:10px">
+      <input id="pd-new-field-label" placeholder="Field name (e.g. City)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);flex:1">
+      <input id="pd-new-field-key" placeholder="Key (e.g. city)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);width:120px">
+      <button class="btn btn-primary" style="font-size:11px;padding:6px 12px" onclick="pdAddDefaultField()">Add</button>
+    </div>
   </div>`;
+  return h;
 }
+
+window.pdAddDefaultField = async () => {
+  const labelEl = document.getElementById('pd-new-field-label');
+  const keyEl = document.getElementById('pd-new-field-key');
+  const label = (labelEl?.value || '').trim();
+  let key = (keyEl?.value || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+  if (!label) { showToast('Enter a field name', 'error'); return; }
+  if (!key) key = label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+  const fields = window._dialerDefaultFields || [];
+  if (fields.some(f => f.key === key)) { showToast('Field key already exists', 'error'); return; }
+  fields.push({ key, label });
+  window._dialerDefaultFields = fields;
+  await supabase.from('crm_settings').upsert({ key: 'dialer_default_fields', value: JSON.stringify(fields), updated_at: new Date().toISOString() });
+  refreshSettingsBody();
+};
+
+window.pdRemoveDefaultField = async (idx) => {
+  const fields = window._dialerDefaultFields || [];
+  fields.splice(idx, 1);
+  window._dialerDefaultFields = fields;
+  await supabase.from('crm_settings').upsert({ key: 'dialer_default_fields', value: JSON.stringify(fields), updated_at: new Date().toISOString() });
+  refreshSettingsBody();
+};
 
 function setupSettingsDrag(){
   document.querySelectorAll('.settings-list').forEach(list=>{
@@ -1242,7 +1291,7 @@ export async function createNewUser(){
   msg.style.display='none';
 
   try {
-    const { auth } = await import('./auth.js?v=20260618a');
+    const { auth } = await import('./auth.js?v=20260618e');
     const cred = await auth.createUserWithEmailAndPassword(email, pass);
     await cred.user.updateProfile({ displayName: name });
     await db.collection('users').doc(cred.user.uid).set({
@@ -1554,7 +1603,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260618a');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260618e');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);
