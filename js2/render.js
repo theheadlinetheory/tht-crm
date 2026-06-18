@@ -1,0 +1,793 @@
+// ═══════════════════════════════════════════════════════════
+// RENDER — Main render loop, refreshModal, list view
+// ═══════════════════════════════════════════════════════════
+
+import { state, savedScrollLeft, setSavedScrollLeft, clientArchivedDeals } from './app.js?v=20260618a';
+import { ACQUISITION_STAGES, NURTURE_STAGES, ACTIVITY_ICONS, detectCountry } from './config.js?v=20260618a';
+import { esc, svgIcon, getToday, fmtDate, fmtTime12, str, stripHtml } from './utils.js?v=20260618a';
+import { isAdmin, isClient, isEmployee, currentUser, renderUserMenu, getOwnerForDeal, getOwnerNameForDeal, loadAssignableUsers } from './auth.js?v=20260618a';
+import { initialSync as syncFromSheet } from './api.js?v=20260618a';
+import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js?v=20260618a';
+import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWonDrop, renderDealModal, renderNewDealModal, renderAddClientModal, toggleBadgeDropdown } from './deal-modal.js?v=20260618a';
+import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from './activities.js?v=20260618a';
+import { renderDashboard } from './dashboard.js?v=20260618a';
+import { loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js?v=20260618a';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260618a';
+import { toggleBulkMode, bulkMoveStage, bulkSelectAll, bulkArchive, bulkAddActivity, toggleBulkSelect } from './deals.js?v=20260618a';
+import { openSettings } from './settings.js?v=20260618a';
+import { serviceAreaResults } from './maps.js?v=20260618a';
+import { lookupClientInfo, isRetainerClient, openClientInfoPanel, removeClient, deriveTimezone } from './client-info.js?v=20260618a';
+import { openCalendlyEmbed, removeAppointment, addManualAppointment } from './calendly.js?v=20260618a';
+import { doDragOver, doDragLeave, clearAllDragOver, doDrop } from './deals.js?v=20260618a';
+import { renderDueTodayBanner, renderNurtureTab, renderNurtureEntryModal, renderReactivateModal, renderSnoozeModal, loadNurtureData } from './rerun.js?v=20260618a';
+import { renderDemoTracker } from './demo-tracker.js?v=20260618a';
+import { renderColdCallingTab } from './cold-calling.js?v=20260618a';
+import { renderRetargetingTab } from './retargeting.js?v=20260618a';
+
+// ─── renderListView ───
+function renderListView(deals,stages){
+  if(state.myDealsFilter && state.pipeline==='acquisition') deals = deals.filter(d => getOwnerNameForDeal(d) === currentUser.name);
+  if(state.countryFilter && state.countryFilter.length) deals = deals.filter(d => state.countryFilter.includes(detectCountry(d).code));
+  let h=`<div style="padding:16px 20px">
+    <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;background:var(--card)">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:#f9fafb;border-bottom:2px solid var(--border)">
+          <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Company</th>
+          <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Contact</th>
+          <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Email</th>
+          <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Phone</th>
+          <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Stage</th>
+          <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Location</th>
+          <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Activities</th>
+          <th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Created</th>
+          ${state.pipeline==='acquisition'?'<th style="padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap">Owner</th>':''}
+        </tr></thead><tbody>`;
+  if(!deals.length){
+    h+=`<tr><td colspan="${state.pipeline==='acquisition'?9:8}" style="padding:20px;text-align:center;color:var(--text-muted)">No deals</td></tr>`;
+  }
+  for(const d of deals){
+    const badge=getActivityBadge(d.id);
+    const stg=stages.find(s=>s.id===(isClient()?d.clientStage:d.stage));
+    const stgColor=stg?stg.color:'#6b7280';
+    const created=d.createdDate?new Date(d.createdDate).toLocaleDateString('en-US',{month:'short',day:'numeric'}):'';
+    h+=`<tr style="border-bottom:1px solid var(--border);cursor:pointer" onclick="openDeal('${esc(d.id)}')">
+      <td style="padding:8px 10px;font-weight:500">${esc(d.company||d.email||'')}</td>
+      <td style="padding:8px 10px">${esc(d.contact||'')}</td>
+      <td style="padding:8px 10px;color:var(--text-muted)">${esc(d.email||'')}</td>
+      <td style="padding:8px 10px">${esc(d.phone||'')}</td>
+      <td style="padding:8px 10px"><span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${stgColor}18;color:${stgColor}">${esc(isClient()?(d.clientStage||''):d.stage||'')}</span></td>
+      <td style="padding:8px 10px;color:var(--text-muted)">${esc(d.location||'')}</td>
+      <td style="padding:8px 10px">${badge?`<span style="display:inline-flex;align-items:center;gap:3px"><span style="width:7px;height:7px;border-radius:50%;background:${badge.color};display:inline-block"></span><span style="color:${badge.color};font-weight:600;font-size:11px">${badge.count} ${badge.label}</span></span>`:''}</td>
+      <td style="padding:8px 10px;color:var(--text-muted);white-space:nowrap">${created}</td>
+      ${state.pipeline==='acquisition'?`<td style="padding:8px 10px">${(()=>{ const ow=getOwnerForDeal(d); return ow?`<span class="owner-tag" style="background:${ow.bg};color:${ow.fg}">${esc(ow.label)}</span>`:''; })()}</td>`:''}
+    </tr>`;
+  }
+  h+=`</tbody></table></div></div>`;
+  return h;
+}
+
+// ─── refreshModal ───
+export function refreshModal(forceFullRebuild){
+  if(!state.selectedDeal) return;
+  const deal=state.selectedDeal;
+
+  // Try targeted update first — only replace the activities container
+  const actContainer=document.getElementById('activities-container');
+  if(actContainer && !forceFullRebuild){
+    // Build just the activities HTML by rendering full modal and extracting it
+    const fresh=renderDealModal(deal);
+    const tmp=document.createElement('div');
+    tmp.innerHTML=fresh;
+    const newAct=tmp.querySelector('#activities-container');
+    if(newAct) actContainer.innerHTML=newAct.innerHTML;
+
+    // Also update upcoming meetings if present
+    const meetContainer=document.getElementById('upcoming-meetings-container');
+    const newMeet=tmp.querySelector('#upcoming-meetings-container');
+    if(meetContainer && newMeet) meetContainer.innerHTML=newMeet.innerHTML;
+    return;
+  }
+
+  // Fallback: full modal rebuild (e.g. first open)
+  const overlay=document.querySelector('.modal-overlay');
+  if(overlay){
+    const modal=overlay.querySelector('.modal');
+    const savedScroll=modal?modal.scrollTop:0;
+    const fresh=renderDealModal(deal);
+    const tmp=document.createElement('div');
+    tmp.innerHTML=fresh;
+    const newOverlay=tmp.firstElementChild;
+    if(newOverlay) overlay.innerHTML=newOverlay.innerHTML;
+    const newModal=overlay.querySelector('.modal');
+    if(newModal){
+      newModal.scrollTop=savedScroll;
+      // Restore scroll multiple times to counteract Leaflet map init reflows
+      requestAnimationFrame(()=>{ newModal.scrollTop=savedScroll; });
+      setTimeout(()=>{ newModal.scrollTop=savedScroll; }, 80);
+      setTimeout(()=>{ newModal.scrollTop=savedScroll; }, 200);
+      setTimeout(()=>{ newModal.scrollTop=savedScroll; }, 500);
+      setTimeout(()=>{ newModal.scrollTop=savedScroll; }, 1000);
+    }
+  } else {
+    render();
+  }
+}
+
+function pipelineTabsHtml(){
+  return getVisiblePipelinesWithArchive().map(p=>`<button class="topbar-tab ${state.pipeline===p.id?'active':''}" onclick="switchPipeline('${p.id}')">${p.label}</button>`).join('');
+}
+
+// ─── render ───
+export function render(){
+  try{
+  // Skip re-render if user is typing in a payroll/settings input
+  const focused = document.activeElement;
+  if (focused && (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA' || focused.tagName === 'SELECT')) {
+    const inPayroll = focused.closest && (focused.id?.startsWith('payroll-') || focused.closest('[data-payroll]'));
+    if (inPayroll) return;
+  }
+
+  const app=document.getElementById("app");
+  // Save scroll position before destroying DOM
+  const board=document.querySelector('.board');
+  if(board) setSavedScrollLeft(board.scrollLeft);
+
+  // ─── Loading Screen ───
+  if(!state.synced && !state.loadFailed){
+    app.innerHTML=`<div class="loading-screen"><div class="loading-logo"><span>T</span></div><div class="loading-text">Loading your deals...</div><div class="loading-spinner"></div></div>`;
+    return;
+  }
+
+  // ─── Error Screen ───
+  if(state.loadFailed){
+    app.innerHTML=`<div class="loading-screen"><div class="loading-logo" style="opacity:0.5"><span>T</span></div><div class="loading-text" style="color:#ef4444">Failed to load CRM</div><div style="font-size:12px;color:#6b7280;max-width:400px;text-align:center;margin-top:8px">${esc(state.loadError||'Unknown error')}</div><button onclick="location.reload()" style="margin-top:16px;padding:8px 20px;background:var(--purple);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">Retry</button></div>`;
+    return;
+  }
+
+  // ─── Dashboard Tab ───
+  if(state.pipeline==='dashboard'){
+    let html=`
+    <div class="topbar">
+      <div style="display:flex;align-items:center;">
+        <div class="topbar-tabs">
+          ${pipelineTabsHtml()}
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="btn btn-ghost" onclick="syncFromSheet()" style="display:inline-flex;align-items:center;gap:4px">${svgIcon('refresh-cw',12)} Sync</button>
+        ${renderUserMenu()}
+      </div>
+    </div>`;
+    html+=renderDashboard();
+    app.innerHTML=html;
+    return;
+  }
+
+  // Retargeting is now an Acquisition sub-tab — legacy pipeline ID redirect
+  if(state.pipeline==='retargeting'){
+    state.pipeline='acquisition'; state.acquisitionSubTab='retargeting'; render(); return;
+  }
+
+  // ─── Payroll Tab ───
+  if(state.pipeline==='payroll'){
+    if(!window._payrollModule && !window._payrollLoading){
+      window._payrollLoading=true;
+      import('./payroll.js?v=20260618a').then(m=>{ window._payrollModule=m; if(state.pipeline==='payroll') render(); }).catch(()=>{ window._payrollLoading=false; });
+    }
+    let html=`<div class="topbar"><div style="display:flex;align-items:center"><div class="topbar-tabs">${pipelineTabsHtml()}</div></div><div class="topbar-right">${renderUserMenu()}</div></div>`;
+    if(window._payrollModule){
+      html+=window._payrollModule.renderPayroll();
+    } else {
+      html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading payroll...</div>';
+    }
+    app.innerHTML=html;
+    if(window._payrollModule) window._payrollModule.loadPayrollHistory();
+    return;
+  }
+
+  // ─── Lead Tracker redirect (legacy URL compat) ───
+  if(state.pipeline==='lead_tracker'){
+    state.pipeline='client_leads';
+    state.clientLeadsSubTab='lead_tracker';
+    location.hash='client_leads';
+  }
+
+  const stages=getStages();
+  const deals=getPipelineDeals();
+  const totalValue=deals.reduce((s,d)=>s+(Number(d.value)||0),0);
+  const totalDeals=deals.length;
+
+  let html=`
+  <div class="topbar">
+    <div style="display:flex;align-items:center;">
+      <div class="topbar-tabs">
+        ${pipelineTabsHtml()}
+      </div>
+    </div>
+    <div class="topbar-right">
+      ${isAdmin()||isEmployee()?`<div class="search-wrapper">
+        <input type="text" class="search-input" id="search-input" placeholder="Search all deals..." value="${esc(state.searchQuery)}"
+          oninput="globalSearch(this.value)" onfocus="if(this.value.length>=1)globalSearch(this.value)">
+        ${state.searchQuery?'<span class="search-clear" onclick="clearSearch()">×</span>':''}
+        ${state.searchResults!==null?`<div class="search-dropdown">
+          ${state.searchResults.length===0?'<div class="search-empty">No deals found</div>':''}
+          ${state.searchResults.map(d=>`
+            <div class="search-result-item" onmousedown="event.preventDefault();clearSearch();openDeal('${d.id}')">
+              <div class="search-result-main">
+                <span class="search-result-name">${esc(d.company||d.contact||'Unknown')}</span>
+                <span class="search-result-stage">${esc(d.stage||'')}</span>
+              </div>
+              <div class="search-result-meta">
+                ${d.contact&&d.contact!==d.company?`<span>${esc(d.contact)}</span>`:''}
+                ${d.email?`<span>${esc(d.email)}</span>`:''}
+                ${d.phone?`<span>${esc(d.phone)}</span>`:''}
+              </div>
+            </div>`).join('')}
+        </div>`:''}
+      </div>`:''/* end search wrapper */}
+      <span class="topbar-stat">${state.loadFailed?'⚠️ Offline (test data)':state.synced?'✓ Connected':'Connecting...'}${state.synced?' · ':' '}${totalDeals} deal${totalDeals!==1?'s':''}${state.syncing?' ↻':''}</span>
+      ${isAdmin()||isEmployee()?`<button class="btn btn-ghost" onclick="syncFromSheet()" style="display:inline-flex;align-items:center;gap:4px"><span${state.syncing?' style="animation:spin .7s linear infinite;display:inline-flex"':''}>${svgIcon('refresh-cw',12)}</span> Sync</button>`:''}
+      ${isAdmin()||isEmployee()?`<button class="btn btn-ghost" onclick="toggleViewMode()" title="Toggle board/list view" style="display:inline-flex;align-items:center;gap:4px">${state.viewMode==='board'?svgIcon('list',12)+' List':svgIcon('grid',12)+' Board'}</button>`:''}
+      ${isAdmin()||isEmployee()?`<button class="btn ${state.bulkMode?'btn-primary':'btn-ghost'}" onclick="toggleBulkMode()" title="Bulk select" style="display:inline-flex;align-items:center;gap:4px">${state.bulkMode?svgIcon('check-square',12)+' Bulk Mode':svgIcon('square',12)+' Bulk'}</button>`:''}
+      <button class="btn btn-primary" onclick="openNewDeal()">+ ${isClient()?'Lead':'Deal'}</button>
+      ${isClient()?`<button class="btn btn-ghost" onclick="openClientArchive()" title="View archived leads">${svgIcon('archive',12)} Archive${clientArchivedDeals.length?' ('+clientArchivedDeals.length+')':''}</button>`:''}
+      ${isEmployee()||isAdmin()?`<button class="btn ${state.showEmployeeArchive?'btn-primary':'btn-ghost'}" data-action="toggleEmployeeArchive" title="View archived leads">${svgIcon('archive',12)} Archive</button>`:''}
+      ${isAdmin()||isEmployee()?`<button class="btn btn-ghost" onclick="openSettings(${isEmployee()&&!isAdmin()?"'templates'":""})" title="Settings" style="display:inline-flex;align-items:center;gap:4px;padding:6px 10px">${svgIcon('settings',12)}</button>`:''}
+      ${isClient()?`<button class="btn btn-ghost" onclick="openClientStageSettings()" title="Edit stages" style="display:inline-flex;align-items:center;gap:4px;padding:6px 10px">${svgIcon('settings',12)}</button>`:''}
+      ${renderUserMenu()}
+    </div>
+  </div>
+  ${(() => {
+    const overdue = renderOverdueBanner();
+    const booked = renderBookedMeetingsBanner();
+    const nurture = state.pipeline==='acquisition' ? renderDueTodayBanner() : '';
+    const parts = [overdue, booked, nurture].filter(Boolean);
+    return parts.length ? `<div style="padding:6px 16px;background:#fafafa;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;overflow-x:auto;font-size:12px">${parts.join('<span style="color:#d1d5db">|</span>')}</div>` : '';
+  })()}`;
+
+  // ─── Acquisition Sub-Tabs (Pipeline / Nurture) ───
+  if(state.pipeline==='acquisition'){
+    if(state.assignableUsers.length === 0 && !state._loadingAssignableUsers){
+      state._loadingAssignableUsers = true;
+      loadAssignableUsers().then(() => { state._loadingAssignableUsers = false; render(); }).catch(() => { state._loadingAssignableUsers = false; });
+    }
+    const subTab = state.acquisitionSubTab || 'pipeline';
+    const subCs = 'padding:6px 16px;font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;border-radius:6px;margin-right:4px';
+    html += `<div style="padding:0 20px;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;gap:4px;align-items:center">
+        <button onclick="state.acquisitionSubTab='pipeline';render()" style="${subCs};background:${subTab==='pipeline'?'var(--purple)':'#f3f4f6'};color:${subTab==='pipeline'?'#fff':'var(--text-muted)'}">Pipeline</button>
+        <button onclick="state.acquisitionSubTab='nurture';render()" style="${subCs};background:${subTab==='nurture'?'var(--purple)':'#f3f4f6'};color:${subTab==='nurture'?'#fff':'var(--text-muted)'}">Nurture</button>
+        ${(isAdmin()||isEmployee())?`<button onclick="state.acquisitionSubTab='demo_tracker';render()" style="${subCs};background:${subTab==='demo_tracker'?'var(--purple)':'#f3f4f6'};color:${subTab==='demo_tracker'?'#fff':'var(--text-muted)'}">Demo Tracker</button>`:''}
+        ${(isAdmin()||isEmployee())?`<button onclick="state.acquisitionSubTab='cold_calls';render()" style="${subCs};background:${subTab==='cold_calls'?'var(--purple)':'#f3f4f6'};color:${subTab==='cold_calls'?'#fff':'var(--text-muted)'}">Cold Calls</button>`:''}
+        ${isAdmin()?`<button onclick="state.acquisitionSubTab='retargeting';render()" style="${subCs};background:${subTab==='retargeting'?'var(--purple)':'#f3f4f6'};color:${subTab==='retargeting'?'#fff':'var(--text-muted)'}">Retargeting</button>`:''}
+      </div>
+      ${subTab==='pipeline'?`<div style="display:flex;gap:6px;align-items:center">
+        <button onclick="state.myDealsFilter=!state.myDealsFilter;render()" style="padding:4px 12px;font-size:11px;font-weight:600;font-family:var(--font);cursor:pointer;border:1px solid ${state.myDealsFilter?'var(--purple)':'var(--border)'};border-radius:6px;background:${state.myDealsFilter?'#f3e8ff':'#fff'};color:${state.myDealsFilter?'var(--purple)':'var(--text-muted)'}">
+          ${state.myDealsFilter?'★ My Deals':'☆ My Deals'}
+        </button>
+      </div>`:''}
+    </div>`;
+
+    // If nurture sub-tab is selected, render nurture content and return
+    if(subTab === 'nurture'){
+      if(!state._nurtureLoaded && !state.rerunLoading){
+        state._nurtureLoaded = true;
+        loadNurtureData();
+      }
+      html += renderNurtureTab();
+      app.innerHTML = html;
+      return;
+    }
+
+    // If demo tracker sub-tab is selected, render demo tracker and return
+    if(subTab === 'demo_tracker'){
+      html += renderDemoTracker();
+      app.innerHTML = html;
+      return;
+    }
+
+    // If cold calls sub-tab is selected, render cold calling and return
+    if(subTab === 'cold_calls'){
+      html += renderColdCallingTab();
+      app.innerHTML = html;
+      return;
+    }
+
+    if(subTab === 'retargeting'){
+      html += renderRetargetingTab();
+      app.innerHTML = html;
+      return;
+    }
+  }
+
+  // ─── Acquisition Owner Filter Dropdown ───
+  if(state.pipeline==='acquisition' && (isAdmin()||isEmployee()) && state.acquisitionSubTab !== 'nurture'){
+    const campaignOwners = [...new Set(Object.values(state.campaignAssignments))].filter(Boolean);
+    const userOwners = state.assignableUsers.map(u => u.name).filter(Boolean);
+    const owners = [...new Set([...campaignOwners, ...userOwners])].sort();
+    if(owners.length > 0){
+      const hasFilter = state.acquisitionFilter !== '';
+      const filterLabel = hasFilter ? state.acquisitionFilter : 'All';
+      html+=`<div style="padding:0 20px;margin-bottom:4px">
+        <div class="acq-filter-wrap">
+          <button class="acq-filter-toggle ${hasFilter?'has-filter':''}" onclick="event.stopPropagation();state.showAcqFilterDropdown=!state.showAcqFilterDropdown;render()">
+            Filter: ${esc(filterLabel)} ▾
+          </button>
+          ${state.showAcqFilterDropdown?`<div class="acq-filter-dropdown" onclick="event.stopPropagation()">
+            <div class="acq-filter-option ${!hasFilter?'selected':''}" onclick="state.acquisitionFilter='';state.showAcqFilterDropdown=false;render()">
+              ${!hasFilter?'✓':'\u2003'} All
+            </div>
+            ${owners.map(o => `<div class="acq-filter-option ${state.acquisitionFilter===o?'selected':''}" onclick="state.acquisitionFilter='${esc(o)}';state.showAcqFilterDropdown=false;render()">
+              ${state.acquisitionFilter===o?'✓':'\u2003'} ${esc(o)}
+            </div>`).join('')}
+          </div>`:''}
+        </div>
+      </div>`;
+    }
+  }
+
+  // ─── Country Filter Dropdown ───
+  if((state.pipeline==='acquisition' || state.pipeline==='client_leads') && state.acquisitionSubTab !== 'nurture' && state.clientLeadsSubTab !== 'tracker'){
+    const allDeals = getPipelineDeals();
+    const countries = [];
+    const seen = new Set();
+    for(const d of allDeals){
+      const c = detectCountry(d);
+      if(!seen.has(c.code)){ seen.add(c.code); countries.push(c); }
+    }
+    if(countries.length > 1){
+      const cf = Array.isArray(state.countryFilter) ? state.countryFilter : [];
+      const hasCF = cf.length > 0;
+      const cfLabel = hasCF ? cf.map(code=>{const m=countries.find(c=>c.code===code);return m?m.flag:code;}).join(' ') : 'All Countries';
+      html+=`<div style="padding:0 20px;margin-bottom:4px">
+        <div class="acq-filter-wrap">
+          <button class="acq-filter-toggle ${hasCF?'has-filter':''}" onclick="event.stopPropagation();state.showCountryFilterDropdown=!state.showCountryFilterDropdown;render()">
+            ${cfLabel} ▾
+          </button>
+          ${state.showCountryFilterDropdown?`<div class="acq-filter-dropdown" onclick="event.stopPropagation()">
+            <div class="acq-filter-option ${!hasCF?'selected':''}" onclick="state.countryFilter=[];localStorage.setItem('tht_countryFilter','[]');render()">
+              ${!hasCF?'✓':' '} All Countries
+            </div>
+            ${countries.sort((a,b)=>a.label.localeCompare(b.label)).map(c=>{const sel=cf.includes(c.code);return `<div class="acq-filter-option ${sel?'selected':''}" onclick="const f=Array.isArray(state.countryFilter)?[...state.countryFilter]:[];const i=f.indexOf('${c.code}');if(i>=0)f.splice(i,1);else f.push('${c.code}');state.countryFilter=f;localStorage.setItem('tht_countryFilter',JSON.stringify(f));render()">
+              ${sel?'✓':' '} ${c.flag} ${esc(c.label)}
+            </div>`;}).join('')}
+          </div>`:''}
+        </div>
+      </div>`;
+    }
+  }
+
+  // ─── Client Leads Sub-Tabs (Pipeline / Lead Tracker) ───
+  if(state.pipeline==='client_leads' && !isClient() && !state.showEmployeeArchive){
+    const clSubTab = state.clientLeadsSubTab || 'pipeline';
+    const subCs = 'padding:6px 16px;font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;border-radius:6px;margin-right:4px';
+    html += `<div style="padding:0 20px;margin-bottom:8px;display:flex;align-items:center">
+      <div style="display:flex;gap:4px">
+        <button onclick="state.clientLeadsSubTab='pipeline';render()" style="${subCs};background:${clSubTab==='pipeline'?'var(--purple)':'#f3f4f6'};color:${clSubTab==='pipeline'?'#fff':'var(--text-muted)'}">Pipeline</button>
+        ${isAdmin()||isEmployee()?`<button onclick="state.clientLeadsSubTab='lead_tracker';render()" style="${subCs};background:${clSubTab==='lead_tracker'?'var(--purple)':'#f3f4f6'};color:${clSubTab==='lead_tracker'?'#fff':'var(--text-muted)'}">Lead Tracker</button>`:''}
+      </div>
+    </div>`;
+
+    if(clSubTab === 'lead_tracker' && (isAdmin()||isEmployee())){
+      // Sub-tabs: Entries / Trends
+      html+=`<div style="display:flex;gap:0;border-bottom:1px solid var(--border);padding:0 12px">
+        <button class="topbar-tab ${state.trackerView==='entries'?'active':''}" onclick="switchTrackerView('entries')">Entries</button>
+        <button class="topbar-tab ${state.trackerView==='trends'?'active':''}" onclick="switchTrackerView('trends')">Trends</button>
+      </div>`;
+
+      if(state.trackerView==='trends'){
+        if(state.trackerLoaded && window._trendsModule){
+          html+=window._trendsModule.renderTrends();
+        } else {
+          html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading trends...</div>';
+          if(!window._trendsLoading){
+            window._trendsLoading=true;
+            import('./trends.js?v=20260618a').then(m=>{ window._trendsModule=m; render(); }).catch(()=>{ window._trendsLoading=false; });
+          }
+          if(!state.trackerLoaded && !window._trackerLoading){
+            window._trackerLoading=true;
+            import('./lead-tracker.js?v=20260618a').then(m=>{
+              window._trackerModule=m;
+              m.loadTrackerEntries().then(()=>render()).catch(()=>render());
+            }).catch(()=>{ window._trackerLoading=false; });
+          }
+        }
+      } else {
+        if(state.trackerLoaded && window._trackerModule){
+          html+=window._trackerModule.renderLeadTracker();
+        } else {
+          html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading tracker...</div>';
+          if(!window._trackerLoading){
+            window._trackerLoading=true;
+            import('./lead-tracker.js?v=20260618a').then(m=>{
+              window._trackerModule=m;
+              if(!state.trackerLoaded){ m.loadTrackerEntries().then(()=>render()).catch(()=>render()); }
+              else render();
+            }).catch(()=>{ window._trackerLoading=false; });
+            if(!window._invoiceLoading){
+              window._invoiceLoading=true;
+              import('./invoice.js?v=20260618a').then(m=>{ window._invoiceModule=m; }).catch(()=>{ window._invoiceLoading=false; });
+            }
+          }
+        }
+        if(state.invoiceModal && window._invoiceModule){
+          html+=window._invoiceModule.renderInvoiceModal();
+        } else if(state.invoiceModal && !window._invoiceLoading){
+          window._invoiceLoading=true;
+          import('./invoice.js?v=20260618a').then(m=>{ window._invoiceModule=m; render(); });
+        }
+      }
+      const trackerWrap=document.querySelector('.tracker-table-wrap');
+      const savedTrackerScrollTop=trackerWrap?trackerWrap.scrollTop:0;
+      const savedTrackerScrollLeft=trackerWrap?trackerWrap.scrollLeft:0;
+      app.innerHTML=html;
+      const newTrackerWrap=document.querySelector('.tracker-table-wrap');
+      if(newTrackerWrap){
+        newTrackerWrap.scrollTop=savedTrackerScrollTop;
+        newTrackerWrap.scrollLeft=savedTrackerScrollLeft;
+      }
+      if(state.trackerView==='trends' && window._trendsModule){
+        setTimeout(()=>window._trendsModule.drawTrendsChart(),0);
+      }
+      if(state.trackerEditingCell){
+        setTimeout(()=>{
+          const input=document.querySelector('.tracker-cell-input');
+          if(input){input.focus();input.select();}
+        },0);
+      }
+      return;
+    }
+  }
+
+  // ─── Employee/Admin Archive View ───
+  if((isEmployee()||isAdmin()) && state.showEmployeeArchive){
+    // If archive not loaded yet (edge case), trigger background load (silent to avoid recursive render)
+    if(!state.archiveLoaded){ loadArchive(true); }
+    // Filter archive by current pipeline tab
+    const archivePipeline = state.pipeline === 'acquisition' ? 'acquisition' : 'client';
+    let empArchive = state.archiveData.filter(d => (d.pipeline||'').toLowerCase() === archivePipeline);
+    // Apply filters
+    if(state.archiveFilterClient) empArchive=empArchive.filter(d=>(d.clientName||d.stage||'').trim().toLowerCase()===state.archiveFilterClient.trim().toLowerCase());
+    if(state.archiveFilterStatus) empArchive=empArchive.filter(d=>(d.archiveStatus||'')===state.archiveFilterStatus);
+    const archQ = (state.archiveSearch||'').toLowerCase().trim();
+    if(state.archiveSortDir==='oldest') empArchive.sort((a,b)=>(a.archivedAt||'').localeCompare(b.archivedAt||''));
+    else empArchive.sort((a,b)=>(b.archivedAt||'').localeCompare(a.archivedAt||''));
+    // Build client list for this pipeline's archive
+    const empArchiveClients=[...new Set(state.archiveData.filter(d=>(d.pipeline||'').toLowerCase()===archivePipeline).map(d=>(d.clientName||d.stage||'').trim()).filter(Boolean))].sort();
+    html+=`<div style="padding:16px 20px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+        <button class="btn btn-ghost" data-action="archiveBackToBoard" style="font-size:13px;padding:5px 12px;display:flex;align-items:center;gap:4px">\u2190 Back to Board</button>
+        <span style="font-size:14px;font-weight:600">${state.pipeline==='acquisition'?'Archived Acquisition Deals':'Archived Client Leads'}</span>
+        <span id="archive-result-count" style="font-size:12px;color:var(--text-muted)"></span>
+        <button class="btn btn-ghost" data-action="archiveRefresh" style="font-size:11px;padding:3px 10px;display:inline-flex;align-items:center;gap:4px">${svgIcon('refresh-cw',12)} Refresh</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+        ${archivePipeline==='client'?`<select data-action="archiveFilterClientSelect" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+          <option value="">All Clients</option>
+          ${empArchiveClients.map(c=>`<option value="${esc(c)}" ${state.archiveFilterClient===c?'selected':''}>${esc(c)}</option>`).join('')}
+        </select>`:''}
+        <select data-action="archiveFilterStatusSelect" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+          <option value="">All Statuses</option>
+          <option value="Deleted/Lost" ${state.archiveFilterStatus==='Deleted/Lost'?'selected':''}>Deleted / Lost</option>
+          <option value="Closed Won" ${state.archiveFilterStatus==='Closed Won'?'selected':''}>Closed Won</option>
+          <option value="Passed Off" ${state.archiveFilterStatus==='Passed Off'?'selected':''}>Passed Off</option>
+        </select>
+        <select data-action="archiveSortSelect" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+          <option value="newest" ${state.archiveSortDir==='newest'?'selected':''}>Newest First</option>
+          <option value="oldest" ${state.archiveSortDir==='oldest'?'selected':''}>Oldest First</option>
+        </select>
+        <input type="text" id="archive-search-input" placeholder="Search..." value="${esc(state.archiveSearch||'')}" data-action="archiveSearchInput" style="margin-left:auto;padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);width:200px;background:var(--card)">
+      </div>
+      <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;background:var(--card)">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="background:#f9fafb;border-bottom:2px solid var(--border)">
+            <th style="padding:8px 10px;text-align:left;font-weight:600">Company</th>
+            <th style="padding:8px 10px;text-align:left;font-weight:600">Contact</th>
+            <th style="padding:8px 10px;text-align:left;font-weight:600">Email</th>
+            <th style="padding:8px 10px;text-align:left;font-weight:600">${state.pipeline==='acquisition'?'Stage':'Client'}</th>
+            <th style="padding:8px 10px;text-align:left;font-weight:600">Status</th>
+            <th style="padding:8px 10px;text-align:left;font-weight:600">Archived</th>
+            <th style="padding:8px 10px;text-align:left;font-weight:600"></th>
+          </tr></thead><tbody id="archive-tbody">`;
+    if(!empArchive.length){
+      html+=`<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--text-muted)">${state.archiveLoaded?'No archived leads':'Loading...'}</td></tr>`;
+    }
+    let archiveVisCount=0;
+    for(const d of empArchive){
+      const stColor=d.archiveStatus==='Closed Won'?'#22c55e':d.archiveStatus==='Passed Off'?'#f59e0b':'#ef4444';
+      const stBg=d.archiveStatus==='Closed Won'?'#f0fdf4':d.archiveStatus==='Passed Off'?'#fffbeb':'#fef2f2';
+      const dateStr=d.archivedAt?new Date(d.archivedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}):'';
+      const rowMatch=!archQ||((d.company||'')+(d.contact||'')+(d.email||'')).toLowerCase().includes(archQ);
+      if(rowMatch) archiveVisCount++;
+      html+=`<tr style="border-bottom:1px solid var(--border)${rowMatch?'':';display:none'}">
+        <td style="padding:8px 10px;font-weight:500">${esc(d.company||'')}</td>
+        <td style="padding:8px 10px">${esc(d.contact||'')}</td>
+        <td style="padding:8px 10px;color:var(--text-muted)">${esc(d.email||'')}</td>
+        <td style="padding:8px 10px">${esc(d.clientName||d.stage||'')}</td>
+        <td style="padding:8px 10px"><select data-action="updateArchiveStatus" data-id="${esc(d.id)}" style="padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;background:${stBg};color:${stColor};border:1px solid ${stColor}33;font-family:var(--font);cursor:pointer">
+          <option value="Deleted/Lost" ${d.archiveStatus==='Deleted/Lost'?'selected':''}>Deleted/Lost</option>
+          <option value="Closed Won" ${d.archiveStatus==='Closed Won'?'selected':''}>Closed Won</option>
+          <option value="Passed Off" ${d.archiveStatus==='Passed Off'?'selected':''}>Passed Off</option>
+        </select></td>
+        <td style="padding:8px 10px;color:var(--text-muted);white-space:nowrap">${dateStr}</td>
+        <td style="padding:8px 10px"><button class="btn btn-ghost" style="font-size:11px;padding:3px 10px;background:#f0fdf4;color:#059669;border:1px solid #a7f3d0" data-action="restoreFromArchive" data-id="${esc(d.id)}">&#8617; Restore</button></td>
+      </tr>`;
+    }
+    html+=`</tbody></table></div></div>`;
+    app.innerHTML=html;
+    const countEl=document.getElementById('archive-result-count');
+    if(countEl) countEl.textContent=archiveVisCount+' result'+(archiveVisCount!==1?'s':'');
+    const archInput=document.getElementById('archive-search-input');
+    if(archInput && state.archiveSearch){
+      requestAnimationFrame(()=>{archInput.focus();archInput.setSelectionRange(archInput.value.length,archInput.value.length);});
+    }
+    return;
+  }
+
+  // ─── List View ───
+  if(state.viewMode==='list'){
+    html+=renderListView(deals,stages);
+  } else {
+  // ─── Board View ───
+  html+=`<div class="board">`;
+
+  for(const stage of stages){
+    // For client portal, filter by clientStage instead of stage
+    let sd = isClient() ? deals.filter(d=>d.clientStage===stage.id) : deals.filter(d=>d.stage===stage.id);
+    if(state.myDealsFilter && state.pipeline==='acquisition') sd = sd.filter(d => getOwnerNameForDeal(d) === currentUser.name);
+    if(state.countryFilter && state.countryFilter.length) sd = sd.filter(d => state.countryFilter.includes(detectCountry(d).code));
+    const sv=sd.reduce((s,d)=>s+(Number(d.value)||0),0);
+    const stageKey=btoa(unescape(encodeURIComponent(stage.id)));
+
+    html+=`<div class="column" data-stage-key="${stageKey}"
+      ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';doDragOver(this)"
+      ondragleave="doDragLeave(event,this)"
+      ondrop="doDrop('${stageKey}')">
+      <div class="col-header" style="border-top-color:${stage.color}${state.pipeline==='client_leads'&&state.clients.some(c=>c.name===stage.label)?';cursor:pointer':''}" ${state.pipeline==='client_leads'&&state.clients.some(c=>c.name===stage.label)?`onclick="openClientInfoPanel(atob('${btoa(unescape(encodeURIComponent(stage.label)))}'))"`:''}>
+        <div>
+          <div class="col-title">${esc(stage.label)}${(()=>{if(state.pipeline!=='client_leads') return '';const ci=lookupClientInfo(stage.label);return ci&&ci.timeZone?` <span style="font-size:10px;font-weight:600;color:#94a3b8;background:#f1f5f9;padding:1px 6px;border-radius:8px;letter-spacing:.3px;vertical-align:middle">${esc(ci.timeZone)}</span>`:''})()}</div>
+          <div class="col-meta">${sd.length} lead${sd.length!==1?'s':''}${(()=>{if(state.pipeline!=='client_leads') return '';const _cl=state.clients.find(c=>c.name===stage.label);if(!_cl) return '';const contactFull=[str(_cl.contactFirstName).trim(),str(_cl.contactLastName).trim()].filter(Boolean).join(' ');const st=str(_cl.clientStanding).toLowerCase()||'neutral';const standingMap={happy:{color:'#22c55e',bg:'#f0fdf4',label:'Happy',rule:'Pass all tiers'},neutral:{color:'#eab308',bg:'#fefce8',label:'Neutral',rule:'A & B freely, limit C\'s'},unhappy:{color:'#ef4444',bg:'#fef2f2',label:'Unhappy',rule:'A & B only, hold C\'s'}};const s=standingMap[st];const _cph=str(_cl.clientPhone).trim();return (contactFull?` · <span style="font-size:10px;color:#64748b">${esc(contactFull)}</span>`:'')+(_cph?` <a href="tel:${esc(_cph.replace(/[^+0-9]/g,''))}" onclick="event.stopPropagation()" style="font-size:9px;color:#1d4ed8;background:#dbeafe;padding:1px 6px;border-radius:8px;text-decoration:none;font-weight:600;vertical-align:middle">${esc(_cph)}</a>`:'')+(s?` <span title="${s.rule}" style="font-size:9px;font-weight:700;color:${s.color};background:${s.bg};padding:1px 6px;border-radius:8px;letter-spacing:.3px;vertical-align:middle;cursor:help;border:1px solid ${s.color}33">${s.label}</span>`:'');})()}</div>
+        </div>
+        ${(isAdmin()||isEmployee())&&state.pipeline==='client_leads'?`<div style="display:flex;gap:6px;align-items:center">
+          ${(()=>{const cl=state.clients.find(c=>c.name===stage.label);return cl&&cl.calendlyUrl?'<button title="Open Calendly for '+esc(stage.label)+'" style="background:none;border:none;color:#818cf8;font-size:14px;cursor:pointer" onclick="event.stopPropagation();openCalendlyEmbed(null,atob(\''+btoa(unescape(encodeURIComponent(cl.calendlyUrl||'')))+'\'),atob(\''+btoa(unescape(encodeURIComponent(stage.label)))+'\'))">'+svgIcon('calendar',14,'#818cf8')+'</button>':'';})()}
+          ${isAdmin()?`<button style="background:none;border:none;color:#d1d5db;font-size:14px;cursor:pointer" onclick="event.stopPropagation();if(confirm('Remove this client?'))removeClient(atob('${btoa(unescape(encodeURIComponent(stage.label)))}'))">×</button>`:''}
+        </div>`:''}
+      </div>
+      ${(()=>{
+        // Show upcoming appointments for client columns
+        if(state.pipeline!=='client_leads' || isClient()) return '';
+        const isClientCol=state.clients.some(c=>c.name===stage.label);
+        if(!isClientCol) return '';
+        const cn=stage.label;
+        const todayStr=getToday();
+        const appts=(state.appointments||[]).filter(a=>{
+          if(a.clientName!==cn) return false;
+          if(!a.apptDate||!/^\d{4}-\d{2}-\d{2}$/.test(a.apptDate)) return false;
+          return a.apptDate>=todayStr;
+        }).sort((a,b)=>(a.apptDate+(a.apptTime||'')).localeCompare(b.apptDate+(b.apptTime||'')));
+        let ah='<div class="col-appts" style="padding:6px 8px;margin:0 0 2px 0">';
+        if(appts.length){
+          ah+=appts.map(a=>{
+            const isToday=a.apptDate===todayStr;
+            // Safe date/time formatting — never show "Invalid Date"
+            let dateStr='', timeStr='';
+            try {
+              const time=a.apptTime&&/^\d{2}:\d{2}$/.test(a.apptTime)?a.apptTime:'12:00';
+              const dt=new Date(a.apptDate+'T'+time);
+              if(isNaN(dt.getTime())) throw 0;
+              dateStr=isToday?'Today':dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+              if(a.apptTime&&/^\d{2}:\d{2}$/.test(a.apptTime)) timeStr=dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+            } catch(e) {
+              dateStr=a.apptDate||'';
+              timeStr=a.apptTime||'';
+            }
+            const addrText=str(a.address||'').trim();
+            return '<div style="font-size:11px;margin:2px 0">'
+              +'<div style="padding:3px 4px;background:'+(isToday?'#dbeafe':'#f0fdf4')+';border-radius:4px;display:flex;justify-content:space-between;align-items:center;gap:4px;cursor:pointer" onclick="event.stopPropagation();this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\'">'
+              +'<span style="'+(isToday?'font-weight:700;color:#1d4ed8':'color:#166534')+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1" title="'+esc(a.leadName||'')+'">'+(isToday?'TODAY ':'')+ esc(a.leadName||'Appt')+'</span>'
+              +'<span style="font-weight:600;color:'+(isToday?'#1d4ed8':'#166534')+';white-space:nowrap;font-size:10px">'+dateStr+(timeStr?' '+timeStr:'')+'</span>'
+              +'<button onclick="event.stopPropagation();removeAppointment(\''+a.id+'\')" style="background:none;border:none;color:#d1d5db;cursor:pointer;font-size:12px;padding:0 2px" title="Remove">&times;</button>'
+              +'</div>'
+              +'<div style="display:none;padding:4px 6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;margin-top:2px;font-size:10px;color:#475569">'
+              +(addrText?'<div style="margin-bottom:2px">'+esc(addrText)+'</div><a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(addrText)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:#2563eb;text-decoration:none;font-weight:600">Open in Maps</a>':'<div style="color:#9ca3af">No address saved</div>')
+              +'</div>'
+              +'</div>';
+          }).join('');
+        }
+        ah+='<button onclick="event.stopPropagation();addManualAppointment(atob(\''+btoa(unescape(encodeURIComponent(cn)))+'\'))" style="width:100%;font-size:10px;color:#9ca3af;background:none;border:1px dashed #d1d5db;border-radius:4px;padding:3px;cursor:pointer;margin-top:3px;font-family:var(--font)">+ Add Appointment</button>';
+        ah+='</div>';
+        return ah;
+      })()}
+      <div class="col-body" ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';doDragOver(this.closest('.column'))" ondrop="doDrop('${stageKey}')">`;
+
+    if(sd.length===0){
+      html+=`<div class="col-empty" ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';doDragOver(this.closest('.column'))" ondrop="doDrop('${stageKey}')">No leads yet</div>`;
+    } else {
+      for(const deal of sd){
+        const badge=getActivityBadge(deal.id);
+        const isBulkSel=state.bulkMode&&state.bulkSelected.has(deal.id);
+        html+=`<div class="deal-card${isBulkSel?' bulk-selected':''}${deal.hasNewText?' has-text-reply':''}${deal.hasNewReply?' has-reply':''}" draggable="${state.bulkMode?'false':'true'}"
+          ondragstart="event.dataTransfer.effectAllowed='move';state.dragId='${deal.id}';showDeleteZone()"
+          ondragend="clearAllDragOver();hideDeleteZone()"
+          ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';doDragOver(this.closest('.column'))"
+          ondrop="doDrop('${stageKey}')"
+          data-deal-id="${deal.id}"
+          onclick="${state.bulkMode?`event.preventDefault();event.stopPropagation();toggleBulkSelect('${deal.id}')`:`openDeal('${deal.id}')`}">
+          <div class="deal-card-top">
+            <div class="deal-company">${state.bulkMode?`<span class="bulk-check">${isBulkSel?'✓':''}</span>`:''}${(()=>{const c=detectCountry(deal);return c.code!=='US'?'<span title="'+c.label+'" style="font-size:12px;margin-right:3px;vertical-align:middle">'+c.flag+'</span>':'';})()}${deal.hasNewText?'<span class="reply-indicator text-reply-indicator" title="New text reply received">'+svgIcon('message-circle',12,'#16a34a')+'</span>':''}${deal.hasNewReply?'<span class="reply-indicator" title="New email reply received">'+svgIcon('mail',12,'#3b82f6')+'</span>':''}${esc(deal.company||deal.contact||deal.email||"New Deal")}${isRetainerClient(deal)?'<span style="display:inline-block;margin-left:6px;font-size:9px;font-weight:700;background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:3px;vertical-align:middle;white-space:nowrap;letter-spacing:.3px">RETAINER</span>':''}</div>
+            ${isClient()?'':`<div class="status-indicator" onclick="event.stopPropagation();toggleBadgeDropdown('${deal.id}')">
+              <div class="status-dot" style="background:${badge?badge.color:'#d1d5db'}"></div>
+              ${badge?`<span class="status-count" style="color:${badge.color}">${badge.count}</span>`:''}
+              ${badge?`<div class="badge-dropdown" id="badge-${deal.id}" style="display:none">
+                  <div class="badge-dropdown-title">${badge.label} (${badge.count})</div>
+                  ${state.activities.filter(a=>a.dealId===deal.id&&!a.done&&String(a.done)!=="TRUE").map(a=>`
+                    <div class="badge-item">
+                      <span>${ACTIVITY_ICONS[a.type]||"\u2713"}</span>
+                      <span style="flex:1;color:#374151">${esc(a.subject||a.type)}</span>
+                      <span style="font-size:10px;color:#9ca3af">${fmtDate(a.dueDate)}</span>
+                    </div>`).join("")}
+                </div>`:''}
+            </div>`}
+          </div>
+          ${deal.contact?`<div class="deal-detail">${esc(deal.contact)}${deal.jobTitle?' · <span style="color:var(--text-muted)">'+esc(deal.jobTitle)+'</span>':''}</div>`:''}
+          ${deal.email?`<div class="deal-detail">${esc(deal.email)}</div>`:''}
+          ${deal.bookedDate&&deal.bookedDate.match(/^\d{4}-\d{2}-\d{2}$/)?`<div class="deal-detail" style="color:#2563eb;font-weight:600">${new Date(deal.bookedDate+'T'+(deal.bookedTime||'00:00')).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}${deal.bookedTime?' @ '+fmtTime12(deal.bookedTime):''}</div>`:''}
+          <div class="deal-bottom">
+            <span style="display:flex;align-items:center;gap:4px">
+              ${(()=>{const sa=serviceAreaResults[deal.id];if(!sa||sa.inArea===undefined)return'';if(sa.inArea===true)return'<span class="sa-badge sa-in" title="In service area">&#10003;</span>';if(sa.inArea===false)return'<span class="sa-badge sa-out" title="Outside service area">&#10007;</span>';return'<span class="sa-badge sa-unknown" title="Service area unknown">?</span>';})()}
+              ${leadAgeBadge(deal)}
+              ${deal.leadCategory?`<span class="deal-tag">${esc(deal.leadCategory)}</span>`:''}
+              ${(()=>{const tz=deriveTimezone((deal.location||'')+' '+(deal.address||'')+' '+(deal.campaignName||''));return tz?`<span style="font-size:9px;font-weight:700;color:#64748b;background:#f1f5f9;padding:1px 5px;border-radius:3px;letter-spacing:.3px">${esc(tz)}</span>`:'';})()}
+              ${(()=>{ const ow=getOwnerForDeal(deal); return ow?`<span class="owner-tag" style="background:${ow.bg};color:${ow.fg}">${esc(ow.label)}</span>`:''; })()}
+            </span>
+          </div>
+          ${deal.replySnippet?`<div class="deal-reply-snippet" title="${esc(deal.replySnippet)}">${esc(deal.replySnippet.substring(0,80))}${deal.replySnippet.length>80?'…':''}</div>`:''}
+        </div>`;
+      }
+    }
+    html+=`</div></div>`;
+  }
+
+  html+=`</div>`;
+
+  // Drag-to-archive/won zone
+  html+=`<div class="delete-zone" id="delete-zone">
+    <div class="delete-zone-half delete-zone-lost"
+      ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';this.classList.add('drag-hover')"
+      ondragleave="this.classList.remove('drag-hover')"
+      ondrop="doLostDrop()">${isClient()?'Archive Lead':'Lost / Delete'}</div>
+    <div class="delete-zone-half delete-zone-won"
+      ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';this.classList.add('drag-hover')"
+      ondragleave="this.classList.remove('drag-hover')"
+      ondrop="doWonDrop()">${isClient()?'Won / Closed':state.pipeline==='acquisition'?'Won → Upload to Database':'Won → Push to Tracker'}</div>
+  </div>`;
+  } // end board view
+
+  // Client portal documents section
+  if (isClient()) {
+    const clientObj = state.clients.find(c => c.name === currentUser.clientName);
+    if (clientObj) {
+      html += `<div style="padding:16px 20px;max-width:900px;margin:0 auto">
+        <h3 style="font-size:15px;font-weight:700;margin:0 0 8px;color:var(--text)">Documents</h3>
+        ${renderDocumentsSection(clientObj)}
+      </div>`;
+    }
+  }
+
+  // Bulk action bar
+  if(state.bulkMode && state.bulkSelected.size>0){
+    const allStages=[...ACQUISITION_STAGES,...NURTURE_STAGES,...state.clients.map(c=>({id:c.name,label:c.name}))];
+    html+=`<div class="bulk-bar">
+      <span>${state.bulkSelected.size} selected</span>
+      <select id="bulk-move-stage" style="padding:5px 8px;border-radius:6px;font-size:12px;font-family:var(--font);border:1px solid #4b5563;background:#1f2937;color:#fff">
+        <option value="">Move to...</option>
+        ${allStages.map(s=>`<option value="${esc(s.id)}">${esc(s.label||s.id)}</option>`).join('')}
+      </select>
+      <button class="bulk-action" onclick="bulkMoveStage()">Move</button>
+      <button class="bulk-action" onclick="bulkAddActivity()" style="background:#2563eb">+ Activity</button>
+      <button class="bulk-danger" onclick="bulkArchive()">Archive</button>
+      <button class="bulk-cancel" onclick="bulkSelectAll()">Select All</button>
+      <button class="bulk-cancel" onclick="toggleBulkMode()">✕ Cancel</button>
+    </div>`;
+  }
+
+  // Modals
+  if(state.selectedDeal) html+=renderDealModal(state.selectedDeal);
+  if(state.showNew) html+=renderNewDealModal(stages);
+  if(state.showAddClient) html+=renderAddClientModal();
+  if(state.onboardingModal && window.renderOnboardingModal) html+=window.renderOnboardingModal();
+
+  // Nurture modals (from banner actions on non-nurture tabs)
+  if(state._nurtureEntryDealId){
+    html += renderNurtureEntryModal(state._nurtureEntryDealId);
+  }
+  if(state._showReactivateModal){
+    html += renderReactivateModal(state._reactivateNurtureId, state._reactivateDealId);
+  }
+  if(state._showSnoozeModal){
+    html += renderSnoozeModal(state._snoozeNurtureId, state._snoozeDealId);
+  }
+
+  app.innerHTML=html;
+  // Restore scroll position
+  const newBoard=document.querySelector('.board');
+  if(newBoard && savedScrollLeft>0) newBoard.scrollLeft=savedScrollLeft;
+  app.querySelectorAll('.deal-card[data-deal-id]').forEach(card=>{
+    let downTime=0, downX=0, downY=0;
+    card.addEventListener('mousedown',function(e){
+      downTime=Date.now(); downX=e.clientX; downY=e.clientY;
+    });
+    card.addEventListener('mouseup',function(e){
+      if(state.bulkMode) return; // Bulk mode uses onclick handler instead
+      const dt=Date.now()-downTime;
+      const dx=Math.abs(e.clientX-downX);
+      const dy=Math.abs(e.clientY-downY);
+      // Only open if it was a quick tap (< 300ms) with minimal movement (< 5px)
+      if(dt<300 && dx<5 && dy<5){
+        if(e.target.closest('.status-indicator')||e.target.closest('button'))return;
+        openDeal(this.dataset.dealId);
+      }
+    });
+  });
+  // Restore search input focus and cursor
+  if(state.searchQuery){
+    const si=document.getElementById('search-input');
+    if(si){si.focus();si.setSelectionRange(si.value.length,si.value.length);}
+  }
+  if(state.archiveSearch){
+    const ai=document.getElementById('archive-search-input');
+    if(ai){ai.focus();ai.setSelectionRange(ai.value.length,ai.value.length);}
+  }
+  // Client portal: init document handlers and lazy-load
+  if (isClient()) {
+    initDocumentHandlers();
+    const clientObj = state.clients.find(c => c.name === currentUser.clientName);
+    if (clientObj) setTimeout(() => { if (window.docLoadForClient) window.docLoadForClient(clientObj.id); }, 100);
+  }
+  }catch(err){console.error('Render error:',err,err.stack);}
+}
+
+// ─── Pipeline switching (single source of truth) ───
+function switchPipeline(id){
+  state.pipeline=id;
+  location.hash=id;
+  // Clear any stuck nurture modals
+  state._nurtureEntryDealId = null;
+  state._nurtureEntryBucket = null;
+  state._showReactivateModal = false;
+  state._reactivateNurtureId = null;
+  state._reactivateDealId = null;
+  state._showSnoozeModal = false;
+  state._snoozeNurtureId = null;
+  state._snoozeDealId = null;
+  // Close deal modal if open
+  state.selectedDeal = null;
+  // Always reset sub-tabs to default on any pipeline switch
+  state.acquisitionSubTab = 'pipeline';
+  state.clientLeadsSubTab = 'pipeline';
+  state.nurtureSubTab = 'board';
+  state._nurtureLoaded = false;
+  render();
+}
+
+// ─── Nurture sub-tab switching ───
+function switchNurtureTab(tab){
+  state.nurtureSubTab=tab;
+  if(tab==='archive' && !state.archiveLoaded){
+    // Defer archive load to avoid recursive render
+    render();
+    loadArchive();
+  } else {
+    render();
+  }
+}
+
+// ─── Window exposures for inline HTML onclick handlers ───
+// state is deferred because app.js re-exports it from state.js,
+// and render.js evaluates before app.js finishes (circular import TDZ)
+setTimeout(() => { window.state = state; }, 0);
+window.render = render;
+window.refreshModal = refreshModal;
+window.switchPipeline = switchPipeline;
+window.switchNurtureTab = switchNurtureTab;
+window.switchTrackerView = (view) => { state.trackerView = view; render(); };

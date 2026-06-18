@@ -1,0 +1,1821 @@
+// ═══════════════════════════════════════════════════════════
+// DEAL-MODAL — Deal detail modal, SmartLead thread viewer
+// ═══════════════════════════════════════════════════════════
+//
+// NOTE: renderDealModal() is 450+ lines. It will be fully
+// populated during the final migration. This module provides
+// the key functions other modules depend on.
+
+import { state, pendingWrites, pendingDealFields } from './app.js?v=20260618a';
+import { flushRealtimeQueue } from './api.js?v=20260618a';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY, detectCountry } from './config.js?v=20260618a';
+import { render, refreshModal } from './render.js?v=20260618a';
+import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20260618a';
+import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20260618a';
+import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20260618a';
+import { isAdmin, isClient, isEmployee, loadAssignableUsers } from './auth.js?v=20260618a';
+import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js?v=20260618a';
+import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, reschedulePreCallSequence, assignNoShowSequence } from './activities.js?v=20260618a';
+import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js?v=20260618a';
+import { getStagesForPipeline } from './dashboard.js?v=20260618a';
+import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal } from './maps.js?v=20260618a';
+import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js?v=20260618a';
+import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js?v=20260618a';
+import './blooio.js';
+import './demo-tracker.js';
+import { renderDealRetargetHistory } from './retargeting.js?v=20260618a';
+
+function actTypeClass(type){
+  const t=(type||'').toLowerCase();
+  if(t==='call') return 'act-call';
+  if(t==='text') return 'act-text';
+  if(t==='email') return 'act-email';
+  if(t==='task') return 'act-task';
+  if(t==='discovery call') return 'act-discovery';
+  if(t==='demo') return 'act-demo';
+  if(t==='meeting') return 'act-meeting';
+  if(t==='follow-up') return 'act-followup';
+  return '';
+}
+
+function renderSuggestedUpdates(deal) {
+  const su = deal.suggestedUpdates;
+  if (!su || !su.suggestions || su.suggestions.length === 0) return '';
+  const fieldLabels = {
+    contact: 'Contact', phone: 'Phone', mobilePhone: 'Mobile', address: 'Address', jobTitle: 'Title',
+    contact2: 'Contact 2', email2: 'Email 2', phone2: 'Phone 2', title2: 'Title 2',
+    contact3: 'Contact 3', email3: 'Email 3', phone3: 'Phone 3', title3: 'Title 3',
+  };
+  let rows = su.suggestions.map((s, i) => {
+    const label = fieldLabels[s.field] || s.field;
+    const current = s.current ? '"' + esc(s.current) + '"' : '(empty)';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(0,0,0,0.06)">
+      <span style="min-width:70px;font-weight:600;font-size:11px;color:#374151">${label}</span>
+      <span style="font-size:11px;color:#6b7280">${current} → <strong style="color:#059669">"${esc(s.suggested)}"</strong></span>
+      <div style="margin-left:auto;display:flex;gap:4px">
+        <button onclick="acceptSuggestion('${esc(deal.id)}',${i})" style="font-size:10px;padding:2px 8px;background:#059669;color:#fff;border:none;border-radius:4px;cursor:pointer">Accept</button>
+        <button onclick="skipSuggestion('${esc(deal.id)}',${i})" style="font-size:10px;padding:2px 8px;background:#e5e7eb;color:#374151;border:none;border-radius:4px;cursor:pointer">Skip</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<div style="background:linear-gradient(135deg,#ecfdf5,#f0fdf4);border:1px solid #86efac;border-radius:10px;padding:10px 14px;margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+      <span style="font-size:12px;font-weight:700;color:#065f46">Suggested Updates</span>
+      <span style="font-size:10px;color:#6b7280;margin-left:4px">from email signature</span>
+      <div style="margin-left:auto;display:flex;gap:6px">
+        <button onclick="acceptAllSuggestions('${esc(deal.id)}')" style="font-size:10px;padding:2px 10px;background:#059669;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600">Accept All</button>
+        <button onclick="dismissSuggestions('${esc(deal.id)}')" style="font-size:10px;padding:2px 10px;background:transparent;color:#6b7280;border:1px solid #d1d5db;border-radius:4px;cursor:pointer">Dismiss</button>
+      </div>
+    </div>
+    ${rows}
+  </div>`;
+}
+
+async function acceptSuggestion(dealId, index) {
+  const deal = state.deals.find(d => d.id === dealId);
+  if (!deal || !deal.suggestedUpdates) return;
+  const su = deal.suggestedUpdates;
+  const suggestion = su.suggestions[index];
+  if (!suggestion) return;
+  // Apply the suggested value to the deal
+  deal[suggestion.field] = suggestion.suggested;
+  // Remove this suggestion
+  su.suggestions.splice(index, 1);
+  const newSu = su.suggestions.length > 0 ? su : null;
+  deal.suggestedUpdates = newSu;
+  // Also update selectedDeal so modal re-render sees the change
+  if (state.selectedDeal && state.selectedDeal.id === dealId) {
+    state.selectedDeal[suggestion.field] = suggestion.suggested;
+    state.selectedDeal.suggestedUpdates = newSu;
+  }
+  // Single DB call with both the field update and the suggestions update
+  const dbFields = camelToSnake({ [suggestion.field]: suggestion.suggested });
+  dbFields.suggested_updates = newSu;
+  pendingWrites.value++;
+  sbUpdateDeal(dealId, dbFields).finally(() => { pendingWrites.value--; });
+  refreshModal(true);
+}
+
+async function acceptAllSuggestions(dealId) {
+  const deal = state.deals.find(d => d.id === dealId);
+  if (!deal || !deal.suggestedUpdates) return;
+  const su = deal.suggestedUpdates;
+  const fields = {};
+  for (const s of su.suggestions) {
+    deal[s.field] = s.suggested;
+    fields[s.field] = s.suggested;
+  }
+  deal.suggestedUpdates = null;
+  // Also update selectedDeal
+  if (state.selectedDeal && state.selectedDeal.id === dealId) {
+    for (const s of su.suggestions) {
+      state.selectedDeal[s.field] = s.suggested;
+    }
+    state.selectedDeal.suggestedUpdates = null;
+  }
+  const dbFields = camelToSnake(fields);
+  dbFields.suggested_updates = null;
+  pendingWrites.value++;
+  sbUpdateDeal(dealId, dbFields).finally(() => { pendingWrites.value--; });
+  refreshModal(true);
+}
+
+async function skipSuggestion(dealId, index) {
+  const deal = state.deals.find(d => d.id === dealId);
+  if (!deal || !deal.suggestedUpdates) return;
+  const su = deal.suggestedUpdates;
+  su.suggestions.splice(index, 1);
+  const newSu = su.suggestions.length > 0 ? su : null;
+  deal.suggestedUpdates = newSu;
+  if (state.selectedDeal && state.selectedDeal.id === dealId) {
+    state.selectedDeal.suggestedUpdates = newSu;
+  }
+  pendingWrites.value++;
+  sbUpdateDeal(dealId, { suggested_updates: newSu }).finally(() => { pendingWrites.value--; });
+  refreshModal(true);
+}
+
+async function dismissSuggestions(dealId) {
+  const deal = state.deals.find(d => d.id === dealId);
+  if (!deal) return;
+  deal.suggestedUpdates = null;
+  if (state.selectedDeal && state.selectedDeal.id === dealId) {
+    state.selectedDeal.suggestedUpdates = null;
+  }
+  pendingWrites.value++;
+  sbUpdateDeal(dealId, { suggested_updates: null }).finally(() => { pendingWrites.value--; });
+  refreshModal(true);
+}
+
+window.acceptSuggestion = acceptSuggestion;
+window.acceptAllSuggestions = acceptAllSuggestions;
+window.skipSuggestion = skipSuggestion;
+window.dismissSuggestions = dismissSuggestions;
+
+export function openDeal(id){
+  const deal=state.deals.find(d=>d.id===id);
+  if(!deal) return;
+  // Clear new-reply / new-text indicators when opening the deal card
+  const clearFlags = {};
+  if(deal.hasNewReply){ deal.hasNewReply=false; clearFlags.has_new_reply=false; }
+  if(deal.hasNewText){ deal.hasNewText=false; clearFlags.has_new_text=false; }
+  if(Object.keys(clearFlags).length) sbUpdateDeal(id, clearFlags);
+  state.selectedDeal=deal;
+  render();
+  // Lazy-load heavy fields (email_body, call_transcript) if not already cached
+  if(!deal._heavyLoaded){
+    sbGetDealHeavyFields(id).then(heavy => {
+      if(!heavy) return;
+      if(heavy.email_body) deal.emailBody = heavy.email_body;
+      if(heavy.call_transcript) deal.callTranscript = heavy.call_transcript;
+      deal._heavyLoaded = true;
+      if(state.selectedDeal && String(state.selectedDeal.id) === String(id)) refreshModal();
+    }).catch(() => {});
+  }
+  loadInteractions(id);
+}
+
+export function closeDealModal(){
+  stopTranscriptPolling();
+  state.selectedDeal=null;
+  state.showSop=false;
+  state.sopSeq=null;
+  flushRealtimeQueue();
+  render();
+}
+
+window.showStrategyCallPicker = function(dealId) {
+  const existing = document.getElementById('strategy-call-picker');
+  if (existing) existing.remove();
+  const div = document.createElement('div');
+  div.id = 'strategy-call-picker';
+  div.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:center';
+  div.onclick = (e) => { if (e.target === div) div.remove(); };
+  div.innerHTML = `<div style="background:#fff;border-radius:12px;padding:24px;width:320px;box-shadow:0 8px 30px rgba(0,0,0,.2)">
+    <h3 style="margin:0 0 16px;font-size:16px">Who's booking the strategy call?</h3>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-primary" style="width:100%;padding:12px;font-size:13px;background:#7c3aed;border-color:#7c3aed" onclick="document.getElementById('strategy-call-picker').remove();openAcqCalendly('${dealId}','strategy')">Aidan</button>
+      <button class="btn btn-primary" style="width:100%;padding:12px;font-size:13px;background:#2563eb;border-color:#2563eb" onclick="document.getElementById('strategy-call-picker').remove();openAcqCalendly('${dealId}','strategy_ioannis')">Ioannis</button>
+    </div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:12px;font-size:12px" onclick="document.getElementById('strategy-call-picker').remove()">Cancel</button>
+  </div>`;
+  document.body.appendChild(div);
+};
+
+window.triggerNurtureFromArchive = function(dealId){
+  state.selectedDeal = null;
+  state._nurtureEntryDealId = dealId;
+  render();
+};
+
+window.showArchiveReasonPicker = function(dealId){
+  const existing = document.getElementById('archive-reason-picker');
+  if (existing) existing.remove();
+  const div = document.createElement('div');
+  div.id = 'archive-reason-picker';
+  div.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:center';
+  div.onclick = (e) => { if (e.target === div) div.remove(); };
+  div.innerHTML = `<div style="background:#fff;border-radius:12px;padding:24px;width:340px;box-shadow:0 8px 30px rgba(0,0,0,.2)">
+    <h3 style="margin:0 0 16px;font-size:16px">Why are you archiving this?</h3>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn" style="width:100%;justify-content:start;padding:10px 14px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca" onclick="document.getElementById('archive-reason-picker').remove();deleteDeal('${dealId}','Closed Lost')">Closed Lost</button>
+      <button class="btn" style="width:100%;justify-content:start;padding:10px 14px;background:#fef9c3;color:#a16207;border:1px solid #fde68a" onclick="document.getElementById('archive-reason-picker').remove();deleteDeal('${dealId}','Bad Lead')">Bad Lead</button>
+      <button class="btn" style="width:100%;justify-content:start;padding:10px 14px;background:#f0fdf4;color:#059669;border:1px solid #a7f3d0" onclick="document.getElementById('archive-reason-picker').remove();triggerNurtureFromArchive('${dealId}')">Move to Nurture</button>
+      <button class="btn" style="width:100%;justify-content:start;padding:10px 14px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe" onclick="var r=prompt('Enter reason:');if(r){document.getElementById('archive-reason-picker').remove();deleteDeal('${dealId}',r);}">Custom...</button>
+    </div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:12px;font-size:12px" onclick="document.getElementById('archive-reason-picker').remove()">Cancel</button>
+  </div>`;
+  document.body.appendChild(div);
+};
+
+window.markDealUnread = function(dealId){
+  const deal = state.deals.find(d => String(d.id) === String(dealId));
+  if(!deal) return;
+  deal.hasNewReply = true;
+  sbUpdateDeal(dealId, { has_new_reply: true });
+  closeDealModal();
+};
+
+// SmartLead thread viewer and client thread sender moved to threads.js
+// Re-exported above for backward compatibility
+
+export function openNewDeal(){ state.showNew=true; render(); }
+export function openAddClient(){ state.showAddClient=true; render(); }
+
+export function changeDealPipeline(newPipeline){
+  const deal = state.selectedDeal;
+  if(!deal) return;
+
+  // If moving to Nurture, show the nurture entry modal instead of instant switch
+  if(newPipeline === 'Nurture'){
+    state._nurtureEntryDealId = deal.id;
+    state.selectedDeal = null;
+    render();
+    return;
+  }
+
+  deal.pipeline = newPipeline;
+  if(newPipeline === 'Acquisition'){
+    deal.stage = ACQUISITION_STAGES[0]?.id || 'Cold Email Response';
+  } else if(newPipeline === 'Client'){
+    deal.stage = 'Client Not Distributed';
+  }
+  pendingWrites.value++;
+  sbUpdateDeal(deal.id, camelToSnake({ pipeline: deal.pipeline, stage: deal.stage }))
+    .catch(e => console.error('Update deal pipeline failed:', e))
+    .finally(() => { pendingWrites.value--; });
+  refreshModal(true);
+}
+
+export function changeDealOwner(val){
+  // Used in acquisition pipeline to override deal owner
+  if(!state.selectedDeal) return;
+  state.selectedDeal.ownerOverride=val;
+  pendingWrites.value++;
+  sbUpdateDeal(state.selectedDeal.id, camelToSnake({ownerOverride:val})).catch(e=>console.error('Update deal failed:',e)).finally(()=>{pendingWrites.value--;});
+  refreshModal();
+}
+
+// ─── Debounced Deal Field Save ───
+let _dealFieldSaveTimer=null;
+const _dirtyFields=new Set();
+export function debouncedDealFieldSave(){
+  clearTimeout(_dealFieldSaveTimer);
+  _dealFieldSaveTimer=setTimeout(()=>{
+    if(!state.selectedDeal) return;
+    const deal=state.selectedDeal;
+    const fields={};
+    for(const f of _dirtyFields){
+      const el=document.getElementById('deal-'+f);
+      if(el && el.value!==undefined){
+        deal[f]=el.value;
+        fields[f]=el.value;
+      }
+    }
+    _dirtyFields.clear();
+    if(Object.keys(fields).length===0) return;
+    if(!pendingDealFields[String(deal.id)]) pendingDealFields[String(deal.id)]={};
+    Object.assign(pendingDealFields[String(deal.id)], fields);
+    pendingWrites.value++;
+    sbUpdateDeal(deal.id, camelToSnake(fields)).then(()=>{
+      const pending=pendingDealFields[String(deal.id)];
+      if(pending){
+        for(const k of Object.keys(fields)){
+          if(pending[k]===fields[k]) delete pending[k];
+        }
+        if(Object.keys(pending).length===0) delete pendingDealFields[String(deal.id)];
+      }
+    }).finally(()=>{pendingWrites.value--;});
+  },800);
+}
+
+export function updateDealField(key,val){
+  if(!state.selectedDeal) return;
+  state.selectedDeal[key]=val;
+  // Stage, pipeline, and booking fields save immediately — not debounced.
+  // The debounced save is killed when the modal closes, so these were lost.
+  if(key==='stage'||key==='pipeline'||key==='bookedDate'||key==='bookedTime'){
+    const dealId=state.selectedDeal.id;
+    if(!pendingDealFields[String(dealId)]) pendingDealFields[String(dealId)]={};
+    pendingDealFields[String(dealId)][key]=val;
+    const snakeKey=camelToSnake({[key]:val});
+    pendingWrites.value++;
+    sbUpdateDeal(dealId, snakeKey).then(()=>{
+      const pending=pendingDealFields[String(dealId)];
+      if(pending && pending[key]===val) delete pending[key];
+      if(pending && Object.keys(pending).length===0) delete pendingDealFields[String(dealId)];
+    }).finally(()=>{pendingWrites.value--;});
+    if(key==='bookedDate'&&val){
+      const deal=state.selectedDeal;
+      const isSchedulingStage=['Discovery Scheduled','Demo Scheduled'].includes(deal.stage);
+      if(isSchedulingStage) reschedulePreCallSequence(deal);
+    }
+    return;
+  }
+  _dirtyFields.add(key);
+  debouncedDealFieldSave();
+}
+
+export function refreshPushButton(){
+  const btn=document.getElementById('push-tracker-btn');
+  if(!btn||!state.selectedDeal) return;
+  if(state.selectedDeal.pushedToTracker){
+    btn.textContent='\u2713 Pushed';
+    btn.disabled=true;
+    btn.style.opacity='0.5';
+  }
+}
+
+export function doSaveDeal(id){
+  const deal=state.deals.find(d=>d.id===id);
+  if(!deal) return;
+  // Read all fields from modal
+  const fieldMap=['company','contact','email','phone','mobilePhone','website','location','address','value','notes'];
+  const updated={id};
+  for(const f of fieldMap){
+    const el=document.getElementById('deal-'+f);
+    if(el) updated[f]=el.value;
+  }
+  saveDeal(updated);
+}
+
+export function doCreateDeal(){
+  const fields=['company','contact','email','phone','value','stage'];
+  const form={};
+  for(const f of fields){
+    const el=document.getElementById('new-'+f);
+    if(el) form[f]=el.value.trim();
+  }
+  if(!form.company&&!form.contact){alert('Enter a company or contact name');return;}
+  if(!form.stage){alert('Select a stage');return;}
+  state.showNew=false;
+  flushRealtimeQueue();
+  createDeal(form);
+}
+
+export function doAddClient(){
+  const nameEl=document.getElementById('new-client-name');
+  const name=nameEl?nameEl.value.trim():'';
+  if(!name){alert('Enter a client name');return;}
+  state.showAddClient=false;
+  flushRealtimeQueue();
+  addClient(name);
+}
+
+export function doAddActivity(dealId){
+  const typeEl=document.getElementById('new-act-type');
+  const subEl=document.getElementById('new-act-subject');
+  const dateEl=document.getElementById('new-act-date');
+  if(!typeEl||!subEl||!dateEl) return;
+  const type=typeEl.value;
+  const subject=subEl.value.trim()||type;
+  const dueDate=dateEl.value;
+  if(!dueDate){alert('Select a due date');return;}
+  addActivity(dealId,{type,subject,dueDate});
+  subEl.value='';
+}
+
+export function doAssignSequence(dealId,day){
+  const sopDaysMap=getSopDaysForDeal(dealId);
+  const acts=sopDaysMap[day];
+  if(!acts) return;
+  assignSequence(dealId,day,acts,getToday());
+}
+
+export function doAssignSequenceWithDate(dealId,day){
+  const dateEl=document.getElementById('sop-target-date');
+  const targetDate=dateEl?dateEl.value:getToday();
+  const sopDaysMap=getSopDaysForDeal(dealId);
+  const acts=sopDaysMap[day];
+  if(!acts) return;
+  assignSequence(dealId,day,acts,targetDate);
+}
+
+function getSopDaysForDeal(dealId){
+  const deal=state.deals.find(d=>d.id===dealId);
+  return getSopDays(deal);
+}
+
+// ─── Delete Zone (drag to archive/won) ───
+export function showDeleteZone(){
+  const zone=document.getElementById('delete-zone');
+  if(zone) zone.style.display='flex';
+}
+
+export function hideDeleteZone(){
+  const zone=document.getElementById('delete-zone');
+  if(zone) zone.style.display='none';
+}
+
+export function doLostDrop(){
+  hideDeleteZone();
+  if(!state.dragId) return;
+  const id=state.dragId;
+  state.dragId=null;
+  const deal=state.deals.find(d=>d.id===id);
+  const client=deal?(findClientForDeal(deal)||{name:deal.stage}):null;
+  const { deleteDeal } = window;
+  if(deleteDeal) deleteDeal(id, 'Deleted/Lost', client?client.name:'');
+}
+
+export async function doWonDrop(){
+  hideDeleteZone();
+  if(!state.dragId) return;
+  const id=state.dragId;
+  state.dragId=null;
+  const deal=state.deals.find(d=>d.id===id);
+  if(!deal) return;
+  const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
+  const clientName=client?client.name:deal.stage;
+
+  // Acquisition Won → auto-create CRM client + Client Info + dropdowns
+  // Client Won → push to Lead Tracker
+  let wonSuccess = false;
+  try {
+    if(deal.pipeline==='Acquisition'){
+      const { autoCreateClient } = await import('./client-info.js?v=20260618a');
+      const result = await autoCreateClient(deal);
+      wonSuccess = true; // Even if user skipped duplicate, still archive
+    } else {
+      const { autoPushToTracker } = await import('./email.js?v=20260618a');
+      await autoPushToTracker(deal);
+      wonSuccess = true;
+    }
+  } catch(e){
+    console.error('Won drop action failed:', e);
+    const { showToast } = await import('./api.js?v=20260618a');
+    showToast('Won action failed: ' + e.message, 'error');
+  }
+
+  if(wonSuccess) {
+    const { deleteDeal } = await import('./deals.js?v=20260618a');
+    deleteDeal(id, 'Closed Won', clientName);
+  }
+}
+
+
+export function toggleBadgeDropdown(dealId){
+  const el=document.getElementById('badge-dropdown-'+dealId);
+  if(el) el.style.display=el.style.display==='block'?'none':'block';
+}
+
+// ─── Enrich Lead (AI Ark Phone Finder) ───
+function showEnrichOverlay(show, msg) {
+  let ov = document.getElementById('enrich-overlay');
+  if (show) {
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'enrich-overlay';
+      ov.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(255,255,255,.85);backdrop-filter:blur(3px)';
+      document.body.appendChild(ov);
+    }
+    ov.innerHTML = '<div style="text-align:center"><div class="pulse-spinner" style="width:40px;height:40px;border:3px solid #e9d5ff;border-top-color:#7c3aed;border-radius:50%;margin:0 auto 12px;animation:spin .8s linear infinite"></div><div style="font-size:15px;font-weight:700;color:#5b21b6">' + (msg || 'Searching for phone numbers...') + '</div><div style="font-size:12px;color:#6b7280;margin-top:4px">This usually takes 5–10 seconds</div></div>';
+  } else if (ov) {
+    ov.remove();
+  }
+}
+
+const PHONE_FIELDS = [
+  { key: 'phone', label: 'Business Phone' },
+  { key: 'mobilePhone', label: 'Mobile Phone' },
+  { key: 'phone2', label: 'Phone 2' },
+  { key: 'phone3', label: 'Phone 3' },
+];
+
+let _phoneAssignCtx = null;
+
+function showPhoneAssignPopup(deal, phones) {
+  _phoneAssignCtx = { dealId: deal.id, phones };
+  const existing = {};
+  for (const f of PHONE_FIELDS) existing[f.key] = str(deal[f.key]).trim();
+
+  let html = '<div style="position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);backdrop-filter:blur(2px)" id="phone-assign-overlay" onclick="if(event.target===this)closePhoneAssignPopup()">';
+  html += '<div style="background:#fff;border-radius:12px;padding:24px 28px;max-width:400px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.18)">';
+  html += '<div style="font-size:16px;font-weight:700;color:#1e1b4b;margin-bottom:4px">Phone Numbers Found</div>';
+  html += '<div style="font-size:12px;color:#6b7280;margin-bottom:16px">Choose where to save each number</div>';
+
+  phones.forEach((ph, i) => {
+    const firstEmpty = PHONE_FIELDS.find(f => !existing[f.key]);
+    const defaultKey = firstEmpty ? firstEmpty.key : '';
+    if (firstEmpty) existing[firstEmpty.key] = '(pending)';
+
+    html += '<div style="background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;padding:12px;margin-bottom:10px">';
+    html += '<div style="font-size:15px;font-weight:700;color:#111827;letter-spacing:.3px;margin-bottom:8px">' + esc(ph) + '</div>';
+    html += '<select id="phone-assign-' + i + '" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;font-family:var(--font);background:#fff">';
+    html += '<option value="">Skip</option>';
+    for (const f of PHONE_FIELDS) {
+      const filled = str(deal[f.key]).trim();
+      const sel = f.key === defaultKey ? ' selected' : '';
+      const suffix = filled ? ' — ' + filled : '';
+      html += '<option value="' + f.key + '"' + sel + '>' + esc(f.label + suffix) + '</option>';
+    }
+    html += '</select></div>';
+  });
+
+  html += '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">';
+  html += '<button onclick="closePhoneAssignPopup()" style="padding:8px 18px;border:1px solid #d1d5db;border-radius:6px;background:#fff;color:#374151;font-size:13px;font-weight:600;cursor:pointer">Cancel</button>';
+  html += '<button onclick="confirmPhoneAssign()" style="padding:8px 18px;border:none;border-radius:6px;background:#7c3aed;color:#fff;font-size:13px;font-weight:600;cursor:pointer">Save</button>';
+  html += '</div></div></div>';
+
+  const container = document.createElement('div');
+  container.innerHTML = html;
+  document.body.appendChild(container.firstChild);
+}
+
+function closePhoneAssignPopup() {
+  _phoneAssignCtx = null;
+  const ov = document.getElementById('phone-assign-overlay');
+  if (ov) ov.remove();
+}
+
+async function confirmPhoneAssign() {
+  if (!_phoneAssignCtx) return;
+  const { dealId, phones } = _phoneAssignCtx;
+  const deal = state.deals.find(d => d.id === dealId);
+  if (!deal) return;
+
+  const updates = {};
+  phones.forEach((ph, i) => {
+    const sel = document.getElementById('phone-assign-' + i);
+    if (!sel || !sel.value) return;
+    updates[sel.value] = ph;
+  });
+
+  closePhoneAssignPopup();
+
+  if (Object.keys(updates).length === 0) return;
+
+  for (const [k, v] of Object.entries(updates)) {
+    deal[k] = v;
+    pendingDealFields[dealId] = { ...pendingDealFields[dealId], [k]: v };
+  }
+  if (state.selectedDeal && String(state.selectedDeal.id) === String(dealId)) state.selectedDeal = deal;
+  refreshModal(true);
+
+  const snakeUpdates = camelToSnake(updates);
+  pendingWrites.value++;
+  try { await sbUpdateDeal(dealId, snakeUpdates); }
+  finally { pendingWrites.value--; }
+
+  const { showToast } = await import('./api.js?v=20260618a');
+  showToast('Phone number(s) saved', 'success');
+}
+
+window.closePhoneAssignPopup = closePhoneAssignPopup;
+window.confirmPhoneAssign = confirmPhoneAssign;
+
+// ─── Interaction Timeline ───
+const INTERACTION_TYPES = ['Call', 'Email', 'Meeting', 'Text', 'Note'];
+const TYPE_COLORS = { Call: '#f97316', Email: '#2563eb', Meeting: '#7c3aed', Text: '#10b981', Note: '#6b7280', System: '#8b5cf6' };
+const TYPE_ICONS = { Call: 'phone', Email: 'mail', Meeting: 'calendar', Text: 'message-circle', Note: 'edit', System: 'zap' };
+let _interactionsCache = {};
+
+async function loadInteractions(dealId) {
+  try {
+    const { sbGetInteractions } = await import('./api.js?v=20260618a');
+    const rows = await sbGetInteractions(dealId);
+    _interactionsCache[dealId] = (rows || []).map(r => ({
+      id: r.id, dealId: r.deal_id, type: r.type, content: r.content,
+      createdAt: r.created_at
+    }));
+  } catch (e) {
+    console.error('[interactions] load failed:', e);
+    _interactionsCache[dealId] = _interactionsCache[dealId] || [];
+  }
+  const preview = document.getElementById('interaction-preview');
+  if (preview) preview.innerHTML = buildPreviewHTML(dealId);
+}
+
+function fmtShortDate(d) {
+  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function buildPreviewHTML(dealId) {
+  const items = _interactionsCache[dealId];
+  if (!items) return '<span style="color:#9ca3af;font-size:12px">Loading...</span>';
+  if (items.length === 0) return '<span style="color:#9ca3af;font-size:12px">No touchpoints logged yet</span>';
+  const last = items[0];
+  const color = TYPE_COLORS[last.type] || '#6b7280';
+  return '<span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;color:#fff;background:' + color + ';margin-right:6px">' + esc(last.type) + '</span>'
+    + '<span style="font-size:12px;color:#374151">' + esc(last.content.length > 60 ? last.content.slice(0, 60) + '...' : last.content) + '</span>'
+    + '<span style="font-size:11px;color:#9ca3af;margin-left:6px">' + fmtShortDate(last.createdAt) + '</span>';
+}
+
+function buildLifecycleEvents(deal) {
+  const events = [];
+  if (deal.createdAt || deal.createdDate) {
+    events.push({ type: 'System', content: 'Lead created — ' + (deal.pipeline || '') + ' pipeline', date: deal.createdAt || deal.createdDate, system: true });
+  }
+  if (deal.bookedDate) {
+    const label = deal.stage && deal.stage.toLowerCase().includes('demo') ? 'Demo scheduled' : 'Meeting scheduled';
+    const dt = deal.bookedDate + (deal.bookedTime ? 'T' + deal.bookedTime : '');
+    events.push({ type: 'System', content: label + (deal.bookedFor ? ' with ' + deal.bookedFor : ''), date: dt, system: true });
+  }
+  if (deal.forwardedAt) {
+    events.push({ type: 'System', content: 'Forwarded to client', date: deal.forwardedAt, system: true });
+  }
+  if (deal.autoFollowupStartedAt) {
+    events.push({ type: 'System', content: 'Auto follow-up sequence started', date: deal.autoFollowupStartedAt, system: true });
+  }
+  return events;
+}
+
+function openTimelinePanel(dealId) {
+  const deal = state.deals.find(d => d.id === dealId);
+  if (!deal) return;
+  const interactions = (_interactionsCache[dealId] || []).map(it => ({ ...it, system: false }));
+  const lifecycle = buildLifecycleEvents(deal);
+  const all = [...interactions, ...lifecycle].sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
+
+  let html = '<div style="position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);backdrop-filter:blur(2px)" id="timeline-panel-overlay" onclick="if(event.target===this)closeTimelinePanel()">';
+  html += '<div style="background:#fff;border-radius:12px;width:90%;max-width:520px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.18)">';
+
+  html += '<div style="padding:16px 20px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center">';
+  html += '<div><div style="font-size:16px;font-weight:700;color:#1e1b4b">Lead Timeline</div><div style="font-size:12px;color:#6b7280">' + esc(deal.contact || deal.company || '') + '</div></div>';
+  html += '<button onclick="closeTimelinePanel()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9ca3af;padding:4px">&times;</button>';
+  html += '</div>';
+
+  html += '<div style="padding:12px 20px;border-bottom:1px solid #e5e7eb">';
+  html += '<div style="display:flex;gap:6px">';
+  html += '<select id="tl-type" style="padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;background:#fff;min-width:90px">';
+  INTERACTION_TYPES.forEach(t => { html += '<option value="' + t + '">' + t + '</option>'; });
+  html += '</select>';
+  html += '<input id="tl-content" type="text" placeholder="Log a touchpoint..." style="flex:1;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px" onkeydown="if(event.key===\'Enter\'){addInteraction(\'' + esc(dealId) + '\');event.preventDefault()}">';
+  html += '<button onclick="addInteraction(\'' + esc(dealId) + '\')" style="padding:6px 14px;border:none;border-radius:6px;background:#7c3aed;color:#fff;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">+ Add</button>';
+  html += '</div>';
+  html += '<div style="display:flex;align-items:center;gap:6px;margin-top:6px">';
+  html += '<label style="font-size:11px;color:#6b7280;margin:0">Date:</label>';
+  html += '<input id="tl-date" type="datetime-local" style="padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;font-family:var(--font)">';
+  html += '<span style="font-size:10px;color:#9ca3af">Leave blank for now</span>';
+  html += '</div></div>';
+
+  html += '<div id="timeline-entries" style="flex:1;overflow-y:auto;padding:8px 20px">';
+  if (all.length === 0) {
+    html += '<div style="text-align:center;color:#9ca3af;font-size:13px;padding:24px 0">No timeline events yet</div>';
+  } else {
+    all.forEach((ev, i) => {
+      const d = new Date(ev.date || ev.createdAt);
+      const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      const color = TYPE_COLORS[ev.type] || '#6b7280';
+      const isLast = i === all.length - 1;
+      html += '<div style="display:flex;gap:12px;position:relative">';
+      html += '<div style="display:flex;flex-direction:column;align-items:center;min-width:20px">';
+      html += '<div style="width:10px;height:10px;border-radius:50%;background:' + color + ';flex-shrink:0;margin-top:4px;border:2px solid #fff;box-shadow:0 0 0 2px ' + color + '40"></div>';
+      if (!isLast) html += '<div style="width:2px;flex:1;background:#e5e7eb;margin:4px 0"></div>';
+      html += '</div>';
+      html += '<div style="flex:1;padding-bottom:' + (isLast ? '8' : '16') + 'px">';
+      html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">';
+      html += '<span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;color:#fff;background:' + color + '">' + esc(ev.type) + '</span>';
+      if (!ev.system) {
+        html += '<span onclick="editInteractionDate(\'' + esc(ev.id) + '\',\'' + esc(dealId) + '\')" style="font-size:11px;color:#9ca3af;cursor:pointer;border-bottom:1px dashed #d1d5db" title="Click to change date">' + esc(dateStr) + ' at ' + esc(timeStr) + '</span>';
+        html += '<button onclick="deleteInteraction(\'' + esc(ev.id) + '\',\'' + esc(dealId) + '\')" style="background:none;border:none;cursor:pointer;color:#d1d5db;font-size:13px;margin-left:auto;padding:0 4px" title="Delete">&times;</button>';
+      } else {
+        html += '<span style="font-size:11px;color:#9ca3af">' + esc(dateStr) + ' at ' + esc(timeStr) + '</span>';
+      }
+      html += '</div>';
+      html += '<div style="font-size:13px;color:' + (ev.system ? '#6b7280' : '#1f2937') + ';line-height:1.4;' + (ev.system ? 'font-style:italic' : '') + '">' + esc(ev.content) + '</div>';
+      html += '</div></div>';
+    });
+  }
+  html += '</div></div></div>';
+
+  const container = document.createElement('div');
+  container.innerHTML = html;
+  document.body.appendChild(container.firstChild);
+}
+
+function closeTimelinePanel() {
+  const el = document.getElementById('timeline-panel-overlay');
+  if (el) el.remove();
+}
+
+async function addInteraction(dealId) {
+  const typeEl = document.getElementById('tl-type');
+  const contentEl = document.getElementById('tl-content');
+  const dateEl = document.getElementById('tl-date');
+  if (!typeEl || !contentEl) return;
+  const type = typeEl.value;
+  const content = contentEl.value.trim();
+  if (!content) return;
+
+  const fields = { deal_id: dealId, type, content };
+  if (dateEl && dateEl.value) fields.created_at = new Date(dateEl.value).toISOString();
+
+  contentEl.value = '';
+  if (dateEl) dateEl.value = '';
+  const { sbCreateInteraction } = await import('./api.js?v=20260618a');
+  const row = await sbCreateInteraction(fields);
+  if (row) {
+    if (!_interactionsCache[dealId]) _interactionsCache[dealId] = [];
+    _interactionsCache[dealId].unshift({ id: row.id, dealId: row.deal_id, type: row.type, content: row.content, createdAt: row.created_at });
+    closeTimelinePanel();
+    openTimelinePanel(dealId);
+    const preview = document.getElementById('interaction-preview');
+    if (preview) preview.innerHTML = buildPreviewHTML(dealId);
+  }
+}
+
+async function deleteInteraction(id, dealId) {
+  const { sbDeleteInteraction } = await import('./api.js?v=20260618a');
+  await sbDeleteInteraction(id);
+  if (_interactionsCache[dealId]) {
+    _interactionsCache[dealId] = _interactionsCache[dealId].filter(i => i.id !== id);
+  }
+  closeTimelinePanel();
+  openTimelinePanel(dealId);
+  const preview = document.getElementById('interaction-preview');
+  if (preview) preview.innerHTML = buildPreviewHTML(dealId);
+}
+
+async function editInteractionDate(id, dealId) {
+  const item = (_interactionsCache[dealId] || []).find(i => i.id === id);
+  if (!item) return;
+  const current = new Date(item.createdAt);
+  const iso = current.getFullYear() + '-' + String(current.getMonth()+1).padStart(2,'0') + '-' + String(current.getDate()).padStart(2,'0') + 'T' + String(current.getHours()).padStart(2,'0') + ':' + String(current.getMinutes()).padStart(2,'0');
+  const input = prompt('Edit date/time (YYYY-MM-DDTHH:MM):', iso);
+  if (!input) return;
+  const parsed = new Date(input);
+  if (isNaN(parsed.getTime())) return;
+
+  const { sbUpdateInteraction } = await import('./api.js?v=20260618a');
+  await sbUpdateInteraction(id, { created_at: parsed.toISOString() });
+  item.createdAt = parsed.toISOString();
+  closeTimelinePanel();
+  openTimelinePanel(dealId);
+  const preview = document.getElementById('interaction-preview');
+  if (preview) preview.innerHTML = buildPreviewHTML(dealId);
+}
+
+window.addInteraction = addInteraction;
+window.deleteInteraction = deleteInteraction;
+window.editInteractionDate = editInteractionDate;
+window.openTimelinePanel = openTimelinePanel;
+window.closeTimelinePanel = closeTimelinePanel;
+
+async function enrichLead(dealId) {
+  const deal = state.deals.find(d => d.id === dealId);
+  if (!deal) return;
+
+  const hasLinkedin = deal.linkedinUrl && str(deal.linkedinUrl).trim();
+  const hasWebsite = deal.website && str(deal.website).trim();
+  const hasContact = deal.contact && str(deal.contact).trim();
+  const canEnrich = hasLinkedin || (hasContact && hasWebsite);
+
+  if (!canEnrich) {
+    const { showToast } = await import('./api.js?v=20260618a');
+    showToast('Needs a LinkedIn URL or company name + website to enrich', 'warning');
+    return;
+  }
+
+  const name = str(deal.contact || deal.company || '');
+  if (!confirm('Use 1 AI Ark credit to find phone numbers for ' + name + '?')) return;
+
+  showEnrichOverlay(true, 'Finding phone numbers for ' + name + '...');
+
+  try {
+    const result = await invokeEdgeFunction('enrich-lead', { dealId });
+    const { showToast } = await import('./api.js?v=20260618a');
+    console.log('[enrich-lead] Response:', JSON.stringify(result));
+
+    if (result.ok && result.phones && result.phones.length > 0) {
+      showEnrichOverlay(false);
+      showPhoneAssignPopup(deal, result.phones);
+    } else if (result.ok) {
+      showEnrichOverlay(false);
+      showToast('No phone numbers found for ' + name, 'warning');
+    } else {
+      showEnrichOverlay(false);
+      console.error('[enrich-lead] Error:', result.error);
+      showToast(result.error || 'Enrichment failed', 'error');
+    }
+  } catch (e) {
+    showEnrichOverlay(false);
+    const { showToast } = await import('./api.js?v=20260618a');
+    console.error('[enrich-lead] Exception:', e);
+    showToast('Enrichment failed: ' + e.message, 'error');
+  }
+}
+
+async function enrichContact(dealId, contactIndex) {
+  const deal = state.deals.find(d => d.id === dealId);
+  if (!deal) return;
+
+  const name = str(deal['contact' + contactIndex] || '').trim();
+  const email = str(deal['email' + contactIndex] || '').trim();
+  const website = str(deal.website || '').trim();
+  const hasDomain = website || email.includes('@');
+
+  if (!name || !hasDomain) {
+    const { showToast } = await import('./api.js?v=20260618a');
+    showToast('Need contact name + company website or email to enrich', 'warning');
+    return;
+  }
+
+  if (!confirm('Use 1 AI Ark credit to find phone numbers for ' + name + '?')) return;
+
+  showEnrichOverlay(true, 'Finding phone numbers for ' + name + '...');
+
+  try {
+    const result = await invokeEdgeFunction('enrich-lead', { dealId, contactIndex });
+    const { showToast } = await import('./api.js?v=20260618a');
+
+    if (result.ok && result.phones && result.phones.length > 0) {
+      showEnrichOverlay(false);
+      showPhoneAssignPopup(deal, result.phones);
+    } else if (result.ok) {
+      showEnrichOverlay(false);
+      showToast('No phone numbers found for ' + name, 'warning');
+    } else {
+      showEnrichOverlay(false);
+      showToast(result.error || 'Enrichment failed', 'error');
+    }
+  } catch (e) {
+    showEnrichOverlay(false);
+    const { showToast } = await import('./api.js?v=20260618a');
+    showToast('Enrichment failed: ' + e.message, 'error');
+  }
+}
+
+// Expose to inline HTML handlers
+window.enrichLead = enrichLead;
+window.enrichContact = enrichContact;
+window.openDeal = openDeal;
+window.closeDealModal = closeDealModal;
+window.openNewDeal = openNewDeal;
+window.openAddClient = openAddClient;
+window.changeDealPipeline = changeDealPipeline;
+window.changeDealOwner = changeDealOwner;
+window.updateDealField = updateDealField;
+window.debouncedDealFieldSave = debouncedDealFieldSave;
+window.doSaveDeal = doSaveDeal;
+window.doCreateDeal = doCreateDeal;
+window.doAddClient = doAddClient;
+window.doAddActivity = doAddActivity;
+window.doAssignSequence = doAssignSequence;
+window.doAssignSequenceWithDate = doAssignSequenceWithDate;
+window.showDeleteZone = showDeleteZone;
+window.hideDeleteZone = hideDeleteZone;
+window.doLostDrop = doLostDrop;
+window.doWonDrop = doWonDrop;
+window.toggleBadgeDropdown = toggleBadgeDropdown;
+window.refreshPushButton = refreshPushButton;
+window.startTranscriptPolling = startTranscriptPolling;
+
+// ─── Render Functions ───
+
+export function renderDealModal(deal){
+  if(deal.pipeline==='Acquisition' && state.assignableUsers.length === 0 && !state._loadingAssignableUsers){
+    state._loadingAssignableUsers = true;
+    loadAssignableUsers().then(() => { state._loadingAssignableUsers = false; refreshModal(); }).catch(() => { state._loadingAssignableUsers = false; });
+  }
+  const stages=getStagesForPipeline(deal.pipeline||'Client');
+  const dealActs=state.activities.filter(a=>a.dealId===deal.id);
+  const pending=dealActs.filter(a=>!a.done&&String(a.done)!=="TRUE");
+  const completed=dealActs.filter(a=>a.done||String(a.done)==="TRUE");
+
+  let h=`<div class="modal-overlay" onmousedown="this._mdownTarget=event.target" onclick="if(event.target===this&&this._mdownTarget===this)closeDealModal()">
+    <div class="modal" style="width:520px" onclick="event.stopPropagation()">
+      <div class="modal-header"><h3>Edit Deal</h3><button class="modal-close" onclick="closeDealModal()">×</button></div>
+      <div class="modal-body">
+        ${isRetainerClient(deal)?`<div style="background:#dbeafe;border:2px solid #3b82f6;border-radius:8px;padding:8px 12px;margin-bottom:12px;display:flex;align-items:center;gap:8px">
+          <span style="font-size:16px">${svgIcon('clipboard',16)}</span>
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#1d4ed8">RETAINER CLIENT</div>
+            <div style="font-size:11px;color:#1e40af">No calling needed — categorize, check service area, and forward to client.</div>
+          </div>
+        </div>`:''}
+        ${renderSuggestedUpdates(deal)}
+        <div class="form-grid">
+          ${["company:Company","contact:Contact Name","email:Email","phone:Business Phone","mobilePhone:Mobile Phone","website:Website","jobTitle:Job Title","location:Address",...(isAdmin()?["value:Deal Value ($)"]:[])].map(f=>{
+            const[k,label]=f.split(":");
+            let extra='';
+            if((k==='phone'||k==='mobilePhone') && deal[k]){
+              const ph=String(deal[k]).replace(/[^0-9+]/g,'');
+              const isIntl=detectCountry(deal).code!=='US';
+              extra='<div id="phone-btns-'+k+'" style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap">'
+                +'<button onclick="navigator.clipboard.writeText(\''+esc(ph)+'\');this.textContent=\'Copied!\';setTimeout(()=>this.textContent=\'Copy\',1200);event.stopPropagation()" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#f3f4f6;color:#6b7280;border-color:#d1d5db;cursor:pointer;font-weight:600;font-size:11px">'+svgIcon('clipboard',12,'#6b7280')+' Copy</button>'
+                +(!isClient()?'<button onclick="callInJustCall(\''+esc(deal.id)+'\',\''+k+'\');event.stopPropagation()" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#f97316;color:#fff;border-color:#f97316;cursor:pointer;font-weight:600">'+svgIcon('phone',14,'#fff')+' Call</button>':'')
+                +'<button onclick="openBlooioModal(\''+esc(deal.id)+'\',\''+k+'\');event.stopPropagation()" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#059669;color:#fff;border-color:#059669;cursor:pointer;font-weight:600">'+svgIcon('message-circle',14,'#fff')+' Text</button>'
+                +(isIntl?'<a href="https://wa.me/'+esc(ph.replace(/^0+/,''))+'" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#25D366;color:#fff;border-color:#25D366;cursor:pointer;font-weight:600;text-decoration:none">'+svgIcon('message-circle',14,'#fff')+' WhatsApp</a>':'')
+                +'</div>';
+            }
+            if(k==='website'&&deal[k]){
+              const url=String(deal[k]||'').trim();
+              const href=url.match(/^https?:\/\//i)?url:'https://'+url;
+              extra='<div style="margin-top:4px"><a href="'+esc(href)+'" target="_blank" rel="noopener" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px">🔗 Open Website</a></div>';
+            }
+            if(k==='location'&&deal[k]){
+              const _addr=String(deal.address||'').trim(), _loc=String(deal[k]||'').trim();
+              const _country=detectCountry(deal);
+              const _base=_addr&&_loc&&_addr!==_loc?_addr+', '+_loc:_addr||_loc;
+              const mapsAddr=_country.code!=='US'?_base+', '+_country.label:_base;
+              extra+='<div style="margin-top:4px"><a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(mapsAddr)+'" target="_blank" rel="noopener" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#4285f4;color:#fff;border-color:#4285f4">📍 Open in Google Maps</a></div>';
+            }
+            const extraOninput = (k === 'location' && deal.pipeline === 'Client') ? ';onAddressFieldChange(\''+deal.id+'\',this.value)' : '';
+            return'<div class="form-group"><label>'+label+'</label><input id="deal-'+k+'" value="'+esc(String(deal[k]||''))+'" oninput="updateDealField(\''+k+'\',this.value)'+extraOninput+'">'+extra+'</div>';
+          }).join("")}
+          ${(()=>{
+            const hasC2=deal.contact2||deal.email2||deal.phone2||deal.title2;
+            const hasC3=deal.contact3||deal.email3||deal.phone3||deal.title3;
+            const hasC4=deal.email4;
+            const hasAny=hasC2||hasC3||hasC4;
+            let ac='<div class="form-group form-span2" style="margin-top:0">';
+            ac+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">';
+            ac+='<label style="margin:0;font-size:11px;font-weight:600;color:var(--text-muted)">Additional Contacts</label>';
+            if(!hasAny) ac+='<button onclick="document.getElementById(\'extra-contacts\').style.display=\'flex\';this.style.display=\'none\'" style="background:none;border:1px solid var(--border);border-radius:4px;font-size:11px;color:#2563eb;cursor:pointer;padding:1px 8px;font-weight:600">+ Add</button>';
+            ac+='</div>';
+            ac+='<div id="extra-contacts" style="display:'+(hasAny?'flex':'none')+';flex-direction:column;gap:8px">';
+            // Contact 2 card
+            ac+='<div style="background:#f9fafb;border:1px solid var(--border);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:4px">';
+            ac+='<div style="display:flex;gap:4px"><input id="deal-contact2" placeholder="Name" value="'+esc(String(deal.contact2||''))+'" oninput="updateDealField(\'contact2\',this.value)" style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:var(--font)">';
+            ac+='<input id="deal-title2" placeholder="Title" value="'+esc(String(deal.title2||''))+'" oninput="updateDealField(\'title2\',this.value)" style="width:100px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:var(--font)"></div>';
+            ac+='<div style="display:flex;gap:4px;align-items:center"><input id="deal-email2" placeholder="Email" value="'+esc(String(deal.email2||''))+'" oninput="updateDealField(\'email2\',this.value)" style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:var(--font)">';
+            ac+='<input id="deal-phone2" placeholder="Phone" value="'+esc(String(deal.phone2||''))+'" oninput="updateDealField(\'phone2\',this.value)" style="width:130px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:var(--font)">';
+            const can2=deal.contact2&&(deal.website||String(deal.email2||'').includes('@'));
+            if(!isClient()) ac+='<button onclick="enrichContact(\''+esc(deal.id)+'\',2)" title="Enrich — Find Phone" style="flex-shrink:0;padding:3px 6px;border-radius:5px;border:1px solid '+(can2?'#7c3aed':'#d1d5db')+';background:'+(can2?'#f5f3ff':'#f9fafb')+';color:'+(can2?'#7c3aed':'#9ca3af')+';cursor:'+(can2?'pointer':'not-allowed')+';font-size:10px;font-weight:600;line-height:1">'+svgIcon('search',10,can2?'#7c3aed':'#9ca3af')+'</button>';
+            ac+='</div>';
+            ac+='</div>';
+            // Contact 3 card
+            ac+='<div style="background:#f9fafb;border:1px solid var(--border);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:4px">';
+            ac+='<div style="display:flex;gap:4px"><input id="deal-contact3" placeholder="Name" value="'+esc(String(deal.contact3||''))+'" oninput="updateDealField(\'contact3\',this.value)" style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:var(--font)">';
+            ac+='<input id="deal-title3" placeholder="Title" value="'+esc(String(deal.title3||''))+'" oninput="updateDealField(\'title3\',this.value)" style="width:100px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:var(--font)"></div>';
+            ac+='<div style="display:flex;gap:4px;align-items:center"><input id="deal-email3" placeholder="Email" value="'+esc(String(deal.email3||''))+'" oninput="updateDealField(\'email3\',this.value)" style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:var(--font)">';
+            ac+='<input id="deal-phone3" placeholder="Phone" value="'+esc(String(deal.phone3||''))+'" oninput="updateDealField(\'phone3\',this.value)" style="width:130px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:var(--font)">';
+            const can3=deal.contact3&&(deal.website||String(deal.email3||'').includes('@'));
+            if(!isClient()) ac+='<button onclick="enrichContact(\''+esc(deal.id)+'\',3)" title="Enrich — Find Phone" style="flex-shrink:0;padding:3px 6px;border-radius:5px;border:1px solid '+(can3?'#7c3aed':'#d1d5db')+';background:'+(can3?'#f5f3ff':'#f9fafb')+';color:'+(can3?'#7c3aed':'#9ca3af')+';cursor:'+(can3?'pointer':'not-allowed')+';font-size:10px;font-weight:600;line-height:1">'+svgIcon('search',10,can3?'#7c3aed':'#9ca3af')+'</button>';
+            ac+='</div>';
+            ac+='</div>';
+            // Email 4 standalone
+            ac+='<input id="deal-email4" placeholder="Additional Email" value="'+esc(String(deal.email4||''))+'" oninput="updateDealField(\'email4\',this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:var(--font)">';
+            ac+='</div></div>';
+            return ac;
+          })()}
+          ${(()=>{
+            if(isClient()) return '';
+            const hasLinkedin=deal.linkedinUrl&&str(deal.linkedinUrl).trim();
+            const hasWebsite=deal.website&&str(deal.website).trim();
+            const hasContact=deal.contact&&str(deal.contact).trim();
+            const canEnrich=hasLinkedin||(hasContact&&hasWebsite);
+            const reason=!canEnrich?'Needs a LinkedIn URL or company name + website to enrich':'';
+            return '<div class="form-group form-span2" style="margin-top:0"><button id="enrich-btn" onclick="enrichLead(\''+esc(deal.id)+'\')" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:'+(canEnrich?'pointer':'not-allowed')+';border:1px solid '+(canEnrich?'#7c3aed':'#d1d5db')+';background:'+(canEnrich?'#f5f3ff':'#f9fafb')+';color:'+(canEnrich?'#7c3aed':'#9ca3af')+'" '+(canEnrich?'':'title="'+reason+'" ')+'>'+svgIcon('search',12,canEnrich?'#7c3aed':'#9ca3af')+' Enrich — Find Phone</button></div>';
+          })()}
+          <div class="form-group">
+            <label>Pipeline</label>
+            <select id="deal-pipeline" onchange="changeDealPipeline(this.value)">
+              <option value="Acquisition" ${deal.pipeline==='Acquisition'?'selected':''}>Acquisition</option>
+              <option value="Client" ${deal.pipeline==='Client'?'selected':''}>Client Leads</option>
+              <option value="Nurture" ${deal.pipeline==='Nurture'?'selected':''}>Long Term Nurture</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Stage</label>
+            <select id="deal-stage" onchange="updateDealField('stage',this.value)">
+              ${stages.map(s=>`<option value="${esc(s.id)}" ${deal.stage===s.id?'selected':''}>${esc(s.label)}</option>`).join("")}
+            </select>
+          </div>
+          ${deal.pipeline==='Acquisition'&&(isAdmin()||isEmployee())?`<div class="form-group">
+            <label>Owner</label>
+            <select id="deal-owner" onchange="changeDealOwner(this.value)">
+              <option value="" ${!deal.ownerOverride?'selected':''}>Campaign Default${(()=>{const o=state.campaignAssignments[deal.campaignName];return o?' ('+o+')':'';})()}</option>
+              ${state.assignableUsers.map(u=>`<option value="${esc(u.name)}" ${deal.ownerOverride===u.name?'selected':''}>${esc(u.name)}</option>`).join('')}
+            </select>
+          </div>`:''}
+        </div>
+        <div class="form-group form-span2" style="margin-bottom:8px">
+          ${deal.linkedinUrl?`<a href="${esc(deal.linkedinUrl)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:#0a66c2;color:#fff;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none">${svgIcon('external-link',12,'#fff')} LinkedIn Profile</a>`
+          :`<input id="deal-linkedinUrl" value="" placeholder="LinkedIn profile URL" oninput="updateDealField('linkedinUrl',this.value)"
+            style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font);width:100%;box-sizing:border-box">`}
+        </div>
+        <div class="form-group form-span2" style="margin-bottom:16px">
+          <label>Notes</label>
+          <textarea id="deal-notes" rows="2" oninput="updateDealField('notes',this.value)">${esc(deal.notes||'')}</textarea>
+        </div>
+        <div class="form-group form-span2" style="margin-bottom:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <label style="margin:0">Timeline</label>
+            <button onclick="openTimelinePanel('${esc(deal.id)}')" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border:1px solid #7c3aed;border-radius:6px;background:#f5f3ff;color:#7c3aed;font-size:11px;font-weight:600;cursor:pointer">${svgIcon('clock',12,'#7c3aed')} View Full Timeline</button>
+          </div>
+          <div id="interaction-preview" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);min-height:24px">
+            ${buildPreviewHTML(deal.id)}
+          </div>
+        </div>
+        ${(()=>{
+          if(deal.pipeline==='Client'){
+            const _mc=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
+            return _mc ? renderPassoffSection(deal, _mc.name) : '';
+          }
+          return '';
+        })()}
+        <div class="form-group form-span2" style="margin-bottom:16px">
+          <label>${svgIcon('calendar',14)} Meeting Date & Time</label>
+          <div style="display:flex;gap:8px">
+            <input type="date" id="deal-bookedDate" value="${esc(deal.bookedDate||'')}"
+              onchange="updateDealField('bookedDate',this.value)"
+              style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font);background:var(--card);color:var(--text)">
+            <input type="time" id="deal-bookedTime" value="${esc(deal.bookedTime||'')}"
+              onchange="updateDealField('bookedTime',this.value)"
+              style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font);background:var(--card);color:var(--text)">
+          </div>
+        </div>`;
+
+  if(deal.campaignName){
+    const isSubseqActive = !!str(deal.autoFollowupStartedAt).trim() || str(deal.leadCategory).toLowerCase() === 'ht subsequence fu';
+    const followUpDate = deal.autoFollowupStartedAt ? new Date(deal.autoFollowupStartedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
+    const showStartBtn = (deal.pipeline==='Acquisition'||ACQUISITION_STAGES.some(s=>s.id===deal.stage))&&str(deal.slLeadId).trim()&&str(deal.slCampaignId).trim()&&!isSubseqActive;
+    h+=`<div class="sl-info">
+      <div class="sl-info-title">Smartlead Source</div>
+      <div>Campaign: ${esc(deal.campaignName)}</div>
+      ${deal.leadCategory?`<div>Category: ${esc(deal.leadCategory)}</div>`:''}
+      ${(deal.smartleadUrl||deal.email)?`<a href="${esc(deal.smartleadUrl||('https://app.smartlead.ai/app/master-inbox?sortBy=REPLY_TIME_DESC&search='+encodeURIComponent(deal.email)))}" target="_blank" rel="noopener">Open in Smartlead →</a>`:''}
+      ${showStartBtn
+        ?`<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e9d5ff"><button class="sl-subseq-btn" onclick="event.stopPropagation();startAutoFollowUp('${esc(deal.id)}')" style="display:inline-flex;align-items:center;gap:6px;padding:7px 16px;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);box-shadow:0 1px 3px rgba(124,58,237,.3);transition:opacity .15s" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">${svgIcon('send',14,'#fff')} Start Auto Follow-Up</button></div>`
+        :''}
+      ${isSubseqActive?`<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e9d5ff"><div style="display:inline-flex;align-items:center;gap:6px;padding:7px 16px;background:#f3e8ff;color:#6d28d9;border-radius:8px;font-size:12px;font-weight:600">${svgIcon('check',14,'#6d28d9')} Auto Follow-Up Active${followUpDate?' · Started '+followUpDate:''}</div></div>`:''}
+    </div>`;
+  }
+
+  // Reply preview — show in ALL pipelines
+  const replyText=stripHtml(str(deal.emailBody||'')).trim();
+  if(replyText){
+    const catClass=str(deal.leadCategory||'').toLowerCase().includes('interested')?'cat-interested':
+      str(deal.leadCategory||'').toLowerCase().includes('meeting')?'cat-meeting':'cat-info';
+    h+=`<div class="reply-preview">
+      <div class="reply-preview-title">${svgIcon('mail',14)} Their Reply <span class="reply-preview-category ${catClass}">${esc(deal.leadCategory||'')}</span></div>
+      <div class="reply-preview-body">${esc(replyText)}</div>
+    </div>`;
+  }
+
+  // SmartLead Email Thread — on-demand viewer (admin + employee only)
+  if((isAdmin()||isEmployee()) && str(deal.slLeadId).trim() && str(deal.slCampaignId).trim()){
+    const _tc = getThreadCache();
+    if(_tc[deal.id]){
+      h+=renderSmartleadThread(deal.id, _tc[deal.id]);
+    } else {
+      h+=`<button id="sl-thread-btn-${esc(deal.id)}" class="sl-thread-btn" onclick="event.stopPropagation();var _b=this;_b.disabled=true;_b.innerHTML='Loading...';loadSmartleadThread('${esc(deal.id)}').then(function(){_b.style.display='none'})">
+        ${svgIcon('mail',14)} View Email Thread
+      </button>`;
+    }
+  }
+
+  // Client Action Buttons — CLIENT PIPELINE ONLY
+  if(deal.pipeline==='Client'){
+    // Find matched client for this deal (by campaign keyword OR by stage name)
+    const matchedClient=findClientForDeal(deal) || state.clients.find(c=>c.name===deal.stage);
+
+    if(matchedClient){
+      const isOn=(field)=>str(matchedClient[field]).toUpperCase()==='TRUE';
+
+      // Enhanced Client Info panel
+      {
+        const cn=matchedClient;
+        const info=lookupClientInfo(cn.name)||{};
+        const fwdName=info.forwardName||str(cn.contactFirstName).trim()||'';
+        const fwdEmail=info.forwardEmail||str(cn.notifyEmails).trim()||'';
+        const priContact=info.primaryContact||str(cn.contactFirstName).trim()||'';
+        const priEmail=info.primaryEmail||'';
+        const phone=info.phone||'';
+        const loc=info.location||'';
+        const tz=info.timeZone||'';
+        const saCities=info.serviceAreaCities||'';
+        const svcs=info.services||[];
+        const pModel=info.pricingModel||'';
+        const warmQA=getWarmCallQA(cn.name);
+
+        // Warm Call Sheet button (contains all client info + lead info)
+        h+=`<div style="margin:0 0 8px 0">
+          <button class="btn" style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#059669;border-color:#059669;color:#fff;font-weight:700"
+            onclick="openWarmCallSheet('${esc(deal.id)}')">
+            ${svgIcon('clipboard',14)} ${esc(cn.name)} — Client Info & Warm Call Sheet
+          </button>
+        </div>`;
+
+        // Client contact quick-access bar
+        const cPhone=str(cn.clientPhone).trim();
+        const cEmail=str(cn.notifyEmail||'').trim()||str(cn.notifyEmails||'').trim().split(',')[0].trim();
+        const cContact=str(cn.contactFirstName).trim();
+        if(cPhone||cEmail){
+          h+=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px 0;padding:8px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:11px;align-items:center">
+            <span style="font-weight:700;color:#059669">${esc(cContact||cn.name)}</span>
+            ${cPhone?`<button onclick="navigator.clipboard.writeText('${esc(cPhone)}');this.textContent='Copied!';setTimeout(()=>this.textContent='${esc(cPhone)}',1200);event.stopPropagation()" style="display:inline-flex;align-items:center;gap:3px;color:#1d4ed8;text-decoration:none;font-weight:600;padding:2px 8px;background:#dbeafe;border:1px solid #93c5fd;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">${svgIcon('phone',11,'#1d4ed8')} ${esc(cPhone)}</button>`:''}
+            ${cEmail?`<button onclick="navigator.clipboard.writeText('${esc(cEmail)}');this.textContent='Copied!';setTimeout(()=>this.textContent='${esc(cEmail)}',1200);event.stopPropagation()" style="display:inline-flex;align-items:center;gap:3px;color:#6b7280;text-decoration:none;padding:2px 8px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">${svgIcon('mail',11,'#6b7280')} ${esc(cEmail)}</button>`:''}
+          </div>`;
+        }
+      }
+
+      // Pass-Off Mode — single button replaces Forward/Send/Tracker
+      if(isOn('enablePassoff')){
+        h+=`<div style="margin:0 0 8px 0">
+          <button class="btn btn-primary" style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#7c3aed;border-color:#7c3aed"
+            onclick="openPassOffPreview('${esc(deal.id)}',atob('${btoa(unescape(encodeURIComponent(matchedClient.name)))}'))">
+            ${svgIcon('send',14)} Pass Off to ${esc(matchedClient.name)}
+          </button>
+        </div>`;
+      }
+
+      // Forward Lead Email button
+      if(isOn('enableForward') && !isOn('enablePassoff')){
+        const forwarded=deal.forwardedAt && str(deal.forwardedAt).trim()!=='';
+        const fwdLabel=forwarded
+          ? '<span style="color:#059669">Forwarded to '+esc(matchedClient.name)+' — '+new Date(deal.forwardedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+'</span>'
+          : svgIcon('mail',14)+' Forward Lead to '+esc(matchedClient.name);
+        h+=`<div style="margin:0 0 8px 0">
+          <button class="btn forward-btn ${forwarded?'sent':'ready'}"
+            onclick="forwardDealToClient('${deal.id}')">
+            ${fwdLabel}
+          </button>
+        </div>`;
+      }
+
+      // Book Meeting via Calendly — inline with editable prefill
+      if(isOn('enableCalendly') && matchedClient.calendlyUrl){
+        const instrTemplate = state.savedSettings?.instructions_template || DEFAULT_INSTRUCTIONS_TEMPLATE;
+        const prefillText = applyTemplate(instrTemplate, deal, matchedClient.name, str(matchedClient.contactFirstName));
+        h+=`<div style="margin:0 0 8px 0">
+          <button class="btn btn-primary" style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#818cf8;border-color:#818cf8"
+            onclick="toggleCalendlyBooking('${esc(deal.id)}','${esc(matchedClient.calendlyUrl)}')">
+            ${svgIcon('calendar',14)} Book Meeting on ${esc(matchedClient.name)}'s Calendar
+          </button>
+        </div>
+        <div id="calendly-booking-section" style="display:none;margin:0 0 12px 0;padding:12px;background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-size:11px;font-weight:700;color:#5b21b6">Review & Edit Info Sent to Calendly</div>
+            ${(()=>{const ci=lookupClientInfo(matchedClient.name);const tz=ci&&ci.timeZone?ci.timeZone:'';return tz?'<div style="font-size:11px;font-weight:700;color:#fff;background:#7c3aed;padding:2px 8px;border-radius:10px;letter-spacing:.3px">'+esc(matchedClient.name)+' Time: '+esc(tz)+'</div>':'';})()}
+          </div>
+          <div style="margin-bottom:6px">
+            <label style="font-size:11px;color:#6b7280;font-weight:600">Guest Name</label>
+            <input type="text" id="cal-prefill-name" value="${esc(deal.calName||(deal.contact||deal.company||''))}"
+              oninput="savePrefillField('${esc(deal.id)}','calName',this.value)"
+              style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px">
+          </div>
+          <div style="margin-bottom:6px">
+            <label style="font-size:11px;color:#6b7280;font-weight:600">Guest Email</label>
+            <input type="text" id="cal-prefill-email" value="${esc(deal.calEmail||(deal.email||''))}"
+              oninput="savePrefillField('${esc(deal.id)}','calEmail',this.value)"
+              style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px">
+          </div>
+          <div style="margin-bottom:8px">
+            <label style="font-size:11px;color:#6b7280;font-weight:600">Additional Info / Instructions</label>
+            <textarea id="cal-prefill-notes" rows="5"
+              oninput="savePrefillField('${esc(deal.id)}','calNotes',this.value)"
+              style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px;resize:vertical">${esc(deal.calNotes||prefillText)}</textarea>
+          </div>
+          <button class="btn btn-primary" style="width:100%;justify-content:center;font-size:13px;background:#818cf8;border-color:#818cf8"
+            onclick="openCalendlyEmbed('${esc(deal.id)}','${esc(matchedClient.calendlyUrl)}',atob('${btoa(unescape(encodeURIComponent(matchedClient.name)))}'),document.getElementById('cal-prefill-name')?.value||'',document.getElementById('cal-prefill-email')?.value||'',document.getElementById('cal-prefill-notes')?.value||'')">
+            Open Calendar & Book
+          </button>
+        </div>`;
+      }
+
+      // Custom availability booking for clients without Calendly
+      if(!(isOn('enableCalendly') && matchedClient.calendlyUrl) && matchedClient.availabilityRules && matchedClient.availabilityRules.windows){
+        const rules=matchedClient.availabilityRules;
+        const dayOrder=['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+        const dayLabel={monday:'Mon',tuesday:'Tue',wednesday:'Wed',thursday:'Thu',friday:'Fri',saturday:'Sat',sunday:'Sun'};
+        const fmt12=t=>{const [h,m]=t.split(':');const hr=parseInt(h);return (hr>12?hr-12:hr||12)+':'+m+(hr>=12?' PM':' AM')};
+        const grouped={};
+        for(const w of rules.windows){
+          const key=w.start+'-'+w.end;
+          if(!grouped[key]) grouped[key]={start:w.start,end:w.end,days:[]};
+          grouped[key].days.push(w.day);
+        }
+        let summaryHtml='';
+        for(const g of Object.values(grouped)){
+          const days=g.days.sort((a,b)=>dayOrder.indexOf(a)-dayOrder.indexOf(b)).map(d=>dayLabel[d]||d).join(', ');
+          summaryHtml+=`<div style="font-size:12px;color:#166534">${esc(days)}: ${fmt12(g.start)} – ${fmt12(g.end)}</div>`;
+        }
+        const alreadyBooked=deal.bookedDate&&deal.bookedTime;
+        h+=`<div style="margin:0 0 12px 0;padding:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px">
+          <div style="font-size:11px;font-weight:700;color:#166534;margin-bottom:6px">${svgIcon('calendar',12)} Book Meeting — ${esc(matchedClient.name)}'s Availability</div>
+          <div style="margin-bottom:10px;padding:6px 10px;background:#dcfce7;border-radius:6px">${summaryHtml}</div>
+          ${alreadyBooked?`<div style="font-size:12px;color:#059669;font-weight:600;margin-bottom:8px">Currently booked: ${fmtDate(deal.bookedDate)} at ${fmtTime12(deal.bookedTime)}</div>`:''}
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <input type="date" id="avail-book-date" value="${esc(deal.bookedDate||'')}" min="${rules.minNoticeDays ? (()=>{const _d=new Date();_d.setDate(_d.getDate()+rules.minNoticeDays);return _d.toISOString().slice(0,10)})() : getToday()}"
+              style="flex:1;padding:6px 10px;border:1px solid #86efac;border-radius:6px;font-size:13px;font-family:var(--font);background:#fff;color:var(--text)">
+            <input type="time" id="avail-book-time" value="${esc(deal.bookedTime||'')}"
+              style="flex:1;padding:6px 10px;border:1px solid #86efac;border-radius:6px;font-size:13px;font-family:var(--font);background:#fff;color:var(--text)">
+          </div>
+          <div id="avail-book-error" style="display:none;color:#dc2626;font-size:11px;margin-bottom:6px"></div>
+          <button class="btn btn-primary" style="width:100%;justify-content:center;font-size:13px;background:#059669;border-color:#059669"
+            onclick="bookAvailabilitySlot('${esc(deal.id)}')">
+            ${alreadyBooked?'Update Booking':'Book This Time'}
+          </button>
+        </div>`;
+      }
+
+      // Client's Upcoming Meetings — show all future bookings for this client
+      h+=renderUpcomingMeetings(deal, matchedClient.name);
+
+      // Editable instructions for non-Calendly clients (auto-saves to calNotes)
+      if(!isOn('enableCalendly') || !matchedClient.calendlyUrl){
+        const instrTpl = state.savedSettings?.instructions_template || DEFAULT_INSTRUCTIONS_TEMPLATE;
+        const instrText = applyTemplate(instrTpl, deal, matchedClient.name, str(matchedClient.contactFirstName));
+        h+=`<div style="margin:0 0 10px 0;padding:10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px">
+          <label style="font-size:11px;font-weight:700;color:#0369a1;display:block;margin-bottom:4px">Send Instructions</label>
+          <textarea rows="5" id="send-instructions-notes"
+            oninput="savePrefillField('${esc(deal.id)}','calNotes',this.value)"
+            style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);resize:vertical">${esc(deal.calNotes||instrText)}</textarea>
+        </div>`;
+      }
+
+      // Send Lead Info to Client button
+      if(isOn('enableCopyInfo') && !isOn('enablePassoff')){
+        const forwarded=deal.forwardedAt && str(deal.forwardedAt).trim()!=='';
+        h+=`<div style="margin:0 0 8px 0">
+          <button class="btn ${forwarded?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px;${forwarded?'':'background:#2563eb;border-color:#2563eb'}"
+            onclick="openSendToClientPreview('${esc(deal.id)}',atob('${btoa(unescape(encodeURIComponent(matchedClient.name)))}'))" ${forwarded?'':''}>
+            ${forwarded?'<span style="color:#059669">Sent to '+esc(matchedClient.name)+' — Send Again?</span>':svgIcon('send',14)+' Send Lead Info to '+esc(matchedClient.name)}
+          </button>
+        </div>
+`;
+
+      }
+
+      // Push to Lead Tracker button
+      if(isOn('enableTracker') && !isOn('enablePassoff')){
+        const pushed=deal.pushedToTracker;
+        h+=`<div style="margin:0 0 8px 0">
+          <button id="push-tracker-btn" class="btn ${pushed?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px"
+            onclick="${pushed?'':'pushToLeadTracker(\''+deal.id+'\')'}" ${pushed?'disabled':''}>
+            ${pushed?'<span style="color:#059669">Pushed to Lead Tracker</span>':svgIcon('upload',14)+' Push to Lead Tracker'}
+          </button>
+        </div>`;
+      }
+
+      // Push to Client Sheet button
+      {
+        const hasSheet = !!str(matchedClient.clientSheetId).trim();
+        const sheetPushed = deal.pushedToTracker;
+        if (hasSheet) {
+          h+=`<div style="margin:0 0 8px 0">
+            <button id="push-client-sheet-btn" class="btn ${sheetPushed?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px"
+              onclick="pushToClientSheet('${deal.id}')" title="Push lead to ${esc(matchedClient.name)}'s Lead Tracker sheet">
+              ${sheetPushed?'<span style="color:#059669">\u2713 Pushed to Client Sheet</span> <span style="font-size:11px;color:#6b7280">(re-push)</span>':svgIcon('upload',14)+' Push to Client Sheet'}
+            </button>
+          </div>`;
+        }
+      }
+
+      // Push to GHL button (only for clients with GHL configured)
+      {
+        const ghlConfigured = matchedClient.ghlConfigured || (str(matchedClient.ghlLocationId).trim() && str(matchedClient.ghlApiKey).trim());
+        if (ghlConfigured) {
+          const ghlPushed = deal.pushedToGhl;
+          h+=`<div style="margin:0 0 8px 0">
+            <button id="push-ghl-btn" class="btn ${ghlPushed?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px"
+              onclick="pushToGhl('${deal.id}')" title="Push to ${esc(matchedClient.name)}'s GoHighLevel">
+              ${ghlPushed?'<span style="color:#059669">\u2713 Pushed to GHL</span> <span style="font-size:11px;color:#6b7280">(re-push)</span>':svgIcon('upload',14)+' Push to GHL'}
+            </button>
+          </div>`;
+        }
+      }
+
+      // Show warning if no actions are enabled
+      const hasPolygon = !!findPolygonForClient(matchedClient.name);
+      if(!isOn('enableForward') && !isOn('enableCalendly') && !isOn('enableCopyInfo') && !isOn('enableTracker') && !hasPolygon){
+        h+=`<div style="margin:0 0 12px 0;padding:8px 12px;background:#fef3c7;border:1px solid #fde68a;border-radius:var(--radius);font-size:11px;color:#92400e">
+          ⚠️ No actions enabled for ${esc(matchedClient.name)}. Configure in Settings → Clients.
+        </div>`;
+      }
+    } else if(deal.campaignName){
+      h+=`<div style="margin:0 0 12px 0;padding:8px 12px;background:#fef3c7;border:1px solid #fde68a;border-radius:var(--radius);font-size:11px;color:#92400e">
+        ⚠️ No client matched for this campaign. Add campaign keywords in Settings → Clients.
+      </div>`;
+    }
+  }
+
+  // ACQUISITION PIPELINE — Demo Call + Strategy Call buttons (Calendly popup widgets)
+  if(deal.pipeline==='Acquisition'){
+    h+=`<div style="margin:0 0 8px 0;display:flex;gap:6px">
+      <button class="btn btn-primary"
+        style="flex:1;justify-content:center;gap:6px;font-size:12px;display:flex;background:#2563eb;border-color:#2563eb"
+        onclick="event.stopPropagation();openAcqCalendly('${esc(deal.id)}','demo')">
+        ${svgIcon('calendar',14)} Demo Call
+      </button>
+      <button class="btn btn-primary"
+        style="flex:1;justify-content:center;gap:6px;font-size:12px;display:flex;background:#7c3aed;border-color:#7c3aed"
+        onclick="event.stopPropagation();showStrategyCallPicker('${esc(deal.id)}')">
+        ${svgIcon('calendar',14)} Strategy Call
+      </button>
+    </div>`;
+  }
+
+  // ACQUISITION — Push to Demo Tracker (admin only)
+  if(deal.pipeline==='Acquisition' && (isAdmin()||isEmployee())){
+    const demoPushed = deal.pushedToDemoTracker;
+    h+=`<div style="margin:0 0 8px 0">
+      <button id="push-demo-btn" class="btn ${demoPushed?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px;display:flex"
+        onclick="${demoPushed?'':'pushToDemoTracker(\''+deal.id+'\')'}" ${demoPushed?'disabled':''}>
+        ${demoPushed?'<span style="color:#059669">✓ Pushed to Demo Tracker</span>':svgIcon('upload',14)+' Push to Demo Tracker'}
+      </button>
+    </div>`;
+  }
+
+  // JustCall Dialer — inline buttons added under phone fields above
+
+  // Location Map — show for ANY deal with an address, regardless of pipeline or matched client
+  {
+    const saResult = serviceAreaResults[deal.id] || {};
+    const _mc = findClientForDeal(deal) || state.clients.find(c=>c.name===deal.stage) || null;
+    const polyMatch = _mc ? findPolygonForClient(_mc.name) : null;
+    const _addr = str(deal.address || deal.location || '').trim();
+    const cachedGeo = _addr ? geocodeCache[_addr] : null;
+    // Use serviceAreaResults OR fall back to geocodeCache directly
+    const mapLat = saResult.lat || (cachedGeo ? cachedGeo.lat : null);
+    const mapLng = saResult.lng || (cachedGeo ? cachedGeo.lng : null);
+    const hasGeo = mapLat && mapLng;
+    const hasAddr = _addr.length > 0;
+    const hasResult = saResult.inArea !== undefined && hasGeo;
+
+    // Status banner (only for client pipeline with polygon)
+    if(hasResult && _mc){
+      const bannerClass = saResult.inArea ? 'sa-in-banner' : 'sa-out-banner';
+      const bannerIcon = saResult.inArea ? '&#10003;' : '&#10007;';
+      const bannerText = saResult.inArea
+        ? 'In ' + esc(_mc.name) + "'s service area"
+        : 'Outside ' + esc(_mc.name) + "'s service area";
+      h += `<div class="sa-result-banner ${bannerClass}">${bannerIcon} ${bannerText}</div>`;
+    }
+
+    // Always show a map on every deal modal
+    {
+      const mapId = 'sa-map-' + deal.id;
+      h += `<div class="sa-map-container">
+        <div id="${mapId}" style="min-height:220px"></div>
+        ${(_mc || hasGeo) ? `<button class="sa-enlarge-btn" onclick="event.stopPropagation();openEnlargedMap('${esc(deal.id)}','${esc(_mc ? _mc.name : '')}')" title="Enlarge map">
+          ⛶ Enlarge
+        </button>` : ''}
+      </div>`;
+
+      // Auto-geocode if address exists but not yet geocoded
+      const needsGeocode = hasAddr && !cachedGeo;
+      if(needsGeocode){
+        const _did = deal.id;
+        setTimeout(() => geocodeAndCheckDeal(_did), 100);
+      }
+
+      // Render map — if geocoding is pending, only pass polygon/client (no fake lat/lng)
+      // so the map centers on the polygon instead of flashing at US center first
+      {
+        const renderLat = hasGeo ? mapLat : null;
+        const renderLng = hasGeo ? mapLng : null;
+        const renderZoom = hasGeo ? undefined : undefined;
+        setTimeout(() => renderServiceAreaMap(mapId, deal.id, {
+          clientName: _mc ? _mc.name : '',
+          polygonKey: polyMatch ? polyMatch.key : undefined,
+          lat: renderLat, lng: renderLng,
+          inArea: saResult.inArea,
+          defaultZoom: renderZoom
+        }), 200);
+      }
+    }
+  }
+
+  // Lead Timeline
+  {
+    const events=[];
+    if(deal.createdDate) events.push({date:deal.createdDate,label:'Lead created',icon:'📥'});
+    if(deal.forwardedAt) events.push({date:deal.forwardedAt,label:'Forwarded to client',icon:'📧'});
+    if(deal.bookedDate) events.push({date:deal.bookedDate+'T'+(deal.bookedTime||'00:00'),label:'Meeting scheduled',icon:'📅'});
+    if(deal.pushedToTracker) events.push({date:deal.pushedToTracker,label:'Pushed to Lead Tracker',icon:'📤'});
+    if(deal.pushedToGhl) events.push({date:deal.pushedToGhl,label:'Pushed to GHL',icon:'🔗'});
+    if(deal.lastUpdated && deal.lastUpdated !== deal.createdDate) events.push({date:deal.lastUpdated,label:'Last updated',icon:'✏️'});
+    events.sort((a,b)=>new Date(a.date)-new Date(b.date));
+    if(events.length){
+      h+=`<details style="margin:0 0 12px 0;border:1px solid var(--border);border-radius:8px;background:#fafafa">
+        <summary style="padding:8px 12px;font-size:12px;font-weight:700;color:var(--text);cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px">
+          <span style="font-size:10px">▶</span> ${svgIcon('list',14)} Lead Timeline (${events.length})
+        </summary>
+        <div style="padding:0 12px 10px;border-left:2px solid #d1d5db;margin-left:22px">
+          ${events.map(e=>`<div style="padding:4px 0 4px 10px;font-size:11px;color:#374151;position:relative">
+            <span style="position:absolute;left:-7px;top:6px;width:8px;height:8px;background:#d1d5db;border-radius:50%;border:2px solid #fafafa"></span>
+            <span>${e.icon} ${esc(e.label)}</span>
+            <span style="color:#9ca3af;margin-left:6px">${fmtTimestamp(e.date)}</span>
+          </div>`).join('')}
+        </div>
+      </details>`;
+    }
+  }
+
+  // Activities section — hidden for client users
+  if(!isClient()){
+  h+=`<div id="activities-container"><div class="activities-section">
+    <div class="activities-header">
+      <h4>Activities</h4>
+      <button class="sop-btn ${state.showSop?'active':''}" onclick="state.showSop=!state.showSop;if(!state.showSop)state.sopSeq=null;refreshModal()">${svgIcon('clipboard',14)} Sequences</button>
+    </div>`;
+
+  if(state.showSop){
+    const isClient = deal.pipeline === 'Client';
+    const seq=state.sopSeq||'follow-up';
+    const sopDays=getSopDays(deal);
+    const tabStyle=(id)=>seq===id?'background:#059669;color:#fff;border-color:#059669':'';
+    h+=`<div class="sop-grid">
+      <div style="display:flex;gap:6px;margin-bottom:10px;width:100%">
+        <button class="sop-day-btn" style="flex:1;${tabStyle('follow-up')}" onclick="state.sopSeq='follow-up';refreshModal()">Follow-Up</button>
+        ${isClient?'':`<button class="sop-day-btn" style="flex:1;${tabStyle('pre-call')}" onclick="state.sopSeq='pre-call';refreshModal()">Pre-Call Nurture</button>
+        <button class="sop-day-btn" style="flex:1;${tabStyle('no-show')}" onclick="state.sopSeq='no-show';refreshModal()">No Show</button>`}
+      </div>
+      ${seq==='follow-up'?`
+        <div style="width:100%;margin-bottom:8px;display:flex;align-items:center;gap:8px">
+          <label style="font-size:11px;font-weight:600;color:#6b7280">Date:</label>
+          <input type="date" id="sop-target-date" value="${TODAY()}" style="padding:4px 8px;border:1px solid #a7f3d0;border-radius:6px;font-size:12px;font-family:inherit">
+        </div>
+        ${Object.entries(sopDays).map(([day,acts])=>`
+        <button class="sop-day-btn" onclick="doAssignSequenceWithDate('${deal.id}','${day}')">${day} <span style="font-weight:400;color:#6ee7b7">(${acts.length})</span></button>`).join("")}`:''}
+      ${!isClient&&seq==='pre-call'?`
+        ${deal.bookedDate&&/^\d{4}-\d{2}-\d{2}$/.test(deal.bookedDate)?`
+        <button class="sop-day-btn" style="background:#2563eb;color:#fff;border-color:#2563eb;width:100%" onclick="generateAppointmentSequence(state.deals.find(d=>d.id==='${esc(deal.id)}'));state.showSop=false;refreshModal()">
+          ${svgIcon('calendar',12,'#fff')} Generate Pre-Call Sequence
+          <span style="font-weight:400;color:#bfdbfe">(${(()=>{const dd=Math.round((new Date(deal.bookedDate+'T00:00:00')-new Date(TODAY()+'T00:00:00'))/(1000*60*60*24));return dd+'d out'})()})</span>
+        </button>`:`<div style="font-size:12px;color:#6b7280;padding:8px 0">Set a booked date on this deal first.</div>`}`:''}
+      ${!isClient&&seq==='no-show'?`
+        <button class="sop-day-btn" style="background:#ef4444;color:#fff;border-color:#ef4444;width:100%" onclick="assignNoShowSequence(state.deals.find(d=>d.id==='${esc(deal.id)}'));state.showSop=false;refreshModal()">
+          ${svgIcon('send',12,'#fff')} Start No Show Sequence
+          <span style="font-weight:400;color:#fecaca">(3 emails over 5 days)</span>
+        </button>`:''}</div>`;
+  }
+
+  h+=`<div class="add-act-row">
+    <select id="new-act-type">${ACTIVITY_TYPES.map(t=>`<option value="${t}">${ACTIVITY_ICONS[t]||""} ${t}</option>`).join("")}</select>
+    <input id="new-act-subject" placeholder="Subject" style="flex:1">
+    <input id="new-act-date" type="date" value="${TODAY()}">
+    <button class="btn btn-primary" onclick="doAddActivity('${deal.id}')">+ Add</button>
+  </div>`;
+
+  // Pending
+  for(const a of pending){
+    const dd=(a.dueDate||'').slice(0,10);
+    const today=getToday();
+    const nowDate=new Date();
+    let overdue=dd&&dd<today;
+    const dueToday=dd===today;
+    // Time-based overdue: if due today and has a scheduledTime, mark overdue if past that time
+    let timeOverdue=false;
+    if(dueToday && a.scheduledTime){
+      const [h24,m24]=(a.scheduledTime||'').split(':').map(Number);
+      if(!isNaN(h24) && (nowDate.getHours()>h24 || (nowDate.getHours()===h24 && nowDate.getMinutes()>=m24))){
+        timeOverdue=true;
+        overdue=true;
+      }
+    }
+    const cls=overdue?'overdue':dueToday?'today':'future';
+    const timeLabel=a.scheduledTime?fmtTime12(a.scheduledTime):'';
+    const createdStr=a.createdDate?'<span style="font-size:9px;color:#b0b0b0;margin-left:4px" title="Created '+fmtTimestamp(a.createdDate)+'">'+fmtTimestamp(a.createdDate)+'</span>':'';
+    h+=`<div class="act-item ${cls} ${actTypeClass(a.type)}">
+      <input type="checkbox" onchange="toggleActivity('${a.id}')">
+      <span style="font-size:13px">${ACTIVITY_ICONS[a.type]||"✓"}</span>
+      <span class="act-subject">${esc(a.subject||a.type)}${timeLabel?'<span style="font-size:10px;color:'+(timeOverdue?'#ef4444':overdue?'#ef4444':'#6b7280')+';margin-left:4px;font-weight:600">by '+timeLabel+'</span>':''}</span>
+      ${a.dayLabel?`<span class="act-day-label">${esc(a.dayLabel)}</span>`:''}
+      ${a.dueDate?`<input type="date" value="${dd}" style="font-size:10px;color:${overdue?'#ef4444':dueToday?'#059669':'#9ca3af'};background:none;border:none;cursor:pointer;padding:0;width:90px" onchange="updateActivityDate('${a.id}',this.value)">`:''}
+      <button class="act-delete" onclick="deleteActivity('${a.id}')">×</button>
+    </div>
+    ${createdStr?'<div style="padding-left:28px;margin-top:-4px;margin-bottom:4px">'+createdStr+'</div>':''}`;
+  }
+
+  // Completed
+  if(completed.length){
+    h+=`<details style="margin-top:8px"><summary class="completed-toggle">Completed (${completed.length})</summary>`;
+    for(const a of completed){
+      const completedStr=a.completedAt?'<span style="font-size:9px;color:#22c55e;margin-left:6px">✓ '+fmtTimestamp(a.completedAt)+'</span>':'';
+      h+=`<div class="completed-item ${actTypeClass(a.type)}">
+        <input type="checkbox" checked onchange="toggleActivity('${a.id}')">
+        <span style="font-size:13px">${ACTIVITY_ICONS[a.type]||"✓"}</span>
+        <span class="act-subject">${esc(a.subject||a.type)}${completedStr}</span>
+      </div>`;
+    }
+    h+=`</details>`;
+  }
+
+  if(!pending.length&&!completed.length) h+=`<div class="no-activities">No activities yet</div>`;
+
+  h+=`</div></div></div>`;
+  } // end !isClient() activities block
+
+  h+=`${renderDealRetargetHistory(deal.id)}
+    <div class="modal-footer">
+      <div style="display:flex;gap:8px;align-items:center">
+        ${isAdmin()||isEmployee()?`<button class="btn btn-danger" onclick="showArchiveReasonPicker('${deal.id}')">Archive</button>`:''}
+        ${isClient()?`<button class="btn btn-danger" onclick="if(confirm('Archive this lead?'))archiveDeal('${deal.id}','manual')">Archive</button>`:''}
+        <button class="btn" style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;font-size:12px" onclick="markDealUnread('${deal.id}')" title="Mark as unread so the blue highlight comes back">${svgIcon('mail',12,'#2563eb')} Mark Unread</button>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="closeDealModal()">Close</button>
+        <button class="btn btn-primary" onclick="doSaveDeal('${deal.id}')">Save</button>
+      </div>
+    </div></div></div>`;
+  return h;
+}
+
+export function renderNewDealModal(stages){
+  const defVal=state.pipeline==="acquisition"?1057:0;
+  const isClientView = isClient();
+  const fields = isClientView
+    ? ["company:Company/Name","contact:Contact Name","email:Email","phone:Phone","location:Address/Location"]
+    : ["company:Company","contact:Contact Name","email:Email","phone:Phone","website:Website"];
+  return`<div class="modal-overlay" onmousedown="this._mdownTarget=event.target" onclick="if(event.target===this&&this._mdownTarget===this){state.showNew=false;render()}">
+    <div class="modal" style="width:440px" onclick="event.stopPropagation()">
+      <div class="modal-header"><h3>${isClientView?'New Lead':'New Deal'}</h3><button class="modal-close" onclick="state.showNew=false;render()">×</button></div>
+      <div class="modal-body">
+        <div class="form-grid">
+          ${fields.map(f=>{
+            const[k,label]=f.split(":");
+            return`<div class="form-group"><label>${label}</label><input id="new-${k}"></div>`;
+          }).join("")}
+          ${isAdmin()?`<div class="form-group"><label>Deal Value ($)</label><input id="new-value" type="number" value="${defVal}"></div>`:''}
+          ${!isClientView?`<div class="form-group form-span2">
+            <label>Stage</label>
+            <select id="new-stage">${stages.map(s=>`<option value="${esc(s.id)}">${esc(s.label)}</option>`).join("")}</select>
+          </div>`:''}
+          ${isClientView?`<div class="form-group form-span2">
+            <label>Notes</label>
+            <textarea id="new-notes" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);resize:vertical"></textarea>
+          </div>`:''}
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content:flex-end">
+        <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="state.showNew=false;render()">Cancel</button>
+        <button class="btn btn-primary" onclick="doCreateDeal()">Create ${isClientView?'Lead':'Deal'}</button>
+      </div>
+    </div></div>`;
+}
+
+export function renderAddClientModal(){
+  const fS=`width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;font-family:var(--font);outline:none;margin-top:3px`;
+  const lS=`font-size:10px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;display:block;margin-top:10px`;
+  return`<div class="modal-overlay" onmousedown="this._mdownTarget=event.target" onclick="if(event.target===this&&this._mdownTarget===this){state.showAddClient=false;render()}">
+    <div class="modal" style="width:420px;max-height:90vh;overflow-y:auto" onclick="event.stopPropagation()">
+      <div style="padding:20px">
+        <h3 style="margin:0 0 4px;font-size:16px;font-weight:800">Add Client</h3>
+        <p style="font-size:11px;color:#9ca3af;margin:0 0 16px">All fields except name can be updated later in Settings → Clients.</p>
+
+        <label style="${lS}">Client Name *</label>
+        <input id="new-client-name" placeholder="e.g. Lightning Lawn Care" style="${fS}"
+          onkeydown="if(event.key==='Enter'){doAddClient()}">
+
+        <label style="${lS}">Campaign Keywords</label>
+        <input id="new-client-keywords" placeholder="keyword1, keyword2 (matches Smartlead campaign name)" style="${fS}">
+
+        <label style="${lS}">Contact First Name</label>
+        <input id="new-client-firstname" placeholder="e.g. Joel" style="${fS};width:160px">
+
+        <label style="${lS}">Notification Email(s)</label>
+        <input id="new-client-email" placeholder="owner@company.com, manager@company.com" style="${fS}">
+
+        <label style="${lS}">Calendly URL</label>
+        <input id="new-client-calendly" placeholder="https://calendly.com/..." style="${fS}">
+
+        <label style="${lS}">Service Area Map URL</label>
+        <input id="new-client-mapurl" placeholder="https://workiz.com/... or any map link" style="${fS}">
+        <p style="font-size:10px;color:#9ca3af;margin:3px 0 0">Lead addresses will be pre-filled in the search when you click Check Service Area.</p>
+
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+          <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="state.showAddClient=false;render()">Cancel</button>
+          <button class="btn btn-primary" onclick="doAddClient()">Add Client</button>
+        </div>
+      </div>
+    </div></div>`;
+}
+
+window.renderDealModal = renderDealModal;
+window.renderNewDealModal = renderNewDealModal;
+window.renderAddClientModal = renderAddClientModal;
+// Expose globals needed by inline onclick handlers in render HTML
+// Deferred to avoid circular import TDZ errors
+setTimeout(() => {
+  window.state = state;
+  window.render = render;
+  window.refreshModal = refreshModal;
+  window.generateAppointmentSequence = generateAppointmentSequence;
+  window.assignNoShowSequence = assignNoShowSequence;
+}, 0);
+
+// Additional functions called from inline HTML
+export function confirmScheduleAndCopy(){
+  const dealId=window._schedDealId;
+  const deal=state.deals.find(d=>d.id===dealId);
+  if(!deal) return;
+  const dateVal=document.getElementById('sched-date')?.value||'';
+  const timeVal=document.getElementById('sched-time')?.value||'';
+  deal.bookedDate=dateVal;
+  deal.bookedTime=timeVal;
+  const dateEl=document.getElementById('deal-bookedDate');
+  const timeEl=document.getElementById('deal-bookedTime');
+  if(dateEl) dateEl.value=dateVal;
+  if(timeEl) timeEl.value=timeVal;
+  pendingWrites.value++;
+  sbUpdateDeal(dealId, camelToSnake({bookedDate:dateVal,bookedTime:timeVal})).catch(e=>console.error('Update deal failed:',e)).finally(()=>{pendingWrites.value--;});
+  const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
+  if(client && dateVal){
+    import('./calendly.js?v=20260618a').then(mod=>{
+      const apptAddr=(deal.address||deal.location||'').trim();
+      mod.saveAppointment(client.name, deal.company||deal.contact||'Unknown', dateVal, timeVal, '', apptAddr);
+    });
+  }
+  document.getElementById('schedule-prompt-overlay')?.remove();
+  if(window._schedOnDone) window._schedOnDone();
+}
+
+export function skipScheduleAndCopy(){
+  document.getElementById('schedule-prompt-overlay')?.remove();
+  if(window._schedOnDone) window._schedOnDone();
+}
+
+window.confirmScheduleAndCopy = confirmScheduleAndCopy;
+window.skipScheduleAndCopy = skipScheduleAndCopy;
+
+// ─── Auto Follow-Up (SmartLead Subsequence) ───
+async function startAutoFollowUp(dealId){
+  const deal = state.deals.find(d => d.id === dealId);
+  if(!deal){ console.error('[Subseq] Deal not found:', dealId); return; }
+  if(!deal.email){ alert('Cannot start auto follow-up — deal has no email address.'); return; }
+  if(!deal.slLeadId || !deal.slCampaignId){ alert('Cannot start auto follow-up — missing SmartLead campaign data.'); return; }
+  if(!confirm('Start automated email follow-up sequence for this lead?\n\nSmartLead will send follow-up emails automatically until they reply.')) return;
+
+  const btn = document.querySelector('.sl-subseq-btn');
+  if(btn){ btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" style="animation:spin 1s linear infinite"><style>@keyframes spin{to{transform:rotate(360deg)}}</style><circle cx="12" cy="12" r="10" stroke="#fff" stroke-width="3" fill="none" stroke-dasharray="31.4 31.4" stroke-linecap="round"/></svg> Starting\u2026</span>'; btn.disabled = true; }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25000);
+
+  try {
+    console.log('[Subseq] Calling edge function...', { leadId:deal.slLeadId, campaignId:deal.slCampaignId, email:deal.email });
+    const url = `${SUPABASE_URL}/functions/v1/smartlead-subsequence`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+      body: JSON.stringify({ action:'start-subsequence', leadId:deal.slLeadId, campaignId:deal.slCampaignId, dealId:deal.id, email:deal.email }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    const result = await resp.json();
+    console.log('[Subseq] Response:', resp.status, result);
+
+    if(resp.ok && result.status === 'ok'){
+      deal.leadCategory = 'HT Subsequence FU';
+      deal.autoFollowupStartedAt = new Date().toISOString();
+      refreshModal(true);
+      if(result.alreadyActive) console.log('[Subseq] Lead was already in subsequence — marked active');
+    } else {
+      throw new Error(result.error || `SmartLead returned ${resp.status}`);
+    }
+  } catch(e){
+    clearTimeout(timeout);
+    const msg = e.name === 'AbortError' ? 'Request timed out (25s). The lead lookup may be slow — try again.' : e.message;
+    console.error('[Subseq] Error:', e);
+    alert('Failed to start auto follow-up: ' + msg);
+    if(btn){ btn.innerHTML = '\u26A0 Retry Follow-Up'; btn.disabled = false; }
+  }
+}
+window.startAutoFollowUp = startAutoFollowUp;
+
+
+window.bookAvailabilitySlot = function(dealId) {
+  const dateEl = document.getElementById('avail-book-date');
+  const timeEl = document.getElementById('avail-book-time');
+  const errEl = document.getElementById('avail-book-error');
+  if (!dateEl || !timeEl) return;
+  const dateVal = dateEl.value;
+  const timeVal = timeEl.value;
+  if (!dateVal || !timeVal) {
+    errEl.textContent = 'Select both a date and time.';
+    errEl.style.display = '';
+    return;
+  }
+  const deal = state.deals.find(d => String(d.id) === String(dealId));
+  if (!deal) return;
+  const client = findClientForDeal(deal) || state.clients.find(c => c.name === deal.stage);
+  if (!client || !client.availabilityRules || !client.availabilityRules.windows) return;
+  const d = new Date(dateVal + 'T00:00:00');
+  if (client.availabilityRules.minNoticeDays) {
+    const minDate = new Date(); minDate.setDate(minDate.getDate() + client.availabilityRules.minNoticeDays); minDate.setHours(0,0,0,0);
+    if (d < minDate) { errEl.textContent = 'Booking requires at least ' + client.availabilityRules.minNoticeDays + ' day(s) notice.'; errEl.style.display = ''; return; }
+  }
+  const dayNames = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+  const dayName = dayNames[d.getDay()];
+  const windows = client.availabilityRules.windows.filter(w => w.day === dayName);
+  if (windows.length === 0) {
+    const availDays = [...new Set(client.availabilityRules.windows.map(w => w.day))];
+    const dayLabel = {monday:'Mon',tuesday:'Tue',wednesday:'Wed',thursday:'Thu',friday:'Fri',saturday:'Sat',sunday:'Sun'};
+    errEl.textContent = 'No availability on ' + (dayLabel[dayName]||dayName) + '. Available: ' + availDays.map(d=>dayLabel[d]||d).join(', ');
+    errEl.style.display = '';
+    return;
+  }
+  const inWindow = windows.some(w => timeVal >= w.start && timeVal < w.end);
+  if (!inWindow) {
+    const fmt12 = t => { const [h,m]=t.split(':'); const hr=parseInt(h); return (hr>12?hr-12:hr||12)+':'+m+(hr>=12?' PM':' AM'); };
+    const slots = windows.map(w => fmt12(w.start) + ' – ' + fmt12(w.end)).join(' or ');
+    errEl.textContent = 'Time is outside availability. Valid windows: ' + slots;
+    errEl.style.display = '';
+    return;
+  }
+  errEl.style.display = 'none';
+  deal.bookedDate = dateVal;
+  deal.bookedTime = timeVal;
+  pendingWrites.value++;
+  sbUpdateDeal(deal.id, camelToSnake({ bookedDate: dateVal, bookedTime: timeVal }))
+    .catch(e => console.error('Update deal failed:', e))
+    .finally(() => { pendingWrites.value--; });
+  if (state.selectedDeal && String(state.selectedDeal.id) === String(dealId)) {
+    state.selectedDeal = deal;
+    refreshModal();
+  }
+  render();
+};
+
+window.pushToClientSheet = async function(dealId) {
+  const btn = document.getElementById('push-client-sheet-btn');
+  if (!btn || btn.disabled) return;
+
+  const deal = state.deals.find(d => String(d.id) === String(dealId));
+  if (deal && deal.pushedToTracker) {
+    if (!confirm('This deal was already pushed to the client sheet. Push again?')) return;
+  }
+
+  const origText = btn.innerHTML;
+  btn.innerHTML = '<span style="width:14px;height:14px;border:2px solid #ccc;border-top-color:#333;border-radius:50%;animation:spin .6s linear infinite;display:inline-block"></span> Pushing...';
+  btn.disabled = true;
+
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 25000);
+    const result = await invokeEdgeFunction('push-to-client-sheet', { dealId }, ctrl.signal);
+    clearTimeout(timer);
+
+    if (deal) {
+      deal.pushedToTracker = new Date().toISOString();
+      if (state.selectedDeal && String(state.selectedDeal.id) === String(dealId)) {
+        state.selectedDeal = deal;
+      }
+    }
+    btn.innerHTML = '<span style="color:#059669">✓ Pushed to Client Sheet</span>';
+    const { showToast: toast } = await import('./api.js?v=20260618a');
+    toast('Lead pushed to ' + (result.client || 'client') + "'s sheet", 'success');
+    setTimeout(() => refreshModal(), 1000);
+  } catch (e) {
+    const msg = e.name === 'AbortError' ? 'Request timed out' : (e.message || 'Unknown error');
+    btn.innerHTML = origText;
+    btn.disabled = false;
+    const { showToast: toast2 } = await import('./api.js?v=20260618a');
+    toast2('Push failed: ' + msg, 'error');
+    alert('Client sheet push failed: ' + msg);
+  }
+};
+
+window.pushToGhl = async function(dealId) {
+  const btn = document.getElementById('push-ghl-btn');
+  if (!btn || btn.disabled) return;
+
+  const deal = state.deals.find(d => String(d.id) === String(dealId));
+  if (deal && deal.pushedToGhl) {
+    if (!confirm('This deal was already pushed to GHL. Push again? (Contact will be updated, a new opportunity will be created)')) return;
+  }
+
+  const origText = btn.innerHTML;
+  btn.innerHTML = '<span style="width:14px;height:14px;border:2px solid #ccc;border-top-color:#333;border-radius:50%;animation:spin .6s linear infinite;display:inline-block"></span> Pushing...';
+  btn.disabled = true;
+
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 25000);
+    await invokeEdgeFunction('push-to-ghl', { dealId }, ctrl.signal);
+    clearTimeout(timer);
+    const d = state.deals.find(dd => String(dd.id) === String(dealId));
+    if (d) {
+      d.pushedToGhl = new Date().toISOString();
+      pendingDealFields[dealId] = { ...pendingDealFields[dealId], pushedToGhl: d.pushedToGhl };
+    }
+    if (state.selectedDeal && String(state.selectedDeal.id) === String(dealId)) {
+      state.selectedDeal = d;
+    }
+    btn.innerHTML = origText;
+    btn.disabled = false;
+    refreshModal();
+  } catch (e) {
+    const msg = e.name === 'AbortError' ? 'Request timed out — the push may have still succeeded. Refresh to check.' : (e.message || 'Unknown error');
+    alert('GHL push failed: ' + msg);
+    btn.innerHTML = origText;
+    btn.disabled = false;
+  }
+};
