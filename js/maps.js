@@ -8,13 +8,11 @@
 // This module provides the functions that operate on that data.
 
 import { state, pendingWrites } from './app.js?v=20260616a';
-import { GEOCODIO_KEY, GOOGLE_MAPS_API_KEY, CA_PROVINCES, CA_POSTAL, CA_CITIES, detectCountry } from './config.js?v=20260616a';
+import { GEOCODIO_KEY, GOOGLE_MAPS_API_KEY, CA_PROVINCES, CA_POSTAL, CA_CITIES, detectCountry, isInternationalAddress } from './config.js?v=20260616a';
 import { render, refreshModal } from './render.js?v=20260616a';
-// api.js imports removed — no direct API calls in this module
 import { str, esc } from './utils.js?v=20260616a';
 import { findClientForDeal, lookupClientInfo } from './client-info.js?v=20260616a';
 
-// These will be populated from the inline data or external file
 let SERVICE_AREA_POLYGONS = {};
 let POLYGON_ALIASES = {};
 
@@ -77,6 +75,41 @@ export function normalizeAddressForGeocode(addr){
   return normalized;
 }
 
+function makePinIcon(color){
+  return L.divIcon({className:'',html:`<svg width="24" height="36" viewBox="0 0 24 36"><path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" fill="${color}"/><circle cx="12" cy="12" r="5" fill="#fff"/></svg>`,iconSize:[24,36],iconAnchor:[12,36]});
+}
+
+function drawPolygonLayers(map, polygon){
+  const layers=[];
+  if(!polygon || !polygon.geometry) return layers;
+  const coords=polygon.geometry.type==='MultiPolygon'
+    ? polygon.geometry.coordinates.flat(1)
+    : polygon.geometry.coordinates;
+  for(const ring of coords){
+    const pl=L.polygon(ring.map(c=>[c[1],c[0]]),{color:'#22c55e',weight:2,fillColor:'#bbf7d0',fillOpacity:0.25}).addTo(map);
+    layers.push(pl);
+  }
+  return layers;
+}
+
+function enrichAddress(deal){
+  let addr=normalizeAddressForGeocode(deal.address||deal.location||'');
+  if(!addr) return '';
+  const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
+  if(client){
+    const hasGeoContext = /\b[A-Z]{2}\b/.test(addr) || /\b\d{5}\b/.test(addr);
+    if(!hasGeoContext){
+      const info=lookupClientInfo(client.name);
+      if(info && info.location) addr = addr + ', ' + info.location;
+    }
+  }
+  const ctry = detectCountry(deal);
+  if(ctry.code !== 'US' && ctry.code !== 'CA'){
+    if(!addr.toLowerCase().includes(ctry.label.toLowerCase())) addr += ', ' + ctry.label;
+  }
+  return addr;
+}
+
 export async function batchGeocode(addresses){
   if(!addresses.length) return {};
   // Filter out already-cached
@@ -86,11 +119,10 @@ export async function batchGeocode(addresses){
   const usAddrs = [];
   const caAddrs = [];
   const intlAddrs = [];
-  const AU_PATTERN = /\b(nsw|vic|qld|tas|act|sa|wa|nt)\s+\d{4}\b|,\s*australia\s*$|\.com\.au\b/i;
   for(const addr of toGeocode){
     if(CA_PROVINCES.test(addr) || CA_POSTAL.test(addr) || CA_CITIES.test(addr)){
       caAddrs.push(addr);
-    } else if(/,\s*(australia|united kingdom|uk|new zealand)\s*$/i.test(addr) || AU_PATTERN.test(addr)){
+    } else if(isInternationalAddress(addr)){
       intlAddrs.push(addr);
     } else {
       usAddrs.push(addr);
@@ -139,24 +171,11 @@ export async function runServiceAreaChecks(){
   const clientDeals=state.deals.filter(d=>(d.location||d.address));
   if(!clientDeals.length) return;
 
-  // Collect addresses to geocode — append client city/state for ambiguous addresses
   const addresses=[];
-  const addrMap={};  // deal.id → final address used for geocoding
+  const addrMap={};
   for(const d of clientDeals){
-    let addr=normalizeAddressForGeocode(d.address||d.location||'');
+    const addr=enrichAddress(d);
     if(!addr) continue;
-    const client=findClientForDeal(d)||state.clients.find(c=>c.name===d.stage);
-    if(client){
-      const hasGeoContext = /\b[A-Z]{2}\b/.test(addr) || /\b\d{5}\b/.test(addr);
-      if(!hasGeoContext){
-        const info=lookupClientInfo(client.name);
-        if(info && info.location) addr = addr + ', ' + info.location;
-      }
-    }
-    const ctry = detectCountry(d);
-    if(ctry.code !== 'US' && ctry.code !== 'CA'){
-      if(!addr.toLowerCase().includes(ctry.label.toLowerCase())) addr += ', ' + ctry.label;
-    }
     addrMap[d.id]=addr;
     if(!geocodeCache[addr]) addresses.push(addr);
   }
@@ -221,38 +240,23 @@ export function renderServiceAreaMap(containerId, dealId, opts){
   container.addEventListener('mousedown',function(e){ e.stopPropagation(); });
   container.addEventListener('wheel',function(e){ e.stopPropagation(); },{ passive:false });
 
-  // Draw polygon — always green
-  const polyLayers=[];
-  if(polygon && polygon.geometry){
-    const coords=polygon.geometry.type==='MultiPolygon'
-      ? polygon.geometry.coordinates.flat(1)
-      : polygon.geometry.coordinates;
-    for(const ring of coords){
-      const pl=L.polygon(ring.map(c=>[c[1],c[0]]),{color:'#22c55e',weight:2,fillColor:'#bbf7d0',fillOpacity:0.25}).addTo(map);
-      polyLayers.push(pl);
-    }
-  }
+  const polyLayers=drawPolygonLayers(map, polygon);
 
-  // Add location pin marker only if we have actual geocoded coords
   if(hasPin){
-    const pinIcon=L.divIcon({className:'',html:'<svg width="24" height="36" viewBox="0 0 24 36"><path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" fill="'+(inArea===false?'#ef4444':'#22c55e')+'"/><circle cx="12" cy="12" r="5" fill="#fff"/></svg>',iconSize:[24,36],iconAnchor:[12,36]});
-    L.marker([lat,lng],{icon:pinIcon}).addTo(map);
+    L.marker([lat,lng],{icon:makePinIcon(inArea===false?'#ef4444':'#22c55e')}).addTo(map);
   }
 
-  // Fit bounds to show full polygon (+ marker if present)
+  // Build bounds group once — includes polygon + pin if present
+  const boundsGroup = L.featureGroup(polyLayers);
+  if(hasPin) boundsGroup.addLayer(L.marker([lat,lng]));
   if(polyLayers.length){
-    try {
-      const group=L.featureGroup(polyLayers);
-      if(hasPin) group.addLayer(L.marker([lat,lng]));
-      map.fitBounds(group.getBounds().pad(0.1));
-    } catch(e){}
+    try { map.fitBounds(boundsGroup.getBounds().pad(0.1)); } catch(e){}
   }
 
-  // Fix tiles not loading when container isn't fully rendered yet
   const refit = () => {
     map.invalidateSize();
     if(polyLayers.length){
-      try { map.fitBounds(L.featureGroup(polyLayers).getBounds().pad(0.1)); } catch(_e){}
+      try { map.fitBounds(boundsGroup.getBounds().pad(0.1)); } catch(_e){}
     } else if(hasPin) {
       map.setView([lat, lng], defaultZoom);
     }
@@ -295,17 +299,9 @@ export function openEnlargedMap(dealId, clientName){
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(map);
     const pm=findPolygonForClient(clientName);
     const polygon=pm?pm.polygon:null;
-    if(polygon && polygon.geometry){
-      const coords=polygon.geometry.type==='MultiPolygon'
-        ? polygon.geometry.coordinates.flat(1)
-        : polygon.geometry.coordinates;
-      for(const ring of coords){
-        L.polygon(ring.map(c=>[c[1],c[0]]),{color:'#22c55e',weight:2,fillColor:'#bbf7d0',fillOpacity:0.25}).addTo(map);
-      }
-    }
+    drawPolygonLayers(map, polygon);
     if(result){
-      const pinIcon=L.divIcon({className:'',html:'<svg width="24" height="36" viewBox="0 0 24 36"><path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" fill="'+(result.inArea?'#22c55e':'#ef4444')+'"/><circle cx="12" cy="12" r="5" fill="#fff"/></svg>',iconSize:[24,36],iconAnchor:[12,36]});
-      L.marker([result.lat,result.lng],{icon:pinIcon}).addTo(map);
+      L.marker([result.lat,result.lng],{icon:makePinIcon(result.inArea?'#22c55e':'#ef4444')}).addTo(map);
     }
     enlargedMapState.map=map;
     enlargedMapState.polygon=polygon;
@@ -326,8 +322,7 @@ export async function searchEnlargedMap(){
   const inArea=checkPointInServiceArea(lat,lng,enlargedMapState.polygon);
   if(enlargedMapState.map){
     enlargedMapState.map.setView([lat,lng],12);
-    const pinIcon=L.divIcon({className:'',html:'<svg width="24" height="36" viewBox="0 0 24 36"><path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" fill="'+(inArea?'#22c55e':'#ef4444')+'"/><circle cx="12" cy="12" r="5" fill="#fff"/></svg>',iconSize:[24,36],iconAnchor:[12,36]});
-    L.marker([lat,lng],{icon:pinIcon}).addTo(enlargedMapState.map);
+    L.marker([lat,lng],{icon:makePinIcon(inArea?'#22c55e':'#ef4444')}).addTo(enlargedMapState.map);
   }
   resultEl.innerHTML=inArea
     ? `<span style="color:#22c55e;font-weight:700">\u2713 Inside service area</span> \u2014 ${esc(addr)}`
@@ -351,24 +346,10 @@ export function onAddressFieldChange(dealId, newAddr){
 export async function geocodeAndCheckDeal(dealId){
   const deal=state.deals.find(d=>d.id===dealId);
   if(!deal) return;
-  let addr=normalizeAddressForGeocode(deal.address||deal.location||'');
+  const addr=enrichAddress(deal);
   if(!addr) return;
-
-  // If deal belongs to a client, append the client's city/state to help geocoding
-  // when the address lacks geographic context (no state abbreviation, no zip, no city)
   const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
   const clientName=client?client.name:'';
-  if(client){
-    const hasGeoContext = /\b[A-Z]{2}\b/.test(addr) || /\b\d{5}\b/.test(addr);
-    if(!hasGeoContext){
-      const info=lookupClientInfo(clientName);
-      if(info && info.location) addr = addr + ', ' + info.location;
-    }
-  }
-  const country = detectCountry(deal);
-  if(country.code !== 'US' && country.code !== 'CA'){
-    if(!addr.toLowerCase().includes(country.label.toLowerCase())) addr += ', ' + country.label;
-  }
 
   await batchGeocode([addr]);
   const cached=geocodeCache[addr];

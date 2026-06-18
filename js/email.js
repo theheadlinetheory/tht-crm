@@ -25,8 +25,10 @@ function formatEmailBody(html){
   s=s.replace(/<\/li>/gi,'\n');
   // Strip remaining tags
   s=s.replace(/<[^>]*>/g,'');
-  // Decode entities
-  s=s.replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').replace(/&quot;/gi,'"').replace(/&#39;/gi,"'");
+  // Decode all HTML entities via DOM parser
+  const el=document.createElement('textarea');
+  el.innerHTML=s;
+  s=el.value;
   // Collapse excessive blank lines
   s=s.replace(/\n{3,}/g,'\n\n').trim();
   return esc(s).replace(/\n/g,'<br>');
