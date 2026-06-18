@@ -41,13 +41,15 @@ export function fmtDuration(s) {
 }
 
 export function mergeScript(script, contact) {
-  return script
+  let s = script
     .replace(/\{name\}/gi, str(contact.name) || 'there')
     .replace(/\{company\}/gi, str(contact.company) || 'your company')
     .replace(/\{email\}/gi, str(contact.email))
     .replace(/\{address\}/gi, str(contact.address))
     .replace(/\{occupation\}/gi, str(contact.occupation))
     .replace(/\{lead_source\}/gi, str(contact.lead_source));
+  s = s.replace(/\{(custom_\d+)\}/g, (_m, key) => str(contact[key]) || '');
+  return s;
 }
 
 function statCard(label, value, color) {
@@ -166,7 +168,22 @@ export function renderSetup(ctx) {
         <td style="padding:6px 10px;color:var(--text-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis">${esc(preview)}</td>
       </tr>`;
     }
+    const customFields = ctx.customFields || [];
+    for (let i = 0; i < customFields.length; i++) {
+      const cf = customFields[i];
+      const cfPreviewIdx = cf.csvHeader ? headers.indexOf(cf.csvHeader) : -1;
+      const cfPreview = cfPreviewIdx >= 0 && rows[0] ? rows[0][cfPreviewIdx] || '' : '';
+      h += `<tr style="border-bottom:1px solid #f3f4f6">
+        <td style="padding:6px 10px"><input type="text" value="${esc(cf.label)}" placeholder="Field name" onchange="pdSetCustomLabel(${i},this.value)" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);width:120px"></td>
+        <td style="padding:6px 10px;display:flex;align-items:center;gap:6px"><select onchange="pdSetCustomMapping(${i},this.value)" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);min-width:150px">
+          <option value="">Select a field</option>
+          ${headers.map(h2 => `<option value="${esc(h2)}" ${cf.csvHeader === h2 ? 'selected' : ''}>${esc(h2)}</option>`).join('')}
+        </select><button onclick="pdRemoveCustomField(${i})" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px;padding:2px 4px" title="Remove">×</button></td>
+        <td style="padding:6px 10px;color:var(--text-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis">${esc(cfPreview)}</td>
+      </tr>`;
+    }
     h += `</tbody></table>
+      <button onclick="pdAddCustomField()" style="margin-top:10px;background:none;border:1px dashed var(--border);border-radius:6px;padding:6px 14px;font-size:12px;color:var(--text-muted);cursor:pointer;font-family:var(--font)">+ Add Custom Field</button>
       <div style="margin-top:16px;display:flex;justify-content:space-between">
         <button class="btn btn-ghost" style="font-size:12px" onclick="pdSetupBack()">← Back</button>
         <button class="btn btn-primary" style="font-size:12px" onclick="pdSetupNext()" ${!mapping.phone ? 'disabled style="font-size:12px;opacity:.5;pointer-events:none"' : ''}>Next →</button>
@@ -175,6 +192,8 @@ export function renderSetup(ctx) {
 
   if (step === 3) {
     const tokens = STANDARD_FIELDS.map(f => `{${f.key}}`);
+    const customFields = (ctx.customFields || []).filter(cf => cf.label.trim() && cf.csvHeader);
+    customFields.forEach(cf => tokens.push(`{${cf.key}}`));
     h += `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px">
       <div style="font-size:13px;font-weight:600;margin-bottom:8px">Call Script</div>
       <div style="margin-bottom:8px;display:flex;gap:4px;flex-wrap:wrap">${tokens.map(t => `<button class="btn btn-ghost" style="font-size:10px;padding:2px 6px" onclick="pdInsertToken('${t}')">${t}</button>`).join('')}</div>
@@ -281,6 +300,13 @@ export function renderDialer(ctx) {
     const isLink = label === 'LinkedIn' && val.startsWith('http');
     h += `<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">${label}</div>
       <div style="font-size:12px;font-weight:500">${isLink ? `<a href="${esc(val)}" target="_blank" style="color:#3b82f6">${esc(val)}</a>` : esc(val)}</div></div>`;
+  }
+  const cfMeta = campaign?.field_mapping?._customFields || [];
+  for (const cf of cfMeta) {
+    const val = contact[cf.key];
+    if (!val) continue;
+    h += `<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">${esc(cf.label)}</div>
+      <div style="font-size:12px;font-weight:500">${esc(String(val))}</div></div>`;
   }
   if (contact.custom_fields && typeof contact.custom_fields === 'object') {
     for (const [k, v] of Object.entries(contact.custom_fields)) {

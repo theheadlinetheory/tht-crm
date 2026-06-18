@@ -30,6 +30,7 @@ let _setupName = '';
 let _csvHeaders = [];
 let _csvRows = [];
 let _fieldMapping = {};
+let _customFields = [];
 let _setupScript = '';
 let _setupOrder = 'lifo';
 let _activeCampaign = null;
@@ -62,9 +63,11 @@ async function loadQueue(campaignId) {
   _queueIndex = 0;
 }
 
-async function saveCampaign(name, script, order, fieldMapping, contacts) {
+async function saveCampaign(name, script, order, fieldMapping, customFieldsMeta, contacts) {
+  const meta = { ...fieldMapping };
+  if (customFieldsMeta.length) meta._customFields = customFieldsMeta;
   const { data: campaign, error: cErr } = await supabase.from('dialer_campaigns')
-    .insert({ name, script, dialing_order: order, field_mapping: fieldMapping, total_contacts: contacts.length, created_by: currentUser?.email || '' })
+    .insert({ name, script, dialing_order: order, field_mapping: meta, total_contacts: contacts.length, created_by: currentUser?.email || '' })
     .select().single();
   if (cErr) throw cErr;
   for (let i = 0; i < contacts.length; i += 200) {
@@ -131,13 +134,19 @@ function autoDetectMapping(headers) {
   return mapping;
 }
 
-function buildContacts(headers, rows, mapping) {
+function buildContacts(headers, rows, mapping, customFields) {
   const mappedHeaders = new Set(Object.values(mapping));
+  const validCustom = (customFields || []).filter(cf => cf.label.trim() && cf.csvHeader);
+  validCustom.forEach(cf => mappedHeaders.add(cf.csvHeader));
   return rows.map(row => {
     const contact = {};
     for (const [fieldKey, csvHeader] of Object.entries(mapping)) {
       const idx = headers.indexOf(csvHeader);
       if (idx >= 0) contact[fieldKey] = row[idx] || '';
+    }
+    for (const cf of validCustom) {
+      const idx = headers.indexOf(cf.csvHeader);
+      if (idx >= 0) contact[cf.key] = row[idx] || '';
     }
     const custom = {};
     headers.forEach((h, i) => { if (!mappedHeaders.has(h) && row[i]) custom[h] = row[i]; });
@@ -190,7 +199,7 @@ export function renderPowerDialer() {
     if (!_campaigns) { loadCampaigns().then(() => render()); }
     h += renderList(_campaigns);
   } else if (_view === 'setup') {
-    h += renderSetup({ step: _setupStep, name: _setupName, headers: _csvHeaders, rows: _csvRows, mapping: _fieldMapping, script: _setupScript, order: _setupOrder });
+    h += renderSetup({ step: _setupStep, name: _setupName, headers: _csvHeaders, rows: _csvRows, mapping: _fieldMapping, customFields: _customFields, script: _setupScript, order: _setupOrder });
   } else if (_view === 'dialer') {
     const contact = _queue[_queueIndex];
     const best = contact ? getBestNumberForLead(normalizePhone(contact.phone)) : null;
@@ -212,7 +221,7 @@ export function renderPowerDialer() {
 
 window.pdStartSetup = () => {
   _view = 'setup'; _setupStep = 1; _setupName = ''; _csvHeaders = []; _csvRows = [];
-  _fieldMapping = {}; _setupScript = ''; _setupOrder = 'lifo'; render();
+  _fieldMapping = {}; _customFields = []; _setupScript = ''; _setupOrder = 'lifo'; render();
 };
 
 window.pdBackToList = () => {
@@ -240,6 +249,22 @@ window.pdSetMapping = (fieldKey, csvHeader) => {
   if (csvHeader) _fieldMapping[fieldKey] = csvHeader; else delete _fieldMapping[fieldKey]; render();
 };
 
+window.pdAddCustomField = () => {
+  _customFields.push({ key: 'custom_' + Date.now(), label: '', csvHeader: '' });
+  render();
+};
+
+window.pdSetCustomLabel = (idx, label) => { _customFields[idx].label = label; };
+
+window.pdSetCustomMapping = (idx, csvHeader) => {
+  _customFields[idx].csvHeader = csvHeader;
+  const label = _customFields[idx].label.trim();
+  if (!label && csvHeader) _customFields[idx].label = csvHeader;
+  render();
+};
+
+window.pdRemoveCustomField = (idx) => { _customFields.splice(idx, 1); render(); };
+
 window.pdInsertToken = (token) => {
   const ta = document.getElementById('pd-script');
   if (!ta) return;
@@ -265,11 +290,12 @@ window.pdFinishSetup = async () => {
   if (scriptEl) _setupScript = scriptEl.value;
   const orderRadio = document.querySelector('input[name="pd-order"]:checked');
   if (orderRadio) _setupOrder = orderRadio.value;
-  const contacts = buildContacts(_csvHeaders, _csvRows, _fieldMapping);
+  const contacts = buildContacts(_csvHeaders, _csvRows, _fieldMapping, _customFields);
   if (!contacts.length) { showToast('No contacts to import', 'error'); return; }
   try {
     showToast('Creating campaign...', 'success');
-    await saveCampaign(_setupName, _setupScript, _setupOrder, _fieldMapping, contacts);
+    const cfMeta = _customFields.filter(cf => cf.label.trim() && cf.csvHeader).map(cf => ({ key: cf.key, label: cf.label }));
+    await saveCampaign(_setupName, _setupScript, _setupOrder, _fieldMapping, cfMeta, contacts);
     showToast(`Campaign "${_setupName}" created with ${contacts.length} contacts`, 'success');
     _view = 'list'; _campaigns = null; render();
   } catch (e) { showToast('Failed to create campaign: ' + e.message, 'error'); }
