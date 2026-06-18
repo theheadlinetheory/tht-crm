@@ -52,7 +52,6 @@ export const ALL_PIPELINES = [
   { id: "dashboard", label: "Dashboard" },
   { id: "acquisition", label: "Acquisition" },
   { id: "client_leads", label: "Client Leads" },
-  { id: "retargeting", label: "Retargeting" },
   { id: "payroll", label: "Payroll" },
 ];
 

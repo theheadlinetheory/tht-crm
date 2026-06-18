@@ -943,7 +943,7 @@ async function fetchAcquisitionCampaigns(){
   if(!_fetchedCampaigns){
     container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px">Fetching campaigns from SmartLead...</div>';
     try {
-      const campaigns = await apiGet('get_acquisition_campaigns');
+      const campaigns = await invokeEdgeFunction('list-campaigns', {});
       if(Array.isArray(campaigns)){
         _fetchedCampaigns = campaigns;
       } else {
