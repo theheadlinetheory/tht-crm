@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // PD-VIEWS — Power Dialer rendering (pure HTML generators)
 // ═══════════════════════════════════════════════════════════
-import { esc, svgIcon, str } from './utils.js?v=20260618d';
+import { esc, svgIcon, str } from './utils.js?v=20260618e';
 
 const DISPOSITIONS = [
   'Interested - Appointment Set', 'Interested - Needs Follow-Up', 'Qualified Lead',
@@ -304,7 +304,10 @@ export function renderDialer(ctx) {
   if (showDisposition) {
     h += renderDisposition(contact, saving, leadCreated);
   } else {
-    const websiteVal = contact.lead_source || '';
+    const _cf = contact.custom_fields || {};
+    const _ls = contact.lead_source || '';
+    const _lsMx = /mail\.protection|aspmx|mx\d|ppe-hosted|pphosted|mimecast/i.test(_ls);
+    const websiteVal = _cf['Company Website'] || _cf['company_website'] || _cf['Website'] || _cf['website'] || (_lsMx ? '' : _ls);
     const wsIsUrl = websiteVal.startsWith('http://') || websiteVal.startsWith('https://');
     const wsIsDomain = !wsIsUrl && /^[a-z0-9-]+(\.[a-z]{2,})+$/i.test(websiteVal.trim());
     const wsHref = wsIsUrl ? websiteVal : wsIsDomain ? 'https://' + websiteVal.trim() : '';
@@ -350,7 +353,9 @@ export function renderDialer(ctx) {
   h += `<div style="width:260px;border-left:1px solid var(--border);overflow-y:auto;padding:16px;flex-shrink:0;background:#fafafa">
     <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:12px">Contact Details</div>`;
   const cf = contact.custom_fields || {};
-  const wsVal = cf['Company Website'] || cf['company_website'] || cf['Website'] || cf['website'] || contact.lead_source || '';
+  const lsRaw = contact.lead_source || '';
+  const lsIsMx = /mail\.protection|aspmx|mx\d|ppe-hosted|pphosted|mimecast/i.test(lsRaw);
+  const wsVal = cf['Company Website'] || cf['company_website'] || cf['Website'] || cf['website'] || (lsIsMx ? '' : lsRaw);
   const wsIsLink = wsVal.startsWith('http://') || wsVal.startsWith('https://');
   const wsIsDom = !wsIsLink && /^[a-z0-9-]+(\.[a-z]{2,})+$/i.test(wsVal.trim());
   const wsLink = wsIsLink ? wsVal : wsIsDom ? 'https://' + wsVal.trim() : '';
