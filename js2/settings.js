@@ -276,7 +276,14 @@ export function refreshSettingsBody(){
   else if(settingsTab==='clients') h=renderClientsSettings();
   else if(settingsTab==='users') h=renderUsersSettings();
   else if(settingsTab==='campaigns') h=renderCampaignAssignSettings();
-  else if(settingsTab==='dialer') h=renderDialerSettings();
+  else if(settingsTab==='dialer') {
+    if (!window._dialerFieldsLoaded) {
+      window._dialerFieldsLoaded = true;
+      supabase.from('crm_settings').select('value').eq('key','dialer_default_fields').single()
+        .then(({ data }) => { window._dialerDefaultFields = data?.value ? JSON.parse(data.value) : []; refreshSettingsBody(); });
+    }
+    h=renderDialerSettings();
+  }
   else if(settingsTab==='billing') h=renderBillingSettings();
   else if(settingsTab==='ai') h=renderAISettings();
   else if(settingsTab==='templates') h=renderTemplatesSettings();
@@ -1003,13 +1010,54 @@ function getOwnerColor(name){
 }
 
 function renderDialerSettings(){
+  let h = '';
   const mod = window.__numberHealthModule;
-  if(mod) return mod.renderNumberHealthSettings();
-  return `<div class="settings-section">
-    <h4>${svgIcon('phone',14)} Dialer Numbers</h4>
-    <p style="font-size:11px;color:var(--text-muted)">Loading number health data...</p>
+  if(mod) h += mod.renderNumberHealthSettings();
+  else h += `<div class="settings-section"><h4>${svgIcon('phone',14)} Dialer Numbers</h4><p style="font-size:11px;color:var(--text-muted)">Loading number health data...</p></div>`;
+  const fields = window._dialerDefaultFields || [];
+  h += `<div class="settings-section" style="margin-top:20px">
+    <h4 style="display:flex;align-items:center;gap:6px">${svgIcon('list',14)} Default Dialer Fields</h4>
+    <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">These fields appear on every new campaign alongside Phone, Name, Company, Email, etc.</p>
+    <div style="display:flex;flex-direction:column;gap:6px">`;
+  fields.forEach((f, i) => {
+    h += `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f9fafb;border:1px solid var(--border);border-radius:6px">
+      <span style="font-size:12px;font-weight:500;flex:1">${esc(f.label)}</span>
+      <span style="font-size:10px;color:var(--text-muted)">${esc(f.key)}</span>
+      <button onclick="pdRemoveDefaultField(${i})" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px;padding:2px 4px" title="Remove">×</button>
+    </div>`;
+  });
+  h += `</div>
+    <div style="display:flex;gap:6px;margin-top:10px">
+      <input id="pd-new-field-label" placeholder="Field name (e.g. City)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);flex:1">
+      <input id="pd-new-field-key" placeholder="Key (e.g. city)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);width:120px">
+      <button class="btn btn-primary" style="font-size:11px;padding:6px 12px" onclick="pdAddDefaultField()">Add</button>
+    </div>
   </div>`;
+  return h;
 }
+
+window.pdAddDefaultField = async () => {
+  const labelEl = document.getElementById('pd-new-field-label');
+  const keyEl = document.getElementById('pd-new-field-key');
+  const label = (labelEl?.value || '').trim();
+  let key = (keyEl?.value || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+  if (!label) { showToast('Enter a field name', 'error'); return; }
+  if (!key) key = label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+  const fields = window._dialerDefaultFields || [];
+  if (fields.some(f => f.key === key)) { showToast('Field key already exists', 'error'); return; }
+  fields.push({ key, label });
+  window._dialerDefaultFields = fields;
+  await supabase.from('crm_settings').upsert({ key: 'dialer_default_fields', value: JSON.stringify(fields), updated_at: new Date().toISOString() });
+  refreshSettingsBody();
+};
+
+window.pdRemoveDefaultField = async (idx) => {
+  const fields = window._dialerDefaultFields || [];
+  fields.splice(idx, 1);
+  window._dialerDefaultFields = fields;
+  await supabase.from('crm_settings').upsert({ key: 'dialer_default_fields', value: JSON.stringify(fields), updated_at: new Date().toISOString() });
+  refreshSettingsBody();
+};
 
 function setupSettingsDrag(){
   document.querySelectorAll('.settings-list').forEach(list=>{

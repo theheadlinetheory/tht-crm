@@ -252,9 +252,15 @@ export function renderPowerDialer() {
 
 // ─── Window Handlers ───
 
-window.pdStartSetup = () => {
+window.pdStartSetup = async () => {
   _view = 'setup'; _setupStep = 1; _setupName = ''; _csvHeaders = []; _csvRows = []; _csvFileName = '';
-  _fieldMapping = {}; _countryCode = '1'; _customFields = []; _setupScript = ''; _setupOrder = 'lifo'; render();
+  _fieldMapping = {}; _countryCode = '1'; _customFields = []; _setupScript = ''; _setupOrder = 'lifo';
+  if (!window._dialerDefaultFields) {
+    const { data } = await supabase.from('crm_settings').select('value').eq('key','dialer_default_fields').single();
+    window._dialerDefaultFields = data?.value ? JSON.parse(data.value) : [];
+  }
+  _customFields = (window._dialerDefaultFields || []).map(f => ({ key: f.key, label: f.label, csvHeader: '' }));
+  render();
 };
 
 window.pdBackToList = () => {
