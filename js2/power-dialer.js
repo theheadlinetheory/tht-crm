@@ -1,16 +1,16 @@
 // ═══════════════════════════════════════════════════════════
 // POWER DIALER — State, data access, CSV parsing, handlers
 // ═══════════════════════════════════════════════════════════
-import { supabase, showToast, sbCreateDeal, camelToSnake } from './api.js?v=20260618a';
-import { state } from './app.js?v=20260618a';
-import { uid, getToday } from './utils.js?v=20260618a';
-import { render as _render } from './render.js?v=20260618a';
+import { supabase, showToast, sbCreateDeal, camelToSnake } from './api.js?v=20260618b';
+import { state } from './app.js?v=20260618b';
+import { uid, getToday } from './utils.js?v=20260618b';
+import { render as _render } from './render.js?v=20260618b';
 function render() { state._pdRenderRequested = true; _render(); }
-import { getBestNumberForLead } from './number-health.js?v=20260618a';
-import { currentUser } from './auth.js?v=20260618a';
-import { JUSTCALL_USER_MAP, ACQ_CALENDLY_URLS } from './config.js?v=20260618a';
-import { openCalendlyEmbed } from './calendly.js?v=20260618a';
-import { renderList, renderSetup, renderDialer, renderAnalytics, STANDARD_FIELDS, DISPOSITIONS, formatPhone, fmtDuration } from './pd-views.js?v=20260618a';
+import { getBestNumberForLead, loadNumberHealth } from './number-health.js?v=20260618b';
+import { currentUser } from './auth.js?v=20260618b';
+import { JUSTCALL_USER_MAP, ACQ_CALENDLY_URLS } from './config.js?v=20260618b';
+import { openCalendlyEmbed } from './calendly.js?v=20260618b';
+import { renderList, renderSetup, renderDialer, renderAnalytics, STANDARD_FIELDS, DISPOSITIONS, formatPhone, fmtDuration } from './pd-views.js?v=20260618b';
 
 const COUNTRY_CODES = [
   { code: '1', label: 'US / Canada (+1)', national: 10 },
@@ -410,7 +410,7 @@ window.pdPlayCampaign = async (id) => {
   if (!campaign) return;
   _activeCampaign = campaign; _view = 'dialer'; _showDisposition = false; _leadCreated = false;
   render();
-  await loadQueue(id);
+  await Promise.all([loadQueue(id), loadNumberHealth().catch(() => {})]);
   if (!_queue.length) { showToast('No pending contacts in this campaign', 'error'); _view = 'list'; _activeCampaign = null; }
   startTimer(); render();
 };
@@ -419,6 +419,57 @@ window.pdShowAnalytics = (id) => {
   const campaign = _campaigns?.find(c => c.id === id);
   if (!campaign) return;
   _activeCampaign = campaign; _view = 'analytics'; _callHistory = null; render();
+};
+
+window.pdCampaignSettings = (id) => {
+  const campaign = _campaigns?.find(c => c.id === id);
+  if (!campaign) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.onclick = () => overlay.remove();
+  const scriptVal = (campaign.script || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  overlay.innerHTML = `<div class="modal" style="width:560px" onclick="event.stopPropagation()">
+    <div class="modal-header"><h3>Campaign Settings</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button></div>
+    <div class="modal-body">
+      <div style="margin-bottom:14px">
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Campaign Name</label>
+        <input id="pd-settings-name" type="text" value="${campaign.name.replace(/"/g, '&quot;')}" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+      </div>
+      <div style="margin-bottom:14px">
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Call Script</label>
+        <textarea id="pd-settings-script" rows="10" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);line-height:1.6;resize:vertical">${scriptVal}</textarea>
+        <p style="font-size:10px;color:var(--text-muted);margin-top:4px">Use {{NAME}}, {{COMPANY}}, {{ADDRESS}} for merge fields</p>
+      </div>
+      <div style="margin-bottom:14px">
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Status</label>
+        <select id="pd-settings-status" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+          <option value="active"${campaign.status==='active'?' selected':''}>Active</option>
+          <option value="paused"${campaign.status==='paused'?' selected':''}>Paused</option>
+          <option value="completed"${campaign.status==='completed'?' selected':''}>Completed</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content:flex-end;gap:8px">
+      <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+      <button class="btn btn-primary" onclick="pdSaveCampaignSettings('${id}')">Save</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+};
+
+window.pdSaveCampaignSettings = async (id) => {
+  const name = document.getElementById('pd-settings-name')?.value?.trim();
+  const script = document.getElementById('pd-settings-script')?.value;
+  const status = document.getElementById('pd-settings-status')?.value;
+  if (!name) { showToast('Name is required', 'error'); return; }
+  const updates = { name, script, status };
+  const { error } = await supabase.from('dialer_campaigns').update(updates).eq('id', id);
+  if (error) { showToast('Save failed: ' + error.message, 'error'); return; }
+  const c = _campaigns?.find(c => c.id === id);
+  if (c) { Object.assign(c, updates); }
+  document.querySelector('.modal-overlay')?.remove();
+  showToast('Campaign settings saved', 'success');
+  render();
 };
 
 window.pdLoadHistory = async (campaignId) => {
