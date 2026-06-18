@@ -8,7 +8,8 @@ import { render as _render } from './render.js?v=20260618a';
 function render() { state._pdRenderRequested = true; _render(); }
 import { getBestNumberForLead } from './number-health.js?v=20260618a';
 import { currentUser } from './auth.js?v=20260618a';
-import { JUSTCALL_USER_MAP } from './config.js?v=20260618a';
+import { JUSTCALL_USER_MAP, ACQ_CALENDLY_URLS } from './config.js?v=20260618a';
+import { openCalendlyEmbed } from './calendly.js?v=20260618a';
 import { renderList, renderSetup, renderDialer, renderAnalytics, STANDARD_FIELDS, DISPOSITIONS, formatPhone, fmtDuration } from './pd-views.js?v=20260618a';
 
 const COUNTRY_CODES = [
@@ -443,6 +444,28 @@ window.pdCreateLead = async () => {
     }));
     _leadCreated = true; showToast('Lead created in Acquisition pipeline', 'success'); render();
   } catch (e) { showToast('Failed to create lead: ' + e.message, 'error'); }
+};
+
+window.pdBookCall = (type) => {
+  const contact = _queue[_queueIndex]; if (!contact) return;
+  const url = ACQ_CALENDLY_URLS[type]; if (!url) return;
+  openCalendlyEmbed(null, url, null, contact.name, contact.email);
+};
+
+window.pdShowStrategyPicker = () => {
+  const div = document.createElement('div');
+  div.id = 'strategy-call-picker';
+  div.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:center';
+  div.onclick = (e) => { if (e.target === div) div.remove(); };
+  div.innerHTML = `<div style="background:#fff;border-radius:12px;padding:24px;width:320px;box-shadow:0 8px 30px rgba(0,0,0,.2)">
+    <h3 style="margin:0 0 16px;font-size:16px">Who's booking the strategy call?</h3>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-primary" style="width:100%;padding:12px;font-size:13px;background:#7c3aed;border-color:#7c3aed" onclick="document.getElementById('strategy-call-picker').remove();pdBookCall('strategy')">Aidan</button>
+      <button class="btn btn-primary" style="width:100%;padding:12px;font-size:13px;background:#2563eb;border-color:#2563eb" onclick="document.getElementById('strategy-call-picker').remove();pdBookCall('strategy_ioannis')">Ioannis</button>
+    </div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:12px;font-size:12px" onclick="document.getElementById('strategy-call-picker').remove()">Cancel</button>
+  </div>`;
+  document.body.appendChild(div);
 };
 
 window.pdRefreshContact = async () => {
