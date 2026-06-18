@@ -332,10 +332,10 @@ window.pdShowDisp = () => { _showDisposition = true; _leadCreated = false; rende
 
 window.pdSaveDisposition = async () => {
   const contact = _queue[_queueIndex]; if (!contact) return;
-  _saving = true; render();
   const outcome = document.getElementById('pd-outcome')?.value || '';
   const notes = document.getElementById('pd-notes')?.value || '';
   const dnc = document.getElementById('pd-dnc')?.checked || false;
+  _saving = true; render();
   await saveDisposition(contact, outcome, notes, dnc);
   _saving = false; advanceToNext();
 };
