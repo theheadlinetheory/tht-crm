@@ -297,9 +297,11 @@ export function renderDialer(ctx) {
     ['Address', contact.address], ['Occupation', contact.occupation], ['Alt Phone', contact.alternate_phone]];
   for (const [label, val] of fields) {
     if (!val) continue;
-    const isLink = label === 'LinkedIn' && val.startsWith('http');
+    const isUrl = val.startsWith('http://') || val.startsWith('https://');
+    const isDomain = !isUrl && /^[a-z0-9-]+(\.[a-z]{2,})+$/i.test(val.trim());
+    const href = isUrl ? val : isDomain ? 'https://' + val.trim() : '';
     h += `<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">${label}</div>
-      <div style="font-size:12px;font-weight:500">${isLink ? `<a href="${esc(val)}" target="_blank" style="color:#3b82f6">${esc(val)}</a>` : esc(val)}</div></div>`;
+      <div style="font-size:12px;font-weight:500">${href ? `<a href="${esc(href)}" target="_blank" style="color:#3b82f6">${esc(val)}</a>` : esc(val)}</div></div>`;
   }
   const cfMeta = campaign?.field_mapping?._customFields || [];
   for (const cf of cfMeta) {
