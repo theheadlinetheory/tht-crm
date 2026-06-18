@@ -446,6 +446,36 @@ window.pdCreateLead = async () => {
   } catch (e) { showToast('Failed to create lead: ' + e.message, 'error'); }
 };
 
+window.pdEditScript = () => {
+  if (!_activeCampaign) return;
+  const existing = document.getElementById('pd-script-editor');
+  if (existing) { existing.remove(); return; }
+  const div = document.createElement('div');
+  div.id = 'pd-script-editor';
+  div.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:center';
+  div.onclick = (e) => { if (e.target === div) div.remove(); };
+  div.innerHTML = `<div style="background:#fff;border-radius:12px;padding:24px;width:560px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 30px rgba(0,0,0,.2)">
+    <h3 style="margin:0 0 12px;font-size:16px">Edit Call Script</h3>
+    <p style="font-size:11px;color:var(--text-muted);margin:0 0 12px">Use {name}, {company}, {address} for merge fields.</p>
+    <textarea id="pd-script-edit-ta" style="width:100%;height:250px;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:var(--font);line-height:1.6;resize:vertical;box-sizing:border-box">${_activeCampaign.script || ''}</textarea>
+    <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">
+      <button class="btn btn-ghost" style="font-size:12px" onclick="document.getElementById('pd-script-editor').remove()">Cancel</button>
+      <button class="btn btn-primary" style="font-size:12px" onclick="pdSaveScript()">Save</button>
+    </div>
+  </div>`;
+  document.body.appendChild(div);
+};
+
+window.pdSaveScript = async () => {
+  const ta = document.getElementById('pd-script-edit-ta');
+  if (!ta || !_activeCampaign) return;
+  const script = ta.value;
+  _activeCampaign.script = script;
+  await supabase.from('dialer_campaigns').update({ script }).eq('id', _activeCampaign.id);
+  document.getElementById('pd-script-editor')?.remove();
+  render();
+};
+
 window.pdBookCall = (type) => {
   const contact = _queue[_queueIndex]; if (!contact) return;
   const url = ACQ_CALENDLY_URLS[type]; if (!url) return;
