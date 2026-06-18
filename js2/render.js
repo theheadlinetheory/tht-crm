@@ -260,11 +260,11 @@ export function render(){
     const subCs = 'padding:6px 16px;font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;border-radius:6px;margin-right:4px';
     html += `<div style="padding:0 20px;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between">
       <div style="display:flex;gap:4px;align-items:center">
-        <button onclick="state.acquisitionSubTab='pipeline';render()" style="${subCs};background:${subTab==='pipeline'?'var(--purple)':'#f3f4f6'};color:${subTab==='pipeline'?'#fff':'var(--text-muted)'}">Pipeline</button>
-        <button onclick="state.acquisitionSubTab='nurture';render()" style="${subCs};background:${subTab==='nurture'?'var(--purple)':'#f3f4f6'};color:${subTab==='nurture'?'#fff':'var(--text-muted)'}">Nurture</button>
-        ${(isAdmin()||isEmployee())?`<button onclick="state.acquisitionSubTab='demo_tracker';render()" style="${subCs};background:${subTab==='demo_tracker'?'var(--purple)':'#f3f4f6'};color:${subTab==='demo_tracker'?'#fff':'var(--text-muted)'}">Demo Tracker</button>`:''}
-        ${(isAdmin()||isEmployee())?`<button onclick="state.acquisitionSubTab='cold_calls';render()" style="${subCs};background:${subTab==='cold_calls'?'var(--purple)':'#f3f4f6'};color:${subTab==='cold_calls'?'#fff':'var(--text-muted)'}">Cold Calls</button>`:''}
-        ${isAdmin()?`<button onclick="state.acquisitionSubTab='retargeting';render()" style="${subCs};background:${subTab==='retargeting'?'var(--purple)':'#f3f4f6'};color:${subTab==='retargeting'?'#fff':'var(--text-muted)'}">Retargeting</button>`:''}
+        <button onclick="switchAcqSubTab('pipeline')" style="${subCs};background:${subTab==='pipeline'?'var(--purple)':'#f3f4f6'};color:${subTab==='pipeline'?'#fff':'var(--text-muted)'}">Pipeline</button>
+        <button onclick="switchAcqSubTab('nurture')" style="${subCs};background:${subTab==='nurture'?'var(--purple)':'#f3f4f6'};color:${subTab==='nurture'?'#fff':'var(--text-muted)'}">Nurture</button>
+        ${(isAdmin()||isEmployee())?`<button onclick="switchAcqSubTab('demo_tracker')" style="${subCs};background:${subTab==='demo_tracker'?'var(--purple)':'#f3f4f6'};color:${subTab==='demo_tracker'?'#fff':'var(--text-muted)'}">Demo Tracker</button>`:''}
+        ${(isAdmin()||isEmployee())?`<button onclick="switchAcqSubTab('cold_calls')" style="${subCs};background:${subTab==='cold_calls'?'var(--purple)':'#f3f4f6'};color:${subTab==='cold_calls'?'#fff':'var(--text-muted)'}">Cold Calls</button>`:''}
+        ${isAdmin()?`<button onclick="switchAcqSubTab('retargeting')" style="${subCs};background:${subTab==='retargeting'?'var(--purple)':'#f3f4f6'};color:${subTab==='retargeting'?'#fff':'var(--text-muted)'}">Retargeting</button>`:''}
       </div>
       ${subTab==='pipeline'?`<div style="display:flex;gap:6px;align-items:center">
         <button onclick="state.myDealsFilter=!state.myDealsFilter;render()" style="padding:4px 12px;font-size:11px;font-weight:600;font-family:var(--font);cursor:pointer;border:1px solid ${state.myDealsFilter?'var(--purple)':'var(--border)'};border-radius:6px;background:${state.myDealsFilter?'#f3e8ff':'#fff'};color:${state.myDealsFilter?'var(--purple)':'var(--text-muted)'}">
@@ -794,5 +794,11 @@ setTimeout(() => { window.state = state; }, 0);
 window.render = render;
 window.refreshModal = refreshModal;
 window.switchPipeline = switchPipeline;
+function switchAcqSubTab(tab) {
+  state.acquisitionSubTab = tab;
+  location.hash = tab === 'pipeline' ? 'acquisition' : 'acquisition/' + tab;
+  render();
+}
+window.switchAcqSubTab = switchAcqSubTab;
 window.switchNurtureTab = switchNurtureTab;
 window.switchTrackerView = (view) => { state.trackerView = view; render(); };

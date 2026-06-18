@@ -365,10 +365,10 @@ export function setupAuthListener(onLogin){
         state.pipeline = 'client_leads';
         location.hash = 'client_leads';
       } else if(isEmployee()){
-        const hash = location.hash.replace('#','');
+        const hash = location.hash.replace('#','').split('/')[0];
         state.pipeline = hash && ['acquisition','client_leads'].includes(hash) ? hash : 'client_leads';
       } else if(isAdmin()){
-        const hash = location.hash.replace('#','');
+        const hash = location.hash.replace('#','').split('/')[0];
         state.pipeline = hash && ['dashboard','acquisition','client_leads','nurture'].includes(hash) ? hash : 'client_leads';
       }
 
