@@ -29,6 +29,7 @@ let _setupStep = 1;
 let _setupName = '';
 let _csvHeaders = [];
 let _csvRows = [];
+let _csvFileName = '';
 let _fieldMapping = {};
 let _customFields = [];
 let _setupScript = '';
@@ -206,7 +207,7 @@ export function renderPowerDialer() {
     if (!_campaigns) { loadCampaigns().then(() => render()); }
     h += renderList(_campaigns);
   } else if (_view === 'setup') {
-    h += renderSetup({ step: _setupStep, name: _setupName, headers: _csvHeaders, rows: _csvRows, mapping: _fieldMapping, customFields: _customFields, script: _setupScript, order: _setupOrder });
+    h += renderSetup({ step: _setupStep, name: _setupName, headers: _csvHeaders, rows: _csvRows, fileName: _csvFileName, mapping: _fieldMapping, customFields: _customFields, script: _setupScript, order: _setupOrder });
   } else if (_view === 'dialer') {
     const contact = _queue[_queueIndex];
     const best = contact ? getBestNumberForLead(normalizePhone(contact.phone)) : null;
@@ -227,7 +228,7 @@ export function renderPowerDialer() {
 // ─── Window Handlers ───
 
 window.pdStartSetup = () => {
-  _view = 'setup'; _setupStep = 1; _setupName = ''; _csvHeaders = []; _csvRows = [];
+  _view = 'setup'; _setupStep = 1; _setupName = ''; _csvHeaders = []; _csvRows = []; _csvFileName = '';
   _fieldMapping = {}; _customFields = []; _setupScript = ''; _setupOrder = 'lifo'; render();
 };
 
@@ -289,10 +290,14 @@ window.pdHandleFile = (file) => {
   reader.onload = (e) => {
     const { headers, rows } = parseCSV(e.target.result);
     if (!headers.length) { showToast('CSV appears empty', 'error'); return; }
-    _csvHeaders = headers; _csvRows = rows;
+    _csvHeaders = headers; _csvRows = rows; _csvFileName = file.name;
     _fieldMapping = autoDetectMapping(headers); render();
   };
   reader.readAsText(file);
+};
+
+window.pdClearCsv = () => {
+  _csvHeaders = []; _csvRows = []; _csvFileName = ''; _fieldMapping = {}; render();
 };
 
 window.pdFinishSetup = async () => {

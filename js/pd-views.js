@@ -121,7 +121,7 @@ export function renderList(campaigns) {
 // ─── Setup Wizard ───
 
 export function renderSetup(ctx) {
-  const { step, name, headers, rows, mapping, script, order } = ctx;
+  const { step, name, headers, rows, fileName, mapping, script, order } = ctx;
   let h = '<div style="max-width:800px;margin:0 auto">';
 
   const steps = ['Upload CSV', 'Map Fields', 'Script & Settings'];
@@ -141,15 +141,23 @@ export function renderSetup(ctx) {
     h += `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px">
       <label style="font-size:13px;font-weight:600;display:block;margin-bottom:8px">Campaign Name</label>
       <input id="pd-campaign-name" value="${esc(name)}" oninput="pdNameChanged(this.value)" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font);margin-bottom:20px;box-sizing:border-box" placeholder="e.g. HVAC C-Suite US">
-      <label style="font-size:13px;font-weight:600;display:block;margin-bottom:8px">Upload Contacts (CSV)</label>
-      <div id="pd-drop-zone" style="border:2px dashed var(--border);border-radius:8px;padding:40px;text-align:center;cursor:pointer" onclick="document.getElementById('pd-file-input').click()">
+      <label style="font-size:13px;font-weight:600;display:block;margin-bottom:8px">Upload Contacts (CSV)</label>`;
+    if (headers.length) {
+      h += `<div style="border:2px solid #bbf7d0;border-radius:8px;padding:16px;background:#f0fdf4">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="font-size:12px;font-weight:600;color:#16a34a">✓ ${esc(fileName || 'CSV')} — ${rows.length} contacts (${headers.length} columns)</div>
+          </div>
+          <button class="btn btn-ghost" onclick="pdClearCsv()" style="font-size:11px;padding:4px 10px;color:#dc2626">✕ Clear</button>
+        </div>
+      </div>`;
+    } else {
+      h += `<div id="pd-drop-zone" style="border:2px dashed var(--border);border-radius:8px;padding:40px;text-align:center;cursor:pointer" onclick="document.getElementById('pd-file-input').click()">
         <input type="file" id="pd-file-input" accept=".csv" style="display:none" onchange="pdHandleFile(this.files[0])">
         <div style="margin-bottom:8px">${svgIcon('upload', 24, '#9ca3af')}</div>
         <div style="color:#3b82f6;font-weight:600;font-size:13px">Click to upload</div>
         <div style="color:var(--text-muted);font-size:11px;margin-top:4px">CSV file</div>
       </div>`;
-    if (headers.length) {
-      h += `<div style="margin-top:16px;padding:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;font-size:12px;color:#16a34a;font-weight:600">✓ ${rows.length} contacts loaded (${headers.length} columns)</div>`;
     }
     h += `<div style="margin-top:16px;text-align:right"><button class="btn btn-primary" style="font-size:12px" onclick="pdSetupNext()" ${!headers.length ? 'disabled style="font-size:12px;opacity:.5;pointer-events:none"' : ''}>Next →</button></div></div>`;
   }
