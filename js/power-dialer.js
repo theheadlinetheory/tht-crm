@@ -148,11 +148,11 @@ function buildContacts(headers, rows, mapping, customFields) {
     }
     const digits = (contact.phone || '').replace(/\D/g, '');
     if (digits.length < 7) { skippedNoPhone++; continue; }
+    const custom = {};
     for (const cf of validCustom) {
       const idx = headers.indexOf(cf.csvHeader);
-      if (idx >= 0) contact[cf.key] = row[idx] || '';
+      if (idx >= 0) custom[cf.key] = row[idx] || '';
     }
-    const custom = {};
     headers.forEach((h, i) => { if (!mappedHeaders.has(h) && row[i]) custom[h] = row[i]; });
     if (Object.keys(custom).length) contact.custom_fields = custom;
     contacts.push(contact);
