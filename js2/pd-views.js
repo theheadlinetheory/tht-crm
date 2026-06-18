@@ -324,8 +324,28 @@ export function renderDialer(ctx) {
   // Right: Contact Details
   h += `<div style="width:260px;border-left:1px solid var(--border);overflow-y:auto;padding:16px;flex-shrink:0;background:#fafafa">
     <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:12px">Contact Details</div>`;
+  const mapAddr = contact.address || contact.custom_fields?.city || '';
+  if (mapAddr) {
+    const mapQ = encodeURIComponent(mapAddr);
+    h += `<div style="margin-bottom:12px">
+      <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">
+        LOCATION <button class="btn btn-ghost" style="font-size:9px;padding:2px 6px" onclick="window.open('https://www.google.com/maps/search/${mapQ}','_blank')">Expand ${svgIcon('external-link',10)}</button>
+      </div>
+      <iframe src="https://maps.google.com/maps?q=${mapQ}&output=embed&z=12" style="width:100%;height:180px;border:1px solid var(--border);border-radius:6px" allowfullscreen loading="lazy"></iframe>
+    </div>`;
+  }
+  const wsVal = contact.lead_source || '';
+  const wsIsLink = wsVal.startsWith('http://') || wsVal.startsWith('https://');
+  const wsIsDom = !wsIsLink && /^[a-z0-9-]+(\.[a-z]{2,})+$/i.test(wsVal.trim());
+  const wsLink = wsIsLink ? wsVal : wsIsDom ? 'https://' + wsVal.trim() : '';
+  if (wsVal) {
+    h += `<div style="margin-bottom:12px;padding:10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px">
+      <div style="font-size:10px;color:#3b82f6;font-weight:600;margin-bottom:4px">Company Website</div>
+      <div style="font-size:13px;font-weight:600">${wsLink ? `<a href="${esc(wsLink)}" target="_blank" style="color:#2563eb;text-decoration:none">${esc(wsVal)}</a>` : esc(wsVal)}</div>
+    </div>`;
+  }
   const fields = [['Name', contact.name], ['Phone', formatPhone(contact.phone)], ['Company', contact.company],
-    ['Email', contact.email], ['LinkedIn', contact.linkedin], ['Lead Source', contact.lead_source],
+    ['Email', contact.email], ['LinkedIn', contact.linkedin],
     ['Address', contact.address], ['Occupation', contact.occupation], ['Alt Phone', contact.alternate_phone]];
   for (const [label, val] of fields) {
     if (!val) continue;
@@ -347,16 +367,6 @@ export function renderDialer(ctx) {
       h += `<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">${esc(label)}</div>
         <div style="font-size:12px;font-weight:500">${href ? `<a href="${esc(href)}" target="_blank" style="color:#3b82f6">${esc(String(v))}</a>` : esc(String(v))}</div></div>`;
     }
-  }
-  const mapAddr = contact.address || contact.custom_fields?.city || '';
-  if (mapAddr) {
-    const mapQ = encodeURIComponent(mapAddr);
-    h += `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
-      <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">
-        LOCATION <button class="btn btn-ghost" style="font-size:9px;padding:2px 6px" onclick="window.open('https://www.google.com/maps/search/${mapQ}','_blank')">Expand ${svgIcon('external-link',10)}</button>
-      </div>
-      <iframe src="https://maps.google.com/maps?q=${mapQ}&output=embed&z=12" style="width:100%;height:180px;border:1px solid var(--border);border-radius:6px" allowfullscreen loading="lazy"></iframe>
-    </div>`;
   }
   if (recordingUrl) {
     h += `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
