@@ -40,9 +40,17 @@ export function fmtDuration(s) {
   return [h, m, sec].map(v => String(v).padStart(2, '0')).join(':');
 }
 
+function bestName(contact) {
+  const n = (contact.name || '').trim();
+  if (n && n.split(/\s+/).length <= 4 && n.length <= 40) return n;
+  if (contact.company) return contact.company;
+  return n || 'Unknown';
+}
+
 export function mergeScript(script, contact) {
+  const cleanName = bestName(contact);
   let s = script
-    .replace(/\{name\}/gi, str(contact.name) || 'there')
+    .replace(/\{name\}/gi, cleanName !== 'Unknown' ? cleanName : 'there')
     .replace(/\{company\}/gi, str(contact.company) || 'your company')
     .replace(/\{email\}/gi, str(contact.email))
     .replace(/\{address\}/gi, str(contact.address))
@@ -251,8 +259,9 @@ export function renderDialer(ctx) {
     <div style="padding:8px 10px;font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;border-bottom:1px solid var(--border)">Up Next</div>`;
   for (let i = 0; i < Math.min(queue.length, 10); i++) {
     const q = queue[i], isCurrent = i === queueIndex;
+    const displayName = bestName(q);
     h += `<div style="padding:8px 10px;border-bottom:1px solid #f3f4f6;${isCurrent ? 'background:#ede9fe;border-left:3px solid var(--purple)' : ''};cursor:pointer" onclick="pdJumpTo(${i})">
-      <div style="font-size:12px;font-weight:${isCurrent ? '700' : '500'};color:${isCurrent ? 'var(--purple)' : 'var(--text-primary)'}">${esc(q.name || 'Unknown')}</div>
+      <div style="font-size:12px;font-weight:${isCurrent ? '700' : '500'};color:${isCurrent ? 'var(--purple)' : 'var(--text-primary)'}">${esc(displayName)}</div>
       <div style="font-size:11px;color:var(--text-muted)">${formatPhone(q.phone)}</div>
     </div>`;
   }
@@ -263,11 +272,16 @@ export function renderDialer(ctx) {
   if (showDisposition) {
     h += renderDisposition(contact, saving, leadCreated);
   } else {
+    const websiteVal = contact.lead_source || '';
+    const wsIsUrl = websiteVal.startsWith('http://') || websiteVal.startsWith('https://');
+    const wsIsDomain = !wsIsUrl && /^[a-z0-9-]+(\.[a-z]{2,})+$/i.test(websiteVal.trim());
+    const wsHref = wsIsUrl ? websiteVal : wsIsDomain ? 'https://' + websiteVal.trim() : '';
     h += `<div style="text-align:center;margin-bottom:20px">
       <div style="width:60px;height:60px;border-radius:50%;background:#e5e7eb;margin:0 auto 10px;display:flex;align-items:center;justify-content:center">${svgIcon('phone', 24, '#6b7280')}</div>
-      <div style="font-size:18px;font-weight:700">${esc(contact.name || 'Unknown')}</div>
+      <div style="font-size:18px;font-weight:700">${esc(bestName(contact))}</div>
       <div style="font-size:14px;color:var(--text-muted)">${formatPhone(contact.phone)}</div>
       ${contact.company ? `<div style="font-size:13px;color:var(--text-muted)">${esc(contact.company)}</div>` : ''}
+      ${wsHref ? `<a href="${esc(wsHref)}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;font-size:12px;color:#3b82f6;font-weight:500;text-decoration:none">${svgIcon('external-link', 12, '#3b82f6')} ${esc(websiteVal)}</a>` : ''}
     </div>`;
     h += `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;text-align:center;margin-bottom:16px">
       <div style="font-size:11px;font-weight:600;color:#16a34a;text-transform:uppercase;margin-bottom:4px">Use Number</div>
@@ -315,6 +329,16 @@ export function renderDialer(ctx) {
       h += `<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">${esc(label)}</div>
         <div style="font-size:12px;font-weight:500">${href ? `<a href="${esc(href)}" target="_blank" style="color:#3b82f6">${esc(String(v))}</a>` : esc(String(v))}</div></div>`;
     }
+  }
+  const mapAddr = contact.address || contact.custom_fields?.city || '';
+  if (mapAddr) {
+    const mapQ = encodeURIComponent(mapAddr);
+    h += `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+      <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">
+        LOCATION <button class="btn btn-ghost" style="font-size:9px;padding:2px 6px" onclick="window.open('https://www.google.com/maps/search/${mapQ}','_blank')">Expand ${svgIcon('external-link',10)}</button>
+      </div>
+      <iframe src="https://maps.google.com/maps?q=${mapQ}&output=embed&z=12" style="width:100%;height:180px;border:1px solid var(--border);border-radius:6px" allowfullscreen loading="lazy"></iframe>
+    </div>`;
   }
   if (recordingUrl) {
     h += `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
