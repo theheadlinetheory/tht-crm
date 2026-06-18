@@ -1,8 +1,8 @@
-import { state } from './app.js?v=20260618b';
-import { invokeEdgeFunction, showToast } from './api.js?v=20260618b';
-import { esc, svgIcon } from './utils.js?v=20260618b';
-import { render } from './render.js?v=20260618b';
-import { renderPowerDialer } from './power-dialer.js?v=20260618b';
+import { state } from './app.js?v=20260618c';
+import { invokeEdgeFunction, showToast } from './api.js?v=20260618c';
+import { esc, svgIcon } from './utils.js?v=20260618c';
+import { render } from './render.js?v=20260618c';
+import { renderPowerDialer } from './power-dialer.js?v=20260618c';
 
 let _campaigns = null;
 let _leads = [];
