@@ -3,6 +3,18 @@
 // ═══════════════════════════════════════════════════════════
 import { esc, svgIcon, str } from './utils.js?v=20260618e';
 
+const IS_MX_RECORD = /mail\.protection|aspmx|mx\d|ppe-hosted|pphosted|mimecast/i;
+
+function resolveWebsite(contact) {
+  const cf = contact.custom_fields || {};
+  const ls = contact.lead_source || '';
+  const val = cf['Company Website'] || cf['company_website'] || cf['Website'] || cf['website'] || (IS_MX_RECORD.test(ls) ? '' : ls);
+  const isUrl = val.startsWith('http://') || val.startsWith('https://');
+  const isDomain = !isUrl && /^[a-z0-9-]+(\.[a-z]{2,})+$/i.test(val.trim());
+  const href = isUrl ? val : isDomain ? 'https://' + val.trim() : '';
+  return { val, href };
+}
+
 const DISPOSITIONS = [
   'Interested - Appointment Set', 'Interested - Needs Follow-Up', 'Qualified Lead',
   'Information Sent', 'Callback Scheduled', 'Sale Closed', 'Follow-Up Required',
@@ -261,13 +273,6 @@ export function renderDialer(ctx) {
   const contact = queue[queueIndex];
   if (!contact) return renderDialer(Object.assign({}, ctx, { queue: [] }));
 
-  if (contact.phone && contact.phone.includes(',') && !contact._phoneSplit) {
-    const parts = contact.phone.split(',').map(p => p.trim()).filter(Boolean);
-    contact.phone = parts[0];
-    if (!contact.alternate_phone && parts.length > 1) contact.alternate_phone = parts[1];
-    contact._phoneSplit = true;
-  }
-
   const completed = campaign.completed_contacts || 0, skipped = campaign.skipped_contacts || 0;
   const answered = campaign.answered_calls || 0, total = campaign.total_contacts || 0;
   let h = '';
@@ -304,13 +309,7 @@ export function renderDialer(ctx) {
   if (showDisposition) {
     h += renderDisposition(contact, saving, leadCreated);
   } else {
-    const _cf = contact.custom_fields || {};
-    const _ls = contact.lead_source || '';
-    const _lsMx = /mail\.protection|aspmx|mx\d|ppe-hosted|pphosted|mimecast/i.test(_ls);
-    const websiteVal = _cf['Company Website'] || _cf['company_website'] || _cf['Website'] || _cf['website'] || (_lsMx ? '' : _ls);
-    const wsIsUrl = websiteVal.startsWith('http://') || websiteVal.startsWith('https://');
-    const wsIsDomain = !wsIsUrl && /^[a-z0-9-]+(\.[a-z]{2,})+$/i.test(websiteVal.trim());
-    const wsHref = wsIsUrl ? websiteVal : wsIsDomain ? 'https://' + websiteVal.trim() : '';
+    const { val: websiteVal, href: wsHref } = resolveWebsite(contact);
     const altPhone = contact.alternate_phone || '';
     const hasAlt = altPhone.replace(/\D/g, '').length >= 7;
     h += `<div style="text-align:center;margin-bottom:20px">
@@ -353,12 +352,7 @@ export function renderDialer(ctx) {
   h += `<div style="width:260px;border-left:1px solid var(--border);overflow-y:auto;padding:16px;flex-shrink:0;background:#fafafa">
     <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:12px">Contact Details</div>`;
   const cf = contact.custom_fields || {};
-  const lsRaw = contact.lead_source || '';
-  const lsIsMx = /mail\.protection|aspmx|mx\d|ppe-hosted|pphosted|mimecast/i.test(lsRaw);
-  const wsVal = cf['Company Website'] || cf['company_website'] || cf['Website'] || cf['website'] || (lsIsMx ? '' : lsRaw);
-  const wsIsLink = wsVal.startsWith('http://') || wsVal.startsWith('https://');
-  const wsIsDom = !wsIsLink && /^[a-z0-9-]+(\.[a-z]{2,})+$/i.test(wsVal.trim());
-  const wsLink = wsIsLink ? wsVal : wsIsDom ? 'https://' + wsVal.trim() : '';
+  const { val: wsVal, href: wsLink } = resolveWebsite(contact);
   if (wsVal) {
     h += `<div style="margin-bottom:12px;padding:10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px">
       <div style="font-size:10px;color:#3b82f6;font-weight:600;margin-bottom:4px">Company Website</div>
