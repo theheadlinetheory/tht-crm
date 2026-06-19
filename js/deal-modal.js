@@ -1285,15 +1285,15 @@ export function renderDealModal(deal){
         </div>`;
       }
 
-      // Push to Client Sheet button
+      // Pass Off to Client button
       {
         const hasSheet = !!str(matchedClient.clientSheetId).trim();
         const sheetPushed = deal.pushedToTracker;
         if (hasSheet) {
           h+=`<div style="margin:0 0 8px 0">
-            <button id="push-client-sheet-btn" class="btn" style="width:100%;justify-content:center;gap:6px;font-size:13px;${sheetPushed?'background:#f5f3ff;color:#7c3aed;border:1px solid #c4b5fd':'background:#7c3aed;color:#fff;border:1px solid #6d28d9'}"
-              onclick="pushToClientSheet('${deal.id}')" title="Push lead to ${esc(matchedClient.name)}'s Lead Tracker sheet">
-              ${sheetPushed?'<span>\u2713 Sent to '+esc(matchedClient.name)+'</span> <span style="font-size:11px;opacity:.7">(re-push)</span>':svgIcon('send',14)+' Send to '+esc(matchedClient.name)+'\'s Sheet'}
+            <button id="push-client-sheet-btn" class="btn" style="width:100%;justify-content:center;gap:8px;font-size:13px;font-weight:600;padding:10px 16px;${sheetPushed?'background:#f0fdf4;color:#059669;border:1px solid #86efac':'background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;box-shadow:0 2px 8px rgba(124,58,237,.3)'}"
+              onclick="pushToClientSheet('${deal.id}')" title="Pass off lead to ${esc(matchedClient.name)}">
+              ${sheetPushed?svgIcon('check',14)+' Passed Off to '+esc(matchedClient.name)+' <span style="font-size:11px;opacity:.7;font-weight:400">(re-send)</span>':svgIcon('send',14)+' Pass Off to '+esc(matchedClient.name)}
             </button>
           </div>`;
         }
@@ -1791,9 +1791,10 @@ window.pushToClientSheet = async function(dealId) {
         state.selectedDeal = deal;
       }
     }
-    btn.innerHTML = '<span style="color:#059669">✓ Pushed to Client Sheet</span>';
+    btn.innerHTML = svgIcon('check',14)+' Passed Off to ' + (result.client || 'client');
+    btn.style.background = '#f0fdf4'; btn.style.color = '#059669'; btn.style.border = '1px solid #86efac'; btn.style.boxShadow = 'none';
     const { showToast: toast } = await import('./api.js?v=20260618e');
-    toast('Lead pushed to ' + (result.client || 'client') + "'s sheet", 'success');
+    toast('Lead passed off to ' + (result.client || 'client'), 'success');
     setTimeout(() => refreshModal(), 1000);
   } catch (e) {
     const msg = e.name === 'AbortError' ? 'Request timed out' : (e.message || 'Unknown error');
