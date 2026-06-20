@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // SEARCH — Global search, activity badges, pipeline helpers
 // ═══════════════════════════════════════════════════════════
-import { state, clientPortalStages } from './app.js?v=20260620h';
-import { ACQUISITION_STAGES, NURTURE_STAGES, CLIENT_PALETTE, ALL_PIPELINES } from './config.js?v=20260620h';
-import { render } from './render.js?v=20260620h';
-import { getToday } from './utils.js?v=20260620h';
-import { isClient, isEmployee, currentUser, getOwnerNameForDeal } from './auth.js?v=20260620h';
-import { lookupClientInfo } from './client-info.js?v=20260620h';
+import { state, clientPortalStages } from './app.js?v=20260620i';
+import { ACQUISITION_STAGES, NURTURE_STAGES, CLIENT_PALETTE, ALL_PIPELINES } from './config.js?v=20260620i';
+import { render } from './render.js?v=20260620i';
+import { getToday } from './utils.js?v=20260620i';
+import { isClient, isEmployee, currentUser, getOwnerNameForDeal } from './auth.js?v=20260620i';
+import { lookupClientInfo } from './client-info.js?v=20260620i';
 
 export function globalSearch(q){
   state.searchQuery=q;
@@ -53,7 +53,8 @@ export function getStages(){
     return clientPortalStages;
   }
   const TZ_ORDER={'EST':0,'CST':1,'MST':2,'PST':3};
-  const sorted=[...state.clients].sort((a,b)=>{
+  const activeClients=state.showPastClients?state.clients.filter(c=>c.status==='inactive'):state.clients.filter(c=>c.status!=='inactive');
+  const sorted=[...activeClients].sort((a,b)=>{
     const aInfo=lookupClientInfo(a.name);
     const bInfo=lookupClientInfo(b.name);
     const aOrd=aInfo&&aInfo.timeZone?TZ_ORDER[aInfo.timeZone.toUpperCase()]??9:9;
