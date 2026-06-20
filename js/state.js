@@ -4,7 +4,7 @@
 // All mutations go through store.* methods to prevent direct
 // state tampering and ensure consistent re-renders.
 
-import { render, refreshModal } from './render.js?v=20260620h';
+import { render, refreshModal } from './render.js?v=20260620i';
 
 // ─── Raw State (private — modules should use store.*) ───
 export const state = {
@@ -43,6 +43,7 @@ export const state = {
   archiveSortDir: 'newest',
   archiveSearch: '',
   showEmployeeArchive: false,
+  showPastClients: false,
   bulkMode: false,
   bulkSelected: new Set(),
   viewMode: 'board',
