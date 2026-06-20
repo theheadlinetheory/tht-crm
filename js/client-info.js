@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // CLIENT-INFO — Client data, thread IDs, lookup functions
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, deletedClientIds } from './app.js?v=20260620j';
-import { CLIENT_PALETTE, CLIENT_INFO_SHEET_ID } from './config.js?v=20260620j';
-import { render } from './render.js?v=20260620j';
-import { str, uid, esc, isValidDate, getToday, svgIcon } from './utils.js?v=20260620j';
-import { sbCreateClient, sbDeleteClient, camelToSnake, apiPost, invokeEdgeFunction, showToast } from './api.js?v=20260620j';
-import { isClient, isAdmin } from './auth.js?v=20260620j';
+import { state, store, pendingWrites, deletedClientIds } from './app.js?v=20260620k';
+import { CLIENT_PALETTE, CLIENT_INFO_SHEET_ID } from './config.js?v=20260620k';
+import { render } from './render.js?v=20260620k';
+import { str, uid, esc, isValidDate, getToday, svgIcon } from './utils.js?v=20260620k';
+import { sbCreateClient, sbDeleteClient, camelToSnake, apiPost, invokeEdgeFunction, showToast, supabase } from './api.js?v=20260620k';
+import { isClient, isAdmin } from './auth.js?v=20260620k';
 
 // ─── Derive campaign keyword from client name ───
 const SKIP_PREFIXES = /^(the|a|an)\s+/i;
@@ -25,7 +25,7 @@ let _clientConfigLoaded = false;
 
 export async function loadClientConfig() {
   try {
-    const { sbGetClientConfig } = await import('./api.js?v=20260620j');
+    const { sbGetClientConfig } = await import('./api.js?v=20260620k');
     const data = await sbGetClientConfig();
     if (Array.isArray(data)) _clientConfigCache = data;
     _clientConfigLoaded = true;
@@ -204,11 +204,13 @@ export async function addClient(name, extra={}){
 export function removeClient(name){
   const client = state.clients.find(c => c.name === name);
   if(client && client.id){
-    deletedClientIds.add(String(client.id));
+    client.status = 'inactive';
     pendingWrites.value++;
-    sbDeleteClient(client.id).catch(e=>console.error('Delete client failed:',e)).finally(() => { pendingWrites.value--; });
+    supabase.from('clients').update({ status: 'inactive' }).eq('id', client.id)
+      .then(({ error }) => { if(error) console.error('Deactivate client failed:', error); })
+      .finally(() => { pendingWrites.value--; });
   }
-  store.removeClient(name);
+  render();
 }
 
 // ─── Timezone Derivation ───
