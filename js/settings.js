@@ -2,15 +2,15 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260620i';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260620i';
-import { render } from './render.js?v=20260620i';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbUpdateClientConfig, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast } from './api.js?v=20260620i';
-import { esc, str, svgIcon } from './utils.js?v=20260620i';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js?v=20260620i';
-import { lookupClientInfo, getClientConfig, loadClientConfig } from './client-info.js?v=20260620i';
-import { findPolygonForClient } from './maps.js?v=20260620i';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260620i';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260620j';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260620j';
+import { render } from './render.js?v=20260620j';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbUpdateClientConfig, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast } from './api.js?v=20260620j';
+import { esc, str, svgIcon } from './utils.js?v=20260620j';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js?v=20260620j';
+import { lookupClientInfo, getClientConfig, loadClientConfig } from './client-info.js?v=20260620j';
+import { findPolygonForClient } from './maps.js?v=20260620j';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260620j';
 
 export function getDefaultSettings(){
   return {
@@ -281,7 +281,7 @@ export function refreshSettingsBody(){
       window._dialerFieldsLoaded = true;
       supabase.from('crm_settings').select('value').eq('key','dialer_default_fields').single()
         .then(({ data }) => { window._dialerDefaultFields = data?.value ? JSON.parse(data.value) : []; refreshSettingsBody(); });
-      import('./number-health.js?v=20260620i').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
+      import('./number-health.js?v=20260620j').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
     }
     h=renderDialerSettings();
   }
@@ -450,7 +450,10 @@ function renderClientsSettings(){
 
   h+=`<div id="settings-clients-container">`;
 
-  for(const c of state.clients){
+  const _activeClients = state.clients.filter(c => c.status !== 'inactive');
+  const _inactiveClients = state.clients.filter(c => c.status === 'inactive');
+
+  for(const c of _activeClients){
     const isOn=(field)=>str(c[field]).toUpperCase()==='TRUE';
     const toggleCount = ['enableForward','enableCalendly','enableCopyInfo','enableTracker','enableAutoForward','enablePassoff'].filter(f=>isOn(f)).length;
     const isExpanded = _expandedClientId === c.id;
@@ -767,7 +770,23 @@ function renderClientsSettings(){
 
   h+=`</div>`;
 
-  h+=`<div style="padding:10px 12px;background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.15);border-radius:8px">
+  if(_inactiveClients.length > 0){
+    h+=`<div style="margin-top:16px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <div onclick="document.getElementById('past-clients-list').style.display=document.getElementById('past-clients-list').style.display==='none'?'block':'none';this.querySelector('.chevron').textContent=document.getElementById('past-clients-list').style.display==='none'?'\u25B8':'\u25BE'" style="padding:10px 14px;background:#f9fafb;cursor:pointer;display:flex;align-items:center;gap:8px;user-select:none">
+        <span class="chevron" style="font-size:12px;color:var(--text-muted)">\u25B8</span>
+        <span style="font-size:12px;font-weight:700;color:#6b7280">Past Clients</span>
+        <span style="font-size:11px;color:var(--text-muted)">(${_inactiveClients.length})</span>
+      </div>
+      <div id="past-clients-list" style="display:none">
+        ${_inactiveClients.map(c=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 14px;border-top:1px solid var(--border)">
+          <span style="font-size:13px;font-weight:500;color:var(--text-muted)">${esc(c.name)}</span>
+          <button class="btn btn-ghost" style="font-size:11px;padding:3px 10px;background:#f0fdf4;color:#059669;border:1px solid #a7f3d0" onclick="restoreClient('${esc(c.id)}')">Restore</button>
+        </div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  h+=`<div style="padding:10px 12px;background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.15);border-radius:8px;margin-top:12px">
     <p style="font-size:11px;color:var(--text-muted);margin:0"><strong style="color:var(--text)">\uD83D\uDCA1 How it works:</strong> Toggle the actions each client needs. Only enabled actions show up on deal cards. Campaign keywords match against Smartlead campaign names to auto-assign leads to clients.</p>
   </div>`;
 
@@ -1291,7 +1310,7 @@ export async function createNewUser(){
   msg.style.display='none';
 
   try {
-    const { auth } = await import('./auth.js?v=20260620i');
+    const { auth } = await import('./auth.js?v=20260620j');
     const cred = await auth.createUserWithEmailAndPassword(email, pass);
     await cred.user.updateProfile({ displayName: name });
     await db.collection('users').doc(cred.user.uid).set({
@@ -1603,7 +1622,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260620i');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260620j');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);
@@ -1833,3 +1852,23 @@ async function saveOnboardingData() {
 window.parseOnboardingDoc = parseOnboardingDoc;
 window.renderOnboardingModal = renderOnboardingModal;
 window.saveOnboardingData = saveOnboardingData;
+
+window.restoreClient = async function(clientId) {
+  const c = state.clients.find(x => str(x.id) === str(clientId));
+  if (!c || !confirm(`Restore ${c.name} to active clients?`)) return;
+  c.status = 'active';
+  render();
+  const { error } = await supabase.from('clients').update({ status: 'active' }).eq('id', clientId);
+  if (error) { showToast('Restore failed: ' + error.message, 'error'); c.status = 'inactive'; render(); }
+  else showToast(`${c.name} restored`, 'success');
+};
+
+window.deactivateClient = async function(clientId) {
+  const c = state.clients.find(x => str(x.id) === str(clientId));
+  if (!c || !confirm(`Deactivate ${c.name}? They will move to Past Clients.`)) return;
+  c.status = 'inactive';
+  render();
+  const { error } = await supabase.from('clients').update({ status: 'inactive' }).eq('id', clientId);
+  if (error) { showToast('Deactivate failed: ' + error.message, 'error'); c.status = 'active'; render(); }
+  else showToast(`${c.name} deactivated`, 'success');
+};
