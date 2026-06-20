@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // CALENDLY — Calendly popup/inline widget integration
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20260620g';
-import { TZ_TO_IANA, ACQ_CALENDLY_URLS } from './config.js?v=20260620g';
-import { render, refreshModal } from './render.js?v=20260620g';
-import { sbUpdateDeal, sbCreateAppointment, sbDeleteAppointment, camelToSnake } from './api.js?v=20260620g';
-import { esc, str, getToday, fmtTime12, uid } from './utils.js?v=20260620g';
-import { lookupClientInfo, findClientForDeal } from './client-info.js?v=20260620g';
+import { state, store, pendingWrites } from './app.js?v=20260620h';
+import { TZ_TO_IANA, ACQ_CALENDLY_URLS } from './config.js?v=20260620h';
+import { render, refreshModal } from './render.js?v=20260620h';
+import { sbUpdateDeal, sbCreateAppointment, sbDeleteAppointment, camelToSnake } from './api.js?v=20260620h';
+import { esc, str, getToday, fmtTime12, uid } from './utils.js?v=20260620h';
+import { lookupClientInfo, findClientForDeal } from './client-info.js?v=20260620h';
 
 export function buildCalendlyUrl(baseUrl, deal){
   if(!baseUrl) return '';
