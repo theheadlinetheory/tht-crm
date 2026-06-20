@@ -5,12 +5,12 @@
 // Full warm call overlay with maps, Calendly inline, property view,
 // schedule prompt, and warm call Q&A.
 
-import { state, pendingWrites } from './app.js?v=20260620c';
-import { render, refreshModal } from './render.js?v=20260620c';
-import { invokeEdgeFunction } from './api.js?v=20260620c';
-import { esc, str, svgIcon, getToday, isValidDate, fmtDate, fmtTime12, uid } from './utils.js?v=20260620c';
-import { findClientForDeal, lookupClientInfo, getWarmCallQA } from './client-info.js?v=20260620c';
-import { isAdmin, isEmployee } from './auth.js?v=20260620c';
+import { state, pendingWrites } from './app.js?v=20260620d';
+import { render, refreshModal } from './render.js?v=20260620d';
+import { invokeEdgeFunction } from './api.js?v=20260620d';
+import { esc, str, svgIcon, getToday, isValidDate, fmtDate, fmtTime12, uid } from './utils.js?v=20260620d';
+import { findClientForDeal, lookupClientInfo, getWarmCallQA } from './client-info.js?v=20260620d';
+import { isAdmin, isEmployee } from './auth.js?v=20260620d';
 
 export function openWarmCallSheet(dealId){
   try{
@@ -404,7 +404,7 @@ let _wcCalRefreshTimer=null;
 export function initWcCalendlyInline(baseUrl, clientName, dealId){
   const container=document.getElementById('wc-calendly-inline');
   if(!container||typeof Calendly==='undefined') return;
-  import('./calendly.js?v=20260620c').then(mod=>mod.setCalendlyBookingDealId(dealId));
+  import('./calendly.js?v=20260620d').then(mod=>mod.setCalendlyBookingDealId(dealId));
   const nameEl=document.getElementById('wc-cal-prefill-name');
   const emailEl=document.getElementById('wc-cal-prefill-email');
   const notesEl=document.getElementById('wc-cal-prefill-notes');
@@ -447,13 +447,13 @@ export async function pushToLeadTracker(dealId){
   }
   const btn=document.getElementById('push-tracker-btn');
   if(btn){btn.disabled=true;btn.innerHTML='Pushing...';}
-  const { autoPushToTracker } = await import('./email.js?v=20260620c');
+  const { autoPushToTracker } = await import('./email.js?v=20260620d');
   try {
     await autoPushToTracker(deal);
     // Archive the deal after successful push (same as Won drop)
     const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
     const clientName=client?client.name:deal.stage;
-    const { deleteDeal } = await import('./deals.js?v=20260620c');
+    const { deleteDeal } = await import('./deals.js?v=20260620d');
     deleteDeal(dealId, 'Closed Won', clientName);
   } catch(e){
     alert('Push to tracker failed: '+e.message);
@@ -483,7 +483,7 @@ export function deriveTimezone(location){
 export async function pushToClientInfo(dealId){
   const deal=state.deals.find(d=>d.id===dealId);
   if(!deal) return;
-  const { CLIENT_INFO_SHEET_ID } = await import('./config.js?v=20260620c');
+  const { CLIENT_INFO_SHEET_ID } = await import('./config.js?v=20260620d');
   const tz=deriveTimezone(deal.location||deal.address||'');
 
   // Map deal fields to Client Tracker columns
@@ -604,7 +604,7 @@ function showSchedulePrompt(dealId, onDone){
 export async function doCopyLeadInfo(dealId){
   const deal=state.deals.find(d=>d.id===dealId);
   if(!deal) return;
-  const { buildLeadMessage } = await import('./email.js?v=20260620c');
+  const { buildLeadMessage } = await import('./email.js?v=20260620d');
   const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
   const msg=buildLeadMessage(deal, client?client.name:'');
   if(msg){
@@ -666,7 +666,7 @@ function initStreetView() {
     return;
   }
 
-  import('./config.js?v=20260620c').then(({ GOOGLE_MAPS_API_KEY }) => {
+  import('./config.js?v=20260620d').then(({ GOOGLE_MAPS_API_KEY }) => {
     if (!GOOGLE_MAPS_API_KEY) {
       container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:13px">Google Maps API key not configured</div>';
       return;
