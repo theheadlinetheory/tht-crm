@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // EMAIL — Forward to client, lead tracker push, send to thread
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20260620d';
-import { render, refreshModal } from './render.js?v=20260620d';
-import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20260620d';
-import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20260620d';
-import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20260620d';
-import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20260620d';
-import { CRM_BASE_URL } from './config.js?v=20260620d';
+import { state, pendingWrites } from './app.js?v=20260620e';
+import { render, refreshModal } from './render.js?v=20260620e';
+import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20260620e';
+import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20260620e';
+import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20260620e';
+import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20260620e';
+import { CRM_BASE_URL } from './config.js?v=20260620e';
 
 function formatEmailBody(html){
   if(!html) return '';
@@ -193,7 +193,7 @@ export async function autoPushToTracker(deal){
   const month = `${months[billingDate.getMonth()]}/${String(billingDate.getFullYear()).slice(-2)}`;
 
   // Insert into lead_tracker table
-  const { sbCreateTrackerEntry, normalizeRow } = await import('./api.js?v=20260620d');
+  const { sbCreateTrackerEntry, normalizeRow } = await import('./api.js?v=20260620e');
   const entry = await sbCreateTrackerEntry({
     deal_id: deal.id,
     client_name: clientName,
@@ -248,6 +248,9 @@ export async function openPassOffPreview(dealId, clientName){
 
   const fwdStatus=forwarded?`<span style="color:#059669">Already forwarded ${new Date(deal.forwardedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>`:'Forward lead email to '+esc(client.name);
   const ghlStatus=!ghlConfigured?'<span style="color:#9ca3af">GHL not configured — skip</span>':ghlPushed?'<span style="color:#059669">Already pushed to GHL — will update</span>':'Push contact + opportunity to GHL';
+  const hasSheet=!!str(client.clientSheetId).trim();
+  const sheetPushed=deal.pushedToTracker && str(deal.pushedToTracker).trim()!=='';
+  const sheetStatus=!hasSheet?'<span style="color:#9ca3af">No client sheet — skip</span>':sheetPushed?'<span style="color:#059669">Already pushed to client sheet — will update</span>':'Push to '+esc(client.name)+"'s Lead Tracker + log pass-off";
 
   const companyName=deal.company||'Unknown Company';
   const contactName=deal.contact||'';
@@ -313,7 +316,8 @@ export async function openPassOffPreview(dealId, clientName){
       <div style="font-size:12px;color:#374151;line-height:2">
         <div>1. ${fwdStatus}</div>
         <div>2. ${ghlStatus}</div>
-        <div>3. Archive deal from active pipeline</div>
+        <div>3. ${sheetStatus}</div>
+        <div>4. Archive deal from active pipeline</div>
       </div>
     </div>
     <div style="padding:12px 20px 20px;display:flex;gap:8px">
@@ -354,8 +358,19 @@ export async function executePassOff(dealId, clientName){
       }
     }
 
+    // Push to client sheet (logs to pass_offs for retainer clients)
+    const hasSheet=str(client.clientSheetId).trim();
+    if(hasSheet){
+      if(btn) btn.textContent='Pushing to client sheet...';
+      try{
+        await invokeEdgeFunction('push-to-client-sheet',{dealId:dealId});
+      }catch(sheetErr){
+        console.warn('Client sheet push skipped during pass-off:',sheetErr.message);
+      }
+    }
+
     if(btn) btn.textContent='Archiving...';
-    const { deleteDeal }=await import('./deals.js?v=20260620d');
+    const { deleteDeal }=await import('./deals.js?v=20260620e');
     await deleteDeal(dealId,'Passed Off',clientName);
 
     document.getElementById('passoff-preview-overlay')?.remove();

@@ -3,9 +3,9 @@
 // ═══════════════════════════════════════════════════════════
 import { sbListFolders, sbCreateFolder, sbUpdateFolder, sbDeleteFolder,
          sbListDocuments, sbCreateDocument, sbDeleteDocument,
-         sbUploadFile, sbDeleteFile, sbGetSignedUrl, showToast } from './api.js?v=20260620d';
-import { esc, str, uid, svgIcon } from './utils.js?v=20260620d';
-import { isAdmin, isClient, isEmployee, currentUser } from './auth.js?v=20260620d';
+         sbUploadFile, sbDeleteFile, sbGetSignedUrl, showToast } from './api.js?v=20260620e';
+import { esc, str, uid, svgIcon } from './utils.js?v=20260620e';
+import { isAdmin, isClient, isEmployee, currentUser } from './auth.js?v=20260620e';
 
 // Per-client UI state: which folder tab is selected
 const _selectedFolder = {}; // { clientId: folderId|'all'|'unfiled' }
@@ -141,7 +141,7 @@ async function refreshDocsSection(clientId) {
   await loadDocumentsData(clientId);
   const container = document.getElementById('docs-section-' + clientId);
   if (!container) return;
-  const { state } = await import('./app.js?v=20260620d');
+  const { state } = await import('./app.js?v=20260620e');
   const client = state.clients.find(c => c.id === clientId);
   if (!client) return;
   const newHtml = renderDocumentsSection(client);
