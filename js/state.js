@@ -4,7 +4,7 @@
 // All mutations go through store.* methods to prevent direct
 // state tampering and ensure consistent re-renders.
 
-import { render, refreshModal } from './render.js?v=20260620f';
+import { render, refreshModal } from './render.js?v=20260620g';
 
 // ─── Raw State (private — modules should use store.*) ───
 export const state = {
@@ -49,6 +49,8 @@ export const state = {
   campaignAssignments: {},
   acquisitionFilter: '',
   showAcqFilterDropdown: false,
+  verticalFilter: '',
+  showVerticalFilterDropdown: false,
   countryFilter: (() => { try { const v = JSON.parse(localStorage.getItem('tht_countryFilter') || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } })(),
   showCountryFilterDropdown: false,
   acquisitionSubTab: (() => { try { const parts = location.hash.replace('#','').split('/'); if (parts[0] === 'acquisition' && parts[1]) { const valid = ['pipeline','nurture','demo_tracker','cold_calls','retargeting']; return valid.includes(parts[1]) ? parts[1] : 'pipeline'; } return 'pipeline'; } catch { return 'pipeline'; } })(),

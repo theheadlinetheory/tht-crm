@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // SEARCH — Global search, activity badges, pipeline helpers
 // ═══════════════════════════════════════════════════════════
-import { state, clientPortalStages } from './app.js?v=20260620f';
-import { ACQUISITION_STAGES, NURTURE_STAGES, CLIENT_PALETTE, ALL_PIPELINES } from './config.js?v=20260620f';
-import { render } from './render.js?v=20260620f';
-import { getToday } from './utils.js?v=20260620f';
-import { isClient, isEmployee, currentUser, getOwnerNameForDeal } from './auth.js?v=20260620f';
-import { lookupClientInfo } from './client-info.js?v=20260620f';
+import { state, clientPortalStages } from './app.js?v=20260620g';
+import { ACQUISITION_STAGES, NURTURE_STAGES, CLIENT_PALETTE, ALL_PIPELINES } from './config.js?v=20260620g';
+import { render } from './render.js?v=20260620g';
+import { getToday } from './utils.js?v=20260620g';
+import { isClient, isEmployee, currentUser, getOwnerNameForDeal } from './auth.js?v=20260620g';
+import { lookupClientInfo } from './client-info.js?v=20260620g';
 
 export function globalSearch(q){
   state.searchQuery=q;
@@ -70,6 +70,9 @@ export function getPipelineDeals(){
     let acqDeals = state.deals.filter(d=>d.pipeline==='Acquisition');
     if(state.acquisitionFilter){
       acqDeals = acqDeals.filter(d => getOwnerNameForDeal(d) === state.acquisitionFilter);
+    }
+    if(state.verticalFilter){
+      acqDeals = acqDeals.filter(d => (d.vertical || 'Other') === state.verticalFilter);
     }
     return acqDeals;
   }
