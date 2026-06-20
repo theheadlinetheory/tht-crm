@@ -1285,15 +1285,15 @@ export function renderDealModal(deal){
         </div>`;
       }
 
-      // Pass Off to Client button (skip if enablePassoff mode already rendered one)
+      // Push to Client Sheet button
       {
         const hasSheet = !!str(matchedClient.clientSheetId).trim();
         const sheetPushed = deal.pushedToTracker;
-        if (hasSheet && !isOn('enablePassoff')) {
+        if (hasSheet) {
           h+=`<div style="margin:0 0 8px 0">
-            <button id="push-client-sheet-btn" class="btn" style="width:100%;justify-content:center;gap:8px;font-size:13px;font-weight:600;padding:10px 16px;${sheetPushed?'background:#f0fdf4;color:#059669;border:1px solid #86efac':'background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;box-shadow:0 2px 8px rgba(124,58,237,.3)'}"
-              onclick="pushToClientSheet('${deal.id}')" title="Pass off lead to ${esc(matchedClient.name)}">
-              ${sheetPushed?svgIcon('check',14)+' Passed Off to '+esc(matchedClient.name)+' <span style="font-size:11px;opacity:.7;font-weight:400">(re-send)</span>':svgIcon('send',14)+' Pass Off to '+esc(matchedClient.name)}
+            <button id="push-client-sheet-btn" class="btn ${sheetPushed?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px"
+              onclick="pushToClientSheet('${deal.id}')" title="Push lead to ${esc(matchedClient.name)}'s Lead Tracker sheet">
+              ${sheetPushed?'<span style="color:#059669">'+svgIcon('check',14)+' Pushed to Client Sheet</span> <span style="font-size:11px;color:#6b7280">(re-push)</span>':svgIcon('upload',14)+' Push to Client Sheet'}
             </button>
           </div>`;
         }
