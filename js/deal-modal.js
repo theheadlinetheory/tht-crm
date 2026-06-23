@@ -1709,7 +1709,6 @@ async function startAutoFollowUp(dealId){
     if(resp.ok && result.status === 'ok'){
       deal.leadCategory = 'HT Subsequence FU';
       deal.autoFollowupStartedAt = new Date().toISOString();
-      render();
       refreshModal(true);
       if(result.alreadyActive) console.log('[Subseq] Lead was already in subsequence — marked active');
     } else {
