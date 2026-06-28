@@ -5,7 +5,8 @@ import { state, pendingWrites } from './app.js?v=20260623a';
 import { showToast, sbCreateActivity, sbUpdateDeal, camelToSnake } from './api.js?v=20260623a';
 import { uid, getToday, esc, applyTemplate } from './utils.js?v=20260623a';
 import { refreshModal } from './render.js?v=20260623a';
-import { BLOOIO_BASE_URL, BLOOIO_API_KEY, SEQUENCE_TEMPLATES, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260623a';
+import { BLOOIO_BASE_URL, BLOOIO_API_KEY, SEQUENCE_TEMPLATES, CLIENT_LEAD_TEMPLATES, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260623a';
+import { findClientForDeal } from './client-info.js?v=20260623a';
 
 let cachedFromNumber = null;
 
@@ -215,7 +216,12 @@ export function openBlooioModal(dealId, phoneField){
   const tplSelect = document.getElementById('blooio-tpl');
 
   const isAcq = deal.pipeline === 'Acquisition';
-  const sequences = isAcq ? (state.savedSettings?.sequence_templates || SEQUENCE_TEMPLATES) : [];
+  const isClient = deal.pipeline === 'Client';
+  const sequences = isAcq ? (state.savedSettings?.sequence_templates || SEQUENCE_TEMPLATES)
+    : isClient ? CLIENT_LEAD_TEMPLATES : [];
+  const client = isClient ? findClientForDeal(deal) : null;
+  const clientName = client?.name || '';
+  const clientFirst = client?.contactFirstName || '';
   if(sequences.length){
     sequences.forEach((seq, i) => {
       const opt = document.createElement('option');
@@ -245,7 +251,7 @@ export function openBlooioModal(dealId, phoneField){
   tplSelect.onchange = async () => {
     const si = parseInt(seqSelect.value), ti = parseInt(tplSelect.value);
     if(isNaN(si) || isNaN(ti) || !sequences[si]?.templates?.[ti]) return;
-    let text = applyTemplate(sequences[si].templates[ti].body, deal, '', '');
+    let text = applyTemplate(sequences[si].templates[ti].body, deal, clientName, clientFirst);
     msgEl.value = text;
     msgEl.focus();
     if(text.includes('TIME')){
@@ -267,11 +273,16 @@ export function openBlooioModal(dealId, phoneField){
     }
   };
 
-  const stageToSeq = { 'Cold Email Response':'follow-up', 'Follow-up':'follow-up', 'Discovery Scheduled':'pre-call-nurture', 'Demo Scheduled':'pre-call-nurture' };
-  const autoId = stageToSeq[deal.stage];
-  if(autoId){
-    const idx = sequences.findIndex(s => s.id === autoId);
-    if(idx >= 0){ seqSelect.value = idx; populateTemplates(idx); }
+  if(isClient && sequences.length === 1){
+    seqSelect.value = 0;
+    populateTemplates(0);
+  } else {
+    const stageToSeq = { 'Cold Email Response':'follow-up', 'Follow-up':'follow-up', 'Discovery Scheduled':'pre-call-nurture', 'Demo Scheduled':'pre-call-nurture' };
+    const autoId = stageToSeq[deal.stage];
+    if(autoId){
+      const idx = sequences.findIndex(s => s.id === autoId);
+      if(idx >= 0){ seqSelect.value = idx; populateTemplates(idx); }
+    }
   }
 
   // Load conversation thread

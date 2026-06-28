@@ -161,6 +161,17 @@ export const SEQUENCE_TEMPLATES = [
   },
 ];
 
+// ─── Client Lead Templates (text-only for Blooio, client pipeline) ───
+export const CLIENT_LEAD_TEMPLATES = [
+  {
+    id: 'client-lead-outreach',
+    label: 'Client Lead Outreach',
+    templates: [
+      { name: 'Initial Text', body: `Hey {FIRST_NAME}, this is Sean with {CLIENT_NAME}. Saw you responded to an email of ours and figured I'd shoot you a quick text. We'd love to learn more about your project and see how we can help.\n\nWould today at TIME or tomorrow at TIME work for a quick call?` },
+    ]
+  },
+];
+
 // ─── Default Client Portal Stages ───
 export const DEFAULT_CLIENT_STAGES = [
   { id: "Positive Response", label: "Positive Response", color: "#059669" },
