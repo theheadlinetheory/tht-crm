@@ -561,6 +561,16 @@ function renderClientsSettings(){
           style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
         <div style="font-size:9px;color:var(--text-muted);margin-top:2px">Comma-separated. These receive invoice emails (Lars always CC'd).</div>
       </div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Lead Tracker Sheet</label>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:3px">
+          ${str(c.clientSheetId) ? `
+            <a href="https://docs.google.com/spreadsheets/d/${esc(str(c.clientSheetId))}/edit" target="_blank" style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;background:#dcfce7;border:1px solid #86efac;border-radius:6px;font-size:11px;font-weight:600;color:#16a34a;text-decoration:none">${svgIcon('external-link',12)} Open Sheet</a>
+          ` : `
+            <button onclick="createLeadTrackerSheet('${esc(c.id)}','${esc(c.name)}',${isOn('hasInboxMgmt')})" style="padding:5px 12px;background:#4f46e5;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">${svgIcon('upload',12)} Create Lead Tracker</button>
+          `}
+        </div>
+      </div>
 
       ${(()=>{
         const cfg = getClientConfig(c.name) || {};
@@ -1211,6 +1221,30 @@ async function flushClientConfigUpdates() {
 }
 
 window.updateClientConfig = updateClientConfig;
+
+export async function createLeadTrackerSheet(clientId, clientName, hasInboxMgmt) {
+  const btn = event?.target?.closest('button');
+  if (btn) { btn.disabled = true; btn.textContent = 'Creating...'; }
+  try {
+    const result = await invokeEdgeFunction('client-sheet-setup', {
+      action: 'create_sheet',
+      clientName,
+      hasInboxMgmt,
+    });
+    if (!result.sheetId) throw new Error(result.error || 'No sheet ID returned');
+    const c = state.clients.find(x => str(x.id) === str(clientId));
+    if (c) c.clientSheetId = result.sheetId;
+    await sbUpdateClient(clientId, { client_sheet_id: result.sheetId });
+    showToast(`Lead Tracker created for ${clientName}`, 'success');
+    const body = document.querySelector('.settings-body');
+    if (body) body.innerHTML = renderClientsSettings();
+  } catch (e) {
+    showToast(`Failed to create sheet: ${e.message}`, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Create Lead Tracker'; }
+  }
+}
+
+window.createLeadTrackerSheet = createLeadTrackerSheet;
 
 export function toggleClientField(clientId, field, checked){
   if (field === 'enableAutoForward' && checked) {
