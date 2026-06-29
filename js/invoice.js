@@ -17,7 +17,8 @@ function getCurrentMonth() {
 function getAvailableMonths() {
   const months = new Set();
   for (const e of state.trackerEntries) {
-    if (str(e.month).trim()) months.add(str(e.month).trim());
+    const bm = billingMonth(e);
+    if (bm) months.add(bm);
   }
   return [...months].sort((a, b) => parseMonth(a) - parseMonth(b));
 }
@@ -39,11 +40,26 @@ function formatMonthDisplay(m) {
   return `${parts[0]} ${y}`;
 }
 
+// ─── Billing month: appointment month if set, otherwise push month ───
+function billingMonth(entry) {
+  const appt = str(entry.apptDate || entry.appt_date).trim();
+  if (appt) {
+    const parts = appt.split('/');
+    if (parts.length >= 2) {
+      const mi = parseInt(parts[0], 10) - 1;
+      let y = parseInt(parts.length >= 3 ? parts[2] : parts[1], 10);
+      if (y < 100) y += 2000;
+      if (mi >= 0 && mi < 12) return `${MONTHS[mi]}/${String(y).slice(-2)}`;
+    }
+  }
+  return str(entry.month).trim();
+}
+
 // ─── Get billable entries for a client/month ───
 function getBillableEntries(client, month) {
   return state.trackerEntries.filter(e =>
     str(e.clientName) === client &&
-    str(e.month) === month &&
+    billingMonth(e) === month &&
     str(e.callbackStatus).toLowerCase() !== 'called back' &&
     !str(e.stripeInvoiceId)
   );
@@ -52,7 +68,7 @@ function getBillableEntries(client, month) {
 function getExistingInvoices(client, month) {
   const byInvoice = {};
   for (const e of state.trackerEntries) {
-    if (str(e.clientName) !== client || str(e.month) !== month || !str(e.stripeInvoiceId)) continue;
+    if (str(e.clientName) !== client || billingMonth(e) !== month || !str(e.stripeInvoiceId)) continue;
     const invId = str(e.stripeInvoiceId);
     if (!byInvoice[invId]) byInvoice[invId] = { invoiceId: invId, entries: [], paidStatus: '' };
     byInvoice[invId].entries.push(e);
