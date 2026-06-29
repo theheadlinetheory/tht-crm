@@ -89,6 +89,46 @@ window.toggleClientAccordion = function(clientId){
   });
 };
 
+function buildClientUpdate(c) {
+  const u = {
+    id:c.id,
+    notifyEmails:str(c.notifyEmails),
+    notifyEmail:str(c.notifyEmails),
+    campaignKeywords:str(c.campaignKeywords),
+    contactFirstName:str(c.contactFirstName),
+    contactLastName:str(c.contactLastName),
+    calendlyUrl:str(c.calendlyUrl),
+    enableForward:str(c.enableForward),
+    enableCalendly:str(c.enableCalendly),
+    enableAutoForward:str(c.enableAutoForward),
+    enableCopyInfo:str(c.enableCopyInfo),
+    enableTracker:str(c.enableTracker),
+    enablePassoff:str(c.enablePassoff),
+    enableCrmLink:str(c.enableCrmLink),
+    hasInboxMgmt:str(c.hasInboxMgmt),
+    leadCost:str(c.leadCost),
+    setupFeeTotal:str(c.setupFeeTotal ?? ''),
+    setupFeeDeposit:str(c.setupFeeDeposit ?? ''),
+    setupFeeSpreadCount:str(c.setupFeeSpreadCount ?? ''),
+    setupFeeLeadsBilled:str(c.setupFeeLeadsBilled ?? ''),
+    invoiceEmails:str(c.invoiceEmails ?? ''),
+    paymentTerms:str(c.paymentTerms||'Net 7'),
+    clientNotes:str(c.clientNotes ?? ''),
+    warmCallNotesText:str(c.warmCallNotesText ?? ''),
+    passoffInstructions:str(c.passoffInstructions ?? ''),
+    clientStanding:str(c.clientStanding||'neutral'),
+    homeBase:str(c.homeBase ?? ''),
+    timeZone:str(c.timeZone ?? ''),
+    onboardingDocUrl:str(c.onboardingDocUrl ?? ''),
+    onboardingParsedAt:c.onboardingParsedAt||null
+  };
+  if(c.ghlLocationId) u.ghlLocationId = c.ghlLocationId;
+  if(c.ghlApiKey) u.ghlApiKey = c.ghlApiKey;
+  if(c.ghlPipelineId) u.ghlPipelineId = c.ghlPipelineId;
+  if(c.ghlStageId) u.ghlStageId = c.ghlStageId;
+  return u;
+}
+
 export function debouncedAutoSave(){
   clearTimeout(_autoSaveTimer);
   // Don't auto-save while onboarding modal is open — its fields live in DOM, not state
@@ -98,42 +138,7 @@ export function debouncedAutoSave(){
   _autoSaveTimer = setTimeout(async ()=>{
     try{
       applySettings(settingsDraft);
-      const clientUpdates = state.clients.filter(c=>c.id).map(c=>{
-        const u = {
-          id:c.id,
-          notifyEmails:str(c.notifyEmails),
-          notifyEmail:str(c.notifyEmails),
-          campaignKeywords:str(c.campaignKeywords),
-          contactFirstName:str(c.contactFirstName),
-          contactLastName:str(c.contactLastName),
-          calendlyUrl:str(c.calendlyUrl),
-          enableForward:str(c.enableForward),
-          enableCalendly:str(c.enableCalendly),
-          enableAutoForward:str(c.enableAutoForward),
-          enableCopyInfo:str(c.enableCopyInfo),
-          enableTracker:str(c.enableTracker),
-          leadCost:str(c.leadCost),
-          setupFeeTotal:str(c.setupFeeTotal||''),
-          setupFeeDeposit:str(c.setupFeeDeposit||''),
-          setupFeeSpreadCount:str(c.setupFeeSpreadCount||''),
-          setupFeeLeadsBilled:str(c.setupFeeLeadsBilled||''),
-          invoiceEmails:str(c.invoiceEmails||''),
-          paymentTerms:str(c.paymentTerms||'Net 7'),
-          clientNotes:str(c.clientNotes||''),
-          warmCallNotesText:str(c.warmCallNotesText||''),
-          passoffInstructions:str(c.passoffInstructions||''),
-          clientStanding:str(c.clientStanding||'neutral'),
-          homeBase:str(c.homeBase||''),
-          timeZone:str(c.timeZone||''),
-          onboardingDocUrl:str(c.onboardingDocUrl||''),
-          onboardingParsedAt:c.onboardingParsedAt||null
-        };
-        if(c.ghlLocationId) u.ghlLocationId = c.ghlLocationId;
-        if(c.ghlApiKey) u.ghlApiKey = c.ghlApiKey;
-        if(c.ghlPipelineId) u.ghlPipelineId = c.ghlPipelineId;
-        if(c.ghlStageId) u.ghlStageId = c.ghlStageId;
-        return u;
-      });
+      const clientUpdates = state.clients.filter(c=>c.id).map(buildClientUpdate);
       await Promise.all([
         sbSaveSettings(settingsDraft),
         sbBatchUpdateClients(clientUpdates.map(c => ({id:c.id, ...camelToSnake(c)})))
@@ -1240,43 +1245,7 @@ export async function saveSettingsToSheet(){
   const oldBanner=document.getElementById('settings-save-banner');
   if(oldBanner) oldBanner.remove();
   try {
-    const clientUpdates = state.clients.filter(c=>c.id).map(c=>{
-      const u = {
-        id:c.id,
-        notifyEmails:str(c.notifyEmails),
-        notifyEmail:str(c.notifyEmails),
-        campaignKeywords:str(c.campaignKeywords),
-        contactFirstName:str(c.contactFirstName),
-        contactLastName:str(c.contactLastName),
-        calendlyUrl:str(c.calendlyUrl),
-        enableForward:str(c.enableForward),
-        enableCalendly:str(c.enableCalendly),
-        enableAutoForward:str(c.enableAutoForward),
-        enableCopyInfo:str(c.enableCopyInfo),
-        enableTracker:str(c.enableTracker),
-        enablePassoff:str(c.enablePassoff),
-        leadCost:str(c.leadCost),
-        setupFeeTotal:str(c.setupFeeTotal||''),
-        setupFeeDeposit:str(c.setupFeeDeposit||''),
-        setupFeeSpreadCount:str(c.setupFeeSpreadCount||''),
-        setupFeeLeadsBilled:str(c.setupFeeLeadsBilled||''),
-        invoiceEmails:str(c.invoiceEmails||''),
-        paymentTerms:str(c.paymentTerms||'Net 7'),
-        clientNotes:str(c.clientNotes||''),
-        warmCallNotesText:str(c.warmCallNotesText||''),
-        passoffInstructions:str(c.passoffInstructions||''),
-        clientStanding:str(c.clientStanding||'neutral'),
-        homeBase:str(c.homeBase||''),
-        timeZone:str(c.timeZone||''),
-        onboardingDocUrl:str(c.onboardingDocUrl||''),
-        onboardingParsedAt:c.onboardingParsedAt||null
-      };
-      if(c.ghlLocationId) u.ghlLocationId = c.ghlLocationId;
-      if(c.ghlApiKey) u.ghlApiKey = c.ghlApiKey;
-      if(c.ghlPipelineId) u.ghlPipelineId = c.ghlPipelineId;
-      if(c.ghlStageId) u.ghlStageId = c.ghlStageId;
-      return u;
-    });
+    const clientUpdates = state.clients.filter(c=>c.id).map(buildClientUpdate);
     await Promise.all([
       sbSaveSettings(settingsDraft),
       sbBatchUpdateClients(clientUpdates.map(c => ({id:c.id, ...camelToSnake(c)})))
