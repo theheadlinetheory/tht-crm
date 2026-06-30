@@ -153,6 +153,14 @@ export function renderInvoiceModal() {
     html += renderLoadingStep('Sending Email...', 'Sending invoice email to client.');
   } else if (m.step === 'emailSent') {
     html += renderEmailSentStep(m);
+  } else if (m.step === 'bulkSummary') {
+    html += renderBulkSummaryStep(m);
+  } else if (m.step === 'bulkCreating') {
+    html += renderLoadingStep('Creating Invoices...', `Processing ${(m.bulkProgress || 0) + 1} of ${m.bulkIncluded.length} — ${esc(m.bulkIncluded[m.bulkProgress || 0]?.clientName || '')}...`);
+  } else if (m.step === 'bulkReview') {
+    html += renderBulkReviewStep(m);
+  } else if (m.step === 'bulkDone') {
+    html += renderBulkDoneStep(m);
   }
 
   html += `</div></div>`;
@@ -184,6 +192,9 @@ function renderSelectStep(m) {
         </select>
       </label>
       <button class="btn btn-primary" style="width:100%" onclick="invoicePreview()">Next — Preview Line Items</button>
+      <div style="text-align:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <button class="btn btn-ghost" style="width:100%;font-weight:600" onclick="invoiceBulkStart()">⚡ Bill All Clients</button>
+      </div>
     </div>`;
 }
 
@@ -244,6 +255,29 @@ function getEffectiveCost(entry, surchargeInfo, surchargeIndex) {
   const isCalledBack = str(entry.callbackStatus).toLowerCase() === 'called back';
   if (isCalledBack) return base;
   return base + surchargeInfo.perLead;
+}
+
+function getAllBillableClients(month) {
+  const clientMap = {};
+  for (const e of state.trackerEntries) {
+    const name = str(e.clientName);
+    if (!name || billingMonth(e) !== month) continue;
+    if (str(e.callbackStatus).toLowerCase() === 'called back') continue;
+    if (str(e.stripeInvoiceId)) continue;
+    const client = state.clients.find(c => str(c.name) === name);
+    if (!client || !client.leadCost) continue;
+    if (!clientMap[name]) clientMap[name] = [];
+    clientMap[name].push(e);
+  }
+  return Object.entries(clientMap).map(([name, entries]) => {
+    const surchargeInfo = getSetupFeeInfo(name);
+    let idx = 0, total = 0;
+    for (const e of entries) {
+      total += getEffectiveCost(e, surchargeInfo, idx);
+      if (surchargeInfo && idx < surchargeInfo.left) idx++;
+    }
+    return { clientName: name, entries, total };
+  }).filter(c => c.entries.length > 0).sort((a, b) => a.clientName.localeCompare(b.clientName));
 }
 
 function renderPreviewStep(m) {
@@ -465,6 +499,192 @@ function renderEmailSentStep(m) {
         <button class="btn btn-ghost" onclick="invoiceSendAgain()">Send Again</button>
         <button class="btn btn-primary" onclick="closeInvoiceModal()">Done</button>
       </div>
+    </div>`;
+}
+
+// ─── Bulk invoice rendering ───
+function renderBulkSummaryStep(m) {
+  const clients = m.bulkClients;
+  const excluded = m.bulkExcluded;
+  const included = clients.filter(c => !excluded.has(c.clientName));
+  const grandTotal = included.reduce((sum, c) => sum + c.total, 0);
+  const totalLeads = included.reduce((sum, c) => sum + c.entries.length, 0);
+
+  const rows = clients.map(c => {
+    const checked = !excluded.has(c.clientName);
+    const surcharge = getSetupFeeInfo(c.clientName);
+    const terms = getClientPaymentTerms(c.clientName);
+    return `<tr style="${checked ? '' : 'opacity:0.35'}">
+      <td style="padding:6px 8px"><input type="checkbox" ${checked ? 'checked' : ''} onchange="invoiceBulkToggle('${esc(c.clientName)}')"></td>
+      <td style="padding:6px 8px;font-weight:500;font-size:13px">${esc(c.clientName)}</td>
+      <td style="padding:6px 8px;text-align:center">${c.entries.length}</td>
+      <td style="padding:6px 8px;text-align:right;font-size:12px;color:var(--text-muted)">${terms}</td>
+      <td style="padding:6px 8px;text-align:right;font-weight:600">${formatDollars(c.total)}${surcharge ? '<div style="font-size:10px;color:#4f46e5">+setup</div>' : ''}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div class="invoice-header">
+      <h3 style="margin:0;font-size:16px">Bulk Invoice — ${esc(formatMonthDisplay(m.month))}</h3>
+      <button class="btn btn-ghost" onclick="closeInvoiceModal()" style="padding:4px 8px">✕</button>
+    </div>
+    <div class="invoice-body">
+      ${!clients.length ? '<div style="text-align:center;padding:24px;color:var(--text-muted)">No unbilled leads for this month.</div>' : `
+      <div style="max-height:400px;overflow-y:auto">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="border-bottom:2px solid var(--border);position:sticky;top:0;background:var(--card)">
+          <th style="padding:6px 8px;width:30px"><input type="checkbox" ${excluded.size === 0 ? 'checked' : ''} onchange="invoiceBulkToggleAll()"></th>
+          <th style="padding:6px 8px;text-align:left;font-size:11px;color:var(--text-muted)">CLIENT</th>
+          <th style="padding:6px 8px;text-align:center;font-size:11px;color:var(--text-muted)">LEADS</th>
+          <th style="padding:6px 8px;text-align:right;font-size:11px;color:var(--text-muted)">TERMS</th>
+          <th style="padding:6px 8px;text-align:right;font-size:11px;color:var(--text-muted)">TOTAL</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr style="border-top:2px solid var(--border);font-weight:700">
+          <td></td>
+          <td style="padding:8px">${included.length} client${included.length !== 1 ? 's' : ''}</td>
+          <td style="padding:8px;text-align:center">${totalLeads}</td>
+          <td></td>
+          <td style="padding:8px;text-align:right">${formatDollars(grandTotal)}</td>
+        </tr></tfoot>
+      </table>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button class="btn btn-ghost" style="flex:1" onclick="invoiceBack()">← Back</button>
+        <button class="btn btn-primary" style="flex:2" onclick="invoiceBulkCreateAll()" ${!included.length ? 'disabled' : ''}>Create ${included.length} Draft${included.length !== 1 ? 's' : ''} & Send</button>
+      </div>`}
+    </div>`;
+}
+
+function renderBulkReviewStep(m) {
+  const idx = m.bulkReviewIndex;
+  const results = m.bulkResults.filter(r => !r.error);
+  if (idx >= results.length) return '';
+  const r = results[idx];
+  const info = getClientInfo(r.clientName);
+  const greeting = hasMultipleContacts(r.clientName) ? 'team' : (info.firstName || 'team');
+  const defaultBody = `Hey ${greeting},\n\nInvoice for ${formatMonthDisplay(m.month)} is attached below.\n\nLooking forward to keeping the momentum going.`;
+
+  if (!m._bulkEmailInit || m._bulkEmailClient !== r.clientName) {
+    m.emailTo = info.invoiceEmails;
+    m.emailCc = 'lars@theheadlinetheory.com';
+    m.emailBody = defaultBody;
+    m._bulkEmailInit = true;
+    m._bulkEmailClient = r.clientName;
+  }
+
+  const toEmails = (m.emailTo || '').split(',').map(e => e.trim()).filter(Boolean);
+  const ccEmails = (m.emailCc || '').split(',').map(e => e.trim()).filter(Boolean);
+  const chipStyle = 'display:inline-flex;align-items:center;gap:3px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:4px;padding:2px 6px 2px 8px;font-size:11px;color:#4338ca';
+  const xBtn = (field, email) => `<span onclick="invoiceRemoveEmail('${field}','${esc(email)}')" style="cursor:pointer;font-size:13px;color:#6366f1;font-weight:700;line-height:1">&times;</span>`;
+
+  return `
+    <div class="invoice-header">
+      <h3 style="margin:0;font-size:16px">${esc(r.clientName)}</h3>
+      <span style="font-size:12px;color:var(--text-muted)">${idx + 1} of ${results.length}</span>
+      <button class="btn btn-ghost" onclick="closeInvoiceModal()" style="padding:4px 8px">✕</button>
+    </div>
+    <div class="invoice-body">
+      <div style="display:flex;gap:12px;margin-bottom:12px">
+        <div style="flex:1;padding:8px;background:#f0fdf4;border-radius:6px;text-align:center">
+          <div style="font-size:20px;font-weight:700;color:#059669">${r.lineItems}</div>
+          <div style="font-size:11px;color:var(--text-muted)">leads</div>
+        </div>
+        <div style="flex:1;padding:8px;background:#eef2ff;border-radius:6px;text-align:center">
+          <div style="font-size:20px;font-weight:700;color:#4f46e5">${formatDollars(r.totalCents)}</div>
+          <div style="font-size:11px;color:var(--text-muted)">total</div>
+        </div>
+        <div style="flex:1;padding:8px;background:#faf5ff;border-radius:6px;text-align:center">
+          <div style="font-size:14px;font-weight:700;color:#7c3aed;margin-top:3px">${r.paymentTerms}</div>
+          <div style="font-size:11px;color:var(--text-muted)">terms</div>
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;border:1px solid var(--border);border-radius:6px;padding:10px">
+        <div style="margin-bottom:4px"><strong>From:</strong> aidan@theheadlinetheory.com</div>
+        <div style="margin-bottom:6px">
+          <strong>To:</strong>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px">
+            ${toEmails.map(e => `<span style="${chipStyle}">${esc(e)} ${xBtn('to', e)}</span>`).join('')}
+            <input id="invoice-add-to" type="text" placeholder="+ add" onkeydown="if(event.key==='Enter'){event.preventDefault();invoiceAddEmail('to')}"
+              style="width:100px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:var(--font);background:var(--card);color:var(--text)">
+          </div>
+        </div>
+        <div style="margin-bottom:6px">
+          <strong>CC:</strong>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px">
+            ${ccEmails.map(e => `<span style="${chipStyle}">${esc(e)} ${xBtn('cc', e)}</span>`).join('')}
+            <input id="invoice-add-cc" type="text" placeholder="+ add" onkeydown="if(event.key==='Enter'){event.preventDefault();invoiceAddEmail('cc')}"
+              style="width:100px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:var(--font);background:var(--card);color:var(--text)">
+          </div>
+        </div>
+        <div><strong>Subject:</strong> Invoice - Lead Generation Services - ${esc(formatMonthDisplay(m.month))}</div>
+      </div>
+      <textarea id="invoice-email-body" style="width:100%;min-height:100px;border:1px solid var(--border);border-radius:6px;padding:12px;font-size:13px;line-height:1.6;font-family:var(--font);resize:vertical">${esc(m.emailBody || '')}</textarea>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn btn-ghost" style="flex:1" onclick="invoiceBulkSkipEmail()">Skip</button>
+        <button class="btn btn-primary" style="flex:2" onclick="invoiceBulkSendEmail()">Send & Next →</button>
+      </div>
+      <div style="margin-top:8px;display:flex;justify-content:center">
+        <div style="display:flex;gap:4px">${results.map((_, i) => `<div style="width:8px;height:8px;border-radius:50%;background:${i < idx ? '#059669' : i === idx ? '#4f46e5' : '#e5e7eb'}"></div>`).join('')}</div>
+      </div>
+    </div>`;
+}
+
+function renderBulkDoneStep(m) {
+  const results = m.bulkResults || [];
+  const created = results.filter(r => !r.error);
+  const sent = results.filter(r => r.emailSent);
+  const skipped = created.filter(r => !r.emailSent);
+  const failed = results.filter(r => r.error);
+  const grandTotal = created.reduce((sum, r) => sum + (r.totalCents || 0), 0);
+
+  const rows = results.map(r => {
+    const statusColor = r.error ? '#dc2626' : r.emailSent ? '#059669' : '#d97706';
+    const statusLabel = r.error ? 'Failed' : r.emailSent ? 'Sent' : 'Draft';
+    return `<tr>
+      <td style="padding:6px 8px;font-size:13px">${esc(r.clientName)}</td>
+      <td style="padding:6px 8px;text-align:center">${r.error ? '—' : r.lineItems}</td>
+      <td style="padding:6px 8px;text-align:right">${r.error ? '—' : formatDollars(r.totalCents)}</td>
+      <td style="padding:6px 8px;text-align:right"><span style="font-size:11px;font-weight:600;color:${statusColor};background:${statusColor}15;padding:2px 8px;border-radius:4px">${statusLabel}</span></td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div class="invoice-header">
+      <h3 style="margin:0;font-size:16px;color:#059669">Billing Complete</h3>
+      <button class="btn btn-ghost" onclick="closeInvoiceModal()" style="padding:4px 8px">✕</button>
+    </div>
+    <div class="invoice-body">
+      <div style="display:flex;gap:12px;margin-bottom:16px">
+        <div style="flex:1;padding:10px;background:#f0fdf4;border-radius:6px;text-align:center">
+          <div style="font-size:22px;font-weight:700;color:#059669">${sent.length}</div>
+          <div style="font-size:11px;color:var(--text-muted)">sent</div>
+        </div>
+        <div style="flex:1;padding:10px;background:#fffbeb;border-radius:6px;text-align:center">
+          <div style="font-size:22px;font-weight:700;color:#d97706">${skipped.length}</div>
+          <div style="font-size:11px;color:var(--text-muted)">drafts</div>
+        </div>
+        ${failed.length ? `<div style="flex:1;padding:10px;background:#fef2f2;border-radius:6px;text-align:center">
+          <div style="font-size:22px;font-weight:700;color:#dc2626">${failed.length}</div>
+          <div style="font-size:11px;color:var(--text-muted)">failed</div>
+        </div>` : ''}
+      </div>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
+        <thead><tr style="border-bottom:2px solid var(--border)">
+          <th style="padding:6px 8px;text-align:left;font-size:11px;color:var(--text-muted)">CLIENT</th>
+          <th style="padding:6px 8px;text-align:center;font-size:11px;color:var(--text-muted)">LEADS</th>
+          <th style="padding:6px 8px;text-align:right;font-size:11px;color:var(--text-muted)">TOTAL</th>
+          <th style="padding:6px 8px;text-align:right;font-size:11px;color:var(--text-muted)">STATUS</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr style="border-top:2px solid var(--border);font-weight:700">
+          <td style="padding:8px">${created.length} invoices</td>
+          <td style="padding:8px;text-align:center">${created.reduce((s, r) => s + r.lineItems, 0)}</td>
+          <td style="padding:8px;text-align:right">${formatDollars(grandTotal)}</td>
+          <td></td>
+        </tr></tfoot>
+      </table>
+      <button class="btn btn-primary" style="width:100%" onclick="closeInvoiceModal()">Done</button>
     </div>`;
 }
 
@@ -712,4 +932,132 @@ window.invoiceVoid = async (invoiceId) => {
   } catch (e) {
     alert('Void failed: ' + e.message);
   }
+};
+
+// ─── Bulk invoice handlers ───
+window.invoiceBulkStart = () => {
+  const m = state.invoiceModal;
+  if (!m) return;
+  const month = document.getElementById('invoice-month')?.value || m.month || getCurrentMonth();
+  m.month = month;
+  m.bulkClients = getAllBillableClients(month);
+  m.bulkExcluded = new Set();
+  m.step = 'bulkSummary';
+  render();
+};
+
+window.invoiceBulkToggle = (clientName) => {
+  const m = state.invoiceModal;
+  if (!m) return;
+  if (m.bulkExcluded.has(clientName)) m.bulkExcluded.delete(clientName);
+  else m.bulkExcluded.add(clientName);
+  render();
+};
+
+window.invoiceBulkToggleAll = () => {
+  const m = state.invoiceModal;
+  if (!m) return;
+  if (m.bulkExcluded.size === 0) {
+    m.bulkClients.forEach(c => m.bulkExcluded.add(c.clientName));
+  } else {
+    m.bulkExcluded.clear();
+  }
+  render();
+};
+
+window.invoiceBulkCreateAll = async () => {
+  const m = state.invoiceModal;
+  if (!m) return;
+  const included = m.bulkClients.filter(c => !m.bulkExcluded.has(c.clientName));
+  if (!included.length) return;
+  if (!confirm(`Create and send ${included.length} invoice${included.length !== 1 ? 's' : ''}?`)) return;
+
+  m.bulkIncluded = included;
+  m.bulkResults = [];
+  m.bulkProgress = 0;
+  m.step = 'bulkCreating';
+  render();
+
+  for (let i = 0; i < included.length; i++) {
+    m.bulkProgress = i;
+    render();
+    const c = included[i];
+    try {
+      const result = await invokeEdgeFunction('create-stripe-invoice', {
+        clientName: c.clientName,
+        month: m.month,
+        entryIds: c.entries.map(e => e.id),
+      });
+      for (const entry of c.entries) {
+        entry.paidStatus = 'Draft';
+        entry.invoice = result.invoiceId || '';
+        entry.stripeInvoiceId = result.invoiceId || '';
+      }
+      const finalized = await invokeEdgeFunction('finalize-stripe-invoice', {
+        invoiceId: result.invoiceId,
+      });
+      for (const entry of c.entries) entry.paidStatus = 'Sent';
+      m.bulkResults.push({
+        clientName: c.clientName,
+        invoiceId: result.invoiceId,
+        lineItems: result.lineItems,
+        totalCents: c.total,
+        paymentTerms: result.paymentTerms || 'Net 7',
+        hostedInvoiceUrl: finalized.hostedInvoiceUrl,
+      });
+    } catch (e) {
+      m.bulkResults.push({ clientName: c.clientName, error: e.message });
+    }
+  }
+
+  m.bulkReviewIndex = 0;
+  m._bulkEmailInit = false;
+  const hasSuccess = m.bulkResults.some(r => !r.error);
+  m.step = hasSuccess ? 'bulkReview' : 'bulkDone';
+  render();
+};
+
+window.invoiceBulkSendEmail = async () => {
+  const m = state.invoiceModal;
+  if (!m) return;
+  const results = m.bulkResults.filter(r => !r.error);
+  const r = results[m.bulkReviewIndex];
+  if (!r) return;
+
+  m.emailBody = document.getElementById('invoice-email-body')?.value || m.emailBody || '';
+
+  try {
+    const payload = {
+      action: 'send_invoice_email',
+      clientName: r.clientName,
+      month: m.month,
+      emailBody: m.emailBody,
+      paymentLink: r.hostedInvoiceUrl,
+    };
+    if (m.emailTo) payload.toOverride = m.emailTo;
+    if (m.emailCc) payload.ccOverride = m.emailCc;
+    await invokeEdgeFunction('send-email', payload);
+    r.emailSent = true;
+  } catch (e) {
+    alert(`Email failed for ${r.clientName}: ${e.message}`);
+  }
+
+  m.bulkReviewIndex++;
+  m._bulkEmailInit = false;
+  if (m.bulkReviewIndex >= results.length) {
+    m.step = 'bulkDone';
+  }
+  render();
+};
+
+window.invoiceBulkSkipEmail = () => {
+  const m = state.invoiceModal;
+  if (!m) return;
+  const results = m.bulkResults.filter(r => !r.error);
+  m.bulkReviewIndex++;
+  m._bulkEmailInit = false;
+  if (m.bulkReviewIndex >= results.length) {
+    m.step = 'bulkDone';
+  }
+  render();
 };
