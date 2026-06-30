@@ -225,11 +225,41 @@ function renderExistingInvoiceCard(inv) {
   </div>`;
 }
 
+function getSetupFeeInfo(clientName) {
+  const c = state.clients.find(cl => str(cl.name) === clientName);
+  if (!c) return null;
+  const total = Number(c.setupFeeTotal || 0);
+  const deposit = Number(c.setupFeeDeposit || 0);
+  const spread = Number(c.setupFeeSpreadCount || 0);
+  const billed = Number(c.setupFeeLeadsBilled || 0);
+  if (!spread || billed >= spread) return null;
+  const remaining = total - deposit;
+  const perLead = Math.round(remaining / spread * 100);
+  return { perLead, left: spread - billed };
+}
+
+function getEffectiveCost(entry, surchargeInfo, surchargeIndex) {
+  const base = parseCostCents(entry.leadCost);
+  if (!surchargeInfo || surchargeIndex >= surchargeInfo.left) return base;
+  const isCalledBack = str(entry.callbackStatus).toLowerCase() === 'called back';
+  if (isCalledBack) return base;
+  return base + surchargeInfo.perLead;
+}
+
 function renderPreviewStep(m) {
   const entries = m.entries;
   const excluded = m.excluded;
+  const surchargeInfo = getSetupFeeInfo(m.client);
+  let surchargeIdx = 0;
+  const entryCosts = entries.map(e => {
+    const isIncluded = !excluded.has(e.id);
+    const isCalledBack = str(e.callbackStatus).toLowerCase() === 'called back';
+    const cost = getEffectiveCost(e, surchargeInfo, surchargeIdx);
+    if (isIncluded && surchargeInfo && !isCalledBack && surchargeIdx < surchargeInfo.left) surchargeIdx++;
+    return cost;
+  });
   const included = entries.filter(e => !excluded.has(e.id));
-  const subtotal = included.reduce((sum, e) => sum + parseCostCents(e.leadCost), 0);
+  const subtotal = entries.reduce((sum, e, i) => sum + (excluded.has(e.id) ? 0 : entryCosts[i]), 0);
   const existing = getExistingInvoices(m.client, m.month);
 
   let existingHtml = '';
@@ -241,14 +271,17 @@ function renderPreviewStep(m) {
   }
 
   let rows = '';
-  for (const e of entries) {
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i];
     const checked = !excluded.has(e.id);
-    const cost = parseCostCents(e.leadCost);
+    const cost = entryCosts[i];
+    const baseCost = parseCostCents(e.leadCost);
+    const hasSurcharge = cost > baseCost;
     rows += `<tr style="${checked ? '' : 'opacity:0.4;text-decoration:line-through'}">
       <td style="padding:6px 8px"><input type="checkbox" ${checked ? 'checked' : ''} onchange="invoiceToggleEntry('${e.id}')"></td>
       <td style="padding:6px 8px">${esc(str(e.leadName))}</td>
       <td style="padding:6px 8px;font-size:11px;color:var(--text-muted)">${esc(str(e.leadEmail))}</td>
-      <td style="padding:6px 8px;text-align:right">${formatDollars(cost)}</td>
+      <td style="padding:6px 8px;text-align:right">${formatDollars(cost)}${hasSurcharge ? `<div style="font-size:10px;color:#4f46e5">incl. ${formatDollars(cost - baseCost)} setup</div>` : ''}</td>
     </tr>`;
   }
 
