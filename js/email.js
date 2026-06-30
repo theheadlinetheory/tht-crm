@@ -7,7 +7,7 @@ import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20260
 import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20260623a';
 import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20260623a';
 import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20260623a';
-import { CRM_BASE_URL } from './config.js?v=20260623a';
+import { CRM_BASE_URL, GEOCODIO_KEY } from './config.js?v=20260623a';
 
 function formatEmailBody(html){
   if(!html) return '';
@@ -161,6 +161,28 @@ export async function confirmForward(dealId){
   }
 }
 
+async function resolveCountyPrice(address, countyPricing) {
+  if (!address || !countyPricing) return null;
+  try {
+    const resp = await fetch(`https://api.geocod.io/v1.7/geocode?q=${encodeURIComponent(address)}&fields=county&api_key=${GEOCODIO_KEY}`);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const county = data.results?.[0]?.address_components?.county;
+    const state = data.results?.[0]?.address_components?.state;
+    if (!county) return null;
+    const key = `${county}, ${state}`;
+    if (key in countyPricing) return countyPricing[key];
+    const countyOnly = county.replace(/ County$/i, '') + ' County';
+    for (const [k, v] of Object.entries(countyPricing)) {
+      if (k.toLowerCase().startsWith(countyOnly.toLowerCase())) return v;
+    }
+    return null;
+  } catch (e) {
+    console.warn('County pricing lookup failed:', e);
+    return null;
+  }
+}
+
 export async function autoPushToTracker(deal){
   const client=findClientForDeal(deal) || state.clients.find(c=>c.name===deal.stage);
   const clientName = deal.pipeline==='Acquisition' ? (deal.company||deal.contact||'Unknown') : (client?client.name:deal.stage);
@@ -173,8 +195,19 @@ export async function autoPushToTracker(deal){
   const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   const dateAdded = `${now.getMonth()+1}/${now.getDate()}/${String(now.getFullYear()).slice(-2)}`;
 
-  // Look up lead cost from client record
-  const leadCost = client && str(client.leadCost).trim() ? `$${str(client.leadCost).replace(/[^0-9.]/g,'')}` : '$0';
+  // Look up lead cost — county-based pricing takes priority
+  let leadCost = '$0';
+  if (client) {
+    const baseCost = str(client.leadCost).trim() ? `$${str(client.leadCost).replace(/[^0-9.]/g,'')}` : '$0';
+    const countyPricing = client.countyPricing;
+    const address = deal.location || deal.address || '';
+    if (countyPricing && address) {
+      const countyRate = await resolveCountyPrice(address, countyPricing);
+      leadCost = countyRate !== null ? `$${countyRate}` : baseCost;
+    } else {
+      leadCost = baseCost;
+    }
+  }
 
   // Build appointment date and time from deal's booked date/time
   let apptTime = '';

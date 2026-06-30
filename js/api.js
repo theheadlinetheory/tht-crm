@@ -350,6 +350,7 @@ const FIELD_MAP = {
   invoice_emails: 'invoiceEmails',
   client_phone: 'clientPhone',
   availability_rules: 'availabilityRules',
+  county_pricing: 'countyPricing',
   pushed_to_demo_tracker: 'pushedToDemoTracker',
   call_date: 'callDate',
   call_time: 'callTime',
