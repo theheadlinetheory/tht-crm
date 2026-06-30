@@ -155,6 +155,8 @@ export function renderInvoiceModal() {
     html += renderEmailSentStep(m);
   } else if (m.step === 'bulkSummary') {
     html += renderBulkSummaryStep(m);
+  } else if (m.step === 'bulkLineItems') {
+    html += renderBulkLineItemsStep(m);
   } else if (m.step === 'bulkCreating') {
     html += renderLoadingStep('Creating Invoices...', `Processing ${(m.bulkProgress || 0) + 1} of ${m.bulkIncluded.length} — ${esc(m.bulkIncluded[m.bulkProgress || 0]?.clientName || '')}...`);
   } else if (m.step === 'bulkReview') {
@@ -551,8 +553,71 @@ function renderBulkSummaryStep(m) {
       </div>
       <div style="display:flex;gap:8px;margin-top:16px">
         <button class="btn btn-ghost" style="flex:1" onclick="invoiceBack()">← Back</button>
-        <button class="btn btn-primary" style="flex:2" onclick="invoiceBulkCreateAll()" ${!included.length ? 'disabled' : ''}>Create ${included.length} Draft${included.length !== 1 ? 's' : ''} & Send</button>
+        <button class="btn btn-primary" style="flex:2" onclick="invoiceBulkReviewItems()" ${!included.length ? 'disabled' : ''}>Review Line Items →</button>
       </div>`}
+    </div>`;
+}
+
+function renderBulkLineItemsStep(m) {
+  const clients = m.bulkIncluded;
+  const idx = m.bulkItemsIndex;
+  if (idx >= clients.length) return '';
+  const c = clients[idx];
+  const excludedEntries = m.bulkEntryExcluded || new Set();
+  const surchargeInfo = getSetupFeeInfo(c.clientName);
+  let surchargeIdx = 0;
+  const entryCosts = c.entries.map(e => {
+    const isIncluded = !excludedEntries.has(e.id);
+    const isCalledBack = str(e.callbackStatus).toLowerCase() === 'called back';
+    const cost = getEffectiveCost(e, surchargeInfo, surchargeIdx);
+    if (isIncluded && surchargeInfo && !isCalledBack && surchargeIdx < surchargeInfo.left) surchargeIdx++;
+    return cost;
+  });
+  const includedEntries = c.entries.filter(e => !excludedEntries.has(e.id));
+  const subtotal = c.entries.reduce((sum, e, i) => sum + (excludedEntries.has(e.id) ? 0 : entryCosts[i]), 0);
+
+  const rows = c.entries.map((e, i) => {
+    const checked = !excludedEntries.has(e.id);
+    const cost = entryCosts[i];
+    const baseCost = parseCostCents(e.leadCost);
+    const hasSurcharge = cost > baseCost;
+    return `<tr style="${checked ? '' : 'opacity:0.4;text-decoration:line-through'}">
+      <td style="padding:5px 6px"><input type="checkbox" ${checked ? 'checked' : ''} onchange="invoiceBulkToggleEntry('${e.id}')"></td>
+      <td style="padding:5px 6px;font-size:12px">${esc(str(e.leadName))}</td>
+      <td style="padding:5px 6px;font-size:11px;color:var(--text-muted)">${esc(str(e.apptDate || e.appt_date || ''))}</td>
+      <td style="padding:5px 6px;text-align:right;font-size:12px">${formatDollars(cost)}${hasSurcharge ? '<div style="font-size:9px;color:#4f46e5">+setup</div>' : ''}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div class="invoice-header">
+      <h3 style="margin:0;font-size:16px">${esc(c.clientName)}</h3>
+      <span style="font-size:12px;color:var(--text-muted)">${idx + 1} of ${clients.length}</span>
+      <button class="btn btn-ghost" onclick="closeInvoiceModal()" style="padding:4px 8px">✕</button>
+    </div>
+    <div class="invoice-body">
+      <div style="max-height:300px;overflow-y:auto">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="border-bottom:2px solid var(--border);position:sticky;top:0;background:var(--card)">
+          <th style="padding:5px 6px;width:24px"></th>
+          <th style="padding:5px 6px;text-align:left;font-size:11px;color:var(--text-muted)">LEAD</th>
+          <th style="padding:5px 6px;text-align:left;font-size:11px;color:var(--text-muted)">APPT</th>
+          <th style="padding:5px 6px;text-align:right;font-size:11px;color:var(--text-muted)">COST</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0;padding:8px 0;border-top:2px solid var(--border)">
+        <span style="font-weight:600">${includedEntries.length} lead${includedEntries.length !== 1 ? 's' : ''}</span>
+        <span style="font-weight:700;font-size:16px">${formatDollars(subtotal)}</span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" style="flex:1" onclick="invoiceBulkSkipClient()">Skip Client</button>
+        <button class="btn btn-primary" style="flex:2" onclick="invoiceBulkApproveClient()" ${!includedEntries.length ? 'disabled' : ''}>Approve & Next →</button>
+      </div>
+      <div style="margin-top:8px;display:flex;justify-content:center">
+        <div style="display:flex;gap:4px">${clients.map((_, i) => `<div style="width:8px;height:8px;border-radius:50%;background:${i < idx ? '#059669' : i === idx ? '#4f46e5' : '#e5e7eb'}"></div>`).join('')}</div>
+      </div>
     </div>`;
 }
 
@@ -965,23 +1030,87 @@ window.invoiceBulkToggleAll = () => {
   render();
 };
 
-window.invoiceBulkCreateAll = async () => {
+window.invoiceBulkReviewItems = () => {
   const m = state.invoiceModal;
   if (!m) return;
-  const included = m.bulkClients.filter(c => !m.bulkExcluded.has(c.clientName));
-  if (!included.length) return;
-  if (!confirm(`Create and send ${included.length} invoice${included.length !== 1 ? 's' : ''}?`)) return;
+  m.bulkIncluded = m.bulkClients.filter(c => !m.bulkExcluded.has(c.clientName));
+  m.bulkApproved = [];
+  m.bulkItemsIndex = 0;
+  m.bulkEntryExcluded = new Set();
+  m.step = 'bulkLineItems';
+  render();
+};
 
-  m.bulkIncluded = included;
+window.invoiceBulkToggleEntry = (id) => {
+  const m = state.invoiceModal;
+  if (!m) return;
+  if (!m.bulkEntryExcluded) m.bulkEntryExcluded = new Set();
+  if (m.bulkEntryExcluded.has(id)) m.bulkEntryExcluded.delete(id);
+  else m.bulkEntryExcluded.add(id);
+  render();
+};
+
+window.invoiceBulkApproveClient = () => {
+  const m = state.invoiceModal;
+  if (!m) return;
+  const c = m.bulkIncluded[m.bulkItemsIndex];
+  const includedEntries = c.entries.filter(e => !(m.bulkEntryExcluded || new Set()).has(e.id));
+  if (includedEntries.length) {
+    const surchargeInfo = getSetupFeeInfo(c.clientName);
+    let idx = 0, total = 0;
+    for (const e of includedEntries) {
+      total += getEffectiveCost(e, surchargeInfo, idx);
+      if (surchargeInfo && idx < surchargeInfo.left) idx++;
+    }
+    m.bulkApproved.push({ clientName: c.clientName, entries: includedEntries, total });
+  }
+  m.bulkItemsIndex++;
+  m.bulkEntryExcluded = new Set();
+  if (m.bulkItemsIndex >= m.bulkIncluded.length) {
+    if (m.bulkApproved.length) {
+      invoiceBulkCreateAllApproved();
+    } else {
+      m.step = 'bulkDone';
+      m.bulkResults = [];
+      render();
+    }
+  } else {
+    render();
+  }
+};
+
+window.invoiceBulkSkipClient = () => {
+  const m = state.invoiceModal;
+  if (!m) return;
+  m.bulkItemsIndex++;
+  m.bulkEntryExcluded = new Set();
+  if (m.bulkItemsIndex >= m.bulkIncluded.length) {
+    if (m.bulkApproved.length) {
+      invoiceBulkCreateAllApproved();
+    } else {
+      m.step = 'bulkDone';
+      m.bulkResults = [];
+      render();
+    }
+  } else {
+    render();
+  }
+};
+
+async function invoiceBulkCreateAllApproved() {
+  const m = state.invoiceModal;
+  if (!m) return;
+  const approved = m.bulkApproved;
+  m.bulkIncluded = approved;
   m.bulkResults = [];
   m.bulkProgress = 0;
   m.step = 'bulkCreating';
   render();
 
-  for (let i = 0; i < included.length; i++) {
+  for (let i = 0; i < approved.length; i++) {
     m.bulkProgress = i;
     render();
-    const c = included[i];
+    const c = approved[i];
     try {
       const result = await invokeEdgeFunction('create-stripe-invoice', {
         clientName: c.clientName,
