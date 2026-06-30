@@ -305,7 +305,10 @@ export function renderLeadTracker() {
     const clientColor = clientColors[str(entry.clientName)] || '';
     const rowStyle = clientColor ? `border-left:4px solid ${clientColor}` : '';
 
-    html += `<tr class="${rowClass}" style="${rowStyle}">`;
+    const costVal = parseFloat(str(entry.leadCost).replace(/[^0-9.]/g, '')) || 0;
+    const isZeroCost = !isCalledBack && costVal === 0;
+    const zeroCostStyle = isZeroCost ? 'background:#fef2f2;' : '';
+    html += `<tr class="${rowClass}" style="${rowStyle};${zeroCostStyle}">`;
     if (admin) {
       html += `<td style="text-align:center"><input type="checkbox" ${sel.has(entry.id) ? 'checked' : ''} onchange="trackerToggleSelect('${entry.id}')"></td>`;
     }
@@ -313,7 +316,7 @@ export function renderLeadTracker() {
       const val = str(entry[col.key]);
       const isEditing = state.trackerEditingCell && state.trackerEditingCell.id === entry.id && state.trackerEditingCell.field === col.key;
       // Color the client name cell with client color
-      const cellColorStyle = (col.key === 'clientName' && clientColor) ? `color:${clientColor};font-weight:600;` : '';
+      const cellColorStyle = (col.key === 'clientName' && clientColor) ? `color:${clientColor};font-weight:600;` : (col.key === 'leadCost' && isZeroCost) ? 'color:#dc2626;font-weight:700;' : '';
 
       if (col.editable && isEditing) {
         html += `<td style="position:relative"><input class="tracker-cell-input" type="text" value="${esc(val)}"
