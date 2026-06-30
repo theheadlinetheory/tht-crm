@@ -443,7 +443,7 @@ export function render(){
             }).catch(()=>{ window._trackerLoading=false; });
             if(!window._invoiceLoading){
               window._invoiceLoading=true;
-              import('./invoice.js?v=20260623a').then(m=>{ window._invoiceModule=m; }).catch(()=>{ window._invoiceLoading=false; });
+              import('./invoice.js?v=20260630a').then(m=>{ window._invoiceModule=m; }).catch(()=>{ window._invoiceLoading=false; });
             }
           }
         }
@@ -451,7 +451,7 @@ export function render(){
           html+=window._invoiceModule.renderInvoiceModal();
         } else if(state.invoiceModal && !window._invoiceLoading){
           window._invoiceLoading=true;
-          import('./invoice.js?v=20260623a').then(m=>{ window._invoiceModule=m; render(); });
+          import('./invoice.js?v=20260630a').then(m=>{ window._invoiceModule=m; render(); });
         }
       }
       const trackerWrap=document.querySelector('.tracker-table-wrap');
