@@ -1,21 +1,21 @@
 // ═══════════════════════════════════════════════════════════
 // APP — Entry point, initApp, re-exports from state.js
 // ═══════════════════════════════════════════════════════════
-import { REPLY_CHECK_INTERVAL, REPLY_BACKEND_POLL_INTERVAL, SYNC_INTERVAL, DEFAULT_CLIENT_STAGES } from './config.js?v=20260623a';
-import { render } from './render.js?v=20260623a';
-import { syncFromSheet, pollReplyStatus, triggerBackendReplyCheck, initialSync, subscribeRealtime, flushRealtimeQueue } from './api.js?v=20260623a';
-import { isAdmin, isClient, isEmployee, currentUser, loadCampaignAssignments, listenCampaignAssignments, setupAuthListener, db } from './auth.js?v=20260623a';
-import { initJustCallDialer } from './dialer.js?v=20260623a';
-import { esc, svgIcon } from './utils.js?v=20260623a';
-import './email.js?v=20260623a';
-import './blooio.js?v=20260623a';
+import { REPLY_CHECK_INTERVAL, REPLY_BACKEND_POLL_INTERVAL, SYNC_INTERVAL, DEFAULT_CLIENT_STAGES } from './config.js?v=20260701a';
+import { render } from './render.js?v=20260701a';
+import { syncFromSheet, pollReplyStatus, triggerBackendReplyCheck, initialSync, subscribeRealtime, flushRealtimeQueue } from './api.js?v=20260701a';
+import { isAdmin, isClient, isEmployee, currentUser, loadCampaignAssignments, listenCampaignAssignments, setupAuthListener, db } from './auth.js?v=20260701a';
+import { initJustCallDialer } from './dialer.js?v=20260701a';
+import { esc, svgIcon } from './utils.js?v=20260701a';
+import './email.js?v=20260701a';
+import './blooio.js?v=20260701a';
 
 // ─── Local import for vars used in this file ───
 import {
   state, pendingWrites,
   clientPortalStages, setClientPortalStages,
   clientArchivedDeals, setClientArchivedDeals,
-} from './state.js?v=20260623a';
+} from './state.js?v=20260701a';
 
 // ─── Re-export state from centralized module ───
 export {
@@ -29,7 +29,7 @@ export {
   settingsDraft, setSettingsDraft,
   clientPortalStages, setClientPortalStages,
   clientArchivedDeals, setClientArchivedDeals,
-} from './state.js?v=20260623a';
+} from './state.js?v=20260701a';
 
 // ─── Client Portal Stages (Firestore) ───
 export async function loadClientPortalStages(){
@@ -61,7 +61,7 @@ export async function saveClientPortalStages(stages){
 // ─── Client Archive (soft-delete with restore) ───
 export async function loadClientArchive(){
   if(!isClient()||!currentUser.clientName) return;
-  const { sbGetArchive, normalizeRow } = await import('./api.js?v=20260623a');
+  const { sbGetArchive, normalizeRow } = await import('./api.js?v=20260701a');
   let firestoreArchived = [];
   let sheetArchived = [];
   try {
@@ -107,7 +107,7 @@ export async function restoreDeal(dealId){
   delete deal.archivedAt;
   delete deal.archiveReason;
   if(isSheetArchived){
-    const { sbRestoreFromArchive, initialSync } = await import('./api.js?v=20260623a');
+    const { sbRestoreFromArchive, initialSync } = await import('./api.js?v=20260701a');
     pendingWrites.value++;
     try {
       await sbRestoreFromArchive(dealId);
@@ -136,7 +136,7 @@ export async function initApp(){
   try {
     // Apply cached settings immediately
     try{
-      const { applySettings } = await import('./settings.js?v=20260623a');
+      const { applySettings } = await import('./settings.js?v=20260701a');
       const cached=JSON.parse(localStorage.getItem('tht_settings'));
       if(cached) applySettings(cached, true);
     }catch(e){}
@@ -152,13 +152,13 @@ export async function initApp(){
     render();
     // Load client config from database (calendly URLs, services, warm call notes, etc.)
     try {
-      const { loadClientConfig } = await import('./client-info.js?v=20260623a');
+      const { loadClientConfig } = await import('./client-info.js?v=20260701a');
       await loadClientConfig();
     } catch(e){ console.warn('loadClientConfig failed:', e); }
     // Initialize service area polygon data from global script
     if(window.SERVICE_AREA_POLYGONS){
       try {
-        const { setServiceAreaData } = await import('./maps.js?v=20260623a');
+        const { setServiceAreaData } = await import('./maps.js?v=20260701a');
         setServiceAreaData(window.SERVICE_AREA_POLYGONS);
       } catch(e){ console.warn('setServiceAreaData failed:', e); }
     }
@@ -168,7 +168,7 @@ export async function initApp(){
     try {
       const urlDealId = new URLSearchParams(window.location.search).get('deal');
       if (urlDealId) {
-        const { openDeal } = await import('./deal-modal.js?v=20260623a');
+        const { openDeal } = await import('./deal-modal.js?v=20260701a');
         const target = state.deals.find(d => String(d.id) === urlDealId);
         if (target) openDeal(target.id);
         window.history.replaceState({}, '', window.location.pathname + window.location.hash);
@@ -192,11 +192,11 @@ export async function initApp(){
       setInterval(triggerBackendReplyCheck, REPLY_BACKEND_POLL_INTERVAL);
     }
     if(!isClient()) initJustCallDialer();
-    if(!isClient()) import('./number-health.js?v=20260623a').then(m => m.loadNumberHealth()).catch(e => console.warn('Number health load failed:', e));
-    if(!isClient()) import('./warm-call.js?v=20260623a').catch(e => console.warn('Warm call module load failed:', e));
+    if(!isClient()) import('./number-health.js?v=20260701a').then(m => m.loadNumberHealth()).catch(e => console.warn('Number health load failed:', e));
+    if(!isClient()) import('./warm-call.js?v=20260701a').catch(e => console.warn('Warm call module load failed:', e));
     // Load nurture data for Due Today banner
     if(!isClient()){
-      import('./rerun.js?v=20260623a').then(m => m.loadNurtureData()).catch(e => console.warn('Nurture data load failed:', e));
+      import('./rerun.js?v=20260701a').then(m => m.loadNurtureData()).catch(e => console.warn('Nurture data load failed:', e));
     }
   } catch(e) {
     console.error('initApp failed:', e);
@@ -312,7 +312,7 @@ window.saveClientStagesAndClose = saveClientStagesAndClose;
 window.renderClientStageSettingsInner = renderClientStageSettingsInner;
 
 // ─── Event Delegation ───
-import { initDelegation } from './delegate.js?v=20260623a';
+import { initDelegation } from './delegate.js?v=20260701a';
 initDelegation();
 
 // ─── Bootstrap ───
