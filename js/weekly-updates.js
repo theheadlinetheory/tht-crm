@@ -7,10 +7,10 @@
 //   extras), threads into client_config.gmail_thread_id and writes the
 //   thread id back on first send. No dealId needed.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260702c';
-import { render } from './render.js?v=20260702c';
-import { invokeEdgeFunction, showToast, sbSaveSettings } from './api.js?v=20260702c';
-import { esc, str, svgIcon } from './utils.js?v=20260702c';
+import { state } from './app.js?v=20260702d';
+import { render } from './render.js?v=20260702d';
+import { invokeEdgeFunction, showToast, sbSaveSettings } from './api.js?v=20260702d';
+import { esc, str, svgIcon } from './utils.js?v=20260702d';
 
 // Stats proxy lives on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
@@ -74,11 +74,27 @@ export async function weeklyPrepare(){
   render();
   const stale = () => state.weekly!==w || w.runId!==runId || w.step!=='preparing';
   try{
-    const resp = await fetch(STATS_PROXY_URL,{ method:'POST', headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({ action:'weekly_client_stats', start_date: range.start, end_date: range.end }) });
-    const payload = await resp.json();
+    const pullStats = async () => {
+      const resp = await fetch(STATS_PROXY_URL,{ method:'POST', headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ action:'weekly_client_stats', start_date: range.start, end_date: range.end }) });
+      const payload = await resp.json().catch(()=>({ error:'Stats proxy returned a non-JSON response ('+resp.status+')' }));
+      if(!resp.ok || payload.error) throw new Error(payload.error || ('Stats fetch failed ('+resp.status+')'));
+      return payload;
+    };
+    let payload;
+    try{
+      payload = await pullStats();
+    }catch(e){
+      // Smartlead's shared rate cap gets bursty around the :00/:30 cache-sync
+      // crons — one automatic retry after the window clears.
+      if(stale()) return;
+      w.progress='Smartlead rate-limit collision — retrying in 20s...'; render();
+      await new Promise(r=>setTimeout(r,20000));
+      if(stale()) return;
+      w.progress='Retrying stats pull...'; render();
+      payload = await pullStats();
+    }
     if(stale()) return;
-    if(!resp.ok || payload.error) throw new Error(payload.error || ('Stats fetch failed ('+resp.status+')'));
     const campaigns = payload.data || [];
     w.statErrors = campaigns.filter(c=>c.error).map(c=>c.name+': '+c.error);
 
