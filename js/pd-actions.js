@@ -1,9 +1,9 @@
 // ═══════════════════════════════════════════════════════════
 // PD-ACTIONS — Power Dialer maps, modals, Calendly booking
 // ═══════════════════════════════════════════════════════════
-import { supabase, showToast } from './api.js?v=20260702f';
-import { ACQ_CALENDLY_URLS } from './config.js?v=20260702f';
-import { openCalendlyEmbed } from './calendly.js?v=20260702f';
+import { supabase, showToast } from './api.js?v=20260702g';
+import { ACQ_CALENDLY_URLS } from './config.js?v=20260702g';
+import { openCalendlyEmbed } from './calendly.js?v=20260702g';
 
 let _miniMap = null;
 let _miniMapAddr = '';

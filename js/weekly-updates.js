@@ -10,10 +10,10 @@
 //   crm_settings.weekly_update_extra_ccs (editable per client below).
 //   Lars's signature appended. The Client Info sheet is NOT used.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260702f';
-import { render } from './render.js?v=20260702f';
-import { showToast, sbSaveSettings } from './api.js?v=20260702f';
-import { esc, str, svgIcon } from './utils.js?v=20260702f';
+import { state } from './app.js?v=20260702g';
+import { render } from './render.js?v=20260702g';
+import { showToast, sbSaveSettings } from './api.js?v=20260702g';
+import { esc, str, svgIcon } from './utils.js?v=20260702g';
 
 // Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
@@ -45,16 +45,18 @@ function currentTemplate(){
   return str(state.savedSettings?.weekly_update_template) || DEFAULT_WEEKLY_UPDATE_TEMPLATE;
 }
 
-// Most recent Saturday → today, in the user's local timezone. (Smartlead's
-// per-day bucketing inside the range still uses America/New_York, matching
-// the campaign sending schedules.)
+// The report week is ALWAYS Saturday → Friday (the full current week, local
+// timezone). Prepping mid-week just means the later days have no sends yet.
+// (Smartlead's per-day bucketing inside the range uses America/New_York,
+// matching the campaign sending schedules.)
 function weekRange(){
   const now = new Date();
   const daysSinceSat = (now.getDay() + 1) % 7; // Sun=0..Sat=6 → Sat:0, Sun:1, ... Fri:6
   const start = new Date(now); start.setDate(now.getDate() - daysSinceSat);
+  const end = new Date(start); end.setDate(start.getDate() + 6); // the week's Friday
   const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const label = d => d.toLocaleDateString('en-US',{ month:'short', day:'numeric' });
-  return { start: iso(start), end: iso(now), label: `${label(start)} – ${label(now)}` };
+  return { start: iso(start), end: iso(end), label: `${label(start)} – ${label(end)}` };
 }
 
 function applyWeeklyTemplate(tpl, ctx){
@@ -295,7 +297,7 @@ export function renderWeeklyUpdates(){
         <div>
           <div style="font-size:16px;font-weight:800;color:var(--text)">Weekly Client Updates</div>
           <div style="font-size:12.5px;color:var(--text-muted);margin-top:4px">
-            Pulls this week's Smartlead stats (<strong>${esc(range.label)}</strong>, Saturday→today) for every active client,
+            Pulls this week's Smartlead stats (<strong>${esc(range.label)}</strong>, Saturday→Friday) for every active client,
             fills the template, and lets you review + customize each email before sending them all at once.<br>
             Sent from lars@theheadlinetheory.com on each client's "weekly update" thread. Recipients come from the CRM
             (primary email in Settings → Clients → Client Contact Info; CC = aidan@ + per-client extras, editable in the review list).
