@@ -7,10 +7,10 @@
 //   extras), threads into client_config.gmail_thread_id and writes the
 //   thread id back on first send. No dealId needed.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260702a';
-import { render } from './render.js?v=20260702a';
-import { invokeEdgeFunction, showToast, sbSaveSettings } from './api.js?v=20260702a';
-import { esc, str, svgIcon } from './utils.js?v=20260702a';
+import { state } from './app.js?v=20260702b';
+import { render } from './render.js?v=20260702b';
+import { invokeEdgeFunction, showToast, sbSaveSettings } from './api.js?v=20260702b';
+import { esc, str, svgIcon } from './utils.js?v=20260702b';
 
 // Stats proxy lives on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
@@ -68,13 +68,16 @@ function clientKeywords(c){
 export async function weeklyPrepare(){
   const w = getWeekly();
   const range = weekRange();
-  w.step='preparing'; w.progress='Pulling Smartlead stats for '+range.label+'...';
+  const runId = (w.runId||0)+1; w.runId = runId; // Back/re-prep abandons stale in-flight runs
+  w.step='preparing'; w.progress='Pulling Smartlead stats for '+range.label+'... (can take ~1 min)';
   w.rows=[]; w.unmatched=[]; w.statErrors=[]; w.rangeLabel=range.label; w.range=range;
   render();
+  const stale = () => state.weekly!==w || w.runId!==runId || w.step!=='preparing';
   try{
     const resp = await fetch(STATS_PROXY_URL,{ method:'POST', headers:{ 'Content-Type':'application/json' },
       body: JSON.stringify({ action:'weekly_client_stats', start_date: range.start, end_date: range.end }) });
     const payload = await resp.json();
+    if(stale()) return;
     if(!resp.ok || payload.error) throw new Error(payload.error || ('Stats fetch failed ('+resp.status+')'));
     const campaigns = payload.data || [];
     w.statErrors = campaigns.filter(c=>c.error).map(c=>c.name+': '+c.error);
@@ -101,6 +104,7 @@ export async function weeklyPrepare(){
       invokeEdgeFunction('send-email',{ action:'preview_email_recipients', clientName:name, emailAction:'send_to_client_thread' })
         .catch(e=>({ ok:false, error:e.message }))
     ));
+    if(stale()) return;
 
     const tpl = currentTemplate();
     w.rows = names.map((name,i)=>{
@@ -119,6 +123,7 @@ export async function weeklyPrepare(){
 
     w.step='review';
   }catch(e){
+    if(stale()) return;
     w.step='idle';
     showToast('Weekly update prep failed: '+e.message,'error');
   }
