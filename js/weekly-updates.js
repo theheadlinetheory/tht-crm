@@ -7,10 +7,10 @@
 //   extras), threads into client_config.gmail_thread_id and writes the
 //   thread id back on first send. No dealId needed.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260702b';
-import { render } from './render.js?v=20260702b';
-import { invokeEdgeFunction, showToast, sbSaveSettings } from './api.js?v=20260702b';
-import { esc, str, svgIcon } from './utils.js?v=20260702b';
+import { state } from './app.js?v=20260702c';
+import { render } from './render.js?v=20260702c';
+import { invokeEdgeFunction, showToast, sbSaveSettings } from './api.js?v=20260702c';
+import { esc, str, svgIcon } from './utils.js?v=20260702c';
 
 // Stats proxy lives on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
@@ -100,10 +100,25 @@ export async function weeklyPrepare(){
 
     w.progress='Resolving recipients...'; render();
     const names = Object.keys(byClient);
-    const previews = await Promise.all(names.map(name =>
-      invokeEdgeFunction('send-email',{ action:'preview_email_recipients', clientName:name, emailAction:'send_to_client_thread' })
-        .catch(e=>({ ok:false, error:e.message }))
-    ));
+    // The edge fn resolves recipients from the Client Info sheet — bursts hit
+    // the Sheets quota and come back with partial/empty "to". Small pool +
+    // one retry on empty keeps every row resolved.
+    const previews = new Array(names.length);
+    const previewOne = async (name) => {
+      const call = () => invokeEdgeFunction('send-email',{ action:'preview_email_recipients', clientName:name, emailAction:'send_to_client_thread' });
+      try{
+        let p = await call();
+        if(!str(p.to).trim()){ await new Promise(r=>setTimeout(r,1500)); p = await call(); }
+        return p;
+      }catch(e){
+        await new Promise(r=>setTimeout(r,1500));
+        return call().catch(e2=>({ ok:false, error:e2.message }));
+      }
+    };
+    let nextIdx = 0;
+    await Promise.all(Array.from({ length: 3 }, async () => {
+      while(nextIdx < names.length){ const i = nextIdx++; previews[i] = await previewOne(names[i]); }
+    }));
     if(stale()) return;
 
     const tpl = currentTemplate();
