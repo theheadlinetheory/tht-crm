@@ -1,19 +1,28 @@
 // ═══════════════════════════════════════════════════════════
 // WEEKLY UPDATES — Template-based end-of-week client emails
-// Stats: fulfillment smartlead-proxy `weekly_client_stats` (Sat→Fri,
+// Stats: fulfillment smartlead-proxy `weekly_client_stats` (Sat→today,
 //   /sequence-analytics sums — the only accurate date-ranged endpoint).
-// Send: `send-email` edge fn action `send_to_client_thread` — sends from
-//   contact@theheadlinetheory.com, auto-CCs aidan@+lars@ (+ per-client
-//   extras), threads into client_config.gmail_thread_id and writes the
-//   thread id back on first send. No dealId needed.
+// Send: fulfillment `weekly-update-send` edge fn — sends FROM
+//   lars@theheadlinetheory.com via Gmail on dedicated "<Client> weekly
+//   update" threads (first send starts the thread, later weeks reply into
+//   it). Recipients from the Client Info sheet: TO = Primary Contact
+//   Email, CC = aidan@ + Other Contacts. Lars's signature appended.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260702d';
-import { render } from './render.js?v=20260702d';
-import { invokeEdgeFunction, showToast, sbSaveSettings } from './api.js?v=20260702d';
-import { esc, str, svgIcon } from './utils.js?v=20260702d';
+import { state } from './app.js?v=20260702e';
+import { render } from './render.js?v=20260702e';
+import { showToast, sbSaveSettings } from './api.js?v=20260702e';
+import { esc, str, svgIcon } from './utils.js?v=20260702e';
 
-// Stats proxy lives on the fulfillment-dashboard Supabase project (verify_jwt=false)
+// Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
+const SEND_FN_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/weekly-update-send';
+
+async function sendFn(payload){
+  const resp = await fetch(SEND_FN_URL,{ method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
+  const data = await resp.json().catch(()=>({ error:'weekly-update-send returned a non-JSON response ('+resp.status+')' }));
+  if(!resp.ok || data.error) throw new Error(data.error || ('weekly-update-send failed ('+resp.status+')'));
+  return data;
+}
 
 export const DEFAULT_WEEKLY_UPDATE_TEMPLATE = `Hey {CLIENT_FIRST},
 
@@ -34,14 +43,16 @@ function currentTemplate(){
   return str(state.savedSettings?.weekly_update_template) || DEFAULT_WEEKLY_UPDATE_TEMPLATE;
 }
 
-// Most recent Saturday 00:00 → today, in America/New_York (matches sending schedules)
+// Most recent Saturday → today, in the user's local timezone. (Smartlead's
+// per-day bucketing inside the range still uses America/New_York, matching
+// the campaign sending schedules.)
 function weekRange(){
-  const nowNY = new Date(new Date().toLocaleString('en-US',{ timeZone:'America/New_York' }));
-  const daysSinceSat = (nowNY.getDay() + 1) % 7; // Sun=0..Sat=6 → Sat:0, Sun:1, ... Fri:6
-  const start = new Date(nowNY); start.setDate(nowNY.getDate() - daysSinceSat);
+  const now = new Date();
+  const daysSinceSat = (now.getDay() + 1) % 7; // Sun=0..Sat=6 → Sat:0, Sun:1, ... Fri:6
+  const start = new Date(now); start.setDate(now.getDate() - daysSinceSat);
   const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const label = d => d.toLocaleDateString('en-US',{ month:'short', day:'numeric' });
-  return { start: iso(start), end: iso(nowNY), label: `${label(start)} – ${label(nowNY)}` };
+  return { start: iso(start), end: iso(now), label: `${label(start)} – ${label(now)}` };
 }
 
 function applyWeeklyTemplate(tpl, ctx){
@@ -114,37 +125,19 @@ export async function weeklyPrepare(){
       }
     }
 
-    w.progress='Resolving recipients...'; render();
+    w.progress='Resolving recipients from the Client Info sheet...'; render();
     const names = Object.keys(byClient);
-    // The edge fn resolves recipients from the Client Info sheet — bursts hit
-    // the Sheets quota and come back with partial/empty "to". Small pool +
-    // one retry on empty keeps every row resolved.
-    const previews = new Array(names.length);
-    const previewOne = async (name) => {
-      const call = () => invokeEdgeFunction('send-email',{ action:'preview_email_recipients', clientName:name, emailAction:'send_to_client_thread' });
-      try{
-        let p = await call();
-        if(!str(p.to).trim()){ await new Promise(r=>setTimeout(r,1500)); p = await call(); }
-        return p;
-      }catch(e){
-        await new Promise(r=>setTimeout(r,1500));
-        return call().catch(e2=>({ ok:false, error:e2.message }));
-      }
-    };
-    let nextIdx = 0;
-    await Promise.all(Array.from({ length: 3 }, async () => {
-      while(nextIdx < names.length){ const i = nextIdx++; previews[i] = await previewOne(names[i]); }
-    }));
+    const preview = await sendFn({ action:'preview', client_names: names });
     if(stale()) return;
 
     const tpl = currentTemplate();
-    w.rows = names.map((name,i)=>{
-      const b = byClient[name]; const p = previews[i]||{};
-      const first = str(b.client.contactFirstName).trim().split(' ')[0] || 'there';
+    w.rows = names.map((name)=>{
+      const b = byClient[name]; const p = (preview.clients||{})[name] || {};
+      const first = str(p.first) || str(b.client.contactFirstName).trim().split(' ')[0] || 'there';
       const row = {
         name, first, sent:b.sent, replies:b.replies, positives:b.positives, campaigns:b.campaigns,
         to: str(p.to), cc: (p.cc||[]).join(', '), threadFound: !!p.threadFound,
-        previewError: p.ok===false ? str(p.error) : '',
+        previewError: p.error ? str(p.error) : '',
         sendStatus: null, error: ''
       };
       row.body = applyWeeklyTemplate(tpl, { ...row, rangeLabel: range.label });
@@ -167,15 +160,14 @@ export async function weeklySendAll(){
   const targets = w.rows.filter(r=>r.include && r.sendStatus!=='sent');
   if(!targets.length){ alert('No clients selected to send.'); return; }
   const preview = targets.map(r=>`• ${r.name} → ${r.to}`).join('\n');
-  if(!confirm(`Send ${targets.length} weekly update email${targets.length===1?'':'s'} now?\n\n${preview}\n\nSent from contact@theheadlinetheory.com (CC aidan@ + lars@), threaded into each client's existing thread.`)) return;
+  if(!confirm(`Send ${targets.length} weekly update email${targets.length===1?'':'s'} now?\n\n${preview}\n\nSent from lars@theheadlinetheory.com on each client's "weekly update" thread (CC aidan@ + client stakeholders). Your signature is appended automatically.`)) return;
   w.step='sending';
   let sent=0, failed=0;
   for(const row of targets){
     row.sendStatus='sending'; render();
     try{
-      const res = await invokeEdgeFunction('send-email',{ action:'send_to_client_thread', clientName:row.name, messageBody:row.body });
-      if(res && res.ok===false) throw new Error(res.error||'send failed');
-      row.sendStatus='sent'; sent++;
+      const res = await sendFn({ action:'send', client_name:row.name, body_text:row.body });
+      row.sendStatus='sent'; row.threadId=res.threadId; sent++;
     }catch(e){
       row.sendStatus='failed'; row.error=str(e.message); failed++;
     }
@@ -230,7 +222,7 @@ function renderTemplateEditor(w){
     </div>
     ${w.tplOpen?`
       <div style="margin-top:12px">
-        <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Placeholders: ${WEEKLY_TOKENS.map(t=>`<code style="background:#f3f4f6;padding:1px 5px;border-radius:4px">${esc(t)}</code>`).join(' ')} — the CRM appends the “— The Headline Theory Team” signature automatically.</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Placeholders: ${WEEKLY_TOKENS.map(t=>`<code style="background:#f3f4f6;padding:1px 5px;border-radius:4px">${esc(t)}</code>`).join(' ')} — Lars's signature is appended automatically, don't include it here.</div>
         <textarea rows="9" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:10px;font-size:13px;font-family:var(--font);resize:vertical;box-sizing:border-box"
           oninput="state.weekly.tplDraft=this.value">${esc(tplVal)}</textarea>
         <div style="display:flex;gap:8px;margin-top:8px">
@@ -255,8 +247,8 @@ function renderRow(r,i,w){
         <div>
           <div style="font-size:14px;font-weight:700;color:var(--text)">${esc(r.name)} ${badge}</div>
           <div style="font-size:11.5px;color:var(--text-muted);margin-top:2px">
-            ${sendable?`To: ${esc(r.to)} &nbsp;·&nbsp; CC: ${esc(r.cc)}`:`<span style="color:var(--red);font-weight:600">No recipient configured — set the Client Email in Settings → Clients</span>`}
-            &nbsp;·&nbsp; ${r.threadFound?'↩ replies into existing thread':'✉ starts a new thread'}
+            ${sendable?`To: ${esc(r.to)} &nbsp;·&nbsp; CC: ${esc(r.cc)}`:`<span style="color:var(--red);font-weight:600">No recipient — check the client's row in the Client Info sheet</span>`}
+            &nbsp;·&nbsp; ${r.threadFound?'↩ replies into the weekly update thread':'✉ starts the weekly update thread'}
           </div>
         </div>
       </div>
@@ -283,9 +275,9 @@ export function renderWeeklyUpdates(){
         <div>
           <div style="font-size:16px;font-weight:800;color:var(--text)">Weekly Client Updates</div>
           <div style="font-size:12.5px;color:var(--text-muted);margin-top:4px">
-            Pulls this week's Smartlead stats (<strong>${esc(range.label)}</strong>, Sat→Fri EST) for every active client,
+            Pulls this week's Smartlead stats (<strong>${esc(range.label)}</strong>, Saturday→today) for every active client,
             fills the template, and lets you review + customize each email before sending them all at once.<br>
-            Sent from contact@theheadlinetheory.com into each client's existing lead-delivery thread (CC aidan@ + lars@).
+            Sent from lars@theheadlinetheory.com on each client's "weekly update" thread (CC aidan@ + client stakeholders from the Client Info sheet).
           </div>
           ${lastRun?`<div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">Last run: ${esc(str(lastRun.range))} — ${lastRun.sent||0} sent${lastRun.failed?`, ${lastRun.failed} failed`:''} (${esc(str(lastRun.sentAt).slice(0,10))})</div>`:''}
         </div>
