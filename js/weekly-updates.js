@@ -5,13 +5,15 @@
 // Send: fulfillment `weekly-update-send` edge fn — sends FROM
 //   lars@theheadlinetheory.com via Gmail on dedicated "<Client> weekly
 //   update" threads (first send starts the thread, later weeks reply into
-//   it). Recipients from the Client Info sheet: TO = Primary Contact
-//   Email, CC = aidan@ + Other Contacts. Lars's signature appended.
+//   it). Recipients from the CRM DB: TO = client_config.primary_email
+//   (edit in Settings → Clients → Client Contact Info), CC = aidan@ +
+//   crm_settings.weekly_update_extra_ccs (editable per client below).
+//   Lars's signature appended. The Client Info sheet is NOT used.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260702e';
-import { render } from './render.js?v=20260702e';
-import { showToast, sbSaveSettings } from './api.js?v=20260702e';
-import { esc, str, svgIcon } from './utils.js?v=20260702e';
+import { state } from './app.js?v=20260702f';
+import { render } from './render.js?v=20260702f';
+import { showToast, sbSaveSettings } from './api.js?v=20260702f';
+import { esc, str, svgIcon } from './utils.js?v=20260702f';
 
 // Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
@@ -125,7 +127,7 @@ export async function weeklyPrepare(){
       }
     }
 
-    w.progress='Resolving recipients from the Client Info sheet...'; render();
+    w.progress='Resolving recipients...'; render();
     const names = Object.keys(byClient);
     const preview = await sendFn({ action:'preview', client_names: names });
     if(stale()) return;
@@ -182,6 +184,25 @@ export async function weeklySendAll(){
   }catch(e){ /* non-fatal — history only */ }
   showToast(`Weekly updates: ${sent} sent${failed?`, ${failed} failed`:''}`, failed?'error':'success');
   render();
+}
+
+// ─── Per-client CC editing (persists to crm_settings.weekly_update_extra_ccs) ───
+export async function weeklyCcChange(i, value){
+  const w = getWeekly(); const row = w.rows[i]; if(!row) return;
+  const emails = str(value).split(/[,;\s]+/).map(e=>e.trim()).filter(e=>e.includes('@'));
+  const extras = emails.filter(e=>{
+    const x=e.toLowerCase();
+    return x!=='aidan@theheadlinetheory.com' && x!=='lars@theheadlinetheory.com' && x!==str(row.to).toLowerCase();
+  });
+  row.cc = ['aidan@theheadlinetheory.com'].concat(extras).join(', ');
+  // Merge into the stored map (preserve entries for clients not in this run)
+  const map = { ...(state.savedSettings?.weekly_update_extra_ccs || {}) };
+  if(extras.length) map[row.name] = extras; else delete map[row.name];
+  try{
+    await sbSaveSettings({ weekly_update_extra_ccs: map });
+    state.savedSettings = { ...(state.savedSettings||{}), weekly_update_extra_ccs: map };
+    showToast('CCs saved for '+row.name,'success');
+  }catch(e){ showToast('CC save failed: '+e.message,'error'); }
 }
 
 // ─── Template editing ───
@@ -246,9 +267,9 @@ function renderRow(r,i,w){
           onchange="state.weekly.rows[${i}].include=this.checked">
         <div>
           <div style="font-size:14px;font-weight:700;color:var(--text)">${esc(r.name)} ${badge}</div>
-          <div style="font-size:11.5px;color:var(--text-muted);margin-top:2px">
-            ${sendable?`To: ${esc(r.to)} &nbsp;·&nbsp; CC: ${esc(r.cc)}`:`<span style="color:var(--red);font-weight:600">No recipient — check the client's row in the Client Info sheet</span>`}
-            &nbsp;·&nbsp; ${r.threadFound?'↩ replies into the weekly update thread':'✉ starts the weekly update thread'}
+          <div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            ${sendable?`<span>To: ${esc(r.to)}</span><span>·</span><span>CC:</span><input value="${esc(r.cc)}" ${w.step==='sending'?'disabled':''} onchange="weeklyCcChange(${i},this.value)" title="Comma-separated. Saved per client for future weeks. aidan@ is always included." style="font-size:11.5px;font-family:var(--font);color:var(--text-secondary);border:1px solid var(--border);border-radius:6px;padding:2px 6px;min-width:280px;flex:1;max-width:420px">`:`<span style="color:var(--red);font-weight:600">${r.previewError?esc(r.previewError):'No primary email — set it in Settings → Clients → Client Contact Info'}</span>`}
+            <span>·</span><span>${r.threadFound?'↩ replies into the weekly update thread':'✉ starts the weekly update thread'}</span>
           </div>
         </div>
       </div>
@@ -257,7 +278,6 @@ function renderRow(r,i,w){
       </div>
     </div>
     ${r.campaigns.length?`<div style="font-size:10.5px;color:var(--text-muted);margin:6px 0 0 26px">Campaigns: ${esc(r.campaigns.join(', '))}</div>`:''}
-    ${r.previewError?`<div style="font-size:11px;color:var(--red);margin:6px 0 0 26px">Recipient preview failed: ${esc(r.previewError)}</div>`:''}
     <textarea rows="7" ${w.step==='sending'?'disabled':''} style="width:100%;margin-top:10px;border:1px solid var(--border);border-radius:8px;padding:10px;font-size:13px;font-family:var(--font);resize:vertical;box-sizing:border-box"
       oninput="state.weekly.rows[${i}].body=this.value">${esc(r.body)}</textarea>
   </div>`;
@@ -277,7 +297,8 @@ export function renderWeeklyUpdates(){
           <div style="font-size:12.5px;color:var(--text-muted);margin-top:4px">
             Pulls this week's Smartlead stats (<strong>${esc(range.label)}</strong>, Saturday→today) for every active client,
             fills the template, and lets you review + customize each email before sending them all at once.<br>
-            Sent from lars@theheadlinetheory.com on each client's "weekly update" thread (CC aidan@ + client stakeholders from the Client Info sheet).
+            Sent from lars@theheadlinetheory.com on each client's "weekly update" thread. Recipients come from the CRM
+            (primary email in Settings → Clients → Client Contact Info; CC = aidan@ + per-client extras, editable in the review list).
           </div>
           ${lastRun?`<div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">Last run: ${esc(str(lastRun.range))} — ${lastRun.sent||0} sent${lastRun.failed?`, ${lastRun.failed} failed`:''} (${esc(str(lastRun.sentAt).slice(0,10))})</div>`:''}
         </div>
@@ -324,3 +345,4 @@ window.weeklyPrepare = weeklyPrepare;
 window.weeklySendAll = weeklySendAll;
 window.weeklySaveTemplate = weeklySaveTemplate;
 window.weeklyResetTemplate = weeklyResetTemplate;
+window.weeklyCcChange = weeklyCcChange;
