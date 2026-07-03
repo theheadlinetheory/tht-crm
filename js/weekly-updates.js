@@ -10,10 +10,10 @@
 //   crm_settings.weekly_update_extra_ccs (editable per client below).
 //   Lars's signature appended. The Client Info sheet is NOT used.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260703a';
-import { render } from './render.js?v=20260703a';
-import { showToast, sbSaveSettings } from './api.js?v=20260703a';
-import { esc, str, svgIcon } from './utils.js?v=20260703a';
+import { state } from './app.js?v=20260703b';
+import { render } from './render.js?v=20260703b';
+import { showToast, sbSaveSettings } from './api.js?v=20260703b';
+import { esc, str, svgIcon } from './utils.js?v=20260703b';
 
 // Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
@@ -156,6 +156,7 @@ export async function weeklyPrepare(){
     }).sort((a,b)=>b.sent-a.sent || a.name.localeCompare(b.name));
 
     w.step='review';
+    saveDraftNow();
   }catch(e){
     if(stale()) return;
     w.step='idle';
@@ -182,8 +183,10 @@ export async function weeklySendAll(){
       row.sendStatus='failed'; row.error=str(e.message); failed++;
     }
     render();
+    saveDraftNow(); // persist sent/failed progress in case the tab dies mid-run
   }
   w.step='done';
+  if(failed===0) clearDraft(); else saveDraftNow(); // clear only on a clean full send
   const lastRun = { range:w.rangeLabel, sentAt:new Date().toISOString(), sent, failed,
     clients: w.rows.filter(r=>r.sendStatus==='sent').map(r=>r.name) };
   try{
@@ -215,6 +218,60 @@ export async function weeklyTestSend(i){
   render();
 }
 
+// ─── Draft autosave / restore (localStorage) ───
+// state.weekly is in-memory only, so a reload/crash/tab-discard loses hand
+// edits. We mirror the whole review state to localStorage (debounced on every
+// edit) so it survives until you send. Restored from the idle screen.
+const DRAFT_KEY = 'tht_weekly_draft';
+const DRAFT_AT_KEY = 'tht_weekly_draft_at';
+let _autosaveTimer = null;
+function saveDraftNow(){
+  try{
+    const w = state.weekly;
+    if(w && Array.isArray(w.rows) && w.rows.length){
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(w));
+      localStorage.setItem(DRAFT_AT_KEY, new Date().toISOString());
+    }
+  }catch(e){ /* quota/serialize — non-fatal, the tab still has the live copy */ }
+}
+export function weeklyAutosave(){
+  if(_autosaveTimer) clearTimeout(_autosaveTimer);
+  _autosaveTimer = setTimeout(saveDraftNow, 800);
+}
+function loadDraftMeta(){
+  try{
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if(!raw) return null;
+    const w = JSON.parse(raw);
+    if(!w || !Array.isArray(w.rows) || !w.rows.length) return null;
+    return { w, at: localStorage.getItem(DRAFT_AT_KEY) || '' };
+  }catch(e){ return null; }
+}
+function clearDraft(){
+  try{ localStorage.removeItem(DRAFT_KEY); localStorage.removeItem(DRAFT_AT_KEY); }catch(e){}
+}
+export function weeklyRestoreDraft(){
+  const meta = loadDraftMeta();
+  if(!meta){ showToast('No saved draft found in this browser.','error'); return; }
+  const w = meta.w;
+  // Coerce transient states so we land cleanly on the review screen.
+  if(w.step==='preparing' || w.step==='idle' || w.step==='sending') w.step='review';
+  w.runId = w.runId || 0;
+  for(const r of w.rows){
+    if(r.sendStatus==='sending') r.sendStatus=null;
+    if(r.testStatus==='sending') r.testStatus=null;
+  }
+  state.weekly = w;
+  render();
+  showToast(`Restored ${w.rows.length} saved draft${w.rows.length===1?'':'s'} — review and send when ready.`,'success');
+}
+export function weeklyDiscardDraft(){
+  if(!confirm('Discard the saved draft? Your written edits will be permanently removed from this browser.')) return;
+  clearDraft();
+  render();
+  showToast('Saved draft discarded.','success');
+}
+
 // ─── Per-client CC editing (persists to crm_settings.weekly_update_extra_ccs) ───
 export async function weeklyCcChange(i, value){
   const w = getWeekly(); const row = w.rows[i]; if(!row) return;
@@ -224,6 +281,7 @@ export async function weeklyCcChange(i, value){
     return x!=='aidan@theheadlinetheory.com' && x!=='lars@theheadlinetheory.com' && x!==str(row.to).toLowerCase();
   });
   row.cc = ['aidan@theheadlinetheory.com'].concat(extras).join(', ');
+  saveDraftNow(); // keep the persisted draft's recipients in sync
   // Merge into the stored map (preserve entries for clients not in this run)
   const map = { ...(state.savedSettings?.weekly_update_extra_ccs || {}) };
   if(extras.length) map[row.name] = extras; else delete map[row.name];
@@ -293,7 +351,7 @@ function renderRow(r,i,w){
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
       <div style="display:flex;align-items:center;gap:10px">
         <input type="checkbox" ${r.include?'checked':''} ${sendable&&w.step!=='sending'?'':'disabled'} style="width:16px;height:16px;accent-color:var(--purple);cursor:pointer"
-          onchange="state.weekly.rows[${i}].include=this.checked">
+          onchange="state.weekly.rows[${i}].include=this.checked;weeklyAutosave()">
         <div>
           <div style="font-size:14px;font-weight:700;color:var(--text)">${esc(r.name)} ${badge}</div>
           <div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
@@ -308,7 +366,7 @@ function renderRow(r,i,w){
     </div>
     ${r.campaigns.length?`<div style="font-size:10.5px;color:var(--text-muted);margin:6px 0 0 26px">Campaigns: ${esc(r.campaigns.join(', '))}</div>`:''}
     <textarea rows="7" ${w.step==='sending'?'disabled':''} style="width:100%;margin-top:10px;border:1px solid var(--border);border-radius:8px;padding:10px;font-size:13px;font-family:var(--font);resize:vertical;box-sizing:border-box"
-      oninput="state.weekly.rows[${i}].body=this.value">${esc(r.body)}</textarea>
+      oninput="state.weekly.rows[${i}].body=this.value;weeklyAutosave()">${esc(r.body)}</textarea>
     <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:8px">
       ${r.testStatus==='sent'?`<span style="font-size:11px;color:var(--green);font-weight:600">✓ test sent to lars@</span>`:r.testStatus==='failed'?`<span style="font-size:11px;color:var(--red);font-weight:600">test failed — see toast</span>`:''}
       <button ${btnG} ${(w.step==='sending'||r.testStatus==='sending')?'disabled':''} onclick="weeklyTestSend(${i})" title="Sends this exact (edited) copy to lars@theheadlinetheory.com only — no client is emailed. Confirms your edits transmit verbatim.">${r.testStatus==='sending'?'Sending test…':'✉ Send test to Lars'}</button>
@@ -339,6 +397,25 @@ export function renderWeeklyUpdates(){
       </div>
       ${w.step==='preparing'?`<div style="margin-top:12px;font-size:12.5px;color:var(--purple);font-weight:600">${esc(w.progress)}</div>`:''}
     </div>`;
+    if(w.step==='idle'){
+      const draft = loadDraftMeta();
+      if(draft){
+        const n = draft.w.rows.length;
+        const when = draft.at ? new Date(draft.at).toLocaleString('en-US',{ weekday:'short', hour:'numeric', minute:'2-digit' }) : 'earlier';
+        html += `<div style="${card};border-color:var(--purple)">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+            <div>
+              <div style="font-size:13.5px;font-weight:800;color:var(--purple)">💾 Saved draft found — ${n} client${n===1?'':'s'}</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:3px">Your edited copy from ${esc(when)}. Restore it instead of re-prepping — Prepare rebuilds every email from the template and discards edits.</div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button ${btnP} onclick="weeklyRestoreDraft()">Restore saved drafts</button>
+              <button ${btnG} onclick="weeklyDiscardDraft()">Discard</button>
+            </div>
+          </div>
+        </div>`;
+      }
+    }
     html += renderTemplateEditor(w);
   } else {
     const included = w.rows.filter(r=>r.include).length;
@@ -377,6 +454,9 @@ export function renderWeeklyUpdates(){
 window.weeklyPrepare = weeklyPrepare;
 window.weeklySendAll = weeklySendAll;
 window.weeklyTestSend = weeklyTestSend;
+window.weeklyAutosave = weeklyAutosave;
+window.weeklyRestoreDraft = weeklyRestoreDraft;
+window.weeklyDiscardDraft = weeklyDiscardDraft;
 window.weeklySaveTemplate = weeklySaveTemplate;
 window.weeklyResetTemplate = weeklyResetTemplate;
 window.weeklyCcChange = weeklyCcChange;
