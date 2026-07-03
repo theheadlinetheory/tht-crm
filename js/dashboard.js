@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // DASHBOARD — Dashboard rendering (client fulfillment + acquisition)
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260703d';
-import { ACQUISITION_STAGES, NURTURE_STAGES, DEFAULT_CLIENT_STAGES, ALL_PIPELINES } from './config.js?v=20260703d';
-import { render } from './render.js?v=20260703d';
-import { esc, fmt$ } from './utils.js?v=20260703d';
-import { isAdmin, isEmployee } from './auth.js?v=20260703d';
-import { getOverdueActivities } from './activities.js?v=20260703d';
-import { sbGetArchivedDeals } from './api.js?v=20260703d';
+import { state } from './app.js?v=20260703e';
+import { ACQUISITION_STAGES, NURTURE_STAGES, DEFAULT_CLIENT_STAGES, ALL_PIPELINES } from './config.js?v=20260703e';
+import { render } from './render.js?v=20260703e';
+import { esc, fmt$ } from './utils.js?v=20260703e';
+import { isAdmin, isEmployee } from './auth.js?v=20260703e';
+import { getOverdueActivities } from './activities.js?v=20260703e';
+import { sbGetArchivedDeals } from './api.js?v=20260703e';
 
 function dateAddedToYM(dateAdded) {
   if (!dateAdded) return '';
@@ -124,6 +124,21 @@ export function renderDashboard(){
   return h;
 }
 
+function isActivePplClient(name) {
+  const client = state.clients.find(c => c.name === name);
+  return client && client.status !== 'inactive' && Number(client.leadCost) > 0;
+}
+
+function isPplTrackerEntry(e) {
+  const cn = resolveClientName(e.clientName);
+  return cn && isActivePplClient(cn);
+}
+
+function isPplDeal(deal) {
+  const cn = getClientForDeal(deal);
+  return cn ? isActivePplClient(cn) : deal.stage === 'Client Not Distributed';
+}
+
 export function renderClientDashboard(thisMonth, archived){
   const selMonth = state.dashboardMonth || thisMonth;
   const clientDeals = state.deals.filter(d => d.pipeline === 'Client');
@@ -152,9 +167,9 @@ export function renderClientDashboard(thisMonth, archived){
   const prevDate = new Date(sy, sm - 2, 1);
   const prevMonth = prevDate.toISOString().slice(0,7);
 
-  // KPI 1: Booked Leads — from Lead Tracker dateAdded (source of truth)
-  const monthEntries = state.trackerEntries.filter(e => dateAddedToYM(e.dateAdded) === selMonth);
-  const prevMonthEntries = state.trackerEntries.filter(e => dateAddedToYM(e.dateAdded) === prevMonth);
+  // KPI 1: Booked Leads — from Lead Tracker dateAdded, PPL clients only
+  const monthEntries = state.trackerEntries.filter(e => dateAddedToYM(e.dateAdded) === selMonth && isPplTrackerEntry(e));
+  const prevMonthEntries = state.trackerEntries.filter(e => dateAddedToYM(e.dateAdded) === prevMonth && isPplTrackerEntry(e));
   const bookedMonth = monthEntries.length;
   const prevBooked = prevMonthEntries.length;
 
@@ -166,8 +181,9 @@ export function renderClientDashboard(thisMonth, archived){
   const goodMonth = bookedMonth - calledBackMonth;
   const prevGood = prevBooked - prevCalledBack;
 
-  // KPI 4: Active Leads (active only, all time)
-  const activeLeads = clientDeals.length;
+  // KPI 4: Active Leads — PPL clients only
+  const pplDeals = clientDeals.filter(d => isPplDeal(d));
+  const activeLeads = pplDeals.length;
 
   // KPI 4: Undistributed (active only)
   const undistributed = clientDeals.filter(d => d.stage === 'Client Not Distributed').length;
@@ -253,7 +269,12 @@ function renderClientTable(selMonth, monthLabel, clientDeals) {
   });
 
   const visibleClients = Object.entries(clientCounts)
-    .filter(([, c]) => c.active > 0 || c.booked > 0)
+    .filter(([name, c]) => {
+      const client = state.clients.find(x => x.name === name);
+      if (!client || client.status === 'inactive') return false;
+      if (!Number(client.leadCost)) return false;
+      return c.active > 0 || c.booked > 0;
+    })
     .sort((a, b) => b[1].booked - a[1].booked || b[1].active - a[1].active);
 
   let h = `<h3 style="font-size:14px;font-weight:700;margin-bottom:10px">Leads by Client \u2014 ${monthLabel}</h3>

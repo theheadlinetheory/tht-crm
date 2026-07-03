@@ -5,7 +5,7 @@ import { state, store, pendingWrites, pendingDealFields, deletedDealIds, clientP
 import { ACQUISITION_STAGES } from './config.js?v=20260703d';
 import { render } from './render.js?v=20260703d';
 import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbArchiveDeal, sbRestoreFromArchive, sbCreateActivity, camelToSnake, invokeEdgeFunction } from './api.js?v=20260703d';
-import { clearDashboardArchiveCache } from './dashboard.js?v=20260703d';
+import { clearDashboardArchiveCache } from './dashboard.js?v=20260703e';
 import { uid, getToday, str } from './utils.js?v=20260703d';
 import { isClient, currentUser } from './auth.js?v=20260703d';
 

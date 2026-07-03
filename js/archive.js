@@ -4,7 +4,7 @@
 import { state, store, pendingWrites, deletedDealIds } from './app.js?v=20260703d';
 import { render } from './render.js?v=20260703d';
 import { sbGetArchive, sbRestoreFromArchive, normalizeRow, supabase } from './api.js?v=20260703d';
-import { clearDashboardArchiveCache } from './dashboard.js?v=20260703d';
+import { clearDashboardArchiveCache } from './dashboard.js?v=20260703e';
 import { esc, str, fmtDate } from './utils.js?v=20260703d';
 import { registerActions } from './delegate.js?v=20260703d';
 import { filterSelect } from './html-helpers.js?v=20260703d';
