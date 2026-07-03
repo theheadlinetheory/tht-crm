@@ -10,10 +10,10 @@
 //   crm_settings.weekly_update_extra_ccs (editable per client below).
 //   Lars's signature appended. The Client Info sheet is NOT used.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260702g';
-import { render } from './render.js?v=20260702g';
-import { showToast, sbSaveSettings } from './api.js?v=20260702g';
-import { esc, str, svgIcon } from './utils.js?v=20260702g';
+import { state } from './app.js?v=20260703a';
+import { render } from './render.js?v=20260703a';
+import { showToast, sbSaveSettings } from './api.js?v=20260703a';
+import { esc, str, svgIcon } from './utils.js?v=20260703a';
 
 // Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
@@ -138,13 +138,19 @@ export async function weeklyPrepare(){
     w.rows = names.map((name)=>{
       const b = byClient[name]; const p = (preview.clients||{})[name] || {};
       const first = str(p.first) || str(b.client.contactFirstName).trim().split(' ')[0] || 'there';
+      const ccList = p.cc || [];
+      // Clients with additional stakeholders CC'd on the email (anyone beyond
+      // the internal @theheadlinetheory.com addresses like aidan@) get a
+      // "Hey Team," greeting instead of one person's first name.
+      const multiStakeholder = ccList.some(e => !str(e).toLowerCase().endsWith('@theheadlinetheory.com'));
+      const greetName = multiStakeholder ? 'Team' : first;
       const row = {
-        name, first, sent:b.sent, replies:b.replies, positives:b.positives, campaigns:b.campaigns,
-        to: str(p.to), cc: (p.cc||[]).join(', '), threadFound: !!p.threadFound,
+        name, first, multiStakeholder, sent:b.sent, replies:b.replies, positives:b.positives, campaigns:b.campaigns,
+        to: str(p.to), cc: ccList.join(', '), threadFound: !!p.threadFound,
         previewError: p.error ? str(p.error) : '',
         sendStatus: null, error: ''
       };
-      row.body = applyWeeklyTemplate(tpl, { ...row, rangeLabel: range.label });
+      row.body = applyWeeklyTemplate(tpl, { ...row, first: greetName, rangeLabel: range.label });
       row.include = b.sent>0 && !!row.to;
       return row;
     }).sort((a,b)=>b.sent-a.sent || a.name.localeCompare(b.name));
@@ -185,6 +191,27 @@ export async function weeklySendAll(){
     state.savedSettings = { ...(state.savedSettings||{}), weekly_update_last_run: lastRun };
   }catch(e){ /* non-fatal — history only */ }
   showToast(`Weekly updates: ${sent} sent${failed?`, ${failed} failed`:''}`, failed?'error':'success');
+  render();
+}
+
+// ─── Test send: fire ONE row's current (edited) body to Lars only ───
+// Uses the edge fn's to_override test mode — restricted to an internal
+// @theheadlinetheory.com address, a throwaway thread, no CC. The real client
+// thread is never touched. Confirms the exact edited body_text transmits
+// verbatim (frontend row.body → edge fn → Gmail), formatted as a client sees it.
+export async function weeklyTestSend(i){
+  const w = getWeekly();
+  const row = w.rows[i];
+  if(!row || row.testStatus==='sending') return;
+  row.testStatus='sending'; render();
+  try{
+    await sendFn({ action:'send', client_name:row.name, body_text:row.body, to_override:'lars@theheadlinetheory.com' });
+    row.testStatus='sent';
+    showToast(`Test copy for ${row.name} sent to lars@theheadlinetheory.com (no client emailed)`, 'success');
+  }catch(e){
+    row.testStatus='failed';
+    showToast('Test send failed: '+str(e.message), 'error');
+  }
   render();
 }
 
@@ -282,6 +309,10 @@ function renderRow(r,i,w){
     ${r.campaigns.length?`<div style="font-size:10.5px;color:var(--text-muted);margin:6px 0 0 26px">Campaigns: ${esc(r.campaigns.join(', '))}</div>`:''}
     <textarea rows="7" ${w.step==='sending'?'disabled':''} style="width:100%;margin-top:10px;border:1px solid var(--border);border-radius:8px;padding:10px;font-size:13px;font-family:var(--font);resize:vertical;box-sizing:border-box"
       oninput="state.weekly.rows[${i}].body=this.value">${esc(r.body)}</textarea>
+    <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:8px">
+      ${r.testStatus==='sent'?`<span style="font-size:11px;color:var(--green);font-weight:600">✓ test sent to lars@</span>`:r.testStatus==='failed'?`<span style="font-size:11px;color:var(--red);font-weight:600">test failed — see toast</span>`:''}
+      <button ${btnG} ${(w.step==='sending'||r.testStatus==='sending')?'disabled':''} onclick="weeklyTestSend(${i})" title="Sends this exact (edited) copy to lars@theheadlinetheory.com only — no client is emailed. Confirms your edits transmit verbatim.">${r.testStatus==='sending'?'Sending test…':'✉ Send test to Lars'}</button>
+    </div>
   </div>`;
 }
 
@@ -345,6 +376,7 @@ export function renderWeeklyUpdates(){
 // Inline-onclick handlers (app-wide convention)
 window.weeklyPrepare = weeklyPrepare;
 window.weeklySendAll = weeklySendAll;
+window.weeklyTestSend = weeklyTestSend;
 window.weeklySaveTemplate = weeklySaveTemplate;
 window.weeklyResetTemplate = weeklyResetTemplate;
 window.weeklyCcChange = weeklyCcChange;

@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // BLOOIO — In-CRM texting via Blooio API (thread viewer + send)
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20260702g';
-import { showToast, sbCreateActivity, sbUpdateDeal, camelToSnake } from './api.js?v=20260702g';
-import { uid, getToday, esc, applyTemplate } from './utils.js?v=20260702g';
-import { refreshModal } from './render.js?v=20260702g';
-import { BLOOIO_BASE_URL, BLOOIO_API_KEY, SEQUENCE_TEMPLATES, CLIENT_LEAD_TEMPLATES, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260702g';
-import { findClientForDeal } from './client-info.js?v=20260702g';
+import { state, pendingWrites } from './app.js?v=20260703a';
+import { showToast, sbCreateActivity, sbUpdateDeal, camelToSnake } from './api.js?v=20260703a';
+import { uid, getToday, esc, applyTemplate } from './utils.js?v=20260703a';
+import { refreshModal } from './render.js?v=20260703a';
+import { BLOOIO_BASE_URL, BLOOIO_API_KEY, SEQUENCE_TEMPLATES, CLIENT_LEAD_TEMPLATES, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260703a';
+import { findClientForDeal } from './client-info.js?v=20260703a';
 
 let cachedFromNumber = null;
 
