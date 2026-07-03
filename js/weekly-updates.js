@@ -10,10 +10,10 @@
 //   crm_settings.weekly_update_extra_ccs (editable per client below).
 //   Lars's signature appended. The Client Info sheet is NOT used.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260703b';
-import { render } from './render.js?v=20260703b';
-import { showToast, sbSaveSettings } from './api.js?v=20260703b';
-import { esc, str, svgIcon } from './utils.js?v=20260703b';
+import { state } from './app.js?v=20260703c';
+import { render } from './render.js?v=20260703c';
+import { showToast, sbSaveSettings } from './api.js?v=20260703c';
+import { esc, str, svgIcon } from './utils.js?v=20260703c';
 
 // Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
@@ -365,8 +365,9 @@ function renderRow(r,i,w){
       </div>
     </div>
     ${r.campaigns.length?`<div style="font-size:10.5px;color:var(--text-muted);margin:6px 0 0 26px">Campaigns: ${esc(r.campaigns.join(', '))}</div>`:''}
-    <textarea rows="7" ${w.step==='sending'?'disabled':''} style="width:100%;margin-top:10px;border:1px solid var(--border);border-radius:8px;padding:10px;font-size:13px;font-family:var(--font);resize:vertical;box-sizing:border-box"
-      oninput="state.weekly.rows[${i}].body=this.value;weeklyAutosave()">${esc(r.body)}</textarea>
+    <textarea rows="7" data-weekly-edit="1" ${w.step==='sending'?'disabled':''} style="width:100%;margin-top:10px;${r.h?`height:${esc(r.h)};`:''}border:1px solid var(--border);border-radius:8px;padding:10px;font-size:13px;font-family:var(--font);resize:vertical;box-sizing:border-box"
+      oninput="state.weekly.rows[${i}].body=this.value;weeklyAutosave()"
+      onmouseup="if(this.style.height)state.weekly.rows[${i}].h=this.style.height">${esc(r.body)}</textarea>
     <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:8px">
       ${r.testStatus==='sent'?`<span style="font-size:11px;color:var(--green);font-weight:600">✓ test sent to lars@</span>`:r.testStatus==='failed'?`<span style="font-size:11px;color:var(--red);font-weight:600">test failed — see toast</span>`:''}
       <button ${btnG} ${(w.step==='sending'||r.testStatus==='sending')?'disabled':''} onclick="weeklyTestSend(${i})" title="Sends this exact (edited) copy to lars@theheadlinetheory.com only — no client is emailed. Confirms your edits transmit verbatim.">${r.testStatus==='sending'?'Sending test…':'✉ Send test to Lars'}</button>

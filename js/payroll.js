@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════
 // PAYROLL — Employee management, payment tracking & PayPal
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260703b';
-import { invokeEdgeFunction, showToast, supabase } from './api.js?v=20260703b';
-import { esc, str } from './utils.js?v=20260703b';
-import { render } from './render.js?v=20260703b';
+import { state } from './app.js?v=20260703c';
+import { invokeEdgeFunction, showToast, supabase } from './api.js?v=20260703c';
+import { esc, str } from './utils.js?v=20260703c';
+import { render } from './render.js?v=20260703c';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
@@ -105,7 +105,7 @@ export function renderPayroll() {
     Promise.all([
       _employeesLoaded ? Promise.resolve() : loadEmployees(),
       _paymentsLoaded ? Promise.resolve() : loadPayments(),
-      state.trackerLoaded ? Promise.resolve() : import('./lead-tracker.js?v=20260703b').then(m => m.loadTrackerEntries()),
+      state.trackerLoaded ? Promise.resolve() : import('./lead-tracker.js?v=20260703c').then(m => m.loadTrackerEntries()),
     ]).then(() => { if (state.pipeline === 'payroll') render(); });
     return '<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading payroll...</div>';
   }
