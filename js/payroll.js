@@ -61,10 +61,11 @@ function getAlreadyPaidForMonth(empName, month, year) {
   return { basesPaid, totalPaid };
 }
 
-function getDemoEntriesForMonth(month, year) {
+function getDemoEntriesForMonth(month, year, bookedBy) {
   const monthNames = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
   const label = `${monthNames[month]}/${String(year).slice(-2)}`;
-  const all = (state.demoEntries || []).filter(e => str(e.month) === label);
+  let all = (state.demoEntries || []).filter(e => str(e.month) === label);
+  if (bookedBy) all = all.filter(e => str(e.bookedBy) === bookedBy);
   const showed = all.filter(e => str(e.showStatus) === 'Showed');
   const noShows = all.filter(e => str(e.showStatus) === 'No-Show');
   const qualified = showed.filter(e => str(e.outcome).startsWith('Qualified'));
@@ -80,7 +81,7 @@ function calcPayout(emp, month, year) {
   const paid = getAlreadyPaidForMonth(emp.name + (emp.commission_source === 'demo_tracker' ? ' (SDR)' : ''), month, year);
 
   if (emp.commission_source === 'demo_tracker') {
-    const demos = getDemoEntriesForMonth(month, year);
+    const demos = getDemoEntriesForMonth(month, year, 'Ioannis');
     const basePay = Number(emp.base_pay) || 0;
     const basesOwed = Math.max(0, 2 - paid.basesPaid);
     const baseOwed = basesOwed * basePay;

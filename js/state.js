@@ -4,7 +4,7 @@
 // All mutations go through store.* methods to prevent direct
 // state tampering and ensure consistent re-renders.
 
-import { render, refreshModal } from './render.js?v=20260703d';
+import { render, refreshModal } from './render.js?v=20260703e';
 
 // ─── Raw State (private — modules should use store.*) ───
 export const state = {
@@ -74,7 +74,7 @@ export const state = {
   invoiceModal: null,
   demoEntries: [],
   demoLoaded: false,
-  demoFilters: { month: '', showStatus: '', outcome: '', dateFrom: '', dateTo: '' },
+  demoFilters: { month: '', showStatus: '', outcome: '', dateFrom: '', dateTo: '', bookedBy: '' },
   demoSort: { field: 'callDate', dir: 'desc' },
   demoEditingCell: null,
   demoSelected: new Set(),
