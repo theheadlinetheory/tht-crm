@@ -357,6 +357,7 @@ const FIELD_MAP = {
   call_type: 'callType',
   show_status: 'showStatus',
   date_booked: 'dateBooked',
+  booked_by: 'bookedBy',
 };
 
 const REVERSE_FIELD_MAP = {};

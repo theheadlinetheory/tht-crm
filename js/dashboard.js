@@ -431,15 +431,20 @@ export function renderAcquisitionDashboard(thisMonth, archived){
   // KPI 4: Pipeline Value (active only)
   const totalValue = acqDeals.reduce((s, d) => s + (Number(d.value) || 0), 0);
 
-  // Demo-based metrics (all time)
-  const DEMO_STAGES = ['Discovery Scheduled', 'Demo Scheduled', 'Under Review', 'No Show', 'Waiting for Payment/Contract'];
-  const activeDemos = acqDeals.filter(d => DEMO_STAGES.includes(d.stage)).length;
-  const archivedDemos = acqArchived.filter(d => d.archiveStatus === 'Closed Won' || d.archiveStatus === 'Passed Off' || DEMO_STAGES.includes(d.stage)).length;
-  const demosBooked = activeDemos + archivedDemos;
-  const allWon = acqArchived.filter(d => d.archiveStatus === 'Closed Won').length;
-  const noShows = acqDeals.filter(d => d.stage === 'No Show').length + acqArchived.filter(d => d.stage === 'No Show').length;
+  // Demo-based metrics from demo_tracker table
+  const fullMonthNames = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
+  const demoMonthLabel = `${fullMonthNames[sm]}/${String(sy).slice(-2)}`;
+  const monthDemos = state.demoEntries.filter(e => String(e.month || '') === demoMonthLabel);
+  const allDemos = state.demoEntries;
+  const demosBooked = allDemos.length;
+  const noShows = allDemos.filter(e => String(e.showStatus || '') === 'No-Show').length;
+  const allWon = allDemos.filter(e => String(e.outcome || '') === 'Qualified — Closed Won').length;
   const showRate = demosBooked ? (((demosBooked - noShows) / demosBooked) * 100).toFixed(0) : '0';
   const closeRate = demosBooked ? ((allWon / demosBooked) * 100).toFixed(0) : '0';
+  const monthDemosBooked = monthDemos.length;
+  const monthNoShows = monthDemos.filter(e => String(e.showStatus || '') === 'No-Show').length;
+  const monthShowed = monthDemos.filter(e => String(e.showStatus || '') === 'Showed').length;
+  const monthWon = monthDemos.filter(e => String(e.outcome || '') === 'Qualified — Closed Won').length;
 
   // KPI 7: Overdue Tasks
   const overdueActs = getOverdueActivities().filter(a => {
@@ -474,9 +479,10 @@ export function renderAcquisitionDashboard(thisMonth, archived){
       <div style="${cardStyle}"><div style="${labelStyle}">Closed Won (${monthLabel})</div><div style="${numStyle};color:#22c55e">${closedWon}</div></div>
       <div style="${cardStyle}"><div style="${labelStyle}">Closed Lost (${monthLabel})</div><div style="${numStyle};color:#ef4444">${closedLost}</div></div>
       <div style="${cardStyle}"><div style="${labelStyle}">Pipeline Value</div><div style="${numStyle};color:var(--purple)">${fmt$(totalValue)}</div></div>
-      <div style="${cardStyle}"><div style="${labelStyle}">Demos Booked</div><div style="${numStyle};color:#818cf8">${demosBooked}</div><div style="font-size:10px;color:var(--text-muted);margin-top:2px">All time</div></div>
-      <div style="${cardStyle}"><div style="${labelStyle}">Show Rate</div><div style="${numStyle};color:#0891b2">${showRate}%</div><div style="font-size:10px;color:var(--text-muted);margin-top:2px">${demosBooked - noShows}/${demosBooked} showed</div></div>
-      <div style="${cardStyle}"><div style="${labelStyle}">Demo Close Rate</div><div style="${numStyle};color:#22c55e">${closeRate}%</div><div style="font-size:10px;color:var(--text-muted);margin-top:2px">${allWon}/${demosBooked} won</div></div>
+      <div style="${cardStyle}"><div style="${labelStyle}">Demos (${monthLabel})</div><div style="${numStyle};color:#818cf8">${monthDemosBooked}</div><div style="font-size:10px;color:var(--text-muted);margin-top:2px">${monthShowed} showed, ${monthNoShows} no-show</div></div>
+      <div style="${cardStyle}"><div style="${labelStyle}">Won (${monthLabel})</div><div style="${numStyle};color:#22c55e">${monthWon}</div></div>
+      <div style="${cardStyle}"><div style="${labelStyle}">Show Rate</div><div style="${numStyle};color:#0891b2">${showRate}%</div><div style="font-size:10px;color:var(--text-muted);margin-top:2px">${demosBooked - noShows}/${demosBooked} all time</div></div>
+      <div style="${cardStyle}"><div style="${labelStyle}">Demo Close Rate</div><div style="${numStyle};color:#22c55e">${closeRate}%</div><div style="font-size:10px;color:var(--text-muted);margin-top:2px">${allWon}/${demosBooked} all time</div></div>
       <div style="${cardStyle}"><div style="${labelStyle}">Overdue Tasks</div><div style="${numStyle};color:${overdueActs.length ? '#ef4444' : '#22c55e'}">${overdueActs.length}</div></div>
     </div>
     <h3 style="font-size:14px;font-weight:700;margin-bottom:10px">Pipeline Stages</h3>

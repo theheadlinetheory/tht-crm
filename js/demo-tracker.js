@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // DEMO TRACKER — SDR commission tracking for acquisition calls
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites, pendingDealFields } from './app.js?v=20260703d';
-import { sbCreateDemoEntry, sbUpdateDemoEntry, sbDeleteDemoEntry, sbUpdateDeal, camelToSnake, normalizeRow } from './api.js?v=20260703d';
-import { render, refreshModal } from './render.js?v=20260703d';
-import { isAdmin, isEmployee } from './auth.js?v=20260703d';
-import { esc, str, svgIcon } from './utils.js?v=20260703d';
+import { state, pendingWrites, pendingDealFields } from './app.js?v=20260703e';
+import { sbCreateDemoEntry, sbUpdateDemoEntry, sbDeleteDemoEntry, sbUpdateDeal, camelToSnake, normalizeRow } from './api.js?v=20260703e';
+import { render, refreshModal } from './render.js?v=20260703e';
+import { isAdmin, isEmployee } from './auth.js?v=20260703e';
+import { esc, str, svgIcon } from './utils.js?v=20260703e';
 
 const DEMO_BASE_PAYOUT = 100;
 const DEMO_CLOSE_BONUS = 50;
@@ -13,7 +13,10 @@ const DEMO_CLOSE_BONUS = 50;
 const SHOW_OPTIONS = ['Showed', 'No-Show'];
 const OUTCOME_OPTIONS = ['Qualified — Pending', 'Qualified — Closed Won', 'Qualified — Closed Lost', 'Not Qualified'];
 
+const BOOKED_BY_OPTIONS = ['Ioannis', 'Aidan'];
+
 const COLUMNS = [
+  { key: 'bookedBy',    label: 'Booked By',   width: '100px', editable: true,  editType: 'select', options: BOOKED_BY_OPTIONS },
   { key: 'leadName',    label: 'Lead Name',   width: '',      editable: true,  editType: 'text' },
   { key: 'leadEmail',   label: 'Email',       width: '',      editable: true,  editType: 'text' },
   { key: 'dateBooked',  label: 'Date Booked', width: '90px',  editable: true,  editType: 'text' },
@@ -50,6 +53,7 @@ function getFilteredEntries() {
   let entries = [...state.demoEntries];
 
   if (f.month) entries = entries.filter(e => str(e.month) === f.month);
+  if (f.bookedBy) entries = entries.filter(e => str(e.bookedBy) === f.bookedBy);
   if (f.showStatus === 'showed') entries = entries.filter(e => str(e.showStatus) === 'Showed');
   else if (f.showStatus === 'noshow') entries = entries.filter(e => str(e.showStatus) === 'No-Show');
   else if (f.showStatus === 'pending') entries = entries.filter(e => !str(e.showStatus).trim());
@@ -80,6 +84,10 @@ export function renderDemoTracker() {
 
   // Filter bar
   html += `<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px">
+    <select onchange="demoFilterBookedBy(this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+      <option value="" ${!f.bookedBy ? 'selected' : ''}>All Reps</option>
+      ${BOOKED_BY_OPTIONS.map(o => `<option value="${esc(o)}" ${f.bookedBy === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}
+    </select>
     <select onchange="demoFilterMonth(this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
       <option value="">All Months</option>
       ${months.map(m => `<option value="${esc(m)}" ${f.month === m ? 'selected' : ''}>${esc(m)}</option>`).join('')}
@@ -245,7 +253,7 @@ async function addDemoRow() {
   const dateBooked = `${today.getMonth() + 1}/${today.getDate()}/${String(today.getFullYear()).slice(-2)}`;
   const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   const month = `${monthNames[today.getMonth()]}/${String(today.getFullYear()).slice(-2)}`;
-  const fields = { dealId: '', leadName: '', leadEmail: '', dateBooked, callDate: '', callTime: '', callType: 'Discovery', showStatus: '', outcome: '', payout: 0, paidStatus: '', datePaid: '', month, notes: '' };
+  const fields = { dealId: '', leadName: '', leadEmail: '', dateBooked, callDate: '', callTime: '', callType: 'Discovery', showStatus: '', outcome: '', payout: 0, paidStatus: '', datePaid: '', month, notes: '', bookedBy: 'Ioannis' };
   pendingWrites.value++;
   try {
     const created = await sbCreateDemoEntry(camelToSnake(fields));
@@ -305,6 +313,7 @@ export async function pushToDemoTracker(dealId) {
     datePaid: '',
     month,
     notes: '',
+    bookedBy: 'Ioannis',
   };
 
   pendingWrites.value++;
@@ -418,6 +427,7 @@ function renderDemoPayoutModal() {
 
 // ─── Filter handlers ───
 
+window.demoFilterBookedBy = v => { state.demoFilters.bookedBy = v; render(); };
 window.demoFilterMonth = v => { state.demoFilters.month = v; render(); };
 window.demoFilterShow = v => { state.demoFilters.showStatus = v; render(); };
 window.demoFilterOutcome = v => { state.demoFilters.outcome = v; render(); };
