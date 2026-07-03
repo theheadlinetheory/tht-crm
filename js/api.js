@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // API — API layer (Google Sheets calls + Supabase CRUD)
 // ═══════════════════════════════════════════════════════════
-import { API_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260703d';
+import { API_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260703f';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 export { supabase };
-import { state, store, pendingWrites, failedWriteQueue, pendingDealFields, deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds, inFlightActivityIds } from './app.js?v=20260703d';
-import { render, refreshModal } from './render.js?v=20260703d';
+import { state, store, pendingWrites, failedWriteQueue, pendingDealFields, deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds, inFlightActivityIds } from './app.js?v=20260703f';
+import { render, refreshModal } from './render.js?v=20260703f';
 
 // Cached auth check — populated lazily on first initialSync to avoid circular import
 let _cachedIsAdmin = null;
@@ -135,14 +135,14 @@ export async function syncFromSheet(){
       state.clients=data.clients.filter(c => !deletedClientIds.has(String(c.id)));
       for(const c of state.clients){
         if(!c.calendlyUrl){
-          const { getClientConfig } = await import('./client-info.js?v=20260703d');
+          const { getClientConfig } = await import('./client-info.js?v=20260703f');
           const cfg = getClientConfig(c.name);
           if(cfg?.calendly_url) c.calendlyUrl = cfg.calendly_url;
         }
       }
     }
     if(data.appointments && Array.isArray(data.appointments)){
-      const { getToday } = await import('./utils.js?v=20260703d');
+      const { getToday } = await import('./utils.js?v=20260703f');
       state.appointments=data.appointments;
       state.appointments.forEach(a=>{
         Object.keys(a).forEach(k=>{ if(a[k]!=null && typeof a[k]!=='string') a[k]=String(a[k]); });
@@ -197,16 +197,16 @@ export async function syncFromSheet(){
     state.loadFailed=false;
     // Run service area checks in background (all roles — clients need maps too)
     // Re-render after checks complete to show badges/maps
-    const { runServiceAreaChecks } = await import('./maps.js?v=20260703d');
+    const { runServiceAreaChecks } = await import('./maps.js?v=20260703f');
     runServiceAreaChecks().then(() => render()).catch(e => console.warn('Service area checks failed:', e));
     // Pre-load archive
     if((isAdmin()||isEmployee()) && !state.archiveLoaded){
-      const { loadArchive } = await import('./archive.js?v=20260703d');
+      const { loadArchive } = await import('./archive.js?v=20260703f');
       loadArchive(true);
     }
   } else {
     if(state.deals.length===0){
-      const { getTestData } = await import('./config.js?v=20260703d');
+      const { getTestData } = await import('./config.js?v=20260703f');
       const { TEST_DEALS, TEST_ACTIVITIES, TEST_CLIENTS } = getTestData();
       state.deals=[...TEST_DEALS];
       state.activities=[...TEST_ACTIVITIES];
@@ -405,7 +405,7 @@ export async function initialSync(isStartup) {
     state.syncing = true;
     render();
     if (isStartup) {
-      import('./dashboard.js?v=20260703e').then(m => m.clearDashboardArchiveCache && m.clearDashboardArchiveCache()).catch(() => {});
+      import('./dashboard.js?v=20260703f').then(m => m.clearDashboardArchiveCache && m.clearDashboardArchiveCache()).catch(() => {});
     }
     const [deals, activities, clients, appointments, trackerEntries, demoEntries, passOffs, savedSettings, retargetHistory, retargetExports] = await Promise.all([
       sbGetDeals(), sbGetActivities(), sbGetClients(), sbGetAppointments(), sbGetTrackerEntries(), sbGetDemoEntries(), sbGetPassOffs(), sbLoadSettings(), sbGetRetargetHistory().catch(() => []), sbGetRetargetExports().catch(() => [])
@@ -419,7 +419,7 @@ export async function initialSync(isStartup) {
     }
     // Apply settings from Supabase if available
     if (savedSettings && Object.keys(savedSettings).length > 0) {
-      const { applySettings } = await import('./settings.js?v=20260703d');
+      const { applySettings } = await import('./settings.js?v=20260703f');
       applySettings(savedSettings);
     }
     state.deals = (deals || []).map(normalizeRow);
@@ -436,7 +436,7 @@ export async function initialSync(isStartup) {
     state.clients = clients.map(normalizeRow);
     // Cache isAdmin for use in synchronous realtime handler
     if (!_cachedIsAdmin) {
-      const { isAdmin: _isAdmin } = await import('./auth.js?v=20260703d');
+      const { isAdmin: _isAdmin } = await import('./auth.js?v=20260703f');
       _cachedIsAdmin = _isAdmin;
     }
     // Strip sensitive GHL credentials for non-admin users but preserve a flag
@@ -504,7 +504,7 @@ export async function initialSync(isStartup) {
 
     // Replay any pending activities from write-ahead log
     if (isStartup) {
-      import('./activities.js?v=20260703d').then(m => m.replayPendingActivities && m.replayPendingActivities()).catch(() => {});
+      import('./activities.js?v=20260703f').then(m => m.replayPendingActivities && m.replayPendingActivities()).catch(() => {});
     }
 
     state.synced = true;
@@ -513,7 +513,7 @@ export async function initialSync(isStartup) {
     render();
 
     // Run service area checks in background, re-render when done
-    const { runServiceAreaChecks } = await import('./maps.js?v=20260703d');
+    const { runServiceAreaChecks } = await import('./maps.js?v=20260703f');
     runServiceAreaChecks().then(() => render()).catch(e => console.warn('Service area checks failed:', e));
   } catch (e) {
     console.error('Initial sync failed:', e);
@@ -560,9 +560,11 @@ function scheduleResubscribe() {
   }, 3000);
 }
 
+let _realtimeId = 0;
 export async function subscribeRealtime() {
   await supabase.removeAllChannels();
-  supabase.channel('deals-changes')
+  const rid = ++_realtimeId;
+  supabase.channel(`deals-changes-${rid}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'deals' }, payload => {
       if (pendingWrites.value > 0 || state.selectedDeal || state.showNew || state.showAddClient) {
         _realtimeQueue.push({ table: 'deals', payload });
@@ -575,7 +577,7 @@ export async function subscribeRealtime() {
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') scheduleResubscribe();
     });
 
-  supabase.channel('activities-changes')
+  supabase.channel(`activities-changes-${rid}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'activities' }, payload => {
       if (pendingWrites.value > 0 || state.selectedDeal) {
         _realtimeQueue.push({ table: 'activities', payload });
@@ -592,7 +594,7 @@ export async function subscribeRealtime() {
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') scheduleResubscribe();
     });
 
-  supabase.channel('clients-changes')
+  supabase.channel(`clients-changes-${rid}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, payload => {
       if (pendingWrites.value > 0) {
         _realtimeQueue.push({ table: 'clients', payload });
@@ -605,7 +607,7 @@ export async function subscribeRealtime() {
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') scheduleResubscribe();
     });
 
-  supabase.channel('appointments-changes')
+  supabase.channel(`appointments-changes-${rid}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, payload => {
       applyRealtimeEvent('appointments', payload);
       debouncedRealtimeRender();
@@ -614,21 +616,21 @@ export async function subscribeRealtime() {
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') scheduleResubscribe();
     });
 
-  supabase.channel('tracker-changes')
+  supabase.channel(`tracker-changes-${rid}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'lead_tracker' }, payload => {
       applyRealtimeEvent('lead_tracker', payload);
       debouncedRealtimeRender();
     })
     .subscribe();
 
-  supabase.channel('demo-tracker-changes')
+  supabase.channel(`demo-tracker-changes-${rid}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'demo_tracker' }, payload => {
       applyRealtimeEvent('demo_tracker', payload);
       debouncedRealtimeRender();
     })
     .subscribe();
 
-  supabase.channel('pass-offs-changes')
+  supabase.channel(`pass-offs-changes-${rid}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'pass_offs' }, payload => {
       applyRealtimeEvent('pass_offs', payload);
       debouncedRealtimeRender();
