@@ -1,17 +1,17 @@
 // ═══════════════════════════════════════════════════════════
 // POWER DIALER — State, data access, CSV parsing, handlers
 // ═══════════════════════════════════════════════════════════
-import { supabase, showToast, sbCreateDeal, camelToSnake } from './api.js?v=20260703f';
-import { state } from './app.js?v=20260703f';
-import { uid, getToday } from './utils.js?v=20260703f';
-import { render as _render } from './render.js?v=20260703f';
+import { supabase, showToast, sbCreateDeal, camelToSnake } from './api.js?v=20260711a';
+import { state } from './app.js?v=20260711a';
+import { uid, getToday } from './utils.js?v=20260711a';
+import { render as _render } from './render.js?v=20260711a';
 function render() { state._pdRenderRequested = true; _render(); }
-import { getBestNumberForLead, loadNumberHealth } from './number-health.js?v=20260703f';
-import { currentUser } from './auth.js?v=20260703f';
-import { JUSTCALL_USER_MAP } from './config.js?v=20260703f';
-import { renderList, renderSetup, renderDialer, renderAnalytics, STANDARD_FIELDS, DISPOSITIONS, formatPhone, fmtDuration } from './pd-views.js?v=20260703f';
-import { initMiniMap, cleanupMaps, showCampaignSettings, showScriptEditor, bookCall, showStrategyPicker } from './pd-actions.js?v=20260703f';
-import { COUNTRY_CODES, parseCSV, autoDetectMapping, normalizePhone, splitPhones, buildContacts } from './pd-csv.js?v=20260703f';
+import { getBestNumberForLead, loadNumberHealth } from './number-health.js?v=20260711a';
+import { currentUser } from './auth.js?v=20260711a';
+import { JUSTCALL_USER_MAP } from './config.js?v=20260711a';
+import { renderList, renderSetup, renderDialer, renderAnalytics, STANDARD_FIELDS, DISPOSITIONS, formatPhone, fmtDuration } from './pd-views.js?v=20260711a';
+import { initMiniMap, cleanupMaps, showCampaignSettings, showScriptEditor, bookCall, showStrategyPicker } from './pd-actions.js?v=20260711a';
+import { COUNTRY_CODES, parseCSV, autoDetectMapping, normalizePhone, splitPhones, buildContacts } from './pd-csv.js?v=20260711a';
 
 // ─── Module State ───
 let _campaigns = null;
