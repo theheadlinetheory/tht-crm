@@ -10,10 +10,10 @@
 //   crm_settings.weekly_update_extra_ccs (editable per client below).
 //   Lars's signature appended. The Client Info sheet is NOT used.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260711b';
-import { render } from './render.js?v=20260711b';
-import { showToast, sbSaveSettings } from './api.js?v=20260711b';
-import { esc, str, svgIcon } from './utils.js?v=20260711b';
+import { state } from './app.js?v=20260711c';
+import { render } from './render.js?v=20260711c';
+import { showToast, sbSaveSettings } from './api.js?v=20260711c';
+import { esc, str, svgIcon } from './utils.js?v=20260711c';
 
 // Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
@@ -75,15 +75,23 @@ function currentTemplate(){
   return str(state.savedSettings?.weekly_update_template) || DEFAULT_WEEKLY_UPDATE_TEMPLATE;
 }
 
-// The report week is ALWAYS Saturday → Friday (the full current week, local
-// timezone). Prepping mid-week just means the later days have no sends yet.
+// The report week is the most recent COMPLETED Saturday → Friday week (local
+// timezone) — the one that ended last Friday, not the week containing today.
 // (Smartlead's per-day bucketing inside the range uses America/New_York,
 // matching the campaign sending schedules.)
 function weekRange(){
+  // Report the most recent COMPLETED Saturday→Friday week — the one that ended
+  // last Friday, NOT the week containing today. On the Sat/Sun you send, the
+  // current week just started and has ~no data; you want the week that just
+  // finished. Verified against the send cadence: run Sat Jul 4 → Jun 27–Jul 3;
+  // run Sat Jul 11 → Jul 4–Jul 10. Since a Sat→Fri week isn't complete until its
+  // Friday ends, "the week before the week containing today" is always the most
+  // recent completed week for any day Sat–Fri.
   const now = new Date();
   const daysSinceSat = (now.getDay() + 1) % 7; // Sun=0..Sat=6 → Sat:0, Sun:1, ... Fri:6
-  const start = new Date(now); start.setDate(now.getDate() - daysSinceSat);
-  const end = new Date(start); end.setDate(start.getDate() + 6); // the week's Friday
+  const curStart = new Date(now); curStart.setDate(now.getDate() - daysSinceSat); // Saturday of this week
+  const start = new Date(curStart); start.setDate(curStart.getDate() - 7); // previous week's Saturday
+  const end = new Date(start); end.setDate(start.getDate() + 6); // that week's Friday
   const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const label = d => d.toLocaleDateString('en-US',{ month:'short', day:'numeric' });
   return { start: iso(start), end: iso(end), label: `${label(start)} – ${label(end)}` };
@@ -469,7 +477,7 @@ export function renderWeeklyUpdates(){
         <div>
           <div style="font-size:16px;font-weight:800;color:var(--text)">Weekly Client Updates</div>
           <div style="font-size:12.5px;color:var(--text-muted);margin-top:4px">
-            Pulls this week's Smartlead stats (<strong>${esc(range.label)}</strong>, Saturday→Friday) for every active client,
+            Pulls last week's Smartlead stats (<strong>${esc(range.label)}</strong>, the most recent completed Saturday→Friday week) for every active client,
             fills the template, and lets you review + customize each email before sending them all at once.<br>
             Sent from lars@theheadlinetheory.com on each client's "weekly update" thread. Recipients come from the CRM
             (primary email in Settings → Clients → Client Contact Info; CC = aidan@ + per-client extras, editable in the review list).
@@ -525,7 +533,7 @@ export function renderWeeklyUpdates(){
     </div>`;
     html += withSends.map(r=>renderRow(r,w.rows.indexOf(r),w)).join('');
     if(zeroSend.length){
-      html += `<div style="margin:18px 0 8px;font-size:12px;font-weight:700;color:var(--text-muted)">Skipped — 0 sends this week (tick to include anyway)</div>`;
+      html += `<div style="margin:18px 0 8px;font-size:12px;font-weight:700;color:var(--text-muted)">Skipped — 0 sends that week (tick to include anyway)</div>`;
       html += zeroSend.map(r=>renderRow(r,w.rows.indexOf(r),w)).join('');
     }
   }
