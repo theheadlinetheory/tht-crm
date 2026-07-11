@@ -10,10 +10,10 @@
 //   crm_settings.weekly_update_extra_ccs (editable per client below).
 //   Lars's signature appended. The Client Info sheet is NOT used.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260711a';
-import { render } from './render.js?v=20260711a';
-import { showToast, sbSaveSettings } from './api.js?v=20260711a';
-import { esc, str, svgIcon } from './utils.js?v=20260711a';
+import { state } from './app.js?v=20260711b';
+import { render } from './render.js?v=20260711b';
+import { showToast, sbSaveSettings } from './api.js?v=20260711b';
+import { esc, str, svgIcon } from './utils.js?v=20260711b';
 
 // Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
@@ -37,8 +37,38 @@ Enjoy your weekend!`;
 const WEEKLY_TOKENS = ['{CLIENT_FIRST}','{CLIENT_NAME}','{SENT}','{REPLIES}','{POSITIVES}','{WEEK_RANGE}'];
 
 function getWeekly(){
-  if(!state.weekly) state.weekly = { step:'idle', rows:[], unmatched:[], statErrors:[], progress:'', tplOpen:false, tplDraft:null, rangeLabel:'' };
+  if(!state.weekly) state.weekly = { step:'idle', rows:[], unmatched:[], statErrors:[], progress:'', tplOpen:false, tplDraft:null, rangeLabel:'', selectedClients:null, inactiveOpen:false };
   return state.weekly;
+}
+
+// ─── Idle-screen client selection (who gets drafts this run) ───
+// selectedClients semantics: null/undefined = every active client is selected
+// (so a newly-added client defaults in). The moment the user ticks/unticks
+// anything we materialize an explicit array of client names. Names that no
+// longer match a client are simply ignored downstream, so a roster change
+// between sessions never breaks the run. An inactive client can also be ticked
+// on — its name lands in the explicit array too. renderWeeklyUpdates()'s
+// checklist AND weeklyPrepare()'s build filter BOTH resolve selection here, so
+// they can never diverge.
+function weeklySelectedNames(){
+  const w = getWeekly();
+  if(w.selectedClients==null) return new Set((state.clients||[]).filter(c=>c.status!=='inactive').map(c=>c.name));
+  return new Set(w.selectedClients);
+}
+export function weeklyToggleClient(name){
+  const w = getWeekly();
+  const sel = weeklySelectedNames(); // materializes null → current active set
+  if(sel.has(name)) sel.delete(name); else sel.add(name);
+  w.selectedClients = [...sel];
+  render();
+}
+export function weeklySelectAllClients(){
+  getWeekly().selectedClients = null; // null = every active client (new ones default in)
+  render();
+}
+export function weeklyClearClients(){
+  getWeekly().selectedClients = []; // explicit empty = none selected
+  render();
 }
 
 function currentTemplate(){
@@ -82,6 +112,10 @@ function clientKeywords(c){
 // ─── Prepare: pull stats, match campaigns → clients, resolve recipients ───
 export async function weeklyPrepare(){
   const w = getWeekly();
+  // Honor the idle-screen selection — build only for the ticked clients.
+  const sel = weeklySelectedNames();
+  const runClients = (state.clients||[]).filter(c=>sel.has(c.name));
+  if(!runClients.length){ showToast('Select at least one client','error'); return; }
   const range = weekRange();
   const runId = (w.runId||0)+1; w.runId = runId; // Back/re-prep abandons stale in-flight runs
   w.step='preparing'; w.progress='Pulling Smartlead stats for '+range.label+'... (can take ~1 min)';
@@ -113,13 +147,12 @@ export async function weeklyPrepare(){
     const campaigns = payload.data || [];
     w.statErrors = campaigns.filter(c=>c.error).map(c=>c.name+': '+c.error);
 
-    const activeClients = state.clients.filter(c=>c.status!=='inactive');
     const byClient = {};
-    for(const c of activeClients) byClient[c.name] = { client:c, sent:0, replies:0, positives:0, campaigns:[] };
+    for(const c of runClients) byClient[c.name] = { client:c, sent:0, replies:0, positives:0, campaigns:[] };
     for(const camp of campaigns){
       if(camp.error) continue;
       const n = str(camp.name).toLowerCase();
-      const owner = activeClients.find(c=>clientKeywords(c).some(k=>n.includes(k)));
+      const owner = runClients.find(c=>clientKeywords(c).some(k=>n.includes(k)));
       if(owner){
         const b = byClient[owner.name];
         b.sent += camp.sent||0; b.replies += camp.replies||0; b.positives += camp.positives||0;
@@ -375,6 +408,55 @@ function renderRow(r,i,w){
   </div>`;
 }
 
+// The idle-screen checklist of clients drafts will be built for. Rendered only
+// while step==='idle' (hidden during 'preparing'). Reads/writes the same
+// selection weeklyPrepare() consumes via weeklySelectedNames().
+function renderWeeklyClientSelect(w){
+  const b64 = s => btoa(unescape(encodeURIComponent(str(s))));
+  const active = (state.clients||[]).filter(c=>c.status!=='inactive').slice().sort((a,b)=>str(a.name).localeCompare(str(b.name)));
+  const inactive = (state.clients||[]).filter(c=>c.status==='inactive').slice().sort((a,b)=>str(a.name).localeCompare(str(b.name)));
+  const sel = weeklySelectedNames();
+  const selCount = active.filter(c=>sel.has(c.name)).length;
+  const clientRow = c => {
+    const contact = [str(c.contactFirstName).trim(), str(c.contactLastName).trim()].filter(Boolean).join(' ');
+    return `<label style="display:flex;align-items:center;gap:9px;padding:7px 2px;border-top:1px solid var(--border);cursor:pointer">
+      <input type="checkbox" ${sel.has(c.name)?'checked':''} style="width:15px;height:15px;accent-color:var(--purple);cursor:pointer"
+        onchange="weeklyToggleClient(atob('${b64(c.name)}'))">
+      <span style="font-size:13.5px;font-weight:600;color:var(--text)">${esc(c.name)}</span>
+      ${contact?`<span style="font-size:11.5px;color:var(--text-muted)">· ${esc(contact)}</span>`:''}
+    </label>`;
+  };
+  let html = `<div style="${card}">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:13px;font-weight:700;color:var(--text)">Drafts will be made for these clients</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px"><strong>${selCount}</strong> of ${active.length} client${active.length===1?'':'s'} selected</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button ${btnG} onclick="weeklySelectAllClients()">Select all</button>
+        <button ${btnG} onclick="weeklyClearClients()">Clear all</button>
+      </div>
+    </div>
+    <div style="margin-top:6px">
+      ${active.length?active.map(clientRow).join(''):`<div style="font-size:12px;color:var(--text-muted);padding:8px 2px">No active clients found.</div>`}
+    </div>`;
+  if(inactive.length){
+    const inactiveOn = inactive.filter(c=>sel.has(c.name)).length;
+    html += `<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="state.weekly.inactiveOpen=!state.weekly.inactiveOpen;render()">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted)">Other clients (inactive) — ${inactive.length}${inactiveOn?` · ${inactiveOn} included`:''}</div>
+        <span style="font-size:12px;color:var(--text-muted)">${w.inactiveOpen?'▲ collapse':'▼ show'}</span>
+      </div>
+      ${w.inactiveOpen?`<div style="margin-top:4px">
+        <div style="font-size:11px;color:var(--text-muted);padding:4px 2px">Tick one to include it in this run even though it's inactive.</div>
+        ${inactive.map(clientRow).join('')}
+      </div>`:''}
+    </div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
 export function renderWeeklyUpdates(){
   const w = getWeekly();
   const range = weekRange();
@@ -416,6 +498,7 @@ export function renderWeeklyUpdates(){
           </div>
         </div>`;
       }
+      html += renderWeeklyClientSelect(w);
     }
     html += renderTemplateEditor(w);
   } else {
@@ -461,3 +544,6 @@ window.weeklyDiscardDraft = weeklyDiscardDraft;
 window.weeklySaveTemplate = weeklySaveTemplate;
 window.weeklyResetTemplate = weeklyResetTemplate;
 window.weeklyCcChange = weeklyCcChange;
+window.weeklyToggleClient = weeklyToggleClient;
+window.weeklySelectAllClients = weeklySelectAllClients;
+window.weeklyClearClients = weeklyClearClients;
