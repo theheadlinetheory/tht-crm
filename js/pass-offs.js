@@ -1,8 +1,8 @@
-import { state, pendingWrites } from './app.js?v=20260711c';
-import { sbUpdatePassOff, sbDeletePassOff, camelToSnake, normalizeRow, showToast } from './api.js?v=20260711c';
-import { isAdmin } from './auth.js?v=20260711c';
-import { esc, str } from './utils.js?v=20260711c';
-import { render } from './render.js?v=20260711c';
+import { state, pendingWrites } from './app.js?v=20260711d';
+import { sbUpdatePassOff, sbDeletePassOff, camelToSnake, normalizeRow, showToast } from './api.js?v=20260711d';
+import { isAdmin } from './auth.js?v=20260711d';
+import { esc, str } from './utils.js?v=20260711d';
+import { render } from './render.js?v=20260711d';
 
 const COLUMNS = [
   { key: 'clientName',    label: 'Client',    editable: false },

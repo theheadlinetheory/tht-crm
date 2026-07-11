@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════
 // AUTH — Firebase Auth, user management, campaign assignments
 // ═══════════════════════════════════════════════════════════
-import { firebaseConfig, ROLES } from './config.js?v=20260711c';
-import { state } from './app.js?v=20260711c';
-import { render } from './render.js?v=20260711c';
-import { esc, svgIcon, str } from './utils.js?v=20260711c';
+import { firebaseConfig, ROLES } from './config.js?v=20260711d';
+import { state } from './app.js?v=20260711d';
+import { render } from './render.js?v=20260711d';
+import { esc, svgIcon, str } from './utils.js?v=20260711d';
 
 // Firebase instances (initialized once)
 firebase.initializeApp(firebaseConfig);
@@ -323,6 +323,11 @@ export function listenCampaignAssignments(){
 
 // ─── Auth State Listener (called from app.js) ───
 export function setupAuthListener(onLogin){
+  // onAuthStateChanged re-fires on token refresh (~hourly) and reconnect with
+  // the SAME user. Re-running the boot sequence flashes the transition overlay
+  // over whatever the user is doing. Track who we've already booted and skip
+  // the re-boot for the same uid (initApp itself is already idempotent).
+  let _bootedUid = null;
   // Handle Google redirect result (if popup was blocked and redirect was used)
   auth.getRedirectResult().catch(e => {
     if(e.code !== 'auth/popup-closed-by-user'){
@@ -336,6 +341,10 @@ export function setupAuthListener(onLogin){
     if(bootLoader) bootLoader.remove();
 
     if(user){
+      // Token refresh / reconnect re-fire for the already-booted user — no-op
+      // so we don't flash the "Loading your CRM..." overlay mid-work.
+      if(_bootedUid === user.uid) return;
+      _bootedUid = user.uid;
       let userDoc;
       try {
         const snap = await db.collection('users').doc(user.uid).get();
@@ -387,6 +396,7 @@ export function setupAuthListener(onLogin){
       }, 100);
       setTimeout(()=>{ clearInterval(_waitForSync); hideTransitionScreen(); }, 8000);
     } else {
+      _bootedUid = null;
       currentUser = null;
       document.getElementById('app').style.display='none';
       document.getElementById('login-screen').style.display='flex';
