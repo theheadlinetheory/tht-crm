@@ -168,7 +168,7 @@ export async function initApp(){
     try {
       const urlDealId = new URLSearchParams(window.location.search).get('deal');
       if (urlDealId) {
-        const { openDeal } = await import('./deal-modal.js?v=20260711d');
+        const { openDeal } = await import('./deal-modal.js?v=20260713a');
         const target = state.deals.find(d => String(d.id) === urlDealId);
         if (target) openDeal(target.id);
         window.history.replaceState({}, '', window.location.pathname + window.location.hash);

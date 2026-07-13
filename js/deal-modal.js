@@ -1251,9 +1251,13 @@ export function renderDealModal(deal){
               style="flex:1;padding:6px 10px;border:1px solid #86efac;border-radius:6px;font-size:13px;font-family:var(--font);background:#fff;color:var(--text)">
           </div>
           <div id="avail-book-error" style="display:none;color:#dc2626;font-size:11px;margin-bottom:6px"></div>
-          <button class="btn btn-primary" style="width:100%;justify-content:center;font-size:13px;background:#059669;border-color:#059669"
+          <button class="btn btn-primary" style="width:100%;justify-content:center;font-size:13px;background:#059669;border-color:#059669;margin-bottom:6px"
             onclick="bookAvailabilitySlot('${esc(deal.id)}')">
             ${alreadyBooked?'Update Booking':'Book This Time'}
+          </button>
+          <button class="btn" style="width:100%;justify-content:center;font-size:12px;font-weight:600;background:#f5f3ff;color:#7c3aed;border:1px solid #c4b5fd"
+            onclick="bookAvailabilitySlot('${esc(deal.id)}', true)" title="Book this date with no specific time — time left to their convenience">
+            ${deal.bookedFor==='AYC'?'✓ Booked — Time of Their Convenience':'Time of Their Convenience'}
           </button>
         </div>`;
       }
@@ -1725,15 +1729,15 @@ async function startAutoFollowUp(dealId){
 window.startAutoFollowUp = startAutoFollowUp;
 
 
-window.bookAvailabilitySlot = function(dealId) {
+window.bookAvailabilitySlot = function(dealId, ayc) {
   const dateEl = document.getElementById('avail-book-date');
   const timeEl = document.getElementById('avail-book-time');
   const errEl = document.getElementById('avail-book-error');
   if (!dateEl || !timeEl) return;
   const dateVal = dateEl.value;
   const timeVal = timeEl.value;
-  if (!dateVal || !timeVal) {
-    errEl.textContent = 'Select both a date and time.';
+  if (!dateVal || (!ayc && !timeVal)) {
+    errEl.textContent = ayc ? 'Select a date.' : 'Select both a date and time.';
     errEl.style.display = '';
     return;
   }
@@ -1756,19 +1760,24 @@ window.bookAvailabilitySlot = function(dealId) {
     errEl.style.display = '';
     return;
   }
-  const inWindow = windows.some(w => timeVal >= w.start && timeVal < w.end);
-  if (!inWindow) {
-    const fmt12 = t => { const [h,m]=t.split(':'); const hr=parseInt(h); return (hr>12?hr-12:hr||12)+':'+m+(hr>=12?' PM':' AM'); };
-    const slots = windows.map(w => fmt12(w.start) + ' – ' + fmt12(w.end)).join(' or ');
-    errEl.textContent = 'Time is outside availability. Valid windows: ' + slots;
-    errEl.style.display = '';
-    return;
+  if (!ayc) {
+    const inWindow = windows.some(w => timeVal >= w.start && timeVal < w.end);
+    if (!inWindow) {
+      const fmt12 = t => { const [h,m]=t.split(':'); const hr=parseInt(h); return (hr>12?hr-12:hr||12)+':'+m+(hr>=12?' PM':' AM'); };
+      const slots = windows.map(w => fmt12(w.start) + ' – ' + fmt12(w.end)).join(' or ');
+      errEl.textContent = 'Time is outside availability. Valid windows: ' + slots;
+      errEl.style.display = '';
+      return;
+    }
   }
   errEl.style.display = 'none';
   deal.bookedDate = dateVal;
-  deal.bookedTime = timeVal;
+  deal.bookedTime = ayc ? '' : timeVal;
+  const upd = { bookedDate: dateVal, bookedTime: deal.bookedTime };
+  if (ayc) { deal.bookedFor = 'AYC'; upd.bookedFor = 'AYC'; }
+  else if (deal.bookedFor === 'AYC') { deal.bookedFor = ''; upd.bookedFor = ''; }
   pendingWrites.value++;
-  sbUpdateDeal(deal.id, camelToSnake({ bookedDate: dateVal, bookedTime: timeVal }))
+  sbUpdateDeal(deal.id, camelToSnake(upd))
     .catch(e => console.error('Update deal failed:', e))
     .finally(() => { pendingWrites.value--; });
   if (state.selectedDeal && String(state.selectedDeal.id) === String(dealId)) {
