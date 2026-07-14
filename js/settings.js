@@ -2,15 +2,15 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260713a';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260713a';
-import { render } from './render.js?v=20260713a';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbUpdateClientConfig, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20260713a';
-import { esc, str, svgIcon } from './utils.js?v=20260713a';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js?v=20260713a';
-import { lookupClientInfo, getClientConfig, loadClientConfig } from './client-info.js?v=20260713a';
-import { findPolygonForClient } from './maps.js?v=20260713a';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260713a';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260714b';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260714b';
+import { render } from './render.js?v=20260714b';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20260714b';
+import { esc, str, svgIcon } from './utils.js?v=20260714b';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js?v=20260714b';
+import { lookupClientInfo } from './client-info.js?v=20260714b';
+import { findPolygonForClient } from './maps.js?v=20260714b';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260714b';
 
 export function getDefaultSettings(){
   return {
@@ -286,7 +286,7 @@ export function refreshSettingsBody(){
       window._dialerFieldsLoaded = true;
       supabase.from('crm_settings').select('value').eq('key','dialer_default_fields').single()
         .then(({ data }) => { window._dialerDefaultFields = data?.value ? JSON.parse(data.value) : []; refreshSettingsBody(); });
-      import('./number-health.js?v=20260713a').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
+      import('./number-health.js?v=20260714b').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
     }
     h=renderDialerSettings();
   }
@@ -573,35 +573,34 @@ function renderClientsSettings(){
       </div>
 
       ${(()=>{
-        const cfg = getClientConfig(c.name) || {};
         const inputStyle = 'width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px';
         return `<div style="margin-bottom:8px;padding:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px">
           <div style="font-size:10px;font-weight:700;color:#16a34a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Client Contact Info</div>
           <div style="display:flex;gap:6px;margin-bottom:6px">
             <div style="flex:1">
               <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Contact Name</label>
-              <input type="text" placeholder="e.g. James" value="${esc(cfg.primary_contact||str(c.contactFirstName))}"
-                oninput="updateClientConfig('${esc(c.name)}','primary_contact',this.value)"
+              <input type="text" placeholder="e.g. James" value="${esc(str(c.contactFirstName))}"
+                oninput="updateClientField('${esc(c.id)}','contactFirstName',this.value)"
                 style="${inputStyle}">
             </div>
             <div style="flex:1">
               <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Contact Email</label>
-              <input type="text" placeholder="e.g. book@company.com" value="${esc(cfg.primary_email||'')}"
-                oninput="updateClientConfig('${esc(c.name)}','primary_email',this.value)"
+              <input type="text" placeholder="e.g. book@company.com" value="${esc(str(c.notifyEmail))}"
+                oninput="updateClientField('${esc(c.id)}','notifyEmail',this.value)"
                 style="${inputStyle}">
             </div>
           </div>
           <div style="display:flex;gap:6px;margin-bottom:6px">
             <div style="flex:1">
               <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Phone</label>
-              <input type="text" placeholder="(555) 123-4567" value="${esc(cfg.phone||'')}"
-                oninput="updateClientConfig('${esc(c.name)}','phone',this.value)"
+              <input type="text" placeholder="(555) 123-4567" value="${esc(str(c.clientPhone))}"
+                oninput="updateClientField('${esc(c.id)}','clientPhone',this.value)"
                 style="${inputStyle}">
             </div>
             <div style="flex:1">
               <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Forward Email</label>
-              <input type="text" placeholder="Same as contact or different" value="${esc(cfg.forward_email||cfg.primary_email||'')}"
-                oninput="updateClientConfig('${esc(c.name)}','forward_email',this.value)"
+              <input type="text" placeholder="Same as contact or different" value="${esc(str(c.notifyEmails))}"
+                oninput="updateClientField('${esc(c.id)}','notifyEmails',this.value)"
                 style="${inputStyle}">
             </div>
           </div>
@@ -1220,33 +1219,6 @@ export async function downloadKml(clientId){
   }
 }
 
-// ─── Client Config (client_config table) edits with debounced save ───
-const _pendingConfigUpdates = {};
-let _configSaveTimer = null;
-
-function updateClientConfig(clientName, field, value) {
-  if (!_pendingConfigUpdates[clientName]) _pendingConfigUpdates[clientName] = {};
-  _pendingConfigUpdates[clientName][field] = value;
-  if (_configSaveTimer) clearTimeout(_configSaveTimer);
-  _configSaveTimer = setTimeout(flushClientConfigUpdates, 1500);
-}
-
-async function flushClientConfigUpdates() {
-  const updates = { ..._pendingConfigUpdates };
-  for (const k of Object.keys(_pendingConfigUpdates)) delete _pendingConfigUpdates[k];
-  for (const [clientName, fields] of Object.entries(updates)) {
-    try {
-      await sbUpdateClientConfig(clientName, fields);
-    } catch (e) {
-      console.error('Failed to update client config for', clientName, e);
-    }
-  }
-  // Refresh cache so Client Info modal reflects changes immediately
-  await loadClientConfig();
-}
-
-window.updateClientConfig = updateClientConfig;
-
 export async function createLeadTrackerSheet(clientId, clientName, hasInboxMgmt) {
   const btn = event?.target?.closest('button');
   if (btn) { btn.disabled = true; btn.textContent = 'Creating...'; }
@@ -1338,7 +1310,7 @@ export async function createNewUser(){
   msg.style.display='none';
 
   try {
-    const { auth } = await import('./auth.js?v=20260713a');
+    const { auth } = await import('./auth.js?v=20260714b');
     const cred = await auth.createUserWithEmailAndPassword(email, pass);
     await cred.user.updateProfile({ displayName: name });
     await db.collection('users').doc(cred.user.uid).set({
@@ -1651,7 +1623,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260713a');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260714b');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);

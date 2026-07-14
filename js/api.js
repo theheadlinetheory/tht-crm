@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // API — API layer (Google Sheets calls + Supabase CRUD)
 // ═══════════════════════════════════════════════════════════
-import { API_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260713a';
+import { API_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260714b';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 export { supabase };
-import { state, store, pendingWrites, failedWriteQueue, pendingDealFields, deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds, inFlightActivityIds } from './app.js?v=20260713a';
-import { render, refreshModal } from './render.js?v=20260713a';
+import { state, store, pendingWrites, failedWriteQueue, pendingDealFields, deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds, inFlightActivityIds } from './app.js?v=20260714b';
+import { render, refreshModal } from './render.js?v=20260714b';
 
 // Cached auth check — populated lazily on first initialSync to avoid circular import
 let _cachedIsAdmin = null;
@@ -133,16 +133,9 @@ export async function syncFromSheet(){
     }
     if(data.clients && Array.isArray(data.clients) && data.clients.length>0){
       state.clients=data.clients.filter(c => !deletedClientIds.has(String(c.id)));
-      for(const c of state.clients){
-        if(!c.calendlyUrl){
-          const { getClientConfig } = await import('./client-info.js?v=20260713a');
-          const cfg = getClientConfig(c.name);
-          if(cfg?.calendly_url) c.calendlyUrl = cfg.calendly_url;
-        }
-      }
     }
     if(data.appointments && Array.isArray(data.appointments)){
-      const { getToday } = await import('./utils.js?v=20260713a');
+      const { getToday } = await import('./utils.js?v=20260714b');
       state.appointments=data.appointments;
       state.appointments.forEach(a=>{
         Object.keys(a).forEach(k=>{ if(a[k]!=null && typeof a[k]!=='string') a[k]=String(a[k]); });
@@ -197,16 +190,16 @@ export async function syncFromSheet(){
     state.loadFailed=false;
     // Run service area checks in background (all roles — clients need maps too)
     // Re-render after checks complete to show badges/maps
-    const { runServiceAreaChecks } = await import('./maps.js?v=20260713a');
+    const { runServiceAreaChecks } = await import('./maps.js?v=20260714b');
     runServiceAreaChecks().then(() => render()).catch(e => console.warn('Service area checks failed:', e));
     // Pre-load archive
     if((isAdmin()||isEmployee()) && !state.archiveLoaded){
-      const { loadArchive } = await import('./archive.js?v=20260713a');
+      const { loadArchive } = await import('./archive.js?v=20260714b');
       loadArchive(true);
     }
   } else {
     if(state.deals.length===0){
-      const { getTestData } = await import('./config.js?v=20260713a');
+      const { getTestData } = await import('./config.js?v=20260714b');
       const { TEST_DEALS, TEST_ACTIVITIES, TEST_CLIENTS } = getTestData();
       state.deals=[...TEST_DEALS];
       state.activities=[...TEST_ACTIVITIES];
@@ -358,6 +351,17 @@ const FIELD_MAP = {
   show_status: 'showStatus',
   date_booked: 'dateBooked',
   booked_by: 'bookedBy',
+  services: 'services',
+  gmail_thread_id: 'gmailThreadId',
+  forward_name: 'forwardName',
+  service_area_cities: 'serviceAreaCities',
+  other_contacts: 'otherContacts',
+  activated_date: 'activatedDate',
+  billing_model: 'billingModel',
+  monthly_retainer: 'monthlyRetainer',
+  retainer_currency: 'retainerCurrency',
+  launch_date: 'launchDate',
+  retainer_last_billed: 'retainerLastBilled',
 };
 
 const REVERSE_FIELD_MAP = {};
@@ -382,7 +386,7 @@ export function normalizeRow(row) {
   return normalized;
 }
 
-const NULLABLE_COLS = new Set(['completed_at','scheduled_time','created_at','updated_at','forwarded_at','pushed_to_tracker','pushed_to_ghl','queued_at','rerun_after','sent_at','archived_at','value','lead_cost','lead_email','rerun_days','booked_date','booked_time','follow_up_date','onboarding_parsed_at','date_paid','paid_status','invoice','payment_link','callback_status','notes','sheet_row','stripe_customer_id','stripe_invoice_id','stripe_invoice_item_id','payment_terms','client_phone','auto_followup_started_at','setup_fee_total','setup_fee_deposit','setup_fee_spread_count','setup_fee_leads_billed']);
+const NULLABLE_COLS = new Set(['completed_at','scheduled_time','created_at','updated_at','forwarded_at','pushed_to_tracker','pushed_to_ghl','queued_at','rerun_after','sent_at','archived_at','value','lead_cost','lead_email','rerun_days','booked_date','booked_time','follow_up_date','onboarding_parsed_at','date_paid','paid_status','invoice','payment_link','callback_status','notes','sheet_row','stripe_customer_id','stripe_invoice_id','stripe_invoice_item_id','payment_terms','client_phone','auto_followup_started_at','setup_fee_total','setup_fee_deposit','setup_fee_spread_count','setup_fee_leads_billed','monthly_retainer','launch_date','retainer_last_billed','activated_date']);
 
 export function camelToSnake(obj) {
   const result = {};
@@ -405,7 +409,7 @@ export async function initialSync(isStartup) {
     state.syncing = true;
     if (isStartup || !weeklyTabActive()) render(); // background sync must not rebuild the weekly tab
     if (isStartup) {
-      import('./dashboard.js?v=20260713a').then(m => m.clearDashboardArchiveCache && m.clearDashboardArchiveCache()).catch(() => {});
+      import('./dashboard.js?v=20260714b').then(m => m.clearDashboardArchiveCache && m.clearDashboardArchiveCache()).catch(() => {});
     }
     const [deals, activities, clients, appointments, trackerEntries, demoEntries, passOffs, savedSettings, retargetHistory, retargetExports] = await Promise.all([
       sbGetDeals(), sbGetActivities(), sbGetClients(), sbGetAppointments(), sbGetTrackerEntries(), sbGetDemoEntries(), sbGetPassOffs(), sbLoadSettings(), sbGetRetargetHistory().catch(() => []), sbGetRetargetExports().catch(() => [])
@@ -419,7 +423,7 @@ export async function initialSync(isStartup) {
     }
     // Apply settings from Supabase if available
     if (savedSettings && Object.keys(savedSettings).length > 0) {
-      const { applySettings } = await import('./settings.js?v=20260713a');
+      const { applySettings } = await import('./settings.js?v=20260714b');
       applySettings(savedSettings);
     }
     state.deals = (deals || []).map(normalizeRow);
@@ -436,7 +440,7 @@ export async function initialSync(isStartup) {
     state.clients = clients.map(normalizeRow);
     // Cache isAdmin for use in synchronous realtime handler
     if (!_cachedIsAdmin) {
-      const { isAdmin: _isAdmin } = await import('./auth.js?v=20260713a');
+      const { isAdmin: _isAdmin } = await import('./auth.js?v=20260714b');
       _cachedIsAdmin = _isAdmin;
     }
     // Strip sensitive GHL credentials for non-admin users but preserve a flag
@@ -504,7 +508,7 @@ export async function initialSync(isStartup) {
 
     // Replay any pending activities from write-ahead log
     if (isStartup) {
-      import('./activities.js?v=20260713a').then(m => m.replayPendingActivities && m.replayPendingActivities()).catch(() => {});
+      import('./activities.js?v=20260714b').then(m => m.replayPendingActivities && m.replayPendingActivities()).catch(() => {});
     }
 
     state.synced = true;
@@ -513,7 +517,7 @@ export async function initialSync(isStartup) {
     if (isStartup || !weeklyTabActive()) render();
 
     // Run service area checks in background, re-render when done
-    const { runServiceAreaChecks } = await import('./maps.js?v=20260713a');
+    const { runServiceAreaChecks } = await import('./maps.js?v=20260714b');
     runServiceAreaChecks().then(() => { if (isStartup || !weeklyTabActive()) render(); }).catch(e => console.warn('Service area checks failed:', e));
   } catch (e) {
     console.error('Initial sync failed:', e);
@@ -1125,24 +1129,6 @@ export const sbRestoreFromArchive = (id) => sbCall(async () => {
   await supabase.from('archive').delete().eq('id', id);
   return data;
 }, { label: 'Restore from archive' });
-
-// Client Config
-export const sbGetClientConfig = () => sbCall(async () => {
-  const { data, error } = await supabase.from('client_config').select('*');
-  if (error) throw error;
-  return data;
-}, { label: 'Load client config' });
-
-export const sbUpdateClientConfig = (clientName, fields) => sbCall(async () => {
-  const { error } = await supabase.from('client_config').update(fields).eq('client_name', clientName);
-  if (error) throw error;
-}, { label: 'Update client config' });
-
-export const sbCreateClientConfig = (fields) => sbCall(async () => {
-  const { data, error } = await supabase.from('client_config').insert(fields).select().single();
-  if (error) throw error;
-  return data;
-}, { label: 'Create client config' });
 
 // Webhook Log
 export const sbGetWebhookLog = () => sbCall(async () => {
