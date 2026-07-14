@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // CLIENT-INFO — Client data, thread IDs, lookup functions
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, deletedClientIds } from './app.js?v=20260714b';
-import { CLIENT_PALETTE, CLIENT_INFO_SHEET_ID } from './config.js?v=20260714b';
-import { render } from './render.js?v=20260714b';
-import { str, uid, esc, isValidDate, getToday, svgIcon } from './utils.js?v=20260714b';
-import { sbCreateClient, sbDeleteClient, camelToSnake, apiPost, invokeEdgeFunction, showToast, supabase } from './api.js?v=20260714b';
-import { isClient, isAdmin } from './auth.js?v=20260714b';
+import { state, store, pendingWrites, deletedClientIds } from './app.js?v=20260714c';
+import { CLIENT_PALETTE } from './config.js?v=20260714c';
+import { render } from './render.js?v=20260714c';
+import { str, uid, esc, isValidDate, getToday, svgIcon } from './utils.js?v=20260714c';
+import { sbCreateClient, sbDeleteClient, camelToSnake, supabase } from './api.js?v=20260714c';
+import { isClient, isAdmin } from './auth.js?v=20260714c';
 
 // ─── Derive campaign keyword from client name ───
 const SKIP_PREFIXES = /^(the|a|an)\s+/i;
@@ -160,43 +160,25 @@ export function deriveTimezone(location) {
   return '';
 }
 
-// ─── Auto-Create Client from Won Deal ───
-export async function autoCreateClient(deal) {
-  const clientName = str(deal.company || deal.contact || '').trim();
-  if (!clientName) throw new Error('Deal has no company or contact name');
-
-  // Duplicate check — fuzzy match against existing clients
-  const normName = clientName.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
-  const existing = state.clients.find(c => {
-    const norm = str(c.name).toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
-    return norm === normName || norm.includes(normName) || normName.includes(norm);
-  });
-  if (existing) {
-    const ok = confirm(`Client "${existing.name}" already exists. Create "${clientName}" anyway?`);
-    if (!ok) return { ok: false, skipped: true, clientName };
-  }
-
-  // 1. Create CRM client in Supabase
-  const contactFirst = str(deal.contact || '').trim().split(' ')[0] || '';
+// ─── Create Client Record (structured, no side-effects) ───
+// Single clients-row create used by the Won modal. No GHL / dropdown /
+// Client Info sheet / SmartLead writes — the modal orchestrates those.
+// Returns the client object with its server id.
+export async function createClientRecord(fields) {
   const c = {
     id: uid(),
-    name: clientName,
     color: CLIENT_PALETTE[state.clients.length % CLIENT_PALETTE.length],
-    contactFirstName: contactFirst,
-    notifyEmail: str(deal.email || ''),
-    notifyPhone: str(deal.phone || ''),
     calendlyUrl: '',
-    campaignName: deriveKeyword(clientName),
-    campaignKeywords: deriveKeyword(clientName),
-    notifyEmails: str(deal.email || ''),
     serviceAreaUrl: '',
     enableAutoForward: 'FALSE',
-    enableForward: deal.email ? 'TRUE' : 'FALSE',
     enableCalendly: 'FALSE',
     enableCopyInfo: 'FALSE',
     enableTracker: 'TRUE',
-    leadCost: '',
+    ...fields,
   };
+  if (!c.enableForward) c.enableForward = c.notifyEmail ? 'TRUE' : 'FALSE';
+  if (!c.campaignName) c.campaignName = deriveKeyword(c.name);
+  if (!c.campaignKeywords) c.campaignKeywords = deriveKeyword(c.name);
   store.addClient(c);
   pendingWrites.value++;
   try {
@@ -205,89 +187,10 @@ export async function autoCreateClient(deal) {
   } finally {
     pendingWrites.value--;
   }
-
-  // 2. Add to Lead Tracker + Lead Entry dropdowns (fire-and-forget)
-  apiPost('add_client_to_dropdowns', { clientName }).catch(e => {
-    console.error('Dropdown update failed:', e);
-    showToast('Warning: Lead Tracker dropdown update failed — add manually in Settings', 'warning');
-  });
-
-  // 3. Create GHL sub-account (fire-and-forget)
-  const tz = deriveTimezone(str(deal.location || deal.address || ''));
-  const contactParts = str(deal.contact || '').trim().split(' ');
-  invokeEdgeFunction('create-ghl-subaccount', {
-    clientId: c.id,
-    name: clientName,
-    phone: str(deal.phone || ''),
-    address: str(deal.address || ''),
-    city: '',
-    state: '',
-    website: str(deal.website || ''),
-    location: str(deal.location || ''),
-    timezone: tz,
-    contactFirstName: contactParts[0] || '',
-    contactLastName: contactParts.slice(1).join(' ') || '',
-    contactEmail: str(deal.email || ''),
-  }).then(result => {
-    if (result.locationId) {
-      c.ghlLocationId = result.locationId;
-      if (result.pipelineId) c.ghlPipelineId = result.pipelineId;
-      if (result.stageId) c.ghlStageId = result.stageId;
-      showToast('GHL sub-account created for ' + clientName, 'success');
-    }
-  }).catch(e => {
-    console.error('GHL sub-account creation failed:', e);
-    showToast('Warning: GHL sub-account creation failed — create manually', 'warning');
-  });
-
-  // 4. Create SmartLead client record + email account tags (Group A + Group B)
-  invokeEdgeFunction('create-smartlead-client', {
-    clientName,
-    clientId: c.id,
-  }).then(result => {
-    if (result.smartleadClientId) {
-      c.smartleadClientId = String(result.smartleadClientId);
-    }
-    if (result.tags && result.tags.length === 2) {
-      const parts = ['SmartLead tags created: ' + result.tags.map(t => t.name).join(', ')];
-      if (result.smartleadClientId) parts.push('Client record linked (ID: ' + result.smartleadClientId + ')');
-      showToast(parts.join(' — '), 'success');
-    }
-  }).catch(e => {
-    console.error('SmartLead setup failed:', e);
-    showToast('Warning: SmartLead setup failed — create manually', 'warning');
-  });
-
-  // 5. Push row to Client Info Sheet
-  const otherContacts = [deal.email2, deal.email3, deal.email4]
-    .filter(e => e && str(e).trim()).join(', ');
-  const row = [
-    clientName,
-    str(deal.contact || ''),
-    str(deal.email || ''),
-    otherContacts,
-    str(deal.location || deal.address || ''),
-    tz,
-    '',
-    str(deal.phone || deal.mobilePhone || ''),
-    '',
-    str(deal.email || ''),
-  ];
-  invokeEdgeFunction('push-lead-tracker', {
-    action: 'write-row',
-    sheetId: CLIENT_INFO_SHEET_ID,
-    sheetName: 'Client Tracker',
-    row,
-  }).catch(e => {
-    console.error('Client Info sheet push failed:', e);
-    showToast('Warning: Client Info sheet push failed — add row manually', 'warning');
-  });
-
-  showToast(`Client "${clientName}" created — pipeline stage + Lead Tracker updated`, 'success');
-  return { ok: true, clientName };
+  return c;
 }
 
-window.autoCreateClient = autoCreateClient;
+window.createClientRecord = createClientRecord;
 
 // ─── Client Info Panel (opened from column header click) ───
 export function openClientInfoPanel(clientName){
