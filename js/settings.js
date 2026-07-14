@@ -2,15 +2,15 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260714d';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260714d';
-import { render } from './render.js?v=20260714d';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20260714d';
-import { esc, str, svgIcon } from './utils.js?v=20260714d';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js?v=20260714d';
-import { lookupClientInfo } from './client-info.js?v=20260714d';
-import { findPolygonForClient } from './maps.js?v=20260714d';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260714d';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260714e';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260714e';
+import { render } from './render.js?v=20260714e';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20260714e';
+import { esc, str, svgIcon } from './utils.js?v=20260714e';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js?v=20260714e';
+import { lookupClientInfo } from './client-info.js?v=20260714e';
+import { findPolygonForClient } from './maps.js?v=20260714e';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260714e';
 
 export function getDefaultSettings(){
   return {
@@ -113,6 +113,7 @@ function buildClientUpdate(c) {
     setupFeeLeadsBilled:str(c.setupFeeLeadsBilled ?? ''),
     invoiceEmails:str(c.invoiceEmails ?? ''),
     paymentTerms:str(c.paymentTerms||'Net 7'),
+    launchDate:str(c.launchDate ?? ''),
     clientNotes:str(c.clientNotes ?? ''),
     warmCallNotesText:str(c.warmCallNotesText ?? ''),
     passoffInstructions:str(c.passoffInstructions ?? ''),
@@ -286,7 +287,7 @@ export function refreshSettingsBody(){
       window._dialerFieldsLoaded = true;
       supabase.from('crm_settings').select('value').eq('key','dialer_default_fields').single()
         .then(({ data }) => { window._dialerDefaultFields = data?.value ? JSON.parse(data.value) : []; refreshSettingsBody(); });
-      import('./number-health.js?v=20260714d').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
+      import('./number-health.js?v=20260714e').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
     }
     h=renderDialerSettings();
   }
@@ -711,35 +712,15 @@ function renderClientsSettings(){
         </div>
       </div>`:''}
 
-      <div style="margin-bottom:8px;padding:10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px">
-        <div style="font-size:10px;font-weight:700;color:#0369a1;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Route Optimization</div>
-        <div style="margin-bottom:6px">
-          <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Home Base Address</label>
-          <input type="text" placeholder="123 Main St, City, ST 12345" value="${esc(str(c.homeBase))}"
-            oninput="updateClientField('${esc(c.id)}','homeBase',this.value)"
+      ${str(c.billingModel)==='retainer'?`<div style="margin-bottom:8px;padding:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px">
+        <div style="font-size:10px;font-weight:700;color:#16a34a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Retainer Billing</div>
+        <div>
+          <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Launch Date (billing start) — leave blank for TBD</label>
+          <input type="date" value="${esc(str(c.launchDate||''))}"
+            onchange="updateClientField('${esc(c.id)}','launchDate',this.value);debouncedAutoSave()"
             style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
         </div>
-        <div style="margin-bottom:6px">
-          <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Google Calendar ID</label>
-          <input type="text" placeholder="email@example.com or 'primary'" value="${esc(str(c.calendarId))}"
-            oninput="updateClientField('${esc(c.id)}','calendarId',this.value)"
-            style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
-        </div>
-        <div style="display:flex;gap:8px">
-          <div style="flex:1">
-            <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Work Start</label>
-            <input type="time" value="${esc(str(c.workStart)||'08:00')}"
-              onchange="updateClientField('${esc(c.id)}','workStart',this.value)"
-              style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
-          </div>
-          <div style="flex:1">
-            <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Work End</label>
-            <input type="time" value="${esc(str(c.workEnd)||'17:00')}"
-              onchange="updateClientField('${esc(c.id)}','workEnd',this.value)"
-              style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
-          </div>
-        </div>
-      </div>
+      </div>`:''}
 
       <div style="margin-bottom:8px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">\uD83D\uDDFA\uFE0F Service Area</label>
@@ -1307,7 +1288,7 @@ export async function createNewUser(){
   msg.style.display='none';
 
   try {
-    const { auth } = await import('./auth.js?v=20260714d');
+    const { auth } = await import('./auth.js?v=20260714e');
     const cred = await auth.createUserWithEmailAndPassword(email, pass);
     await cred.user.updateProfile({ displayName: name });
     await db.collection('users').doc(cred.user.uid).set({
@@ -1620,7 +1601,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260714d');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260714e');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);
