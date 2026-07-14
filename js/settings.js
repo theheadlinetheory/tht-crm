@@ -2,15 +2,15 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260714e';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260714e';
-import { render } from './render.js?v=20260714e';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20260714e';
-import { esc, str, svgIcon } from './utils.js?v=20260714e';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js?v=20260714e';
-import { lookupClientInfo } from './client-info.js?v=20260714e';
-import { findPolygonForClient } from './maps.js?v=20260714e';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260714e';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260714f';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260714f';
+import { render } from './render.js?v=20260714f';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20260714f';
+import { esc, str, svgIcon } from './utils.js?v=20260714f';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js?v=20260714f';
+import { lookupClientInfo } from './client-info.js?v=20260714f';
+import { findPolygonForClient } from './maps.js?v=20260714f';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260714f';
 
 export function getDefaultSettings(){
   return {
@@ -113,6 +113,9 @@ function buildClientUpdate(c) {
     setupFeeLeadsBilled:str(c.setupFeeLeadsBilled ?? ''),
     invoiceEmails:str(c.invoiceEmails ?? ''),
     paymentTerms:str(c.paymentTerms||'Net 7'),
+    billingModel:str(c.billingModel||'per_lead'),
+    monthlyRetainer:str(c.monthlyRetainer ?? ''),
+    retainerCurrency:str(c.retainerCurrency||'usd'),
     launchDate:str(c.launchDate ?? ''),
     clientNotes:str(c.clientNotes ?? ''),
     warmCallNotesText:str(c.warmCallNotesText ?? ''),
@@ -287,7 +290,7 @@ export function refreshSettingsBody(){
       window._dialerFieldsLoaded = true;
       supabase.from('crm_settings').select('value').eq('key','dialer_default_fields').single()
         .then(({ data }) => { window._dialerDefaultFields = data?.value ? JSON.parse(data.value) : []; refreshSettingsBody(); });
-      import('./number-health.js?v=20260714e').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
+      import('./number-health.js?v=20260714f').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
     }
     h=renderDialerSettings();
   }
@@ -606,11 +609,19 @@ function renderClientsSettings(){
       })()}
 
       ${isAdmin()?`<div style="margin-bottom:8px">
+        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Billing Type</label>
+        <select onchange="updateClientField('${esc(c.id)}','billingModel',this.value);debouncedAutoSave();renderSettingsPanel()"
+          style="width:160px;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+          <option value="per_lead" ${str(c.billingModel||'per_lead')!=='retainer'?'selected':''}>Per-Lead (PPL)</option>
+          <option value="retainer" ${str(c.billingModel)==='retainer'?'selected':''}>Retainer</option>
+        </select>
+      </div>
+      ${str(c.billingModel)!=='retainer'?`<div style="margin-bottom:8px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Lead Cost ($)</label>
         <input type="text" placeholder="e.g. 200" value="${esc(str(c.leadCost))}"
           oninput="updateClientField('${esc(c.id)}','leadCost',this.value)"
           style="width:120px;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
-      </div>
+      </div>`:''}
 
       <div style="margin-bottom:8px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Payment Terms</label>
@@ -714,6 +725,21 @@ function renderClientsSettings(){
 
       ${str(c.billingModel)==='retainer'?`<div style="margin-bottom:8px;padding:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px">
         <div style="font-size:10px;font-weight:700;color:#16a34a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Retainer Billing</div>
+        <div style="display:flex;gap:8px;margin-bottom:6px">
+          <div style="flex:2">
+            <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Monthly Amount</label>
+            <input type="number" step="0.01" placeholder="e.g. 3000" value="${esc(str(c.monthlyRetainer ?? ''))}"
+              oninput="updateClientField('${esc(c.id)}','monthlyRetainer',this.value)"
+              style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+          </div>
+          <div style="flex:1">
+            <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Currency</label>
+            <select onchange="updateClientField('${esc(c.id)}','retainerCurrency',this.value);debouncedAutoSave()"
+              style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+              ${['usd','aud','cad','gbp'].map(cc=>`<option value="${cc}" ${str(c.retainerCurrency||'usd')===cc?'selected':''}>${cc.toUpperCase()}</option>`).join('')}
+            </select>
+          </div>
+        </div>
         <div>
           <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Launch Date (billing start) — leave blank for TBD</label>
           <input type="date" value="${esc(str(c.launchDate||''))}"
@@ -793,7 +819,7 @@ function renderUsersSettings(){
     <div id="users-list-container"><div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px">Loading users...</div></div>
     <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
       <h4 style="font-size:12px;font-weight:700;margin-bottom:8px">\u2795 Invite New User</h4>
-      <p style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Create an account for a team member or client.</p>
+      <p style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Create an account for a team member.</p>
       <div style="display:flex;flex-direction:column;gap:6px">
         <input type="text" id="new-user-name" placeholder="Full name" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
         <input type="email" id="new-user-email" placeholder="Email address" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
@@ -801,12 +827,7 @@ function renderUsersSettings(){
         <div style="display:flex;gap:6px">
           <select id="new-user-role" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
             <option value="admin">Admin</option>
-            <option value="employee">Employee</option>
-            <option value="client" selected>Client</option>
-          </select>
-          <select id="new-user-client" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
-            <option value="">No client assigned</option>
-            ${state.clients.map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('')}
+            <option value="employee" selected>Employee</option>
           </select>
         </div>
         <button class="btn btn-primary" onclick="createNewUser()" style="padding:10px;font-size:12px" id="create-user-btn">Create User Account</button>
@@ -854,11 +875,7 @@ async function loadUsersIntoPanel(){
             <select onchange="changeUserRole('${u.uid}',this.value)" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:var(--font)"${isSelf?' disabled':''}>
               <option value="admin"${u.role==='admin'?' selected':''}>Admin</option>
               <option value="employee"${u.role==='employee'?' selected':''}>Employee</option>
-              <option value="client"${u.role==='client'?' selected':''}>Client</option>
-            </select>
-            <select onchange="changeUserClient('${u.uid}',this.value)" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:var(--font)">
-              <option value=""${!u.clientName?' selected':''}>None</option>
-              ${state.clients.map(c=>`<option value="${esc(c.name)}"${u.clientName===c.name?' selected':''}>${esc(c.name)}</option>`).join('')}
+              ${u.role==='client'?`<option value="client" selected>Client (legacy)</option>`:''}
             </select>
           </div>
           <div style="display:flex;gap:3px;align-items:center">
@@ -1277,7 +1294,7 @@ export async function createNewUser(){
   const email = document.getElementById('new-user-email').value.trim();
   const pass = document.getElementById('new-user-pass').value;
   const role = document.getElementById('new-user-role').value;
-  const clientName = document.getElementById('new-user-client').value;
+  const clientName = document.getElementById('new-user-client')?.value || '';
   const btn = document.getElementById('create-user-btn');
   const msg = document.getElementById('create-user-msg');
 
@@ -1288,7 +1305,7 @@ export async function createNewUser(){
   msg.style.display='none';
 
   try {
-    const { auth } = await import('./auth.js?v=20260714e');
+    const { auth } = await import('./auth.js?v=20260714f');
     const cred = await auth.createUserWithEmailAndPassword(email, pass);
     await cred.user.updateProfile({ displayName: name });
     await db.collection('users').doc(cred.user.uid).set({
@@ -1601,7 +1618,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260714e');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260714f');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);
