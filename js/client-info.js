@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // CLIENT-INFO — Client data, thread IDs, lookup functions
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, deletedClientIds } from './app.js?v=20260713a';
-import { CLIENT_PALETTE, CLIENT_INFO_SHEET_ID } from './config.js?v=20260713a';
-import { render } from './render.js?v=20260713a';
-import { str, uid, esc, isValidDate, getToday, svgIcon } from './utils.js?v=20260713a';
-import { sbCreateClient, sbDeleteClient, camelToSnake, apiPost, invokeEdgeFunction, showToast, supabase } from './api.js?v=20260713a';
-import { isClient, isAdmin } from './auth.js?v=20260713a';
+import { state, store, pendingWrites, deletedClientIds } from './app.js?v=20260714b';
+import { CLIENT_PALETTE, CLIENT_INFO_SHEET_ID } from './config.js?v=20260714b';
+import { render } from './render.js?v=20260714b';
+import { str, uid, esc, isValidDate, getToday, svgIcon } from './utils.js?v=20260714b';
+import { sbCreateClient, sbDeleteClient, camelToSnake, apiPost, invokeEdgeFunction, showToast, supabase } from './api.js?v=20260714b';
+import { isClient, isAdmin } from './auth.js?v=20260714b';
 
 // ─── Derive campaign keyword from client name ───
 const SKIP_PREFIXES = /^(the|a|an)\s+/i;
@@ -19,118 +19,41 @@ function deriveKeyword(name) {
   return (s.split(/\s/)[0] || name.split(/\s/)[0] || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
-// ─── Client Config (loaded from Supabase client_config table) ───
-let _clientConfigCache = [];
-let _clientConfigLoaded = false;
+// ─── Client lookup (single source of truth: state.clients) ───
 
-export async function loadClientConfig() {
-  try {
-    const { sbGetClientConfig } = await import('./api.js?v=20260713a');
-    const data = await sbGetClientConfig();
-    if (Array.isArray(data)) _clientConfigCache = data;
-    _clientConfigLoaded = true;
-  } catch (e) { console.warn('Failed to load client config:', e); }
-}
-
-export function getClientConfig(name) {
-  if (!name) return null;
-  const n = name.toLowerCase().trim();
-  const nStripped = n.replace(/[^a-z0-9]/g, '');
-  return _clientConfigCache.find(c => {
-    const cn = (c.client_name || '').toLowerCase();
-    const cnStripped = cn.replace(/[^a-z0-9]/g, '');
-    // Exact match, substring match, or stripped match (handles apostrophes/spaces)
-    return cn === n || n.includes(cn) || cn.includes(n)
-      || cnStripped === nStripped || nStripped.includes(cnStripped) || cnStripped.includes(nStripped);
-  }) || null;
-}
-
-export function getClientThreadId(name) {
-  const cfg = getClientConfig(name);
-  return cfg?.gmail_thread_id || '';
-}
-
-
-export const CLIENT_THREAD_IDS = new Proxy({}, { get: (_, prop) => typeof prop === 'string' ? getClientThreadId(prop) : undefined });
-
-// Look up client info — merges client_config (DB) with synced client data
-// client_config fields take priority; synced client data fills any gaps
-export function lookupClientInfo(name){
+function findClientByName(name){
   if(!name) return null;
-  const cfg = getClientConfig(name);
+  const n = name.toLowerCase().replace(/[^a-z0-9]/g,'');
+  return state.clients.find(c => { const cn=str(c.name).toLowerCase().replace(/[^a-z0-9]/g,''); return cn===n || cn.includes(n) || n.includes(cn); }) || null;
+}
 
-  // Build fallback from synced client data
-  const n=name.toLowerCase().trim();
-  const sc=state.clients.find(c=>{
-    const cn=c.name.toLowerCase().trim();
-    return cn===n||n.includes(cn)||cn.includes(n);
-  });
-  let fallback = null;
-  if(sc){
-    const notes=str(sc.clientNotes);
-    let parsedLocation='',parsedServices=[],parsedServiceArea='',parsedPricing='';
-    if(notes){
-      const sections=notes.split('\n\n');
-      for(const sec of sections){
-        const lines=sec.split('\n').map(l=>l.trim()).filter(Boolean);
-        if(!lines.length) continue;
-        const header=lines[0].toLowerCase();
-        if(header==='services'&&lines.length>1){
-          parsedServices=lines.slice(1).map(l=>l.replace(/^[\u2022\-\*]\s*/,'').trim()).filter(Boolean);
-        } else if(header==='service area'&&lines.length>1){
-          parsedServiceArea=lines.slice(1).join(', ');
-        } else if(header==='pricing'&&lines.length>1){
-          parsedPricing=lines.slice(1).join(' | ');
-        } else if(header==='contact'&&lines.length>1){
-          const locLine=lines.find(l=>/\(EST\)|\(CST\)|\(MST\)|\(PST\)/i.test(l));
-          if(locLine) parsedLocation=locLine.replace(/\s*\([A-Z]{2,4}\)\s*$/,'').trim();
-        }
-      }
-    }
-    fallback = {
-      timeZone:sc.timeZone||'',
-      location:parsedLocation||str(sc.location).trim()||'',
-      primaryContact:[str(sc.contactFirstName).trim(),str(sc.contactLastName).trim()].filter(Boolean).join(' ')||'',
-      primaryEmail:str(sc.notifyEmail).trim()||'',
-      forwardEmail:str(sc.notifyEmail).trim()||'',
-      phone:'',
-      calendlyUrl:str(sc.calendlyUrl).trim()||'',
-      website:str(sc.website).trim()||'',
-      services:parsedServices.length?parsedServices:undefined,
-      serviceAreaCities:parsedServiceArea||'',
-      pricingModel:parsedPricing||'',
-      warmCallNotes:[]
-    };
-  }
+export function getClientThreadId(name){ return findClientByName(name)?.gmailThreadId || ''; }
+export const CLIENT_THREAD_IDS = new Proxy({}, { get: (_, p) => typeof p==='string' ? getClientThreadId(p) : undefined });
 
-  if (cfg) {
-    const fb = fallback || {};
-    return {
-      primaryContact: cfg.primary_contact || fb.primaryContact || '',
-      primaryEmail: cfg.primary_email || fb.primaryEmail || '',
-      phone: cfg.phone || fb.phone || '',
-      location: cfg.location || fb.location || '',
-      timeZone: cfg.time_zone || fb.timeZone || '',
-      serviceAreaCities: cfg.service_area_cities || fb.serviceAreaCities || '',
-      forwardName: cfg.forward_name || '',
-      forwardEmail: cfg.forward_email || fb.forwardEmail || '',
-      calendlyUrl: cfg.calendly_url || fb.calendlyUrl || '',
-      website: cfg.website || fb.website || '',
-      pricingModel: cfg.pricing_model || fb.pricingModel || '',
-      services: Array.isArray(cfg.services) && cfg.services.length ? cfg.services : (fb.services || []),
-      warmCallNotes: Array.isArray(cfg.warm_call_notes) && cfg.warm_call_notes.length ? cfg.warm_call_notes : (fb.warmCallNotes || []),
-    };
-  }
-
-  return fallback;
+export function lookupClientInfo(name){
+  const c = findClientByName(name);
+  if(!c) return null;
+  return {
+    primaryContact: [str(c.contactFirstName).trim(), str(c.contactLastName).trim()].filter(Boolean).join(' '),
+    primaryEmail: str(c.notifyEmail).trim(),
+    phone: str(c.clientPhone).trim(),
+    location: str(c.location).trim(),
+    timeZone: str(c.timeZone).trim(),
+    serviceAreaCities: str(c.serviceAreaCities).trim(),
+    forwardName: str(c.forwardName).trim(),
+    forwardEmail: str(c.notifyEmail).trim(),
+    calendlyUrl: str(c.calendlyUrl).trim(),
+    website: str(c.website).trim(),
+    services: Array.isArray(c.services) ? c.services : [],
+    billingModel: str(c.billingModel || 'per_lead'),
+    warmCallNotes: [],
+  };
 }
 
 export function isRetainerClient(deal){
   if(!deal) return false;
   const mc = findClientForDeal(deal) || state.clients.find(c=>c.name===deal.stage);
-  if(!mc) return false;
-  const info = lookupClientInfo(mc.name);
-  return info && info.pricingModel === 'Retainer';
+  return !!mc && str(mc.billingModel) === 'retainer';
 }
 
 export function getWarmCallQA(clientName){
@@ -482,8 +405,8 @@ export function openClientInfoPanel(clientName){
     h+=`</div>`;
   }
 
-  if(info.pricingModel && isAdmin()){
-    h+=`<div style="margin-bottom:16px;font-size:12px;color:#64748b"><strong>Pricing:</strong> ${esc(info.pricingModel)}</div>`;
+  if(info.billingModel && isAdmin()){
+    h+=`<div style="margin-bottom:16px;font-size:12px;color:#64748b"><strong>Billing:</strong> ${esc(info.billingModel)}</div>`;
   }
 
   h+=`</div></div></div>`;

@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // LEAD TRACKER — Editable grid view for lead billing & status
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20260713a';
-import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20260713a';
-import { isAdmin, isEmployee } from './auth.js?v=20260713a';
-import { esc, svgIcon, str } from './utils.js?v=20260713a';
-import { render } from './render.js?v=20260713a';
+import { state, store, pendingWrites } from './app.js?v=20260714b';
+import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20260714b';
+import { isAdmin, isEmployee } from './auth.js?v=20260714b';
+import { esc, svgIcon, str } from './utils.js?v=20260714b';
+import { render } from './render.js?v=20260714b';
 
 // ─── Column Definitions ───
 const COLUMNS = [
