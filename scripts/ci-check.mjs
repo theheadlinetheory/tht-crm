@@ -52,6 +52,7 @@ const REQUIRED_FEATURES = [
   { file: 'render.js',         needle: "clSubTab === 'weekly_updates'",      feature: 'Client Leads: Weekly Updates render dispatch' },
   { file: 'weekly-updates.js', needle: 'export function renderWeeklyUpdates', feature: 'Weekly Updates: module entrypoint' },
   { file: 'weekly-updates.js', needle: 'window.weeklyPrepare',               feature: 'Weekly Updates: Prepare handler wired to window' },
+  { file: 'weekly-updates.js', needle: 'window.weeklyDeactivateClient',      feature: 'Weekly Updates: per-row Make inactive / Restore' },
   // Top-level tabs
   { file: 'render.js',         needle: "state.pipeline==='dashboard'",  feature: 'Dashboard tab' },
   { file: 'render.js',         needle: "state.pipeline==='payroll'",    feature: 'Payroll tab' },
