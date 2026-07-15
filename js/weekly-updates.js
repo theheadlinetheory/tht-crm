@@ -10,10 +10,10 @@
 //   crm_settings.weekly_update_extra_ccs (editable per client below).
 //   Lars's signature appended. The Client Info sheet is NOT used.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260714f';
-import { render } from './render.js?v=20260714f';
-import { showToast, sbSaveSettings } from './api.js?v=20260714f';
-import { esc, str, svgIcon } from './utils.js?v=20260714f';
+import { state } from './app.js?v=20260715a';
+import { render } from './render.js?v=20260715a';
+import { showToast, sbSaveSettings } from './api.js?v=20260715a';
+import { esc, str, svgIcon } from './utils.js?v=20260715a';
 
 // Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
@@ -68,6 +68,18 @@ export function weeklySelectAllClients(){
 }
 export function weeklyClearClients(){
   getWeekly().selectedClients = []; // explicit empty = none selected
+  render();
+}
+// Deactivate from the weekly checklist: defer to settings.js's global (confirm
+// dialog + Supabase write + toast + revert-on-error), then — only if the client
+// really is inactive now — drop the name from this run's explicit selection so
+// a just-retired client can't linger ticked in the inactive section.
+export async function weeklyDeactivateClient(clientId){
+  await window.deactivateClient(clientId);
+  const c = (state.clients||[]).find(x=>str(x.id)===str(clientId));
+  if(!c || c.status!=='inactive') return; // confirm cancelled or write failed+reverted
+  const w = getWeekly();
+  if(Array.isArray(w.selectedClients)) w.selectedClients = w.selectedClients.filter(n=>n!==c.name);
   render();
 }
 
@@ -427,11 +439,21 @@ function renderWeeklyClientSelect(w){
   const selCount = active.filter(c=>sel.has(c.name)).length;
   const clientRow = c => {
     const contact = [str(c.contactFirstName).trim(), str(c.contactLastName).trim()].filter(Boolean).join(' ');
+    // Status action writes through to the master clients table (same
+    // deactivateClient/restoreClient globals as Settings → Clients, incl.
+    // their confirm dialogs). Buttons inside the <label> must not toggle the
+    // checkbox, hence preventDefault+stopPropagation.
+    const action = c.status==='inactive'
+      ? `<button style="margin-left:auto;flex-shrink:0;font-size:11px;font-weight:600;color:#059669;background:none;border:none;cursor:pointer;padding:2px 4px" title="Set back to active in the master clients table"
+          onclick="event.preventDefault();event.stopPropagation();restoreClient('${esc(str(c.id))}')">Restore</button>`
+      : `<button style="margin-left:auto;flex-shrink:0;font-size:11px;font-weight:600;color:var(--text-muted);background:none;border:none;cursor:pointer;padding:2px 4px" title="Mark inactive in the master clients table — drops out of weekly updates from now on (restorable below or in Settings → Clients)"
+          onclick="event.preventDefault();event.stopPropagation();weeklyDeactivateClient('${esc(str(c.id))}')">Make inactive</button>`;
     return `<label style="display:flex;align-items:center;gap:9px;padding:7px 2px;border-top:1px solid var(--border);cursor:pointer">
       <input type="checkbox" ${sel.has(c.name)?'checked':''} style="width:15px;height:15px;accent-color:var(--purple);cursor:pointer"
         onchange="weeklyToggleClient(atob('${b64(c.name)}'))">
       <span style="font-size:13.5px;font-weight:600;color:var(--text)">${esc(c.name)}</span>
       ${contact?`<span style="font-size:11.5px;color:var(--text-muted)">· ${esc(contact)}</span>`:''}
+      ${action}
     </label>`;
   };
   let html = `<div style="${card}">
@@ -553,5 +575,6 @@ window.weeklySaveTemplate = weeklySaveTemplate;
 window.weeklyResetTemplate = weeklyResetTemplate;
 window.weeklyCcChange = weeklyCcChange;
 window.weeklyToggleClient = weeklyToggleClient;
+window.weeklyDeactivateClient = weeklyDeactivateClient;
 window.weeklySelectAllClients = weeklySelectAllClients;
 window.weeklyClearClients = weeklyClearClients;
