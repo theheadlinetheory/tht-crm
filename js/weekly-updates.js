@@ -10,10 +10,10 @@
 //   crm_settings.weekly_update_extra_ccs (editable per client below).
 //   Lars's signature appended. The Client Info sheet is NOT used.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260715c';
-import { render } from './render.js?v=20260715c';
-import { showToast, sbSaveSettings } from './api.js?v=20260715c';
-import { esc, str, svgIcon } from './utils.js?v=20260715c';
+import { state } from './app.js?v=20260715d';
+import { render } from './render.js?v=20260715d';
+import { showToast, sbSaveSettings } from './api.js?v=20260715d';
+import { esc, str, svgIcon } from './utils.js?v=20260715d';
 
 // Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
@@ -70,27 +70,40 @@ export function weeklyClearClients(){
   getWeekly().selectedClients = []; // explicit empty = none selected
   render();
 }
+// Deactivate from the weekly checklist: defer to settings.js's global (confirm
+// dialog + Supabase write + toast + revert-on-error), then — only if the client
+// really is inactive now — drop the name from this run's explicit selection so
+// a just-retired client can't linger ticked in the inactive section.
+export async function weeklyDeactivateClient(clientId){
+  await window.deactivateClient(clientId);
+  const c = (state.clients||[]).find(x=>str(x.id)===str(clientId));
+  if(!c || c.status!=='inactive') return; // confirm cancelled or write failed+reverted
+  const w = getWeekly();
+  if(Array.isArray(w.selectedClients)) w.selectedClients = w.selectedClients.filter(n=>n!==c.name);
+  render();
+}
 
 function currentTemplate(){
   return str(state.savedSettings?.weekly_update_template) || DEFAULT_WEEKLY_UPDATE_TEMPLATE;
 }
 
 // The report week is the most recent COMPLETED Saturday → Friday week (local
-// timezone) — the one that ended last Friday, not the week containing today.
+// timezone). On a Friday that's the week ending today (send at EOD); any other
+// day it's the week that ended last Friday.
 // (Smartlead's per-day bucketing inside the range uses America/New_York,
 // matching the campaign sending schedules.)
 function weekRange(){
-  // Report the most recent COMPLETED Saturday→Friday week — the one that ended
-  // last Friday, NOT the week containing today. On the Sat/Sun you send, the
-  // current week just started and has ~no data; you want the week that just
-  // finished. Verified against the send cadence: run Sat Jul 4 → Jun 27–Jul 3;
-  // run Sat Jul 11 → Jul 4–Jul 10. Since a Sat→Fri week isn't complete until its
-  // Friday ends, "the week before the week containing today" is always the most
-  // recent completed week for any day Sat–Fri.
+  // Report the most recent COMPLETED Saturday→Friday week. On a FRIDAY that's
+  // the week ending TODAY: updates go out at EOD, after the day's sends are
+  // done, so the numbers are final (weekend replies to Friday's emails land in
+  // next week's count). Any other day reports the previous Sat→Fri week — the
+  // current one isn't complete yet. Verified against the send cadence:
+  // run Fri Jul 10 → Jul 4–Jul 10; run Sat Jul 11 → Jul 4–Jul 10.
   const now = new Date();
   const daysSinceSat = (now.getDay() + 1) % 7; // Sun=0..Sat=6 → Sat:0, Sun:1, ... Fri:6
   const curStart = new Date(now); curStart.setDate(now.getDate() - daysSinceSat); // Saturday of this week
-  const start = new Date(curStart); start.setDate(curStart.getDate() - 7); // previous week's Saturday
+  const start = new Date(curStart);
+  if(now.getDay()!==5) start.setDate(curStart.getDate() - 7); // not Friday → previous week's Saturday
   const end = new Date(start); end.setDate(start.getDate() + 6); // that week's Friday
   const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const label = d => d.toLocaleDateString('en-US',{ month:'short', day:'numeric' });
@@ -427,11 +440,21 @@ function renderWeeklyClientSelect(w){
   const selCount = active.filter(c=>sel.has(c.name)).length;
   const clientRow = c => {
     const contact = [str(c.contactFirstName).trim(), str(c.contactLastName).trim()].filter(Boolean).join(' ');
+    // Status action writes through to the master clients table (same
+    // deactivateClient/restoreClient globals as Settings → Clients, incl.
+    // their confirm dialogs). Buttons inside the <label> must not toggle the
+    // checkbox, hence preventDefault+stopPropagation.
+    const action = c.status==='inactive'
+      ? `<button style="margin-left:auto;flex-shrink:0;font-size:11px;font-weight:600;color:#059669;background:none;border:none;cursor:pointer;padding:2px 4px" title="Set back to active in the master clients table"
+          onclick="event.preventDefault();event.stopPropagation();restoreClient('${esc(str(c.id))}')">Restore</button>`
+      : `<button style="margin-left:auto;flex-shrink:0;font-size:11px;font-weight:600;color:var(--text-muted);background:none;border:none;cursor:pointer;padding:2px 4px" title="Mark inactive in the master clients table — drops out of weekly updates from now on (restorable below or in Settings → Clients)"
+          onclick="event.preventDefault();event.stopPropagation();weeklyDeactivateClient('${esc(str(c.id))}')">Make inactive</button>`;
     return `<label style="display:flex;align-items:center;gap:9px;padding:7px 2px;border-top:1px solid var(--border);cursor:pointer">
       <input type="checkbox" ${sel.has(c.name)?'checked':''} style="width:15px;height:15px;accent-color:var(--purple);cursor:pointer"
         onchange="weeklyToggleClient(atob('${b64(c.name)}'))">
       <span style="font-size:13.5px;font-weight:600;color:var(--text)">${esc(c.name)}</span>
       ${contact?`<span style="font-size:11.5px;color:var(--text-muted)">· ${esc(contact)}</span>`:''}
+      ${action}
     </label>`;
   };
   let html = `<div style="${card}">
@@ -553,5 +576,6 @@ window.weeklySaveTemplate = weeklySaveTemplate;
 window.weeklyResetTemplate = weeklyResetTemplate;
 window.weeklyCcChange = weeklyCcChange;
 window.weeklyToggleClient = weeklyToggleClient;
+window.weeklyDeactivateClient = weeklyDeactivateClient;
 window.weeklySelectAllClients = weeklySelectAllClients;
 window.weeklyClearClients = weeklyClearClients;
