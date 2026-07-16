@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // SEARCH — Global search, activity badges, pipeline helpers
 // ═══════════════════════════════════════════════════════════
-import { state, clientPortalStages } from './app.js?v=20260714f';
-import { ACQUISITION_STAGES, NURTURE_STAGES, CLIENT_PALETTE, ALL_PIPELINES } from './config.js?v=20260714f';
-import { render } from './render.js?v=20260714f';
-import { getToday } from './utils.js?v=20260714f';
-import { isClient, isEmployee, currentUser, getOwnerNameForDeal } from './auth.js?v=20260714f';
-import { lookupClientInfo } from './client-info.js?v=20260714f';
+import { state } from './app.js?v=20260715c';
+import { ACQUISITION_STAGES, NURTURE_STAGES, CLIENT_PALETTE, ALL_PIPELINES } from './config.js?v=20260715c';
+import { render } from './render.js?v=20260715c';
+import { getToday } from './utils.js?v=20260715c';
+import { isEmployee, getOwnerNameForDeal } from './auth.js?v=20260715c';
+import { lookupClientInfo } from './client-info.js?v=20260715c';
 
 export function globalSearch(q){
   state.searchQuery=q;
@@ -49,9 +49,6 @@ export function getActivityBadge(dealId){
 export function getStages(){
   if(state.pipeline==="acquisition") return ACQUISITION_STAGES;
   if(state.pipeline==="nurture") return NURTURE_STAGES;
-  if(isClient() && clientPortalStages){
-    return clientPortalStages;
-  }
   const TZ_ORDER={'EST':0,'CST':1,'MST':2,'PST':3};
   const activeClients=state.clients.filter(c=>c.status!=='inactive');
   const sorted=[...activeClients].sort((a,b)=>{
@@ -79,30 +76,17 @@ export function getPipelineDeals(){
   }
   if(state.pipeline==="nurture") return state.deals.filter(d=>NURTURE_STAGES.some(s=>s.id===d.stage));
 
-  if(isClient() && currentUser && currentUser.clientName && clientPortalStages){
-    const stageIds = clientPortalStages.map(s=>s.id);
-    return state.deals.filter(d => {
-      if(d.stage !== currentUser.clientName) return false;
-      if(!d.clientStage || !stageIds.includes(d.clientStage)){
-        d.clientStage = stageIds[0] || 'Positive Response';
-      }
-      return true;
-    });
-  }
-
   const clientNames=state.clients.map(c=>c.name);
   return state.deals.filter(d=>d.stage==="Client Not Distributed"||clientNames.includes(d.stage));
 }
 
 // ─── Visible Pipelines ───
 export function getVisiblePipelines(){
-  if(isClient()) return ALL_PIPELINES.filter(p => p.id === 'client_leads');
   if(isEmployee()) return ALL_PIPELINES.filter(p => p.id === 'client_leads' || p.id === 'acquisition' || p.id === 'dashboard');
   return ALL_PIPELINES.filter(p => p.id !== 'archive');
 }
 
 export function getVisiblePipelinesWithArchive(){
-  if(isClient()) return ALL_PIPELINES.filter(p => p.id === 'client_leads');
   if(isEmployee()) return ALL_PIPELINES.filter(p => p.id === 'client_leads' || p.id === 'acquisition' || p.id === 'dashboard');
   return ALL_PIPELINES;
 }

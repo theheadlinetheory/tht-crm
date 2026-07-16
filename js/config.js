@@ -12,22 +12,10 @@ export const SYNC_INTERVAL = 120000; // 2 min (Realtime handles live updates)
 export const REPLY_CHECK_INTERVAL = 15000;
 export const REPLY_BACKEND_POLL_INTERVAL = 300000; // 5 min
 
-// Firebase config
-export const firebaseConfig = {
-  apiKey: "AIzaSyDrjU77BiVX27egzoc86jHsZCTwLbQfgVc",
-  authDomain: "tht-crm.firebaseapp.com",
-  projectId: "tht-crm",
-  storageBucket: "tht-crm.firebasestorage.app",
-  messagingSenderId: "793331537217",
-  appId: "1:793331537217:web:dd85fcf13532c633f67dc0",
-  measurementId: "G-7R4EQB3N3K"
-};
-
 // ─── Role Definitions ───
 export const ROLES = {
   admin: { label: 'Admin', pipelines: 'all', settings: true, manageUsers: true },
-  employee: { label: 'Employee', pipelines: ['acquisition', 'client_leads'], settings: false, manageUsers: false },
-  client: { label: 'Client', pipelines: ['client_leads'], settings: false, manageUsers: false }
+  employee: { label: 'Employee', pipelines: ['acquisition', 'client_leads'], settings: false, manageUsers: false }
 };
 
 // ─── Pipeline & Stage Definitions ───

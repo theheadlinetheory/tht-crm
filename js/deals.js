@@ -1,24 +1,17 @@
 // ═══════════════════════════════════════════════════════════
 // DEALS — CRUD operations, bulk actions, drag-drop
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, pendingDealFields, deletedDealIds, clientPortalStages } from './app.js?v=20260714f';
-import { ACQUISITION_STAGES } from './config.js?v=20260714f';
-import { render } from './render.js?v=20260714f';
-import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbArchiveDeal, sbRestoreFromArchive, sbCreateActivity, camelToSnake, invokeEdgeFunction } from './api.js?v=20260714f';
-import { clearDashboardArchiveCache } from './dashboard.js?v=20260714f';
-import { uid, getToday, str } from './utils.js?v=20260714f';
-import { isClient, currentUser } from './auth.js?v=20260714f';
+import { state, store, pendingWrites, pendingDealFields, deletedDealIds } from './app.js?v=20260715c';
+import { render } from './render.js?v=20260715c';
+import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbArchiveDeal, sbRestoreFromArchive, sbCreateActivity, camelToSnake, invokeEdgeFunction } from './api.js?v=20260715c';
+import { clearDashboardArchiveCache } from './dashboard.js?v=20260715c';
+import { uid, getToday, str } from './utils.js?v=20260715c';
 
 const TODAY = getToday;
 
 export async function createDeal(form){
   const pip=state.pipeline==="acquisition"?"Acquisition":state.pipeline==="nurture"?"Nurture":"Client";
   const deal={...form,id:uid(),pipeline:pip,flag:"",createdDate:TODAY(),lastUpdated:TODAY()};
-  if(isClient() && currentUser.clientName){
-    deal.stage = currentUser.clientName;
-    deal.pipeline = 'Client';
-    deal.clientStage = (clientPortalStages && clientPortalStages.length > 0) ? clientPortalStages[0].id : 'Positive Response';
-  }
   store.addDeal(deal);
   await sbCreateDeal(camelToSnake(deal));
 }
@@ -63,11 +56,11 @@ export async function moveDeal(dealId,newStage){
     if(pending && Object.keys(pending).length===0) delete pendingDealFields[String(dealId)];
   } finally { pendingWrites.value--; }
   if(d && (newStage==='Discovery Scheduled' || newStage==='Demo Scheduled') && d.bookedDate && /^\d{4}-\d{2}-\d{2}$/.test(d.bookedDate)){
-    const { generateAppointmentSequence } = await import('./activities.js?v=20260714f');
+    const { generateAppointmentSequence } = await import('./activities.js?v=20260715c');
     generateAppointmentSequence(d);
   }
   if(d && newStage==='No Show'){
-    const { assignNoShowSequence } = await import('./activities.js?v=20260714f');
+    const { assignNoShowSequence } = await import('./activities.js?v=20260715c');
     assignNoShowSequence(d);
   }
 }
@@ -124,7 +117,7 @@ export async function bulkAddActivity(){
   if(!dueDate||!dueDate.match(/^\d{4}-\d{2}-\d{2}$/)) return;
   const ids=[...state.bulkSelected];
   if(!confirm('Add "'+subject+'" activity to '+ids.length+' deal'+(ids.length!==1?'s':'')+'?')) return;
-  const { addActivity } = await import('./activities.js?v=20260714f');
+  const { addActivity } = await import('./activities.js?v=20260715c');
   for(const dealId of ids){
     addActivity(dealId,{type,subject,dueDate,dayLabel:''});
   }
@@ -194,7 +187,7 @@ export async function bulkRestoreFromArchive(){
       await sbRestoreFromArchive(id);
     }
     clearDashboardArchiveCache();
-    const { initialSync } = await import('./api.js?v=20260714f');
+    const { initialSync } = await import('./api.js?v=20260715c');
     initialSync();
   }finally{ pendingWrites.value--; }
 }
@@ -222,17 +215,6 @@ export function doDrop(stageKey){
   state.dragId=null;
 }
 
-export async function moveClientDeal(dealId, newClientStage){
-  const d=state.deals.find(x=>x.id===dealId);
-  if(!d) return;
-  d.clientStage=newClientStage;
-  d.lastUpdated=TODAY();
-  render();
-  pendingWrites.value++;
-  try { await sbUpdateDeal(dealId, camelToSnake({clientStage:newClientStage})); }
-  finally { pendingWrites.value--; }
-}
-
 // Expose to inline HTML handlers
 window.toggleBulkMode = toggleBulkMode;
 window.toggleBulkSelect = toggleBulkSelect;
@@ -245,6 +227,5 @@ window.doDragOver = doDragOver;
 window.doDragLeave = doDragLeave;
 window.doDrop = doDrop;
 window.clearAllDragOver = clearAllDragOver;
-window.moveClientDeal = moveClientDeal;
 window.moveDeal = moveDeal;
 window.deleteDeal = deleteDeal;

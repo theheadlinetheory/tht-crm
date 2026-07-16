@@ -3,9 +3,9 @@
 // ═══════════════════════════════════════════════════════════
 import { sbListFolders, sbCreateFolder, sbUpdateFolder, sbDeleteFolder,
          sbListDocuments, sbCreateDocument, sbDeleteDocument,
-         sbUploadFile, sbDeleteFile, sbGetSignedUrl, showToast } from './api.js?v=20260714f';
-import { esc, str, uid, svgIcon } from './utils.js?v=20260714f';
-import { isAdmin, isClient, isEmployee, currentUser } from './auth.js?v=20260714f';
+         sbUploadFile, sbDeleteFile, sbGetSignedUrl, showToast } from './api.js?v=20260715c';
+import { esc, str, uid, svgIcon } from './utils.js?v=20260715c';
+import { isAdmin, isEmployee, currentUser } from './auth.js?v=20260715c';
 
 // Per-client UI state: which folder tab is selected
 const _selectedFolder = {}; // { clientId: folderId|'all'|'unfiled' }
@@ -63,10 +63,9 @@ export function renderDocumentsSection(client) {
   const folders = _foldersCache[clientId] || [];
   const sel = _selectedFolder[clientId] || 'all';
   const docs = getFilteredDocs(clientId);
-  const canUpload = isAdmin() || isEmployee() || (isClient() && currentUser.clientName === client.name);
+  const canUpload = isAdmin() || isEmployee();
   const canDelete = isAdmin();
-  const canDeleteOwn = isClient() && currentUser.clientName === client.name;
-  const canManageFolders = isAdmin() || (isClient() && currentUser.clientName === client.name);
+  const canManageFolders = isAdmin();
 
   let h = `<div style="margin-top:12px;padding:12px;background:#f8fafc;border:1px solid var(--border);border-radius:8px" id="docs-section-${esc(clientId)}">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -106,7 +105,7 @@ export function renderDocumentsSection(client) {
     h += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px">`;
     for (const doc of docs) {
       const isImg = isImage(doc.mime_type);
-      const canDeleteThis = canDelete || (canDeleteOwn && doc.uploaded_by === currentUser.uid);
+      const canDeleteThis = canDelete;
       h += `<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--card);position:relative">
         <div onclick="${isImg ? `docPreviewImage('${esc(doc.file_path)}','${esc(doc.name)}')` : `docDownload('${esc(doc.file_path)}','${esc(doc.name)}')`}"
           style="height:80px;display:flex;align-items:center;justify-content:center;background:#f1f5f9;cursor:pointer;overflow:hidden">
@@ -141,7 +140,7 @@ async function refreshDocsSection(clientId) {
   await loadDocumentsData(clientId);
   const container = document.getElementById('docs-section-' + clientId);
   if (!container) return;
-  const { state } = await import('./app.js?v=20260714f');
+  const { state } = await import('./app.js?v=20260715c');
   const client = state.clients.find(c => c.id === clientId);
   if (!client) return;
   const newHtml = renderDocumentsSection(client);

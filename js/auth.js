@@ -1,119 +1,249 @@
 // ═══════════════════════════════════════════════════════════
-// AUTH — Firebase Auth, user management, campaign assignments
+// AUTH — Supabase Auth (Google OAuth), roles, campaign assignments
 // ═══════════════════════════════════════════════════════════
-import { firebaseConfig, ROLES } from './config.js?v=20260714f';
-import { state } from './app.js?v=20260714f';
-import { render } from './render.js?v=20260714f';
-import { esc, svgIcon, str } from './utils.js?v=20260714f';
+import { supabase } from './supabase-client.js?v=20260715c';
+import { state } from './app.js?v=20260715c';
+import { render } from './render.js?v=20260715c';
+import { esc, svgIcon } from './utils.js?v=20260715c';
 
-// Firebase instances (initialized once)
-firebase.initializeApp(firebaseConfig);
-export const auth = firebase.auth();
-export const db = firebase.firestore();
-
+const ALLOWED_DOMAIN = 'theheadlinetheory.com';
 export let currentUser = null;
-let authMode = 'login';
 
-// ─── Role Checks ───
 export function isAdmin(){ return currentUser && currentUser.role === 'admin'; }
-export function isClient(){ return currentUser && currentUser.role === 'client'; }
 export function isEmployee(){ return currentUser && currentUser.role === 'employee'; }
 
-// ─── Auth UI Toggle ───
-export function toggleAuthMode(){
-  authMode = authMode==='login' ? 'signup' : 'login';
-  document.getElementById('login-subtitle').textContent = authMode==='signup' ? 'Create your account' : 'Sign in to your CRM';
-  document.getElementById('login-btn').textContent = authMode==='signup' ? 'Create Account' : 'Sign In';
-  document.getElementById('name-field').style.display = authMode==='signup' ? 'block' : 'none';
-  document.getElementById('reset-link').style.display = authMode==='signup' ? 'none' : 'block';
-  document.getElementById('auth-toggle').innerHTML = authMode==='signup'
-    ? 'Already have an account? <strong style="color:var(--purple)">Sign in</strong>'
-    : 'Don\'t have an account? <strong style="color:var(--purple)">Sign up</strong>';
-  document.getElementById('login-error').style.display='none';
-}
-
-export async function handleAuth(){
-  const email = document.getElementById('login-email').value.trim();
-  const pass = document.getElementById('login-password').value;
-  const nameVal = document.getElementById('login-name').value.trim();
-  const errEl = document.getElementById('login-error');
-  const btn = document.getElementById('login-btn');
-  errEl.style.display='none';
-
-  if(!email || !pass){ errEl.textContent='Please fill in all fields'; errEl.style.display='block'; return; }
-  if(authMode==='signup' && !nameVal){ errEl.textContent='Please enter your name'; errEl.style.display='block'; return; }
-  if(pass.length < 6){ errEl.textContent='Password must be at least 6 characters'; errEl.style.display='block'; return; }
-
-  btn.disabled=true;
-  btn.textContent = authMode==='signup' ? 'Creating account...' : 'Signing in...';
-
-  try {
-    let cred;
-    if(authMode==='signup'){
-      cred = await auth.createUserWithEmailAndPassword(email, pass);
-      await cred.user.updateProfile({ displayName: nameVal });
-      const usersSnap = await db.collection('users').get();
-      const isFirstUser = usersSnap.empty;
-      await db.collection('users').doc(cred.user.uid).set({
-        name: nameVal,
-        email: email,
-        role: isFirstUser ? 'admin' : 'client',
-        clientName: '',
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-    } else {
-      cred = await auth.signInWithEmailAndPassword(email, pass);
-    }
-  } catch(e){
-    let msg = 'Something went wrong';
-    if(e.code==='auth/email-already-in-use') msg='An account with this email already exists';
-    else if(e.code==='auth/invalid-email') msg='Invalid email address';
-    else if(e.code==='auth/weak-password') msg='Password must be at least 6 characters';
-    else if(e.code==='auth/user-not-found') msg='No account found with this email';
-    else if(e.code==='auth/wrong-password'||e.code==='auth/invalid-credential') msg='Incorrect email or password';
-    else if(e.code==='auth/too-many-requests') msg='Too many attempts — try again later';
-    errEl.textContent=msg;
-    errEl.style.display='block';
-    btn.disabled=false;
-    btn.textContent = authMode==='signup' ? 'Create Account' : 'Sign In';
-  }
-}
-
-export async function handlePasswordReset(){
-  const email = document.getElementById('login-email').value.trim();
-  const errEl = document.getElementById('login-error');
-  if(!email){ errEl.textContent='Enter your email above first'; errEl.style.display='block'; return; }
-  try {
-    await auth.sendPasswordResetEmail(email);
-    errEl.textContent='Password reset email sent! Check your inbox.';
-    errEl.style.color='var(--green)';
-    errEl.style.display='block';
-    setTimeout(()=>{ errEl.style.color=''; }, 4000);
-  } catch(e){
-    errEl.textContent='Could not send reset email — check the address';
-    errEl.style.display='block';
-  }
-}
-
+// ─── Google sign-in ───
 export async function handleGoogleSignIn(){
   const errEl = document.getElementById('login-error');
-  errEl.style.display='none';
-  try {
-    const provider = new firebase.auth.GoogleAuthProvider();
-    const result = await auth.signInWithPopup(provider);
-    // onAuthStateChanged handles the rest
-  } catch(e){
-    if(e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return;
-    // If popup blocked, fall back to redirect
-    if(e.code === 'auth/popup-blocked'){
-      try {
-        await auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());
-        return;
-      } catch(e2){}
+  if(errEl) errEl.style.display='none';
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: window.location.origin + window.location.pathname,
+      queryParams: { hd: ALLOWED_DOMAIN, prompt: 'select_account' }
     }
-    errEl.textContent = e.message || 'Google sign-in failed';
-    errEl.style.display='block';
-  }
+  });
+  if(error && errEl){ errEl.textContent = error.message || 'Google sign-in failed'; errEl.style.display='block'; }
+}
+
+// map a profiles row (snake_case) -> frontend user (camelCase)
+function toUser(sessionUser, profile){
+  return {
+    uid: sessionUser.id,
+    id: sessionUser.id,
+    name: (profile && profile.name) || sessionUser.user_metadata?.full_name || sessionUser.email.split('@')[0],
+    email: sessionUser.email,
+    role: profile.role,
+    tagColor: profile.tag_color,
+    photoURL: profile.photo_url
+  };
+}
+
+// ─── Auth state listener (called from app.js) ───
+export function setupAuthListener(onLogin){
+  let _bootedUid = null;
+
+  const boot = async (session) => {
+    const bootLoader = document.getElementById('boot-loader');
+    if(bootLoader) bootLoader.remove();
+
+    const user = session && session.user;
+    if(user){
+      // Domain gate — reject anything outside the company Google workspace.
+      if(!user.email || !user.email.toLowerCase().endsWith('@'+ALLOWED_DOMAIN)){
+        await supabase.auth.signOut();
+        const errEl = document.getElementById('login-error');
+        if(errEl){ errEl.textContent = 'Use your @'+ALLOWED_DOMAIN+' Google account'; errEl.style.display='block'; }
+        return;
+      }
+      if(_bootedUid === user.id) return;   // token refresh re-fire — no re-boot
+      _bootedUid = user.id;
+
+      // maybeSingle(): profile=null with NO error when the row is genuinely absent
+      // (vs single() which errors PGRST116). Lets us tell "not provisioned" from
+      // "read failed" and never silently grant a role from a missing/failed read.
+      let profile = null, hardError = false;
+      try {
+        const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+        if(error) hardError = true;
+        profile = data;
+      } catch(e){ console.warn('profile load failed:', e); hardError = true; }
+
+      if(!profile){
+        // No provisioned profile (deleted / trigger never ran) or a transient read
+        // failure — deny access rather than defaulting to a role. Retry on reload.
+        await supabase.auth.signOut();
+        _bootedUid = null;
+        const errEl = document.getElementById('login-error');
+        if(errEl){
+          errEl.textContent = hardError
+            ? 'Could not verify your account — please try again.'
+            : 'Your account isn’t set up in the CRM. Contact an admin.';
+          errEl.style.display = 'block';
+        }
+        document.getElementById('login-screen').style.display = 'flex';
+        return;
+      }
+      currentUser = toUser(user, profile);
+
+      document.getElementById('login-screen').style.display='none';
+      showTransitionScreen('Loading your CRM...');
+
+      const hash = location.hash.replace('#','').split('/')[0];
+      if(isAdmin()){
+        state.pipeline = hash && ['dashboard','acquisition','client_leads','nurture'].includes(hash) ? hash : 'client_leads';
+      } else {
+        state.pipeline = hash && ['acquisition','client_leads'].includes(hash) ? hash : 'client_leads';
+      }
+
+      document.getElementById('app').style.display='block';
+      try { await onLogin(); } catch(e){ console.error('initApp error:', e); }
+
+      const _waitForSync = setInterval(()=>{ if(state.synced){ clearInterval(_waitForSync); hideTransitionScreen(); } }, 100);
+      setTimeout(()=>{ clearInterval(_waitForSync); hideTransitionScreen(); }, 8000);
+    } else {
+      _bootedUid = null;
+      currentUser = null;
+      const app = document.getElementById('app');
+      if(app){ app.style.display='none'; }
+      const login = document.getElementById('login-screen');
+      if(login) login.style.display='flex';
+    }
+  };
+
+  supabase.auth.getSession().then(({ data }) => boot(data.session));
+  supabase.auth.onAuthStateChange((_event, session) => boot(session));
+}
+
+export function logout(){
+  showTransitionScreen('Logging out...');
+  resetAppState();
+  document.getElementById('app').style.display='none';
+  document.getElementById('app').innerHTML='';
+  supabase.auth.signOut().then(()=>{
+    hideTransitionScreen();
+    document.getElementById('login-screen').style.display='flex';
+  });
+}
+export function switchUser(){ logout(); }   // same flow: sign out -> Google picker (prompt:select_account)
+
+// ─── User management (admin) — profiles table ───
+export async function loadAllUsers(){
+  try {
+    const { data, error } = await supabase.from('profiles').select('*').order('created_at', { ascending: true });
+    if(error) throw error;
+    return (data||[]).map(p => ({ uid: p.id, name: p.name, email: p.email, role: p.role, tagColor: p.tag_color, photoURL: p.photo_url }));
+  } catch(e){ console.error('loadAllUsers error:', e); return []; }
+}
+export async function loadAssignableUsers(){
+  if(state.assignableUsers.length > 0) return state.assignableUsers;
+  const all = await loadAllUsers();
+  state.assignableUsers = all.filter(u => u.role === 'admin' || u.role === 'employee');
+  return state.assignableUsers;
+}
+export async function updateUserName(uid, name){
+  const { error } = await supabase.from('profiles').update({ name }).eq('id', uid);
+  if(error) throw error;
+}
+export async function updateUserRole(uid, role){
+  const { error } = await supabase.from('profiles').update({ role }).eq('id', uid);
+  if(error) throw error;
+}
+export async function updateUserTagColor(uid, tagColor){
+  const { error } = await supabase.from('profiles').update({ tag_color: tagColor }).eq('id', uid);
+  if(error) throw error;
+}
+export async function updateUserPhoto(uid, photoURL){
+  const { error } = await supabase.from('profiles').update({ photo_url: photoURL }).eq('id', uid);
+  if(error) throw error;
+}
+export async function deleteUser(uid){
+  const { error } = await supabase.from('profiles').delete().eq('id', uid);
+  if(error) throw error;
+}
+
+// ─── Campaign assignments — crm_settings row ───
+// NOTE: crm_settings is a PRE-EXISTING table whose `value` column is TEXT holding a
+// JSON string (RLS is OFF). Always JSON.parse on read and JSON.stringify on write, and
+// set updated_at — matching the existing pattern (see settings.js dialer_default_fields).
+export async function loadCampaignAssignments(){
+  try {
+    const { data } = await supabase.from('crm_settings').select('value').eq('key','campaign_assignments').single();
+    if(data && data.value) state.campaignAssignments = JSON.parse(data.value);
+  } catch(e){ console.warn('Failed to load campaign assignments:', e); }
+}
+async function persistAssignments(){
+  try {
+    await supabase.from('crm_settings').upsert(
+      { key:'campaign_assignments', value: JSON.stringify(state.campaignAssignments), updated_at: new Date().toISOString() },
+      { onConflict: 'key' });
+  } catch(e){ console.warn('Failed to save campaign assignment:', e); }
+}
+export async function saveCampaignAssignment(campaignName, userName){
+  state.campaignAssignments[campaignName] = userName; render(); await persistAssignments();
+}
+export async function assignCampaignOwner(campaignName, userName){
+  if(!userName) delete state.campaignAssignments[campaignName];
+  else state.campaignAssignments[campaignName] = userName;
+  await persistAssignments(); render();
+}
+export async function removeCampaignAssignment(campaignName){
+  delete state.campaignAssignments[campaignName]; await persistAssignments(); render();
+}
+export function listenCampaignAssignments(){
+  try {
+    supabase.channel('crm_settings-assignments')
+      .on('postgres_changes', { event:'*', schema:'public', table:'crm_settings', filter:'key=eq.campaign_assignments' },
+        payload => { if(payload.new && payload.new.value){ try { state.campaignAssignments = JSON.parse(payload.new.value); render(); } catch(_){} } })
+      .subscribe();
+  } catch(e){ console.warn('Campaign assignment listener failed:', e); }
+}
+
+// ─── Copied verbatim from the previous auth.js — unchanged ───
+const TAG_PALETTE = ['#2563eb','#d97706','#059669','#dc2626','#7c3aed','#0891b2','#c026d3','#ea580c'];
+const TAG_COLOR_MAP = {
+  '#2563eb': { bg: '#dbeafe', fg: '#1d4ed8' },
+  '#d97706': { bg: '#fef3c7', fg: '#92400e' },
+  '#059669': { bg: '#d1fae5', fg: '#065f46' },
+  '#dc2626': { bg: '#fee2e2', fg: '#991b1b' },
+  '#7c3aed': { bg: '#ede9fe', fg: '#5b21b6' },
+  '#0891b2': { bg: '#cffafe', fg: '#155e75' },
+  '#c026d3': { bg: '#fae8ff', fg: '#86198f' },
+  '#ea580c': { bg: '#ffedd5', fg: '#9a3412' },
+};
+
+export { TAG_PALETTE };
+
+function hexToTagStyle(hex) {
+  const mapped = TAG_COLOR_MAP[hex];
+  if (mapped) return mapped;
+  return { bg: hex + '22', fg: hex };
+}
+
+export function getOwnerColor(name){
+  if(!name) return null;
+  const lower = name.toLowerCase().trim();
+  const user = state.assignableUsers.find(u =>
+    (u.name || '').toLowerCase().trim() === lower ||
+    (u.name || '').toLowerCase().split(/\s+/)[0] === lower
+  );
+  const hex = (user && user.tagColor) || TAG_PALETTE[0];
+  const style = hexToTagStyle(hex);
+  return { label: name, bg: style.bg, fg: style.fg };
+}
+
+export function getOwnerForDeal(deal){
+  if(deal.ownerOverride) return getOwnerColor(deal.ownerOverride);
+  if(!deal.campaignName) return null;
+  const owner = state.campaignAssignments[deal.campaignName];
+  if(!owner) return null;
+  return getOwnerColor(owner);
+}
+
+export function getOwnerNameForDeal(deal){
+  if(deal.ownerOverride) return deal.ownerOverride;
+  if(!deal.campaignName) return '';
+  return state.campaignAssignments[deal.campaignName] || '';
 }
 
 export function resetAppState(){
@@ -157,28 +287,6 @@ export function hideTransitionScreen(){
   if(overlay) overlay.style.display = 'none';
 }
 
-export function logout(){
-  showTransitionScreen('Logging out...');
-  resetAppState();
-  document.getElementById('app').style.display='none';
-  document.getElementById('app').innerHTML='';
-  auth.signOut().then(()=>{
-    hideTransitionScreen();
-    document.getElementById('login-screen').style.display='flex';
-  });
-}
-
-export function switchUser(){
-  showTransitionScreen('Switching account...');
-  resetAppState();
-  document.getElementById('app').style.display='none';
-  document.getElementById('app').innerHTML='';
-  auth.signOut().then(()=>{
-    hideTransitionScreen();
-    document.getElementById('login-screen').style.display='flex';
-  });
-}
-
 export function toggleUserMenu(e){
   e.stopPropagation();
   const menu = document.getElementById('user-menu-dropdown');
@@ -202,294 +310,10 @@ export function renderUserMenu(){
   </div>`;
 }
 
-// ─── User Management (Admin only) ───
-export async function loadAllUsers(){
-  try {
-    const snap = await db.collection('users').orderBy('createdAt','asc').get();
-    return snap.docs.map(d => ({ uid: d.id, ...d.data() }));
-  } catch(e){ console.error('loadAllUsers error:',e); return []; }
-}
-
-export async function loadAssignableUsers(){
-  if(state.assignableUsers.length > 0) return state.assignableUsers;
-  try {
-    const snap = await db.collection('users').get();
-    state.assignableUsers = snap.docs
-      .map(d => ({ uid: d.id, ...d.data() }))
-      .filter(u => u.role === 'admin' || u.role === 'employee');
-  } catch(e){ console.warn('Failed to load assignable users:', e); }
-  return state.assignableUsers;
-}
-
-export async function updateUserName(uid, name){
-  try { await db.collection('users').doc(uid).update({ name }); }
-  catch(e){ alert('Failed to update name: '+e.message); }
-}
-
-export async function updateUserEmail(uid, email){
-  try { await db.collection('users').doc(uid).update({ email }); }
-  catch(e){ alert('Failed to update email: '+e.message); }
-}
-
-export async function updateUserRole(uid, newRole){
-  try { await db.collection('users').doc(uid).update({ role: newRole }); }
-  catch(e){ alert('Failed to update role: '+e.message); }
-}
-
-export async function updateUserClient(uid, clientName){
-  try { await db.collection('users').doc(uid).update({ clientName }); }
-  catch(e){ alert('Failed to update client: '+e.message); }
-}
-
-export async function deleteFirebaseUser(uid){
-  try { await db.collection('users').doc(uid).delete(); }
-  catch(e){ alert('Failed to remove user: '+e.message); }
-}
-
-// ─── Campaign Assignments (Firestore) ───
-const TAG_PALETTE = ['#2563eb','#d97706','#059669','#dc2626','#7c3aed','#0891b2','#c026d3','#ea580c'];
-const TAG_COLOR_MAP = {
-  '#2563eb': { bg: '#dbeafe', fg: '#1d4ed8' },
-  '#d97706': { bg: '#fef3c7', fg: '#92400e' },
-  '#059669': { bg: '#d1fae5', fg: '#065f46' },
-  '#dc2626': { bg: '#fee2e2', fg: '#991b1b' },
-  '#7c3aed': { bg: '#ede9fe', fg: '#5b21b6' },
-  '#0891b2': { bg: '#cffafe', fg: '#155e75' },
-  '#c026d3': { bg: '#fae8ff', fg: '#86198f' },
-  '#ea580c': { bg: '#ffedd5', fg: '#9a3412' },
-};
-
-export { TAG_PALETTE };
-
-function hexToTagStyle(hex) {
-  const mapped = TAG_COLOR_MAP[hex];
-  if (mapped) return mapped;
-  return { bg: hex + '22', fg: hex };
-}
-
-export function getOwnerColor(name){
-  if(!name) return null;
-  const lower = name.toLowerCase().trim();
-  const user = state.assignableUsers.find(u =>
-    (u.name || '').toLowerCase().trim() === lower ||
-    (u.name || '').toLowerCase().split(/\s+/)[0] === lower
-  );
-  const hex = (user && user.tagColor) || TAG_PALETTE[0];
-  const style = hexToTagStyle(hex);
-  return { label: name, bg: style.bg, fg: style.fg };
-}
-
-export async function loadCampaignAssignments(){
-  try {
-    const doc = await db.collection('crm_settings').doc('campaign_assignments').get();
-    if(doc.exists && doc.data().assignments){
-      state.campaignAssignments = doc.data().assignments;
-    }
-  } catch(e){ console.warn('Failed to load campaign assignments:', e); }
-}
-
-export async function saveCampaignAssignment(campaignName, userName){
-  state.campaignAssignments[campaignName] = userName;
-  render();
-  try {
-    await db.collection('crm_settings').doc('campaign_assignments').set({ assignments: state.campaignAssignments }, { merge: true });
-  } catch(e){ console.warn('Failed to save campaign assignment:', e); }
-}
-
-export function getOwnerForDeal(deal){
-  if(deal.ownerOverride) return getOwnerColor(deal.ownerOverride);
-  if(!deal.campaignName) return null;
-  const owner = state.campaignAssignments[deal.campaignName];
-  if(!owner) return null;
-  return getOwnerColor(owner);
-}
-
-export function getOwnerNameForDeal(deal){
-  if(deal.ownerOverride) return deal.ownerOverride;
-  if(!deal.campaignName) return '';
-  return state.campaignAssignments[deal.campaignName] || '';
-}
-
-export function listenCampaignAssignments(){
-  try {
-    db.collection('crm_settings').doc('campaign_assignments').onSnapshot(doc => {
-      if(doc.exists && doc.data().assignments){
-        state.campaignAssignments = doc.data().assignments;
-        render();
-      }
-    });
-  } catch(e){ console.warn('Campaign assignment listener failed:', e); }
-}
-
-// ─── Auth State Listener (called from app.js) ───
-export function setupAuthListener(onLogin){
-  // onAuthStateChanged re-fires on token refresh (~hourly) and reconnect with
-  // the SAME user. Re-running the boot sequence flashes the transition overlay
-  // over whatever the user is doing. Track who we've already booted and skip
-  // the re-boot for the same uid (initApp itself is already idempotent).
-  let _bootedUid = null;
-  // Handle Google redirect result (if popup was blocked and redirect was used)
-  auth.getRedirectResult().catch(e => {
-    if(e.code !== 'auth/popup-closed-by-user'){
-      const errEl = document.getElementById('login-error');
-      if(errEl){ errEl.textContent = e.message || 'Google sign-in failed'; errEl.style.display='block'; }
-    }
-  });
-
-  auth.onAuthStateChanged(async (user) => {
-    const bootLoader = document.getElementById('boot-loader');
-    if(bootLoader) bootLoader.remove();
-
-    if(user){
-      // Token refresh / reconnect re-fire for the already-booted user — no-op
-      // so we don't flash the "Loading your CRM..." overlay mid-work.
-      if(_bootedUid === user.uid) return;
-      _bootedUid = user.uid;
-      let userDoc;
-      try {
-        const snap = await db.collection('users').doc(user.uid).get();
-        if(snap.exists){
-          userDoc = snap.data();
-        } else {
-          userDoc = { name: user.displayName || user.email.split('@')[0], email: user.email, role: 'client', clientName: '' };
-          await db.collection('users').doc(user.uid).set({ ...userDoc, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-        }
-      } catch(e){
-        console.warn('Firestore read failed, defaulting to client role:', e);
-        userDoc = { name: user.displayName || user.email.split('@')[0], email: user.email, role: 'client', clientName: '' };
-      }
-
-      currentUser = {
-        uid: user.uid,
-        name: userDoc.name || user.displayName || user.email.split('@')[0],
-        email: user.email,
-        role: userDoc.role || 'client',
-        clientName: userDoc.clientName || ''
-      };
-
-      document.getElementById('login-screen').style.display='none';
-      showTransitionScreen('Loading your CRM...');
-
-      if(isClient()){
-        state.pipeline = 'client_leads';
-        location.hash = 'client_leads';
-      } else if(isEmployee()){
-        const hash = location.hash.replace('#','').split('/')[0];
-        state.pipeline = hash && ['acquisition','client_leads'].includes(hash) ? hash : 'client_leads';
-      } else if(isAdmin()){
-        const hash = location.hash.replace('#','').split('/')[0];
-        state.pipeline = hash && ['dashboard','acquisition','client_leads','nurture'].includes(hash) ? hash : 'client_leads';
-      }
-
-      document.getElementById('app').style.display='block';
-      try {
-        await onLogin();
-      } catch(e){
-        console.error('initApp error:', e);
-      }
-      // Hide transition once synced, or after 8s max
-      const _waitForSync = setInterval(()=>{
-        if(state.synced){
-          clearInterval(_waitForSync);
-          hideTransitionScreen();
-        }
-      }, 100);
-      setTimeout(()=>{ clearInterval(_waitForSync); hideTransitionScreen(); }, 8000);
-    } else {
-      _bootedUid = null;
-      currentUser = null;
-      document.getElementById('app').style.display='none';
-      document.getElementById('login-screen').style.display='flex';
-    }
-  });
-}
-
-// Expose to inline HTML handlers
-window.handleAuth = handleAuth;
-window.handlePasswordReset = handlePasswordReset;
+// ─── Expose to inline HTML handlers ───
 window.handleGoogleSignIn = handleGoogleSignIn;
-window.toggleAuthMode = toggleAuthMode;
 window.logout = logout;
 window.switchUser = switchUser;
 window.toggleUserMenu = toggleUserMenu;
-
-// User management functions exposed to inline handlers
-export async function changeUserRole(uid, role){
-  await updateUserRole(uid, role);
-}
-export async function changeUserClient(uid, clientName){
-  await updateUserClient(uid, clientName);
-}
-export async function createNewUser(){
-  const name = document.getElementById('new-user-name').value.trim();
-  const email = document.getElementById('new-user-email').value.trim();
-  const pass = document.getElementById('new-user-pass').value;
-  const role = document.getElementById('new-user-role').value;
-  const clientName = document.getElementById('new-user-client').value;
-  const btn = document.getElementById('create-user-btn');
-  const msg = document.getElementById('create-user-msg');
-
-  if(!name||!email||!pass){ msg.textContent='Please fill in all fields'; msg.style.color='var(--red)'; msg.style.display='block'; return; }
-  if(pass.length<6){ msg.textContent='Password must be at least 6 characters'; msg.style.color='var(--red)'; msg.style.display='block'; return; }
-
-  btn.disabled=true; btn.textContent='Creating...';
-  msg.style.display='none';
-
-  try {
-    const cred = await auth.createUserWithEmailAndPassword(email, pass);
-    await cred.user.updateProfile({ displayName: name });
-    await db.collection('users').doc(cred.user.uid).set({
-      name,
-      email,
-      role,
-      clientName,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-
-    msg.textContent='\u2713 Account created for '+name+'! Sign back in to continue.';
-    msg.style.color='var(--green)';
-    msg.style.display='block';
-
-    document.getElementById('new-user-name').value='';
-    document.getElementById('new-user-email').value='';
-    document.getElementById('new-user-pass').value='';
-
-    btn.textContent='Create User Account';
-    btn.disabled=false;
-  } catch(e){
-    let errMsg='Failed to create account';
-    if(e.code==='auth/email-already-in-use') errMsg='An account with this email already exists';
-    else if(e.code==='auth/invalid-email') errMsg='Invalid email address';
-    msg.textContent=errMsg;
-    msg.style.color='var(--red)';
-    msg.style.display='block';
-    btn.textContent='Create User Account';
-    btn.disabled=false;
-  }
-}
-
-export async function assignCampaignOwner(campaignName, userName){
-  if(!userName){
-    delete state.campaignAssignments[campaignName];
-  } else {
-    state.campaignAssignments[campaignName] = userName;
-  }
-  try {
-    await db.collection('crm_settings').doc('campaign_assignments').set({ assignments: state.campaignAssignments }, { merge: true });
-  } catch(e){ console.warn('Failed to save campaign assignment:', e); }
-  render();
-}
-
-export async function removeCampaignAssignment(campaignName){
-  delete state.campaignAssignments[campaignName];
-  try {
-    await db.collection('crm_settings').doc('campaign_assignments').set({ assignments: state.campaignAssignments }, { merge: true });
-  } catch(e){ console.warn('Failed to save:', e); }
-  render();
-}
-
-window.changeUserRole = changeUserRole;
-window.changeUserClient = changeUserClient;
-window.createNewUser = createNewUser;
 window.assignCampaignOwner = assignCampaignOwner;
 window.removeCampaignAssignment = removeCampaignAssignment;

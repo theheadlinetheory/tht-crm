@@ -2,15 +2,15 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260714f';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260714f';
-import { render } from './render.js?v=20260714f';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20260714f';
-import { esc, str, svgIcon } from './utils.js?v=20260714f';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserClient, updateUserName, updateUserEmail, deleteFirebaseUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE, db } from './auth.js?v=20260714f';
-import { lookupClientInfo } from './client-info.js?v=20260714f';
-import { findPolygonForClient } from './maps.js?v=20260714f';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260714f';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260715c';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260715c';
+import { render } from './render.js?v=20260715c';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20260715c';
+import { esc, str, svgIcon } from './utils.js?v=20260715c';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20260715c';
+import { lookupClientInfo } from './client-info.js?v=20260715c';
+import { findPolygonForClient } from './maps.js?v=20260715c';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260715c';
 
 export function getDefaultSettings(){
   return {
@@ -290,7 +290,7 @@ export function refreshSettingsBody(){
       window._dialerFieldsLoaded = true;
       supabase.from('crm_settings').select('value').eq('key','dialer_default_fields').single()
         .then(({ data }) => { window._dialerDefaultFields = data?.value ? JSON.parse(data.value) : []; refreshSettingsBody(); });
-      import('./number-health.js?v=20260714f').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
+      import('./number-health.js?v=20260715c').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
     }
     h=renderDialerSettings();
   }
@@ -817,23 +817,7 @@ function renderUsersSettings(){
     <h4>User Management</h4>
     <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Manage who can access the CRM and what they can see.</p>
     <div id="users-list-container"><div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px">Loading users...</div></div>
-    <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
-      <h4 style="font-size:12px;font-weight:700;margin-bottom:8px">\u2795 Invite New User</h4>
-      <p style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Create an account for a team member.</p>
-      <div style="display:flex;flex-direction:column;gap:6px">
-        <input type="text" id="new-user-name" placeholder="Full name" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
-        <input type="email" id="new-user-email" placeholder="Email address" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
-        <input type="password" id="new-user-pass" placeholder="Temporary password (6+ chars)" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
-        <div style="display:flex;gap:6px">
-          <select id="new-user-role" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
-            <option value="admin">Admin</option>
-            <option value="employee" selected>Employee</option>
-          </select>
-        </div>
-        <button class="btn btn-primary" onclick="createNewUser()" style="padding:10px;font-size:12px" id="create-user-btn">Create User Account</button>
-        <div id="create-user-msg" style="font-size:11px;text-align:center;display:none"></div>
-      </div>
-    </div>
+    <p style="font-size:11px;color:var(--text-muted);margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">Users are added automatically on first Google sign-in (as Employee). Promote to Admin below.</p>
   </div>`;
   setTimeout(()=>loadUsersIntoPanel(), 50);
   return h;
@@ -867,22 +851,20 @@ async function loadUsersIntoPanel(){
         </div>
         <div style="flex:1;min-width:0">
           <input type="text" value="${esc(u.name||'')}" placeholder="Enter name" onkeydown="if(event.key==='Enter')this.blur()" style="font-size:13px;font-weight:600;border:1px solid transparent;background:transparent;padding:2px 6px;border-radius:4px;font-family:var(--font);width:100%;box-sizing:border-box" onfocus="this.style.borderColor='var(--border)';this.style.background='#fff'" onblur="this.style.borderColor='transparent';this.style.background='transparent';saveUserName('${u.uid}',this.value)">${isSelf?' <span style="font-size:10px;color:var(--text-muted)">(you)</span>':''}
-          <input type="text" value="${esc(u.email||'')}" placeholder="Email address" onkeydown="if(event.key==='Enter')this.blur()" style="font-size:11px;color:var(--text-muted);border:1px solid transparent;background:transparent;padding:2px 6px;border-radius:4px;font-family:var(--font);width:100%;box-sizing:border-box" onfocus="this.style.borderColor='var(--border)';this.style.background='#fff'" onblur="this.style.borderColor='transparent';this.style.background='transparent';saveUserEmail('${u.uid}',this.value)">
-          ${u.clientName?`<div style="font-size:10px;color:#2563eb;margin-top:2px;padding-left:6px">Assigned: ${esc(u.clientName)}</div>`:''}
+          <div style="font-size:11px;color:var(--text-muted);padding:2px 6px">${esc(u.email||'')}</div>
         </div>
         <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex-shrink:0">
           <div style="display:flex;gap:6px;align-items:center">
             <select onchange="changeUserRole('${u.uid}',this.value)" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:var(--font)"${isSelf?' disabled':''}>
               <option value="admin"${u.role==='admin'?' selected':''}>Admin</option>
               <option value="employee"${u.role==='employee'?' selected':''}>Employee</option>
-              ${u.role==='client'?`<option value="client" selected>Client (legacy)</option>`:''}
             </select>
           </div>
           <div style="display:flex;gap:3px;align-items:center">
             <span style="font-size:9px;color:var(--text-muted);margin-right:2px">Tag:</span>
             ${TAG_PALETTE.map(c => `<button onclick="saveUserTagColor('${u.uid}','${c}')" style="width:16px;height:16px;border-radius:50%;border:2px solid ${(u.tagColor||TAG_PALETTE[0])===c?'#111':'transparent'};background:${c};cursor:pointer;padding:0;flex-shrink:0" title="${c}"></button>`).join('')}
           </div>
-          ${!isSelf?`<button onclick="deleteUser('${u.uid}','${esc(u.name||u.email||'')}')" style="font-size:10px;color:#ef4444;background:none;border:none;cursor:pointer;padding:2px 6px;font-family:var(--font)">Remove</button>`:''}
+          ${!isSelf?`<button onclick="handleDeleteUser('${u.uid}','${esc(u.name||u.email||'')}')" style="font-size:10px;color:#ef4444;background:none;border:none;cursor:pointer;padding:2px 6px;font-family:var(--font)">Remove</button>`:''}
         </div>
       </div>`;
     }
@@ -891,44 +873,36 @@ async function loadUsersIntoPanel(){
 }
 
 async function changeUserRole(uid, role){
-  await updateUserRole(uid, role);
-  loadUsersIntoPanel();
-}
-async function changeUserClient(uid, clientName){
-  await updateUserClient(uid, clientName);
-  loadUsersIntoPanel();
+  try { await updateUserRole(uid, role); loadUsersIntoPanel(); }
+  catch(e){ alert('Failed to update role: '+e.message); loadUsersIntoPanel(); }
 }
 async function saveUserName(uid, name){
   const trimmed = name.trim();
   if(!trimmed) return;
   const cached = usersListCache && usersListCache.find(u => u.uid === uid);
   if(cached && cached.name === trimmed) return;
-  await updateUserName(uid, trimmed);
-  if(cached) cached.name = trimmed;
-  state.assignableUsers = [];
-}
-async function saveUserEmail(uid, email){
-  const trimmed = email.trim();
-  if(!trimmed) return;
-  const cached = usersListCache && usersListCache.find(u => u.uid === uid);
-  if(cached && cached.email === trimmed) return;
-  await updateUserEmail(uid, trimmed);
-  if(cached) cached.email = trimmed;
+  try {
+    await updateUserName(uid, trimmed);
+    if(cached) cached.name = trimmed;
+    state.assignableUsers = [];
+  } catch(e){ alert('Failed to update name: '+e.message); }
 }
 async function saveUserTagColor(uid, color){
   try {
-    await db.collection('users').doc(uid).update({ tagColor: color });
+    await updateUserTagColor(uid, color);
     const cached = usersListCache && usersListCache.find(u => u.uid === uid);
     if(cached) cached.tagColor = color;
     state.assignableUsers = [];
     loadUsersIntoPanel();
   } catch(e){ alert('Failed to update tag color: '+e.message); }
 }
-async function deleteUser(uid, name){
-  if(!confirm('Remove user "'+name+'" from the CRM? This only removes their Firestore profile — their Firebase Auth account will remain.')) return;
-  await deleteFirebaseUser(uid);
-  loadUsersIntoPanel();
-  state.assignableUsers = [];
+async function handleDeleteUser(uid, name){
+  if(!confirm('Remove "'+name+'" from the CRM? This deletes their profile and revokes their admin/employee role. If they still have a company Google account they will return as a basic Employee on next sign-in — to fully offboard, disable their Google Workspace account.')) return;
+  try {
+    await deleteUser(uid);
+    loadUsersIntoPanel();
+    state.assignableUsers = [];
+  } catch(e){ alert('Failed to remove user: '+e.message); }
 }
 async function handleUserPhoto(uid, input){
   const file = input.files && input.files[0];
@@ -944,16 +918,15 @@ async function handleUserPhoto(uid, input){
     canvas.getContext('2d').drawImage(img, 0, 0, w, h);
     const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
     try {
-      await db.collection('users').doc(uid).update({ photoURL: dataUrl });
+      await updateUserPhoto(uid, dataUrl);
       loadUsersIntoPanel();
     } catch(e){ alert('Failed to save photo: '+e.message); }
   };
   img.src = URL.createObjectURL(file);
 }
 window.saveUserName = saveUserName;
-window.saveUserEmail = saveUserEmail;
 window.saveUserTagColor = saveUserTagColor;
-window.deleteUser = deleteUser;
+window.handleDeleteUser = handleDeleteUser;
 window.handleUserPhoto = handleUserPhoto;
 
 // ─── Campaign Assignment Settings ───
@@ -1289,49 +1262,6 @@ export async function saveSettingsToSheet(){
   }
 }
 
-export async function createNewUser(){
-  const name = document.getElementById('new-user-name').value.trim();
-  const email = document.getElementById('new-user-email').value.trim();
-  const pass = document.getElementById('new-user-pass').value;
-  const role = document.getElementById('new-user-role').value;
-  const clientName = document.getElementById('new-user-client')?.value || '';
-  const btn = document.getElementById('create-user-btn');
-  const msg = document.getElementById('create-user-msg');
-
-  if(!name||!email||!pass){ msg.textContent='Please fill in all fields'; msg.style.color='var(--red)'; msg.style.display='block'; return; }
-  if(pass.length<6){ msg.textContent='Password must be at least 6 characters'; msg.style.color='var(--red)'; msg.style.display='block'; return; }
-
-  btn.disabled=true; btn.textContent='Creating...';
-  msg.style.display='none';
-
-  try {
-    const { auth } = await import('./auth.js?v=20260714f');
-    const cred = await auth.createUserWithEmailAndPassword(email, pass);
-    await cred.user.updateProfile({ displayName: name });
-    await db.collection('users').doc(cred.user.uid).set({
-      name, email, role, clientName,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    msg.textContent='\u2713 Account created for '+name+'! Sign back in to continue.';
-    msg.style.color='var(--green)';
-    msg.style.display='block';
-    document.getElementById('new-user-name').value='';
-    document.getElementById('new-user-email').value='';
-    document.getElementById('new-user-pass').value='';
-    btn.textContent='Create User Account';
-    btn.disabled=false;
-  } catch(e){
-    let errMsg='Failed to create account';
-    if(e.code==='auth/email-already-in-use') errMsg='An account with this email already exists';
-    else if(e.code==='auth/invalid-email') errMsg='Invalid email address';
-    msg.textContent=errMsg;
-    msg.style.color='var(--red)';
-    msg.style.display='block';
-    btn.textContent='Create User Account';
-    btn.disabled=false;
-  }
-}
-
 // Settings sub-functions called from inline HTML
 export function addSettingsStage(key,inputId){
   const el=document.getElementById(inputId);
@@ -1548,9 +1478,7 @@ window.addSettingsStage = addSettingsStage;
 window.addSettingsActivityType = addSettingsActivityType;
 window.addSopSequence = addSopSequence;
 window.addSopActivity = addSopActivity;
-window.createNewUser = createNewUser;
 window.changeUserRole = changeUserRole;
-window.changeUserClient = changeUserClient;
 window.fetchAcquisitionCampaigns = fetchAcquisitionCampaigns;
 // _fetchedCampaigns needs live getter for inline onclick="..._fetchedCampaigns=null;..."
 Object.defineProperty(window, '_fetchedCampaigns', {
@@ -1618,7 +1546,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260714f');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260715c');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);

@@ -6,25 +6,25 @@
 // populated during the final migration. This module provides
 // the key functions other modules depend on.
 
-import { state, pendingWrites, pendingDealFields } from './app.js?v=20260714f';
-import { flushRealtimeQueue } from './api.js?v=20260714f';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY, detectCountry } from './config.js?v=20260714f';
-import { render, refreshModal } from './render.js?v=20260714f';
-import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20260714f';
-import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20260714f';
-import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20260714f';
-import { renderDealInvoiceButton } from './deal-invoice.js?v=20260714f';
-import { isAdmin, isClient, isEmployee, loadAssignableUsers } from './auth.js?v=20260714f';
-import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js?v=20260714f';
-import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, reschedulePreCallSequence, assignNoShowSequence } from './activities.js?v=20260714f';
-import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js?v=20260714f';
-import { getStagesForPipeline } from './dashboard.js?v=20260714f';
-import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal } from './maps.js?v=20260714f';
-import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js?v=20260714f';
-import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js?v=20260714f';
+import { state, pendingWrites, pendingDealFields } from './app.js?v=20260715c';
+import { flushRealtimeQueue } from './api.js?v=20260715c';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY, detectCountry } from './config.js?v=20260715c';
+import { render, refreshModal } from './render.js?v=20260715c';
+import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20260715c';
+import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20260715c';
+import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20260715c';
+import { renderDealInvoiceButton } from './deal-invoice.js?v=20260715c';
+import { isAdmin, isEmployee, loadAssignableUsers } from './auth.js?v=20260715c';
+import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js?v=20260715c';
+import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, reschedulePreCallSequence, assignNoShowSequence } from './activities.js?v=20260715c';
+import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js?v=20260715c';
+import { getStagesForPipeline } from './dashboard.js?v=20260715c';
+import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal } from './maps.js?v=20260715c';
+import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js?v=20260715c';
+import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js?v=20260715c';
 import './blooio.js';
 import './demo-tracker.js';
-import { renderDealRetargetHistory } from './retargeting.js?v=20260714f';
+import { renderDealRetargetHistory } from './retargeting.js?v=20260715c';
 
 function actTypeClass(type){
   const t=(type||'').toLowerCase();
@@ -468,24 +468,24 @@ export async function doWonDrop(){
   // Client Won → push to Lead Tracker
   if(deal.pipeline==='Acquisition'){
     // Won-drop modal handles create + archive on success (or leaves the card in place on cancel)
-    const { openWonModal } = await import('./won-modal.js?v=20260714f');
+    const { openWonModal } = await import('./won-modal.js?v=20260715c');
     openWonModal(deal);
     return;
   }
 
   let wonSuccess = false;
   try {
-    const { autoPushToTracker } = await import('./email.js?v=20260714f');
+    const { autoPushToTracker } = await import('./email.js?v=20260715c');
     await autoPushToTracker(deal);
     wonSuccess = true;
   } catch(e){
     console.error('Won drop action failed:', e);
-    const { showToast } = await import('./api.js?v=20260714f');
+    const { showToast } = await import('./api.js?v=20260715c');
     showToast('Won action failed: ' + e.message, 'error');
   }
 
   if(wonSuccess) {
-    const { deleteDeal } = await import('./deals.js?v=20260714f');
+    const { deleteDeal } = await import('./deals.js?v=20260715c');
     deleteDeal(id, 'Closed Won', clientName);
   }
 }
@@ -594,7 +594,7 @@ async function confirmPhoneAssign() {
   try { await sbUpdateDeal(dealId, snakeUpdates); }
   finally { pendingWrites.value--; }
 
-  const { showToast } = await import('./api.js?v=20260714f');
+  const { showToast } = await import('./api.js?v=20260715c');
   showToast('Phone number(s) saved', 'success');
 }
 
@@ -609,7 +609,7 @@ let _interactionsCache = {};
 
 async function loadInteractions(dealId) {
   try {
-    const { sbGetInteractions } = await import('./api.js?v=20260714f');
+    const { sbGetInteractions } = await import('./api.js?v=20260715c');
     const rows = await sbGetInteractions(dealId);
     _interactionsCache[dealId] = (rows || []).map(r => ({
       id: r.id, dealId: r.deal_id, type: r.type, content: r.content,
@@ -743,7 +743,7 @@ async function addInteraction(dealId) {
 
   contentEl.value = '';
   if (dateEl) dateEl.value = '';
-  const { sbCreateInteraction } = await import('./api.js?v=20260714f');
+  const { sbCreateInteraction } = await import('./api.js?v=20260715c');
   const row = await sbCreateInteraction(fields);
   if (row) {
     if (!_interactionsCache[dealId]) _interactionsCache[dealId] = [];
@@ -756,7 +756,7 @@ async function addInteraction(dealId) {
 }
 
 async function deleteInteraction(id, dealId) {
-  const { sbDeleteInteraction } = await import('./api.js?v=20260714f');
+  const { sbDeleteInteraction } = await import('./api.js?v=20260715c');
   await sbDeleteInteraction(id);
   if (_interactionsCache[dealId]) {
     _interactionsCache[dealId] = _interactionsCache[dealId].filter(i => i.id !== id);
@@ -777,7 +777,7 @@ async function editInteractionDate(id, dealId) {
   const parsed = new Date(input);
   if (isNaN(parsed.getTime())) return;
 
-  const { sbUpdateInteraction } = await import('./api.js?v=20260714f');
+  const { sbUpdateInteraction } = await import('./api.js?v=20260715c');
   await sbUpdateInteraction(id, { created_at: parsed.toISOString() });
   item.createdAt = parsed.toISOString();
   closeTimelinePanel();
@@ -802,7 +802,7 @@ async function enrichLead(dealId) {
   const canEnrich = hasLinkedin || (hasContact && hasWebsite);
 
   if (!canEnrich) {
-    const { showToast } = await import('./api.js?v=20260714f');
+    const { showToast } = await import('./api.js?v=20260715c');
     showToast('Needs a LinkedIn URL or company name + website to enrich', 'warning');
     return;
   }
@@ -814,7 +814,7 @@ async function enrichLead(dealId) {
 
   try {
     const result = await invokeEdgeFunction('enrich-lead', { dealId });
-    const { showToast } = await import('./api.js?v=20260714f');
+    const { showToast } = await import('./api.js?v=20260715c');
     console.log('[enrich-lead] Response:', JSON.stringify(result));
 
     if (result.ok && result.phones && result.phones.length > 0) {
@@ -830,7 +830,7 @@ async function enrichLead(dealId) {
     }
   } catch (e) {
     showEnrichOverlay(false);
-    const { showToast } = await import('./api.js?v=20260714f');
+    const { showToast } = await import('./api.js?v=20260715c');
     console.error('[enrich-lead] Exception:', e);
     showToast('Enrichment failed: ' + e.message, 'error');
   }
@@ -846,7 +846,7 @@ async function enrichContact(dealId, contactIndex) {
   const hasDomain = website || email.includes('@');
 
   if (!name || !hasDomain) {
-    const { showToast } = await import('./api.js?v=20260714f');
+    const { showToast } = await import('./api.js?v=20260715c');
     showToast('Need contact name + company website or email to enrich', 'warning');
     return;
   }
@@ -857,7 +857,7 @@ async function enrichContact(dealId, contactIndex) {
 
   try {
     const result = await invokeEdgeFunction('enrich-lead', { dealId, contactIndex });
-    const { showToast } = await import('./api.js?v=20260714f');
+    const { showToast } = await import('./api.js?v=20260715c');
 
     if (result.ok && result.phones && result.phones.length > 0) {
       showEnrichOverlay(false);
@@ -871,7 +871,7 @@ async function enrichContact(dealId, contactIndex) {
     }
   } catch (e) {
     showEnrichOverlay(false);
-    const { showToast } = await import('./api.js?v=20260714f');
+    const { showToast } = await import('./api.js?v=20260715c');
     showToast('Enrichment failed: ' + e.message, 'error');
   }
 }
@@ -893,7 +893,7 @@ window.markAtYourConvenience = async (dealId) => {
   await updateDealField('bookedFor', 'AYC');
   const dateInput = document.getElementById('deal-bookedDate');
   if (dateInput) dateInput.value = today;
-  const { showToast: toast } = await import('./api.js?v=20260714f');
+  const { showToast: toast } = await import('./api.js?v=20260715c');
   toast('Marked as At Your Convenience', 'success');
   refreshModal();
 };
@@ -945,7 +945,7 @@ export function renderDealModal(deal){
               const isIntl=detectCountry(deal).code!=='US';
               extra='<div id="phone-btns-'+k+'" style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap">'
                 +'<button onclick="navigator.clipboard.writeText(\''+esc(ph)+'\');this.textContent=\'Copied!\';setTimeout(()=>this.textContent=\'Copy\',1200);event.stopPropagation()" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#f3f4f6;color:#6b7280;border-color:#d1d5db;cursor:pointer;font-weight:600;font-size:11px">'+svgIcon('clipboard',12,'#6b7280')+' Copy</button>'
-                +(!isClient()?'<button onclick="callInJustCall(\''+esc(deal.id)+'\',\''+k+'\');event.stopPropagation()" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#f97316;color:#fff;border-color:#f97316;cursor:pointer;font-weight:600">'+svgIcon('phone',14,'#fff')+' Call</button>':'')
+                +'<button onclick="callInJustCall(\''+esc(deal.id)+'\',\''+k+'\');event.stopPropagation()" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#f97316;color:#fff;border-color:#f97316;cursor:pointer;font-weight:600">'+svgIcon('phone',14,'#fff')+' Call</button>'
                 +'<button onclick="openBlooioModal(\''+esc(deal.id)+'\',\''+k+'\');event.stopPropagation()" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#059669;color:#fff;border-color:#059669;cursor:pointer;font-weight:600">'+svgIcon('message-circle',14,'#fff')+' Text</button>'
                 +(isIntl?'<a href="https://wa.me/'+esc(ph.replace(/^0+/,''))+'" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="imessage-btn" style="display:inline-flex;align-items:center;gap:4px;background:#25D366;color:#fff;border-color:#25D366;cursor:pointer;font-weight:600;text-decoration:none">'+svgIcon('message-circle',14,'#fff')+' WhatsApp</a>':'')
                 +'</div>';
@@ -983,7 +983,7 @@ export function renderDealModal(deal){
             ac+='<div style="display:flex;gap:4px;align-items:center"><input id="deal-email2" placeholder="Email" value="'+esc(String(deal.email2||''))+'" oninput="updateDealField(\'email2\',this.value)" style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:var(--font)">';
             ac+='<input id="deal-phone2" placeholder="Phone" value="'+esc(String(deal.phone2||''))+'" oninput="updateDealField(\'phone2\',this.value)" style="width:130px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:var(--font)">';
             const can2=deal.contact2&&(deal.website||String(deal.email2||'').includes('@'));
-            if(!isClient()) ac+='<button onclick="enrichContact(\''+esc(deal.id)+'\',2)" title="Enrich — Find Phone" style="flex-shrink:0;padding:3px 6px;border-radius:5px;border:1px solid '+(can2?'#7c3aed':'#d1d5db')+';background:'+(can2?'#f5f3ff':'#f9fafb')+';color:'+(can2?'#7c3aed':'#9ca3af')+';cursor:'+(can2?'pointer':'not-allowed')+';font-size:10px;font-weight:600;line-height:1">'+svgIcon('search',10,can2?'#7c3aed':'#9ca3af')+'</button>';
+            ac+='<button onclick="enrichContact(\''+esc(deal.id)+'\',2)" title="Enrich — Find Phone" style="flex-shrink:0;padding:3px 6px;border-radius:5px;border:1px solid '+(can2?'#7c3aed':'#d1d5db')+';background:'+(can2?'#f5f3ff':'#f9fafb')+';color:'+(can2?'#7c3aed':'#9ca3af')+';cursor:'+(can2?'pointer':'not-allowed')+';font-size:10px;font-weight:600;line-height:1">'+svgIcon('search',10,can2?'#7c3aed':'#9ca3af')+'</button>';
             ac+='</div>';
             ac+='</div>';
             // Contact 3 card
@@ -993,7 +993,7 @@ export function renderDealModal(deal){
             ac+='<div style="display:flex;gap:4px;align-items:center"><input id="deal-email3" placeholder="Email" value="'+esc(String(deal.email3||''))+'" oninput="updateDealField(\'email3\',this.value)" style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:var(--font)">';
             ac+='<input id="deal-phone3" placeholder="Phone" value="'+esc(String(deal.phone3||''))+'" oninput="updateDealField(\'phone3\',this.value)" style="width:130px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:var(--font)">';
             const can3=deal.contact3&&(deal.website||String(deal.email3||'').includes('@'));
-            if(!isClient()) ac+='<button onclick="enrichContact(\''+esc(deal.id)+'\',3)" title="Enrich — Find Phone" style="flex-shrink:0;padding:3px 6px;border-radius:5px;border:1px solid '+(can3?'#7c3aed':'#d1d5db')+';background:'+(can3?'#f5f3ff':'#f9fafb')+';color:'+(can3?'#7c3aed':'#9ca3af')+';cursor:'+(can3?'pointer':'not-allowed')+';font-size:10px;font-weight:600;line-height:1">'+svgIcon('search',10,can3?'#7c3aed':'#9ca3af')+'</button>';
+            ac+='<button onclick="enrichContact(\''+esc(deal.id)+'\',3)" title="Enrich — Find Phone" style="flex-shrink:0;padding:3px 6px;border-radius:5px;border:1px solid '+(can3?'#7c3aed':'#d1d5db')+';background:'+(can3?'#f5f3ff':'#f9fafb')+';color:'+(can3?'#7c3aed':'#9ca3af')+';cursor:'+(can3?'pointer':'not-allowed')+';font-size:10px;font-weight:600;line-height:1">'+svgIcon('search',10,can3?'#7c3aed':'#9ca3af')+'</button>';
             ac+='</div>';
             ac+='</div>';
             // Email 4 standalone
@@ -1002,7 +1002,6 @@ export function renderDealModal(deal){
             return ac;
           })()}
           ${(()=>{
-            if(isClient()) return '';
             const hasLinkedin=deal.linkedinUrl&&str(deal.linkedinUrl).trim();
             const hasWebsite=deal.website&&str(deal.website).trim();
             const hasContact=deal.contact&&str(deal.contact).trim();
@@ -1459,8 +1458,6 @@ export function renderDealModal(deal){
     }
   }
 
-  // Activities section — hidden for client users
-  if(!isClient()){
   h+=`<div id="activities-container"><div class="activities-section">
     <div class="activities-header">
       <h4>Activities</h4>
@@ -1552,13 +1549,11 @@ export function renderDealModal(deal){
   if(!pending.length&&!completed.length) h+=`<div class="no-activities">No activities yet</div>`;
 
   h+=`</div></div></div>`;
-  } // end !isClient() activities block
 
   h+=`${renderDealRetargetHistory(deal.id)}
     <div class="modal-footer">
       <div style="display:flex;gap:8px;align-items:center">
         ${isAdmin()||isEmployee()?`<button class="btn btn-danger" onclick="showArchiveReasonPicker('${deal.id}')">Archive</button>`:''}
-        ${isClient()?`<button class="btn btn-danger" onclick="if(confirm('Archive this lead?'))archiveDeal('${deal.id}','manual')">Archive</button>`:''}
         <button class="btn" style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;font-size:12px" onclick="markDealUnread('${deal.id}')" title="Mark as unread so the blue highlight comes back">${svgIcon('mail',12,'#2563eb')} Mark Unread</button>
       </div>
       <div style="display:flex;gap:8px">
@@ -1571,13 +1566,10 @@ export function renderDealModal(deal){
 
 export function renderNewDealModal(stages){
   const defVal=state.pipeline==="acquisition"?1057:0;
-  const isClientView = isClient();
-  const fields = isClientView
-    ? ["company:Company/Name","contact:Contact Name","email:Email","phone:Phone","location:Address/Location"]
-    : ["company:Company","contact:Contact Name","email:Email","phone:Phone","website:Website"];
+  const fields = ["company:Company","contact:Contact Name","email:Email","phone:Phone","website:Website"];
   return`<div class="modal-overlay" onmousedown="this._mdownTarget=event.target" onclick="if(event.target===this&&this._mdownTarget===this){state.showNew=false;render()}">
     <div class="modal" style="width:440px" onclick="event.stopPropagation()">
-      <div class="modal-header"><h3>${isClientView?'New Lead':'New Deal'}</h3><button class="modal-close" onclick="state.showNew=false;render()">×</button></div>
+      <div class="modal-header"><h3>New Deal</h3><button class="modal-close" onclick="state.showNew=false;render()">×</button></div>
       <div class="modal-body">
         <div class="form-grid">
           ${fields.map(f=>{
@@ -1585,19 +1577,15 @@ export function renderNewDealModal(stages){
             return`<div class="form-group"><label>${label}</label><input id="new-${k}"></div>`;
           }).join("")}
           ${isAdmin()?`<div class="form-group"><label>Deal Value ($)</label><input id="new-value" type="number" value="${defVal}"></div>`:''}
-          ${!isClientView?`<div class="form-group form-span2">
+          <div class="form-group form-span2">
             <label>Stage</label>
             <select id="new-stage">${stages.map(s=>`<option value="${esc(s.id)}">${esc(s.label)}</option>`).join("")}</select>
-          </div>`:''}
-          ${isClientView?`<div class="form-group form-span2">
-            <label>Notes</label>
-            <textarea id="new-notes" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);resize:vertical"></textarea>
-          </div>`:''}
+          </div>
         </div>
       </div>
       <div class="modal-footer" style="justify-content:flex-end">
         <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="state.showNew=false;render()">Cancel</button>
-        <button class="btn btn-primary" onclick="doCreateDeal()">Create ${isClientView?'Lead':'Deal'}</button>
+        <button class="btn btn-primary" onclick="doCreateDeal()">Create Deal</button>
       </div>
     </div></div>`;
 }
@@ -1669,7 +1657,7 @@ export function confirmScheduleAndCopy(){
   sbUpdateDeal(dealId, camelToSnake({bookedDate:dateVal,bookedTime:timeVal})).catch(e=>console.error('Update deal failed:',e)).finally(()=>{pendingWrites.value--;});
   const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
   if(client && dateVal){
-    import('./calendly.js?v=20260714f').then(mod=>{
+    import('./calendly.js?v=20260715c').then(mod=>{
       const apptAddr=(deal.address||deal.location||'').trim();
       mod.saveAppointment(client.name, deal.company||deal.contact||'Unknown', dateVal, timeVal, '', apptAddr);
     });
@@ -1818,14 +1806,14 @@ window.pushToClientSheet = async function(dealId) {
     btn.innerHTML = svgIcon('check',14)+' Pushed to Client Sheet';
     btn.className = 'btn btn-ghost';
     btn.style.cssText = 'width:100%;justify-content:center;gap:6px;font-size:13px';
-    const { showToast: toast } = await import('./api.js?v=20260714f');
+    const { showToast: toast } = await import('./api.js?v=20260715c');
     toast('Pushed to ' + (result.client || 'client') + "'s sheet", 'success');
     setTimeout(() => refreshModal(true), 800);
   } catch (e) {
     const msg = e.name === 'AbortError' ? 'Request timed out' : (e.message || 'Unknown error');
     btn.innerHTML = origText;
     btn.disabled = false;
-    const { showToast: toast2 } = await import('./api.js?v=20260714f');
+    const { showToast: toast2 } = await import('./api.js?v=20260715c');
     toast2('Push failed: ' + msg, 'error');
     alert('Client sheet push failed: ' + msg);
   }
@@ -1859,7 +1847,7 @@ window.pushToGhl = async function(dealId) {
     }
     btn.innerHTML = '<span style="color:#059669">✓ Pushed to GHL</span>';
     btn.disabled = true;
-    const { showToast: toast } = await import('./api.js?v=20260714f');
+    const { showToast: toast } = await import('./api.js?v=20260715c');
     const client = findClientForDeal(d) || {};
     toast('Pushed to ' + (client.name || 'GHL'), 'success');
     setTimeout(() => refreshModal(true), 800);
