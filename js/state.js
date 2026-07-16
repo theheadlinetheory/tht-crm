@@ -4,7 +4,7 @@
 // All mutations go through store.* methods to prevent direct
 // state tampering and ensure consistent re-renders.
 
-import { render, refreshModal } from './render.js?v=20260714f';
+import { render, refreshModal } from './render.js?v=20260715c';
 
 // ─── Raw State (private — modules should use store.*) ───
 export const state = {
@@ -118,12 +118,6 @@ export let clientsSubTab = 'notifications';
 export function setClientsSubTab(v){ clientsSubTab = v; }
 export let settingsDraft = null;
 export function setSettingsDraft(v){ settingsDraft = v; }
-
-// ─── Client portal ───
-export let clientPortalStages = null;
-export function setClientPortalStages(v){ clientPortalStages = v; }
-export let clientArchivedDeals = [];
-export function setClientArchivedDeals(v){ clientArchivedDeals = v; }
 
 // ─── Store: centralized mutation API ───
 // All list mutations and field sets go through here.

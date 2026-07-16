@@ -2,28 +2,27 @@
 // RENDER — Main render loop, refreshModal, list view
 // ═══════════════════════════════════════════════════════════
 
-import { state, savedScrollLeft, setSavedScrollLeft, clientArchivedDeals } from './app.js?v=20260714f';
-import { ACQUISITION_STAGES, NURTURE_STAGES, ACTIVITY_ICONS, detectCountry } from './config.js?v=20260714f';
-import { esc, svgIcon, getToday, fmtDate, fmtTime12, str, stripHtml } from './utils.js?v=20260714f';
-import { isAdmin, isClient, isEmployee, currentUser, renderUserMenu, getOwnerForDeal, getOwnerNameForDeal, loadAssignableUsers } from './auth.js?v=20260714f';
-import { initialSync as syncFromSheet } from './api.js?v=20260714f';
-import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js?v=20260714f';
-import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWonDrop, renderDealModal, renderNewDealModal, renderAddClientModal, toggleBadgeDropdown } from './deal-modal.js?v=20260714f';
-import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from './activities.js?v=20260714f';
-import { renderDashboard } from './dashboard.js?v=20260714f';
-import { loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js?v=20260714f';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260714f';
-import { toggleBulkMode, bulkMoveStage, bulkSelectAll, bulkArchive, bulkAddActivity, toggleBulkSelect } from './deals.js?v=20260714f';
-import { openSettings } from './settings.js?v=20260714f';
-import { serviceAreaResults } from './maps.js?v=20260714f';
-import { lookupClientInfo, isRetainerClient, openClientInfoPanel, removeClient, deriveTimezone } from './client-info.js?v=20260714f';
-import { openCalendlyEmbed, removeAppointment, addManualAppointment } from './calendly.js?v=20260714f';
-import { doDragOver, doDragLeave, clearAllDragOver, doDrop } from './deals.js?v=20260714f';
-import { renderDueTodayBanner, renderNurtureTab, renderNurtureEntryModal, renderReactivateModal, renderSnoozeModal, loadNurtureData } from './rerun.js?v=20260714f';
-import { renderDemoTracker } from './demo-tracker.js?v=20260714f';
-import { renderColdCallingTab } from './cold-calling.js?v=20260714f';
-import { renderRetargetingTab } from './retargeting.js?v=20260714f';
-import { isPowerDialerActive } from './power-dialer.js?v=20260714f';
+import { state, savedScrollLeft, setSavedScrollLeft } from './app.js?v=20260715c';
+import { ACQUISITION_STAGES, NURTURE_STAGES, ACTIVITY_ICONS, detectCountry } from './config.js?v=20260715c';
+import { esc, svgIcon, getToday, fmtDate, fmtTime12, str, stripHtml } from './utils.js?v=20260715c';
+import { isAdmin, isEmployee, currentUser, renderUserMenu, getOwnerForDeal, getOwnerNameForDeal, loadAssignableUsers } from './auth.js?v=20260715c';
+import { initialSync as syncFromSheet } from './api.js?v=20260715c';
+import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js?v=20260715c';
+import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWonDrop, renderDealModal, renderNewDealModal, renderAddClientModal, toggleBadgeDropdown } from './deal-modal.js?v=20260715c';
+import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from './activities.js?v=20260715c';
+import { renderDashboard } from './dashboard.js?v=20260715c';
+import { loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js?v=20260715c';
+import { toggleBulkMode, bulkMoveStage, bulkSelectAll, bulkArchive, bulkAddActivity, toggleBulkSelect } from './deals.js?v=20260715c';
+import { openSettings } from './settings.js?v=20260715c';
+import { serviceAreaResults } from './maps.js?v=20260715c';
+import { lookupClientInfo, isRetainerClient, openClientInfoPanel, removeClient, deriveTimezone } from './client-info.js?v=20260715c';
+import { openCalendlyEmbed, removeAppointment, addManualAppointment } from './calendly.js?v=20260715c';
+import { doDragOver, doDragLeave, clearAllDragOver, doDrop } from './deals.js?v=20260715c';
+import { renderDueTodayBanner, renderNurtureTab, renderNurtureEntryModal, renderReactivateModal, renderSnoozeModal, loadNurtureData } from './rerun.js?v=20260715c';
+import { renderDemoTracker } from './demo-tracker.js?v=20260715c';
+import { renderColdCallingTab } from './cold-calling.js?v=20260715c';
+import { renderRetargetingTab } from './retargeting.js?v=20260715c';
+import { isPowerDialerActive } from './power-dialer.js?v=20260715c';
 
 // ─── renderListView ───
 function renderListView(deals,stages){
@@ -48,7 +47,7 @@ function renderListView(deals,stages){
   }
   for(const d of deals){
     const badge=getActivityBadge(d.id);
-    const stg=stages.find(s=>s.id===(isClient()?d.clientStage:d.stage));
+    const stg=stages.find(s=>s.id===d.stage);
     const stgColor=stg?stg.color:'#6b7280';
     const created=d.createdDate?new Date(d.createdDate).toLocaleDateString('en-US',{month:'short',day:'numeric'}):'';
     h+=`<tr style="border-bottom:1px solid var(--border);cursor:pointer" onclick="openDeal('${esc(d.id)}')">
@@ -56,7 +55,7 @@ function renderListView(deals,stages){
       <td style="padding:8px 10px">${esc(d.contact||'')}</td>
       <td style="padding:8px 10px;color:var(--text-muted)">${esc(d.email||'')}</td>
       <td style="padding:8px 10px">${esc(d.phone||'')}</td>
-      <td style="padding:8px 10px"><span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${stgColor}18;color:${stgColor}">${esc(isClient()?(d.clientStage||''):d.stage||'')}</span></td>
+      <td style="padding:8px 10px"><span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${stgColor}18;color:${stgColor}">${esc(d.stage||'')}</span></td>
       <td style="padding:8px 10px;color:var(--text-muted)">${esc(d.location||'')}</td>
       <td style="padding:8px 10px">${badge?`<span style="display:inline-flex;align-items:center;gap:3px"><span style="width:7px;height:7px;border-radius:50%;background:${badge.color};display:inline-block"></span><span style="color:${badge.color};font-weight:600;font-size:11px">${badge.count} ${badge.label}</span></span>`:''}</td>
       <td style="padding:8px 10px;color:var(--text-muted);white-space:nowrap">${created}</td>
@@ -182,7 +181,7 @@ export function render(){
   if(state.pipeline==='payroll'){
     if(!window._payrollModule && !window._payrollLoading){
       window._payrollLoading=true;
-      import('./payroll.js?v=20260714f').then(m=>{ window._payrollModule=m; if(state.pipeline==='payroll') render(); }).catch(()=>{ window._payrollLoading=false; });
+      import('./payroll.js?v=20260715c').then(m=>{ window._payrollModule=m; if(state.pipeline==='payroll') render(); }).catch(()=>{ window._payrollLoading=false; });
     }
     let html=`<div class="topbar"><div style="display:flex;align-items:center"><div class="topbar-tabs">${pipelineTabsHtml()}</div></div><div class="topbar-right">${renderUserMenu()}</div></div>`;
     if(window._payrollModule){
@@ -239,11 +238,9 @@ export function render(){
       ${isAdmin()||isEmployee()?`<button class="btn btn-ghost" onclick="syncFromSheet()" style="display:inline-flex;align-items:center;gap:4px"><span${state.syncing?' style="animation:spin .7s linear infinite;display:inline-flex"':''}>${svgIcon('refresh-cw',12)}</span> Sync</button>`:''}
       ${isAdmin()||isEmployee()?`<button class="btn btn-ghost" onclick="toggleViewMode()" title="Toggle board/list view" style="display:inline-flex;align-items:center;gap:4px">${state.viewMode==='board'?svgIcon('list',12)+' List':svgIcon('grid',12)+' Board'}</button>`:''}
       ${isAdmin()||isEmployee()?`<button class="btn ${state.bulkMode?'btn-primary':'btn-ghost'}" onclick="toggleBulkMode()" title="Bulk select" style="display:inline-flex;align-items:center;gap:4px">${state.bulkMode?svgIcon('check-square',12)+' Bulk Mode':svgIcon('square',12)+' Bulk'}</button>`:''}
-      <button class="btn btn-primary" onclick="openNewDeal()">+ ${isClient()?'Lead':'Deal'}</button>
-      ${isClient()?`<button class="btn btn-ghost" onclick="openClientArchive()" title="View archived leads">${svgIcon('archive',12)} Archive${clientArchivedDeals.length?' ('+clientArchivedDeals.length+')':''}</button>`:''}
+      <button class="btn btn-primary" onclick="openNewDeal()">+ Deal</button>
       ${isEmployee()||isAdmin()?`<button class="btn ${state.showEmployeeArchive?'btn-primary':'btn-ghost'}" data-action="toggleEmployeeArchive" title="View archived leads">${svgIcon('archive',12)} Archive</button>`:''}
       ${isAdmin()||isEmployee()?`<button class="btn btn-ghost" onclick="openSettings(${isEmployee()&&!isAdmin()?"'templates'":""})" title="Settings" style="display:inline-flex;align-items:center;gap:4px;padding:6px 10px">${svgIcon('settings',12)}</button>`:''}
-      ${isClient()?`<button class="btn btn-ghost" onclick="openClientStageSettings()" title="Edit stages" style="display:inline-flex;align-items:center;gap:4px;padding:6px 10px">${svgIcon('settings',12)}</button>`:''}
       ${renderUserMenu()}
     </div>
   </div>
@@ -389,7 +386,7 @@ export function render(){
   }
 
   // ─── Client Leads Sub-Tabs (Pipeline / Lead Tracker) ───
-  if(state.pipeline==='client_leads' && !isClient() && !state.showEmployeeArchive){
+  if(state.pipeline==='client_leads' && !state.showEmployeeArchive){
     const clSubTab = state.clientLeadsSubTab || 'pipeline';
     const subCs = 'padding:6px 16px;font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;border-radius:6px;margin-right:4px';
     html += `<div style="padding:0 20px;margin-bottom:8px;display:flex;align-items:center">
@@ -407,7 +404,7 @@ export function render(){
         html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading weekly updates...</div>';
         if(!window._weeklyLoading){
           window._weeklyLoading=true;
-          import('./weekly-updates.js?v=20260714f').then(m=>{ window._weeklyModule=m; render(); }).catch(()=>{ window._weeklyLoading=false; });
+          import('./weekly-updates.js?v=20260715c').then(m=>{ window._weeklyModule=m; render(); }).catch(()=>{ window._weeklyLoading=false; });
         }
       }
       app.innerHTML=html;
@@ -429,11 +426,11 @@ export function render(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading trends...</div>';
           if(!window._trendsLoading){
             window._trendsLoading=true;
-            import('./trends.js?v=20260714f').then(m=>{ window._trendsModule=m; render(); }).catch(()=>{ window._trendsLoading=false; });
+            import('./trends.js?v=20260715c').then(m=>{ window._trendsModule=m; render(); }).catch(()=>{ window._trendsLoading=false; });
           }
           if(!state.trackerLoaded && !window._trackerLoading){
             window._trackerLoading=true;
-            import('./lead-tracker.js?v=20260714f').then(m=>{
+            import('./lead-tracker.js?v=20260715c').then(m=>{
               window._trackerModule=m;
               m.loadTrackerEntries().then(()=>render()).catch(()=>render());
             }).catch(()=>{ window._trackerLoading=false; });
@@ -446,7 +443,7 @@ export function render(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading pass-offs...</div>';
           if(!window._passOffsLoading){
             window._passOffsLoading=true;
-            import('./pass-offs.js?v=20260714f').then(m=>{ window._passOffsModule=m; render(); }).catch(()=>{ window._passOffsLoading=false; });
+            import('./pass-offs.js?v=20260715c').then(m=>{ window._passOffsModule=m; render(); }).catch(()=>{ window._passOffsLoading=false; });
           }
         }
       } else {
@@ -456,14 +453,14 @@ export function render(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading tracker...</div>';
           if(!window._trackerLoading){
             window._trackerLoading=true;
-            import('./lead-tracker.js?v=20260714f').then(m=>{
+            import('./lead-tracker.js?v=20260715c').then(m=>{
               window._trackerModule=m;
               if(!state.trackerLoaded){ m.loadTrackerEntries().then(()=>render()).catch(()=>render()); }
               else render();
             }).catch(()=>{ window._trackerLoading=false; });
             if(!window._invoiceLoading){
               window._invoiceLoading=true;
-              import('./invoice.js?v=20260714f').then(m=>{ window._invoiceModule=m; }).catch(()=>{ window._invoiceLoading=false; });
+              import('./invoice.js?v=20260715c').then(m=>{ window._invoiceModule=m; }).catch(()=>{ window._invoiceLoading=false; });
             }
           }
         }
@@ -471,7 +468,7 @@ export function render(){
           html+=window._invoiceModule.renderInvoiceModal();
         } else if(state.invoiceModal && !window._invoiceLoading){
           window._invoiceLoading=true;
-          import('./invoice.js?v=20260714f').then(m=>{ window._invoiceModule=m; render(); });
+          import('./invoice.js?v=20260715c').then(m=>{ window._invoiceModule=m; render(); });
         }
       }
       const trackerWrap=document.querySelector('.tracker-table-wrap');
@@ -605,8 +602,7 @@ export function render(){
   html+=`<div class="board">`;
 
   for(const stage of stages){
-    // For client portal, filter by clientStage instead of stage
-    let sd = isClient() ? deals.filter(d=>d.clientStage===stage.id) : deals.filter(d=>d.stage===stage.id);
+    let sd = deals.filter(d=>d.stage===stage.id);
     if(state.myDealsFilter && state.pipeline==='acquisition') sd = sd.filter(d => getOwnerNameForDeal(d) === currentUser.name);
     if(state.countryFilter && state.countryFilter.length) sd = sd.filter(d => state.countryFilter.includes(detectCountry(d).code));
     const sv=sd.reduce((s,d)=>s+(Number(d.value)||0),0);
@@ -628,7 +624,7 @@ export function render(){
       </div>
       ${(()=>{
         // Show upcoming appointments for client columns
-        if(state.pipeline!=='client_leads' || isClient()) return '';
+        if(state.pipeline!=='client_leads') return '';
         const isClientCol=state.clients.some(c=>c.name===stage.label);
         if(!isClientCol) return '';
         const cn=stage.label;
@@ -688,7 +684,7 @@ export function render(){
           onclick="${state.bulkMode?`event.preventDefault();event.stopPropagation();toggleBulkSelect('${deal.id}')`:`openDeal('${deal.id}')`}">
           <div class="deal-card-top">
             <div class="deal-company">${state.bulkMode?`<span class="bulk-check">${isBulkSel?'✓':''}</span>`:''}${(()=>{const c=detectCountry(deal);return c.code!=='US'?'<span title="'+c.label+'" style="font-size:12px;margin-right:3px;vertical-align:middle">'+c.flag+'</span>':'';})()}${deal.hasNewText?'<span class="reply-indicator text-reply-indicator" title="New text reply received">'+svgIcon('message-circle',12,'#16a34a')+'</span>':''}${deal.hasNewReply?'<span class="reply-indicator" title="New email reply received">'+svgIcon('mail',12,'#3b82f6')+'</span>':''}${esc(deal.company||deal.contact||deal.email||"New Deal")}${isRetainerClient(deal)?'<span style="display:inline-block;margin-left:6px;font-size:9px;font-weight:700;background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:3px;vertical-align:middle;white-space:nowrap;letter-spacing:.3px">RETAINER</span>':''}</div>
-            ${isClient()?'':`<div class="status-indicator" onclick="event.stopPropagation();toggleBadgeDropdown('${deal.id}')">
+            <div class="status-indicator" onclick="event.stopPropagation();toggleBadgeDropdown('${deal.id}')">
               <div class="status-dot" style="background:${badge?badge.color:'#d1d5db'}"></div>
               ${badge?`<span class="status-count" style="color:${badge.color}">${badge.count}</span>`:''}
               ${badge?`<div class="badge-dropdown" id="badge-${deal.id}" style="display:none">
@@ -700,7 +696,7 @@ export function render(){
                       <span style="font-size:10px;color:#9ca3af">${fmtDate(a.dueDate)}</span>
                     </div>`).join("")}
                 </div>`:''}
-            </div>`}
+            </div>
           </div>
           ${deal.contact?`<div class="deal-detail">${esc(deal.contact)}${deal.jobTitle?' · <span style="color:var(--text-muted)">'+esc(deal.jobTitle)+'</span>':''}</div>`:''}
           ${deal.email?`<div class="deal-detail">${esc(deal.email)}</div>`:''}
@@ -729,24 +725,13 @@ export function render(){
     <div class="delete-zone-half delete-zone-lost"
       ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';this.classList.add('drag-hover')"
       ondragleave="this.classList.remove('drag-hover')"
-      ondrop="doLostDrop()">${isClient()?'Archive Lead':'Lost / Delete'}</div>
+      ondrop="doLostDrop()">Lost / Delete</div>
     <div class="delete-zone-half delete-zone-won"
       ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';this.classList.add('drag-hover')"
       ondragleave="this.classList.remove('drag-hover')"
-      ondrop="doWonDrop()">${isClient()?'Won / Closed':state.pipeline==='acquisition'?'Won → Upload to Database':'Won → Push to Tracker'}</div>
+      ondrop="doWonDrop()">${state.pipeline==='acquisition'?'Won → Upload to Database':'Won → Push to Tracker'}</div>
   </div>`;
   } // end board view
-
-  // Client portal documents section
-  if (isClient()) {
-    const clientObj = state.clients.find(c => c.name === currentUser.clientName);
-    if (clientObj) {
-      html += `<div style="padding:16px 20px;max-width:900px;margin:0 auto">
-        <h3 style="font-size:15px;font-weight:700;margin:0 0 8px;color:var(--text)">Documents</h3>
-        ${renderDocumentsSection(clientObj)}
-      </div>`;
-    }
-  }
 
   // Bulk action bar
   if(state.bulkMode && state.bulkSelected.size>0){
@@ -811,12 +796,6 @@ export function render(){
   if(state.archiveSearch){
     const ai=document.getElementById('archive-search-input');
     if(ai){ai.focus();ai.setSelectionRange(ai.value.length,ai.value.length);}
-  }
-  // Client portal: init document handlers and lazy-load
-  if (isClient()) {
-    initDocumentHandlers();
-    const clientObj = state.clients.find(c => c.name === currentUser.clientName);
-    if (clientObj) setTimeout(() => { if (window.docLoadForClient) window.docLoadForClient(clientObj.id); }, 100);
   }
   }catch(err){console.error('Render error:',err,err.stack);}
 }
