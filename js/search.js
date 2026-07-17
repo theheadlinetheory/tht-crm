@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // SEARCH — Global search, activity badges, pipeline helpers
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260717c';
-import { ACQUISITION_STAGES, NURTURE_STAGES, CLIENT_PALETTE, ALL_PIPELINES } from './config.js?v=20260717c';
-import { render } from './render.js?v=20260717c';
-import { getToday } from './utils.js?v=20260717c';
-import { isEmployee, getOwnerNameForDeal } from './auth.js?v=20260717c';
-import { lookupClientInfo } from './client-info.js?v=20260717c';
+import { state } from './app.js?v=20260717d';
+import { ACQUISITION_STAGES, NURTURE_STAGES, CLIENT_PALETTE, ALL_PIPELINES } from './config.js?v=20260717d';
+import { render } from './render.js?v=20260717d';
+import { getToday } from './utils.js?v=20260717d';
+import { isEmployee, getOwnerNameForDeal } from './auth.js?v=20260717d';
+import { lookupClientInfo } from './client-info.js?v=20260717d';
 
 export function globalSearch(q){
   state.searchQuery=q;
