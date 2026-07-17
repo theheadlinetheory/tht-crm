@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // DEALS — CRUD operations, bulk actions, drag-drop
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, pendingDealFields, deletedDealIds } from './app.js?v=20260717h';
-import { render } from './render.js?v=20260717h';
-import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbArchiveDeal, sbRestoreFromArchive, sbCreateActivity, camelToSnake, invokeEdgeFunction } from './api.js?v=20260717h';
-import { clearDashboardArchiveCache } from './dashboard.js?v=20260717h';
-import { uid, getToday, str } from './utils.js?v=20260717h';
+import { state, store, pendingWrites, pendingDealFields, deletedDealIds } from './app.js?v=20260717i';
+import { render } from './render.js?v=20260717i';
+import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbArchiveDeal, sbRestoreFromArchive, sbCreateActivity, camelToSnake, invokeEdgeFunction } from './api.js?v=20260717i';
+import { clearDashboardArchiveCache } from './dashboard.js?v=20260717i';
+import { uid, getToday, str } from './utils.js?v=20260717i';
 
 const TODAY = getToday;
 
@@ -56,11 +56,11 @@ export async function moveDeal(dealId,newStage){
     if(pending && Object.keys(pending).length===0) delete pendingDealFields[String(dealId)];
   } finally { pendingWrites.value--; }
   if(d && (newStage==='Discovery Scheduled' || newStage==='Demo Scheduled') && d.bookedDate && /^\d{4}-\d{2}-\d{2}$/.test(d.bookedDate)){
-    const { generateAppointmentSequence } = await import('./activities.js?v=20260717h');
+    const { generateAppointmentSequence } = await import('./activities.js?v=20260717i');
     generateAppointmentSequence(d);
   }
   if(d && newStage==='No Show'){
-    const { assignNoShowSequence } = await import('./activities.js?v=20260717h');
+    const { assignNoShowSequence } = await import('./activities.js?v=20260717i');
     assignNoShowSequence(d);
   }
 }
@@ -117,7 +117,7 @@ export async function bulkAddActivity(){
   if(!dueDate||!dueDate.match(/^\d{4}-\d{2}-\d{2}$/)) return;
   const ids=[...state.bulkSelected];
   if(!confirm('Add "'+subject+'" activity to '+ids.length+' deal'+(ids.length!==1?'s':'')+'?')) return;
-  const { addActivity } = await import('./activities.js?v=20260717h');
+  const { addActivity } = await import('./activities.js?v=20260717i');
   for(const dealId of ids){
     addActivity(dealId,{type,subject,dueDate,dayLabel:''});
   }
@@ -187,7 +187,7 @@ export async function bulkRestoreFromArchive(){
       await sbRestoreFromArchive(id);
     }
     clearDashboardArchiveCache();
-    const { initialSync } = await import('./api.js?v=20260717h');
+    const { initialSync } = await import('./api.js?v=20260717i');
     initialSync();
   }finally{ pendingWrites.value--; }
 }
