@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════════════
 // TRENDS — Client lead trends summary grid + chart
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260717a';
-import { esc, str } from './utils.js?v=20260717a';
+import { state } from './app.js?v=20260717b';
+import { esc, str } from './utils.js?v=20260717b';
 
 const MONTHS_ORDER = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
