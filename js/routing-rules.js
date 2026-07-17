@@ -4,9 +4,9 @@
 // Rules are a fallback: an explicit campaign_assignment always overrides them.
 // Stored in crm_settings key 'routing_rules' as a JSON array [{keyword, owner}].
 
-import { state } from './app.js?v=20260717a';
-import { supabase } from './supabase-client.js?v=20260717a';
-import { esc, svgIcon } from './utils.js?v=20260717a';
+import { state } from './app.js?v=20260717b';
+import { supabase } from './supabase-client.js?v=20260717b';
+import { esc, svgIcon } from './utils.js?v=20260717b';
 
 // ── Resolution (used by getOwnerForDeal / getOwnerNameForDeal in auth.js) ──
 export function resolveRoutingOwner(campaignName){
@@ -77,16 +77,21 @@ export function renderRoutingRules(assignableNames){
 let _saveTimer = null;
 function scheduleSave(){ clearTimeout(_saveTimer); _saveTimer = setTimeout(persistRoutingRules, 800); }
 
-window.routingRuleAdd = () => { (state.routingRules ||= []).push({ keyword:'', owner:'' }); window.render&&window.render(); persistRoutingRules(); };
-window.routingRuleDelete = (i) => { (state.routingRules||[]).splice(i,1); window.render&&window.render(); persistRoutingRules(); };
+// The routing UI lives inside the settings panel, which is a separate DOM tree
+// refreshed via refreshSettingsBody() — NOT the main render(). Use that so the
+// list actually redraws.
+const refreshPanel = () => { if(window.refreshSettingsBody) window.refreshSettingsBody(); };
+
+window.routingRuleAdd = () => { (state.routingRules ||= []).push({ keyword:'', owner:'' }); refreshPanel(); persistRoutingRules(); };
+window.routingRuleDelete = (i) => { (state.routingRules||[]).splice(i,1); refreshPanel(); persistRoutingRules(); };
 window.routingRuleMove = (i, dir) => {
   const r = state.routingRules||[]; const j = i+dir;
   if(j<0||j>=r.length) return;
-  [r[i], r[j]] = [r[j], r[i]]; window.render&&window.render(); persistRoutingRules();
+  [r[i], r[j]] = [r[j], r[i]]; refreshPanel(); persistRoutingRules();
 };
 window.routingRuleEdit = (i, field, val) => {
   const r = state.routingRules||[]; if(!r[i]) return;
   r[i][field] = val;
-  if(field === 'owner'){ window.render&&window.render(); persistRoutingRules(); }
-  else scheduleSave(); // keyword typing — debounce, don't re-render mid-type
+  if(field === 'owner'){ refreshPanel(); persistRoutingRules(); }
+  else scheduleSave(); // keyword typing — debounce, don't refresh mid-type (keeps focus)
 };

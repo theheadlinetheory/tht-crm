@@ -2,16 +2,16 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260717a';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260717a';
-import { render } from './render.js?v=20260717a';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20260717a';
-import { renderRoutingRules } from './routing-rules.js?v=20260717a';
-import { esc, str, svgIcon } from './utils.js?v=20260717a';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20260717a';
-import { lookupClientInfo } from './client-info.js?v=20260717a';
-import { findPolygonForClient } from './maps.js?v=20260717a';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260717a';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260717b';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260717b';
+import { render } from './render.js?v=20260717b';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20260717b';
+import { renderRoutingRules } from './routing-rules.js?v=20260717b';
+import { esc, str, svgIcon } from './utils.js?v=20260717b';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20260717b';
+import { lookupClientInfo } from './client-info.js?v=20260717b';
+import { findPolygonForClient } from './maps.js?v=20260717b';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260717b';
 
 export function getDefaultSettings(){
   return {
@@ -291,7 +291,7 @@ export function refreshSettingsBody(){
       window._dialerFieldsLoaded = true;
       supabase.from('crm_settings').select('value').eq('key','dialer_default_fields').single()
         .then(({ data }) => { window._dialerDefaultFields = data?.value ? JSON.parse(data.value) : []; refreshSettingsBody(); });
-      import('./number-health.js?v=20260717a').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
+      import('./number-health.js?v=20260717b').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
     }
     h=renderDialerSettings();
   }
@@ -932,6 +932,8 @@ window.handleUserPhoto = handleUserPhoto;
 
 // ─── Campaign Assignment Settings ───
 let _fetchedCampaigns = null;
+let _campStatusFilter = 'ACTIVE';   // default view shows only active campaigns
+window.setCampStatusFilter = (v) => { _campStatusFilter = v; fetchAcquisitionCampaigns(); };
 
 function renderCampaignAssignSettings(){
   let h = `<div class="settings-section">
@@ -970,15 +972,26 @@ async function fetchAcquisitionCampaigns(){
   const allNames = new Set(_fetchedCampaigns.map(c=>c.name));
   const extraAssigned = Object.keys(assignments).filter(n => !allNames.has(n));
 
+  // Default view = active only; dropdown switches to other statuses / all.
+  const STATUS_FILTERS = ['ACTIVE','PAUSED','DRAFTED','COMPLETED','ALL'];
+  const filteredCampaigns = _campStatusFilter === 'ALL'
+    ? _fetchedCampaigns
+    : _fetchedCampaigns.filter(c => String(c.status||'').toUpperCase() === _campStatusFilter);
+
   let h = '';
   if(_fetchedCampaigns.length === 0 && extraAssigned.length === 0){
     h = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px">No acquisition campaigns found in SmartLead.</div>';
   } else {
-    h += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-      <span style="font-size:11px;font-weight:600;color:var(--text-secondary)">${_fetchedCampaigns.length} acquisition campaign${_fetchedCampaigns.length!==1?'s':''}</span>
-      <button class="btn btn-ghost" style="font-size:10px;padding:3px 10px;background:#f9fafb;color:#6b7280;border:1px solid var(--border);display:inline-flex;align-items:center;gap:4px" onclick="_fetchedCampaigns=null;fetchAcquisitionCampaigns()">${svgIcon('refresh-cw',12)} Refresh</button>
+    h += `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="font-size:11px;font-weight:600;color:var(--text-secondary)">${filteredCampaigns.length} ${_campStatusFilter==='ALL'?'':_campStatusFilter.toLowerCase()+' '}campaign${filteredCampaigns.length!==1?'s':''}${_campStatusFilter!=='ALL'?` <span style="color:var(--text-muted);font-weight:400">of ${_fetchedCampaigns.length}</span>`:''}</span>
+      <div style="display:flex;align-items:center;gap:6px">
+        <select onchange="setCampStatusFilter(this.value)" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:10px;font-family:var(--font)">
+          ${STATUS_FILTERS.map(s=>`<option value="${s}"${_campStatusFilter===s?' selected':''}>${s==='ALL'?'All statuses':s.charAt(0)+s.slice(1).toLowerCase()}</option>`).join('')}
+        </select>
+        <button class="btn btn-ghost" style="font-size:10px;padding:3px 10px;background:#f9fafb;color:#6b7280;border:1px solid var(--border);display:inline-flex;align-items:center;gap:4px" onclick="_fetchedCampaigns=null;fetchAcquisitionCampaigns()">${svgIcon('refresh-cw',12)} Refresh</button>
+      </div>
     </div>`;
-    for(const camp of _fetchedCampaigns){
+    for(const camp of filteredCampaigns){
       const assigned = assignments[camp.name] || '';
       const ownerInfo = assigned ? getOwnerColor(assigned) : null;
       h += `<div style="display:flex;align-items:center;gap:10px;padding:10px;margin-bottom:6px;background:#f9fafb;border:1px solid var(--border);border-radius:8px">
@@ -1547,7 +1560,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260717a');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260717b');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);
