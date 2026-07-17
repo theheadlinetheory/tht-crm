@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // LEAD TRACKER — Editable grid view for lead billing & status
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20260717f';
-import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20260717f';
-import { isAdmin, isEmployee } from './auth.js?v=20260717f';
-import { esc, svgIcon, str } from './utils.js?v=20260717f';
-import { render } from './render.js?v=20260717f';
+import { state, store, pendingWrites } from './app.js?v=20260717g';
+import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20260717g';
+import { isAdmin, isEmployee } from './auth.js?v=20260717g';
+import { esc, svgIcon, str } from './utils.js?v=20260717g';
+import { render } from './render.js?v=20260717g';
 
 // ─── Column Definitions ───
 const COLUMNS = [
@@ -253,10 +253,13 @@ function fmtMoneyCents(cents) {
 // setup-fee surcharge into Lead Cost and a "setup i/N" badge into Notes.
 function editableCellInner(colKey, val, fee) {
   if (fee && colKey === 'leadCost') {
-    return `${val ? esc(val) : '$0'} <span style="color:#7c3aed;font-size:10px;font-weight:700">+ ${fmtMoneyCents(fee.surcharge)}</span>`;
+    // Show the effective TOTAL (base + setup-fee surcharge). Editing still edits
+    // the raw base value; this only enhances the display state.
+    const baseCents = Math.round((parseFloat(String(val).replace(/[^0-9.]/g, '')) || 0) * 100);
+    return `<span style="font-weight:600">${fmtMoneyCents(baseCents + fee.surcharge)}</span>`;
   }
   if (fee && colKey === 'notes') {
-    const badge = `<span style="display:inline-block;background:#ede9fe;color:#7c3aed;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;white-space:nowrap">setup ${fee.index}/${fee.spread}</span>`;
+    const badge = `<span style="display:inline-block;background:#ede9fe;color:#7c3aed;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;white-space:nowrap">setup ${fee.index}/${fee.spread} - ${fmtMoneyCents(fee.surcharge)}</span>`;
     return val ? `${esc(val)} ${badge}` : badge;
   }
   return val ? esc(val) : '<span style="color:#d1d5db">—</span>';
