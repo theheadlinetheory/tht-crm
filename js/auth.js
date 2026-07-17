@@ -1,10 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // AUTH — Supabase Auth (Google OAuth), roles, campaign assignments
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20260716a';
-import { state } from './app.js?v=20260716a';
-import { render } from './render.js?v=20260716a';
-import { esc, svgIcon } from './utils.js?v=20260716a';
+import { supabase } from './supabase-client.js?v=20260717a';
+import { state } from './app.js?v=20260717a';
+import { render } from './render.js?v=20260717a';
+import { esc, svgIcon } from './utils.js?v=20260717a';
+import { resolveRoutingOwner } from './routing-rules.js?v=20260717a';
 
 const ALLOWED_DOMAIN = 'theheadlinetheory.com';
 export let currentUser = null;
@@ -235,7 +236,7 @@ export function getOwnerColor(name){
 export function getOwnerForDeal(deal){
   if(deal.ownerOverride) return getOwnerColor(deal.ownerOverride);
   if(!deal.campaignName) return null;
-  const owner = state.campaignAssignments[deal.campaignName];
+  const owner = state.campaignAssignments[deal.campaignName] || resolveRoutingOwner(deal.campaignName);
   if(!owner) return null;
   return getOwnerColor(owner);
 }
@@ -243,7 +244,7 @@ export function getOwnerForDeal(deal){
 export function getOwnerNameForDeal(deal){
   if(deal.ownerOverride) return deal.ownerOverride;
   if(!deal.campaignName) return '';
-  return state.campaignAssignments[deal.campaignName] || '';
+  return state.campaignAssignments[deal.campaignName] || resolveRoutingOwner(deal.campaignName) || '';
 }
 
 export function resetAppState(){
