@@ -10,10 +10,10 @@
 //   crm_settings.weekly_update_extra_ccs (editable per client below).
 //   Lars's signature appended. The Client Info sheet is NOT used.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260717d';
-import { render } from './render.js?v=20260717d';
-import { showToast, sbSaveSettings } from './api.js?v=20260717d';
-import { esc, str, svgIcon } from './utils.js?v=20260717d';
+import { state } from './app.js?v=20260717f';
+import { render } from './render.js?v=20260717f';
+import { showToast, sbSaveSettings } from './api.js?v=20260717f';
+import { esc, str, svgIcon } from './utils.js?v=20260717f';
 
 // Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
