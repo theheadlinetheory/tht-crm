@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // LEAD TRACKER — Editable grid view for lead billing & status
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20260717h';
-import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20260717h';
-import { isAdmin, isEmployee } from './auth.js?v=20260717h';
-import { esc, svgIcon, str } from './utils.js?v=20260717h';
-import { render } from './render.js?v=20260717h';
+import { state, store, pendingWrites } from './app.js?v=20260717i';
+import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20260717i';
+import { isAdmin, isEmployee } from './auth.js?v=20260717i';
+import { esc, svgIcon, str } from './utils.js?v=20260717i';
+import { render } from './render.js?v=20260717i';
 
 // ─── Column Definitions ───
 const COLUMNS = [
@@ -394,6 +394,31 @@ export function renderLeadTracker() {
     html += `<button class="tracker-action-btn ${isCalledBackStatus ? 'active' : ''}" onclick="trackerToggleCallback('${entry.id}')" title="${isCalledBackStatus ? 'Undo callback' : 'Flag as Bad Lead (not charged)'}">${isCalledBackStatus ? '↩ Undo' : '🚫 CB'}</button>`;
     html += `</td></tr>`;
   }
+
+  // ─── Total row: sum of EFFECTIVE billable lead cost for the current (filtered)
+  // view, incl. setup-fee surcharges, excluding called-back (not charged). Admin
+  // only, since lead cost is admin-only. Lets you filter by date/client and see
+  // total revenue for that slice.
+  if (admin) {
+    let totalCents = 0, billableCount = 0;
+    for (const entry of entries) {
+      if (str(entry.callbackStatus).toLowerCase() === 'called back') continue;
+      const baseCents = Math.round((parseFloat(str(entry.leadCost).replace(/[^0-9.]/g, '')) || 0) * 100);
+      const fee = feeMap[entry.id];
+      totalCents += baseCents + (fee ? fee.surcharge : 0);
+      billableCount++;
+    }
+    html += `<tr style="border-top:2px solid var(--border);background:#f9fafb">`;
+    html += `<td></td>`; // checkbox column
+    for (const col of cols) {
+      if (col.key === 'clientName') html += `<td style="font-weight:700;color:var(--text-secondary)">Total · ${billableCount} lead${billableCount !== 1 ? 's' : ''}</td>`;
+      else if (col.key === 'leadCost') html += `<td style="font-weight:800;color:#059669;font-size:13px">${fmtMoneyCents(totalCents)}</td>`;
+      else html += `<td></td>`;
+    }
+    html += `<td></td>`; // actions column
+    html += `</tr>`;
+  }
+
   html += `</tbody></table></div></div>`;
 
   return html;

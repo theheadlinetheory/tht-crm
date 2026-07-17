@@ -1,16 +1,16 @@
 // ═══════════════════════════════════════════════════════════
 // APP — Entry point, initApp, re-exports from state.js
 // ═══════════════════════════════════════════════════════════
-import { REPLY_CHECK_INTERVAL, REPLY_BACKEND_POLL_INTERVAL, SYNC_INTERVAL } from './config.js?v=20260717h';
-import { render } from './render.js?v=20260717h';
-import { syncFromSheet, pollReplyStatus, triggerBackendReplyCheck, initialSync, subscribeRealtime, flushRealtimeQueue } from './api.js?v=20260717h';
-import { isAdmin, isEmployee, loadCampaignAssignments, listenCampaignAssignments, setupAuthListener } from './auth.js?v=20260717h';
-import { initJustCallDialer } from './dialer.js?v=20260717h';
-import './email.js?v=20260717h';
-import './blooio.js?v=20260717h';
+import { REPLY_CHECK_INTERVAL, REPLY_BACKEND_POLL_INTERVAL, SYNC_INTERVAL } from './config.js?v=20260717i';
+import { render } from './render.js?v=20260717i';
+import { syncFromSheet, pollReplyStatus, triggerBackendReplyCheck, initialSync, subscribeRealtime, flushRealtimeQueue } from './api.js?v=20260717i';
+import { isAdmin, isEmployee, loadCampaignAssignments, listenCampaignAssignments, setupAuthListener } from './auth.js?v=20260717i';
+import { initJustCallDialer } from './dialer.js?v=20260717i';
+import './email.js?v=20260717i';
+import './blooio.js?v=20260717i';
 
 // ─── Local import for vars used in this file ───
-import { state } from './state.js?v=20260717h';
+import { state } from './state.js?v=20260717i';
 
 // ─── Re-export state from centralized module ───
 export {
@@ -22,7 +22,7 @@ export {
   settingsTab, setSettingsTab,
   clientsSubTab, setClientsSubTab,
   settingsDraft, setSettingsDraft,
-} from './state.js?v=20260717h';
+} from './state.js?v=20260717i';
 
 // ─── Init ───
 let appInitialized=false;
@@ -32,14 +32,14 @@ export async function initApp(){
   try {
     // Apply cached settings immediately
     try{
-      const { applySettings } = await import('./settings.js?v=20260717h');
+      const { applySettings } = await import('./settings.js?v=20260717i');
       const cached=JSON.parse(localStorage.getItem('tht_settings'));
       if(cached) applySettings(cached, true);
     }catch(e){}
     if(isAdmin()||isEmployee()){
       await loadCampaignAssignments();
       listenCampaignAssignments();
-      const { loadRoutingRules, listenRoutingRules } = await import('./routing-rules.js?v=20260717h');
+      const { loadRoutingRules, listenRoutingRules } = await import('./routing-rules.js?v=20260717i');
       await loadRoutingRules();
       listenRoutingRules();
     }
@@ -48,7 +48,7 @@ export async function initApp(){
     // Initialize service area polygon data from global script
     if(window.SERVICE_AREA_POLYGONS){
       try {
-        const { setServiceAreaData } = await import('./maps.js?v=20260717h');
+        const { setServiceAreaData } = await import('./maps.js?v=20260717i');
         setServiceAreaData(window.SERVICE_AREA_POLYGONS);
       } catch(e){ console.warn('setServiceAreaData failed:', e); }
     }
@@ -58,7 +58,7 @@ export async function initApp(){
     try {
       const urlDealId = new URLSearchParams(window.location.search).get('deal');
       if (urlDealId) {
-        const { openDeal } = await import('./deal-modal.js?v=20260717h');
+        const { openDeal } = await import('./deal-modal.js?v=20260717i');
         const target = state.deals.find(d => String(d.id) === urlDealId);
         if (target) openDeal(target.id);
         window.history.replaceState({}, '', window.location.pathname + window.location.hash);
@@ -82,10 +82,10 @@ export async function initApp(){
       setInterval(triggerBackendReplyCheck, REPLY_BACKEND_POLL_INTERVAL);
     }
     initJustCallDialer();
-    import('./number-health.js?v=20260717h').then(m => m.loadNumberHealth()).catch(e => console.warn('Number health load failed:', e));
-    import('./warm-call.js?v=20260717h').catch(e => console.warn('Warm call module load failed:', e));
+    import('./number-health.js?v=20260717i').then(m => m.loadNumberHealth()).catch(e => console.warn('Number health load failed:', e));
+    import('./warm-call.js?v=20260717i').catch(e => console.warn('Warm call module load failed:', e));
     // Load nurture data for Due Today banner
-    import('./rerun.js?v=20260717h').then(m => m.loadNurtureData()).catch(e => console.warn('Nurture data load failed:', e));
+    import('./rerun.js?v=20260717i').then(m => m.loadNurtureData()).catch(e => console.warn('Nurture data load failed:', e));
   } catch(e) {
     console.error('initApp failed:', e);
     state.loadFailed = true;
@@ -96,7 +96,7 @@ export async function initApp(){
 }
 
 // ─── Event Delegation ───
-import { initDelegation } from './delegate.js?v=20260717h';
+import { initDelegation } from './delegate.js?v=20260717i';
 initDelegation();
 
 // ─── Bootstrap ───
