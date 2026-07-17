@@ -7,11 +7,11 @@
 // moved to a separate data file (e.g., service_area_data.js).
 // This module provides the functions that operate on that data.
 
-import { state, pendingWrites } from './app.js?v=20260717c';
-import { GEOCODIO_KEY, GOOGLE_MAPS_API_KEY, CA_PROVINCES, CA_POSTAL, CA_CITIES, detectCountry, isInternationalAddress } from './config.js?v=20260717c';
-import { render, refreshModal } from './render.js?v=20260717c';
-import { str, esc } from './utils.js?v=20260717c';
-import { findClientForDeal, lookupClientInfo } from './client-info.js?v=20260717c';
+import { state, pendingWrites } from './app.js?v=20260717d';
+import { GEOCODIO_KEY, GOOGLE_MAPS_API_KEY, CA_PROVINCES, CA_POSTAL, CA_CITIES, detectCountry, isInternationalAddress } from './config.js?v=20260717d';
+import { render, refreshModal } from './render.js?v=20260717d';
+import { str, esc } from './utils.js?v=20260717d';
+import { findClientForDeal, lookupClientInfo } from './client-info.js?v=20260717d';
 
 let SERVICE_AREA_POLYGONS = {};
 let POLYGON_ALIASES = {};
