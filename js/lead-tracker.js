@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // LEAD TRACKER — Editable grid view for lead billing & status
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20260717d';
-import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20260717d';
-import { isAdmin, isEmployee } from './auth.js?v=20260717d';
-import { esc, svgIcon, str } from './utils.js?v=20260717d';
-import { render } from './render.js?v=20260717d';
+import { state, store, pendingWrites } from './app.js?v=20260717f';
+import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20260717f';
+import { isAdmin, isEmployee } from './auth.js?v=20260717f';
+import { esc, svgIcon, str } from './utils.js?v=20260717f';
+import { render } from './render.js?v=20260717f';
 
 // ─── Column Definitions ───
 const COLUMNS = [
@@ -219,9 +219,53 @@ function getClientColorMap() {
   return map;
 }
 
+// ─── Setup-fee distribution (mirrors invoice.js getEffectiveCost) ───
+// The setup fee (total − deposit) is spread as a per-lead surcharge across the
+// first `spread` non-called-back leads per client, in date order. Returns a map
+// entryId → { surcharge (cents), index (1-based), spread }. Admin-only (lead cost
+// is admin-only), so callers gate on isAdmin().
+function computeSetupFeeMap() {
+  const map = {};
+  for (const c of state.clients) {
+    const total = Number(c.setupFeeTotal || 0);
+    const deposit = Number(c.setupFeeDeposit || 0);
+    const spread = Number(c.setupFeeSpreadCount || 0);
+    if (!(total > 0) || !(spread > 0)) continue;
+    const perLead = Math.round((total - deposit) / spread * 100); // cents — matches invoice.js
+    if (perLead <= 0) continue;
+    const name = str(c.name);
+    const clientEntries = state.trackerEntries
+      .filter(e => str(e.clientName) === name && str(e.callbackStatus).toLowerCase() !== 'called back')
+      .sort((a, b) => parseDateMDY(str(a.dateAdded)) - parseDateMDY(str(b.dateAdded)));
+    for (let i = 0; i < clientEntries.length && i < spread; i++) {
+      map[clientEntries[i].id] = { surcharge: perLead, index: i + 1, spread };
+    }
+  }
+  return map;
+}
+
+function fmtMoneyCents(cents) {
+  const d = cents / 100;
+  return Number.isInteger(d) ? `$${d}` : `$${d.toFixed(2)}`;
+}
+
+// Inner HTML for an editable cell in its display (non-editing) state, folding the
+// setup-fee surcharge into Lead Cost and a "setup i/N" badge into Notes.
+function editableCellInner(colKey, val, fee) {
+  if (fee && colKey === 'leadCost') {
+    return `${val ? esc(val) : '$0'} <span style="color:#7c3aed;font-size:10px;font-weight:700">+ ${fmtMoneyCents(fee.surcharge)}</span>`;
+  }
+  if (fee && colKey === 'notes') {
+    const badge = `<span style="display:inline-block;background:#ede9fe;color:#7c3aed;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;white-space:nowrap">setup ${fee.index}/${fee.spread}</span>`;
+    return val ? `${esc(val)} ${badge}` : badge;
+  }
+  return val ? esc(val) : '<span style="color:#d1d5db">—</span>';
+}
+
 export function renderLeadTracker() {
   const cols = getVisibleColumns();
   const entries = getFilteredEntries();
+  const feeMap = isAdmin() ? computeSetupFeeMap() : {};
   const clients = [...new Set(state.trackerEntries.map(e => e.clientName))].sort();
   const f = state.trackerFilters;
   const clientColors = getClientColorMap();
@@ -324,7 +368,7 @@ export function renderLeadTracker() {
           onkeydown="if(event.key==='Enter'){this.blur();} if(event.key==='d'&&(event.ctrlKey||event.metaKey)){event.preventDefault();trackerFillDown('${entry.id}','${col.key}',this.value);}"
           autofocus><button class="tracker-fill-btn" onmousedown="event.preventDefault();trackerFillDown('${entry.id}','${col.key}',document.querySelector('.tracker-cell-input').value)" title="Fill down (Cmd+D)">↓</button></td>`;
       } else if (col.editable && !isCalledBack) {
-        html += `<td class="tracker-cell-editable" style="${cellColorStyle}" onclick="trackerEditCell('${entry.id}','${col.key}')">${val ? esc(val) : '<span style="color:#d1d5db">—</span>'}</td>`;
+        html += `<td class="tracker-cell-editable" style="${cellColorStyle}" onclick="trackerEditCell('${entry.id}','${col.key}')">${editableCellInner(col.key, val, feeMap[entry.id])}</td>`;
       } else if (isCalledBack) {
         html += `<td><s style="color:#ef4444">${esc(val)}</s></td>`;
       } else if (col.key === 'leadEmail' && val) {
