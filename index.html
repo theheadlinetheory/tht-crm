@@ -14,7 +14,7 @@
      per-version sessionStorage guard prevents any reload loop. -->
 <script>
 (function(){
-  window.__APP_V='20260717141537';
+  window.__APP_V='20260720203041';
   function check(){
     fetch('version.json?t='+Date.now(),{cache:'no-store'})
       .then(function(r){return r.ok?r.json():null;})
@@ -86,7 +86,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
 <script src="https://assets.calendly.com/assets/external/widget.js" async></script>
-<script src="service_area_data.min.js?v=20260717141537"></script>
+<script src="service_area_data.min.js?v=20260720203041"></script>
 <script>
 // Catch module load/syntax/runtime errors that would cause infinite loading
 function showCrashScreen(msg) {
