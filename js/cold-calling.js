@@ -1,4 +1,4 @@
-import { renderPowerDialer } from './power-dialer.js?v=20260723a';
+import { renderPowerDialer } from './power-dialer.js?v=20260723b';
 
 export function renderColdCallingTab() {
   return '<div style="margin:0 auto;padding:0">' + renderPowerDialer() + '</div>';

@@ -3,12 +3,12 @@
 // create client + lead sheet + SmartLead tags. Blocking, ordered,
 // stop-on-failure with Retry. Body-level overlay (survives render()).
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260723a';
-import { str, esc, getToday } from './utils.js?v=20260723a';
-import { createClientRecord, deriveTimezone } from './client-info.js?v=20260723a';
-import { ensureLeadTrackerSheet } from './lead-tracker-sheet.js?v=20260723a';
-import { invokeEdgeFunction, showToast } from './api.js?v=20260723a';
-import { isAdmin } from './auth.js?v=20260723a';
+import { state } from './app.js?v=20260723b';
+import { str, esc, getToday } from './utils.js?v=20260723b';
+import { createClientRecord, deriveTimezone } from './client-info.js?v=20260723b';
+import { ensureLeadTrackerSheet } from './lead-tracker-sheet.js?v=20260723b';
+import { invokeEdgeFunction, showToast } from './api.js?v=20260723b';
+import { isAdmin } from './auth.js?v=20260723b';
 
 let _w = null; // { deal, clientId, sheetId, tagsDone }
 const CURRENCIES = ['USD', 'AUD', 'CAD'];
@@ -214,7 +214,7 @@ async function runSteps(f, startIdx) {
     const dealId = _w.deal.id;
     const clientName = f.name;
     wonModalDismiss();
-    const { deleteDeal } = await import('./deals.js?v=20260723a');
+    const { deleteDeal } = await import('./deals.js?v=20260723b');
     deleteDeal(dealId, 'Closed Won', clientName);
     showToast(`Client "${clientName}" created and deal won`, 'success');
   } catch (e) {
@@ -227,7 +227,7 @@ async function runSteps(f, startIdx) {
 export async function wonModalLink(existingName) {
   const dealId = _w.deal.id;
   wonModalDismiss();
-  const { deleteDeal } = await import('./deals.js?v=20260723a');
+  const { deleteDeal } = await import('./deals.js?v=20260723b');
   deleteDeal(dealId, 'Closed Won', existingName);
   showToast(`Deal linked to existing client "${existingName}"`, 'success');
 }
