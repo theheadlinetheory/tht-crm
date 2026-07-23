@@ -6,25 +6,26 @@
 // populated during the final migration. This module provides
 // the key functions other modules depend on.
 
-import { state, pendingWrites, pendingDealFields } from './app.js?v=20260723b';
-import { flushRealtimeQueue } from './api.js?v=20260723b';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, REACTIVATION_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY, detectCountry } from './config.js?v=20260723b';
-import { render, refreshModal } from './render.js?v=20260723b';
-import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20260723b';
-import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20260723b';
-import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20260723b';
-import { renderDealInvoiceButton } from './deal-invoice.js?v=20260723b';
-import { isAdmin, isEmployee, loadAssignableUsers } from './auth.js?v=20260723b';
-import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js?v=20260723b';
-import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, reschedulePreCallSequence, assignNoShowSequence } from './activities.js?v=20260723b';
-import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js?v=20260723b';
-import { getStagesForPipeline } from './dashboard.js?v=20260723b';
-import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal } from './maps.js?v=20260723b';
-import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js?v=20260723b';
-import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js?v=20260723b';
+import { state, pendingWrites, pendingDealFields } from './app.js?v=20260723c';
+import { flushRealtimeQueue } from './api.js?v=20260723c';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, REACTIVATION_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY, detectCountry } from './config.js?v=20260723c';
+import { render, refreshModal } from './render.js?v=20260723c';
+import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20260723c';
+import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20260723c';
+import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20260723c';
+import { renderDealInvoiceButton } from './deal-invoice.js?v=20260723c';
+import { isAdmin, isEmployee, loadAssignableUsers } from './auth.js?v=20260723c';
+import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js?v=20260723c';
+import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, reschedulePreCallSequence, assignNoShowSequence } from './activities.js?v=20260723c';
+import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js?v=20260723c';
+import { getStagesForPipeline } from './dashboard.js?v=20260723c';
+import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal } from './maps.js?v=20260723c';
+import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js?v=20260723c';
+import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js?v=20260723c';
 import './blooio.js';
+import './google-task.js?v=20260723c';
 import './demo-tracker.js';
-import { renderDealRetargetHistory } from './retargeting.js?v=20260723b';
+import { renderDealRetargetHistory } from './retargeting.js?v=20260723c';
 
 function actTypeClass(type){
   const t=(type||'').toLowerCase();
@@ -468,24 +469,24 @@ export async function doWonDrop(){
   // Client Won → push to Lead Tracker
   if(deal.pipeline==='Acquisition'){
     // Won-drop modal handles create + archive on success (or leaves the card in place on cancel)
-    const { openWonModal } = await import('./won-modal.js?v=20260723b');
+    const { openWonModal } = await import('./won-modal.js?v=20260723c');
     openWonModal(deal);
     return;
   }
 
   let wonSuccess = false;
   try {
-    const { autoPushToTracker } = await import('./email.js?v=20260723b');
+    const { autoPushToTracker } = await import('./email.js?v=20260723c');
     await autoPushToTracker(deal);
     wonSuccess = true;
   } catch(e){
     console.error('Won drop action failed:', e);
-    const { showToast } = await import('./api.js?v=20260723b');
+    const { showToast } = await import('./api.js?v=20260723c');
     showToast('Won action failed: ' + e.message, 'error');
   }
 
   if(wonSuccess) {
-    const { deleteDeal } = await import('./deals.js?v=20260723b');
+    const { deleteDeal } = await import('./deals.js?v=20260723c');
     deleteDeal(id, 'Closed Won', clientName);
   }
 }
@@ -594,7 +595,7 @@ async function confirmPhoneAssign() {
   try { await sbUpdateDeal(dealId, snakeUpdates); }
   finally { pendingWrites.value--; }
 
-  const { showToast } = await import('./api.js?v=20260723b');
+  const { showToast } = await import('./api.js?v=20260723c');
   showToast('Phone number(s) saved', 'success');
 }
 
@@ -609,7 +610,7 @@ let _interactionsCache = {};
 
 async function loadInteractions(dealId) {
   try {
-    const { sbGetInteractions } = await import('./api.js?v=20260723b');
+    const { sbGetInteractions } = await import('./api.js?v=20260723c');
     const rows = await sbGetInteractions(dealId);
     _interactionsCache[dealId] = (rows || []).map(r => ({
       id: r.id, dealId: r.deal_id, type: r.type, content: r.content,
@@ -743,7 +744,7 @@ async function addInteraction(dealId) {
 
   contentEl.value = '';
   if (dateEl) dateEl.value = '';
-  const { sbCreateInteraction } = await import('./api.js?v=20260723b');
+  const { sbCreateInteraction } = await import('./api.js?v=20260723c');
   const row = await sbCreateInteraction(fields);
   if (row) {
     if (!_interactionsCache[dealId]) _interactionsCache[dealId] = [];
@@ -756,7 +757,7 @@ async function addInteraction(dealId) {
 }
 
 async function deleteInteraction(id, dealId) {
-  const { sbDeleteInteraction } = await import('./api.js?v=20260723b');
+  const { sbDeleteInteraction } = await import('./api.js?v=20260723c');
   await sbDeleteInteraction(id);
   if (_interactionsCache[dealId]) {
     _interactionsCache[dealId] = _interactionsCache[dealId].filter(i => i.id !== id);
@@ -777,7 +778,7 @@ async function editInteractionDate(id, dealId) {
   const parsed = new Date(input);
   if (isNaN(parsed.getTime())) return;
 
-  const { sbUpdateInteraction } = await import('./api.js?v=20260723b');
+  const { sbUpdateInteraction } = await import('./api.js?v=20260723c');
   await sbUpdateInteraction(id, { created_at: parsed.toISOString() });
   item.createdAt = parsed.toISOString();
   closeTimelinePanel();
@@ -802,7 +803,7 @@ async function enrichLead(dealId) {
   const canEnrich = hasLinkedin || (hasContact && hasWebsite);
 
   if (!canEnrich) {
-    const { showToast } = await import('./api.js?v=20260723b');
+    const { showToast } = await import('./api.js?v=20260723c');
     showToast('Needs a LinkedIn URL or company name + website to enrich', 'warning');
     return;
   }
@@ -814,7 +815,7 @@ async function enrichLead(dealId) {
 
   try {
     const result = await invokeEdgeFunction('enrich-lead', { dealId });
-    const { showToast } = await import('./api.js?v=20260723b');
+    const { showToast } = await import('./api.js?v=20260723c');
     console.log('[enrich-lead] Response:', JSON.stringify(result));
 
     if (result.ok && result.phones && result.phones.length > 0) {
@@ -830,7 +831,7 @@ async function enrichLead(dealId) {
     }
   } catch (e) {
     showEnrichOverlay(false);
-    const { showToast } = await import('./api.js?v=20260723b');
+    const { showToast } = await import('./api.js?v=20260723c');
     console.error('[enrich-lead] Exception:', e);
     showToast('Enrichment failed: ' + e.message, 'error');
   }
@@ -846,7 +847,7 @@ async function enrichContact(dealId, contactIndex) {
   const hasDomain = website || email.includes('@');
 
   if (!name || !hasDomain) {
-    const { showToast } = await import('./api.js?v=20260723b');
+    const { showToast } = await import('./api.js?v=20260723c');
     showToast('Need contact name + company website or email to enrich', 'warning');
     return;
   }
@@ -857,7 +858,7 @@ async function enrichContact(dealId, contactIndex) {
 
   try {
     const result = await invokeEdgeFunction('enrich-lead', { dealId, contactIndex });
-    const { showToast } = await import('./api.js?v=20260723b');
+    const { showToast } = await import('./api.js?v=20260723c');
 
     if (result.ok && result.phones && result.phones.length > 0) {
       showEnrichOverlay(false);
@@ -871,7 +872,7 @@ async function enrichContact(dealId, contactIndex) {
     }
   } catch (e) {
     showEnrichOverlay(false);
-    const { showToast } = await import('./api.js?v=20260723b');
+    const { showToast } = await import('./api.js?v=20260723c');
     showToast('Enrichment failed: ' + e.message, 'error');
   }
 }
@@ -893,7 +894,7 @@ window.markAtYourConvenience = async (dealId) => {
   await updateDealField('bookedFor', 'AYC');
   const dateInput = document.getElementById('deal-bookedDate');
   if (dateInput) dateInput.value = today;
-  const { showToast: toast } = await import('./api.js?v=20260723b');
+  const { showToast: toast } = await import('./api.js?v=20260723c');
   toast('Marked as At Your Convenience', 'success');
   refreshModal();
 };
@@ -1528,6 +1529,7 @@ export function renderDealModal(deal){
       <span class="act-subject">${esc(a.subject||a.type)}${timeLabel?'<span style="font-size:10px;color:'+(timeOverdue?'#ef4444':overdue?'#ef4444':'#6b7280')+';margin-left:4px;font-weight:600">by '+timeLabel+'</span>':''}</span>
       ${a.dayLabel?`<span class="act-day-label">${esc(a.dayLabel)}</span>`:''}
       ${a.dueDate?`<input type="date" value="${dd}" style="font-size:10px;color:${overdue?'#ef4444':dueToday?'#059669':'#9ca3af'};background:none;border:none;cursor:pointer;padding:0;width:90px" onchange="updateActivityDate('${a.id}',this.value)">`:''}
+      ${a.dueDate?`<button onclick="pushActivityToGoogleTask('${a.id}')" title="Add to my Google Tasks" style="background:none;border:none;cursor:pointer;padding:0 4px;color:#6b7280;display:inline-flex;align-items:center">${svgIcon('calendar',12)}</button>`:''}
       <button class="act-delete" onclick="deleteActivity('${a.id}')">×</button>
     </div>
     ${createdStr?'<div style="padding-left:28px;margin-top:-4px;margin-bottom:4px">'+createdStr+'</div>':''}`;
@@ -1658,7 +1660,7 @@ export function confirmScheduleAndCopy(){
   sbUpdateDeal(dealId, camelToSnake({bookedDate:dateVal,bookedTime:timeVal})).catch(e=>console.error('Update deal failed:',e)).finally(()=>{pendingWrites.value--;});
   const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
   if(client && dateVal){
-    import('./calendly.js?v=20260723b').then(mod=>{
+    import('./calendly.js?v=20260723c').then(mod=>{
       const apptAddr=(deal.address||deal.location||'').trim();
       mod.saveAppointment(client.name, deal.company||deal.contact||'Unknown', dateVal, timeVal, '', apptAddr);
     });
@@ -1807,14 +1809,14 @@ window.pushToClientSheet = async function(dealId) {
     btn.innerHTML = svgIcon('check',14)+' Pushed to Client Sheet';
     btn.className = 'btn btn-ghost';
     btn.style.cssText = 'width:100%;justify-content:center;gap:6px;font-size:13px';
-    const { showToast: toast } = await import('./api.js?v=20260723b');
+    const { showToast: toast } = await import('./api.js?v=20260723c');
     toast('Pushed to ' + (result.client || 'client') + "'s sheet", 'success');
     setTimeout(() => refreshModal(true), 800);
   } catch (e) {
     const msg = e.name === 'AbortError' ? 'Request timed out' : (e.message || 'Unknown error');
     btn.innerHTML = origText;
     btn.disabled = false;
-    const { showToast: toast2 } = await import('./api.js?v=20260723b');
+    const { showToast: toast2 } = await import('./api.js?v=20260723c');
     toast2('Push failed: ' + msg, 'error');
     alert('Client sheet push failed: ' + msg);
   }
@@ -1848,7 +1850,7 @@ window.pushToGhl = async function(dealId) {
     }
     btn.innerHTML = '<span style="color:#059669">✓ Pushed to GHL</span>';
     btn.disabled = true;
-    const { showToast: toast } = await import('./api.js?v=20260723b');
+    const { showToast: toast } = await import('./api.js?v=20260723c');
     const client = findClientForDeal(d) || {};
     toast('Pushed to ' + (client.name || 'GHL'), 'success');
     setTimeout(() => refreshModal(true), 800);
