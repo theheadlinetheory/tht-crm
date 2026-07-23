@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // API — API layer (Google Sheets calls + Supabase CRUD)
 // ═══════════════════════════════════════════════════════════
-import { API_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260723b';
-import { supabase } from './supabase-client.js?v=20260723b';
+import { API_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260723c';
+import { supabase } from './supabase-client.js?v=20260723c';
 export { supabase };
-import { state, store, pendingWrites, failedWriteQueue, pendingDealFields, deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds, inFlightActivityIds } from './app.js?v=20260723b';
-import { render, refreshModal } from './render.js?v=20260723b';
+import { state, store, pendingWrites, failedWriteQueue, pendingDealFields, deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds, inFlightActivityIds } from './app.js?v=20260723c';
+import { render, refreshModal } from './render.js?v=20260723c';
 
 // Cached auth check — populated lazily on first initialSync to avoid circular import
 let _cachedIsAdmin = null;
@@ -133,7 +133,7 @@ export async function syncFromSheet(){
       state.clients=data.clients.filter(c => !deletedClientIds.has(String(c.id)));
     }
     if(data.appointments && Array.isArray(data.appointments)){
-      const { getToday } = await import('./utils.js?v=20260723b');
+      const { getToday } = await import('./utils.js?v=20260723c');
       state.appointments=data.appointments;
       state.appointments.forEach(a=>{
         Object.keys(a).forEach(k=>{ if(a[k]!=null && typeof a[k]!=='string') a[k]=String(a[k]); });
@@ -188,16 +188,16 @@ export async function syncFromSheet(){
     state.loadFailed=false;
     // Run service area checks in background (all roles — clients need maps too)
     // Re-render after checks complete to show badges/maps
-    const { runServiceAreaChecks } = await import('./maps.js?v=20260723b');
+    const { runServiceAreaChecks } = await import('./maps.js?v=20260723c');
     runServiceAreaChecks().then(() => render()).catch(e => console.warn('Service area checks failed:', e));
     // Pre-load archive
     if((isAdmin()||isEmployee()) && !state.archiveLoaded){
-      const { loadArchive } = await import('./archive.js?v=20260723b');
+      const { loadArchive } = await import('./archive.js?v=20260723c');
       loadArchive(true);
     }
   } else {
     if(state.deals.length===0){
-      const { getTestData } = await import('./config.js?v=20260723b');
+      const { getTestData } = await import('./config.js?v=20260723c');
       const { TEST_DEALS, TEST_ACTIVITIES, TEST_CLIENTS } = getTestData();
       state.deals=[...TEST_DEALS];
       state.activities=[...TEST_ACTIVITIES];
@@ -412,7 +412,7 @@ export async function initialSync(isStartup) {
     state.syncing = true;
     if (isStartup || !weeklyTabActive()) render(); // background sync must not rebuild the weekly tab
     if (isStartup) {
-      import('./dashboard.js?v=20260723b').then(m => m.clearDashboardArchiveCache && m.clearDashboardArchiveCache()).catch(() => {});
+      import('./dashboard.js?v=20260723c').then(m => m.clearDashboardArchiveCache && m.clearDashboardArchiveCache()).catch(() => {});
     }
     const [deals, activities, clients, appointments, trackerEntries, demoEntries, passOffs, savedSettings, retargetHistory, retargetExports] = await Promise.all([
       sbGetDeals(), sbGetActivities(), sbGetClients(), sbGetAppointments(), sbGetTrackerEntries(), sbGetDemoEntries(), sbGetPassOffs(), sbLoadSettings(), sbGetRetargetHistory().catch(() => []), sbGetRetargetExports().catch(() => [])
@@ -426,7 +426,7 @@ export async function initialSync(isStartup) {
     }
     // Apply settings from Supabase if available
     if (savedSettings && Object.keys(savedSettings).length > 0) {
-      const { applySettings } = await import('./settings.js?v=20260723b');
+      const { applySettings } = await import('./settings.js?v=20260723c');
       applySettings(savedSettings);
     }
     state.deals = (deals || []).map(normalizeRow);
@@ -443,7 +443,7 @@ export async function initialSync(isStartup) {
     state.clients = clients.map(normalizeRow);
     // Cache isAdmin for use in synchronous realtime handler
     if (!_cachedIsAdmin) {
-      const { isAdmin: _isAdmin } = await import('./auth.js?v=20260723b');
+      const { isAdmin: _isAdmin } = await import('./auth.js?v=20260723c');
       _cachedIsAdmin = _isAdmin;
     }
     // Strip sensitive GHL credentials for non-admin users but preserve a flag
@@ -511,7 +511,7 @@ export async function initialSync(isStartup) {
 
     // Replay any pending activities from write-ahead log
     if (isStartup) {
-      import('./activities.js?v=20260723b').then(m => m.replayPendingActivities && m.replayPendingActivities()).catch(() => {});
+      import('./activities.js?v=20260723c').then(m => m.replayPendingActivities && m.replayPendingActivities()).catch(() => {});
     }
 
     state.synced = true;
@@ -520,7 +520,7 @@ export async function initialSync(isStartup) {
     if (isStartup || !weeklyTabActive()) render();
 
     // Run service area checks in background, re-render when done
-    const { runServiceAreaChecks } = await import('./maps.js?v=20260723b');
+    const { runServiceAreaChecks } = await import('./maps.js?v=20260723c');
     runServiceAreaChecks().then(() => { if (isStartup || !weeklyTabActive()) render(); }).catch(e => console.warn('Service area checks failed:', e));
   } catch (e) {
     console.error('Initial sync failed:', e);
