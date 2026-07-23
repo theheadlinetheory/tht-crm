@@ -26,6 +26,7 @@ export const ACQUISITION_STAGES = [
   { id: "Demo Scheduled", label: "Demo Scheduled", color: "#0891b2" },
   { id: "Under Review", label: "Under Review", color: "#8b5cf6" },
   { id: "No Show", label: "No Show", color: "#ef4444" },
+  { id: "Reactivating", label: "Reactivating", color: "#f59e0b" },
   { id: "Waiting for Payment/Contract", label: "Waiting for Payment/Contract", color: "#d97706" },
   { id: "Closed Won", label: "Closed Won", color: "#059669" },
   { id: "Closed Lost", label: "Closed Lost", color: "#6b7280" },
@@ -89,6 +90,20 @@ export const SOP_DAYS = {
   ],
   "Day 9": [
     {type:"Call",subject:"Call"}
+  ],
+};
+
+export const REACTIVATION_DAYS = {
+  "Day 1": [
+    {type:"Email",subject:"Reactivation email — SmartLead template"},
+    {type:"Call",subject:"Call #1"},
+  ],
+  "Day 2": [
+    {type:"Call",subject:"Call #2"},
+    {type:"Text",subject:"Text if no answer"},
+  ],
+  "Day 3": [
+    {type:"Call",subject:"Final call"},
   ],
 };
 
