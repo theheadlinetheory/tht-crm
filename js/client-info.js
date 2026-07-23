@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // CLIENT-INFO — Client data, thread IDs, lookup functions
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, deletedClientIds } from './app.js?v=20260723c';
-import { CLIENT_PALETTE } from './config.js?v=20260723c';
-import { render } from './render.js?v=20260723c';
-import { str, uid, esc, isValidDate, getToday, svgIcon } from './utils.js?v=20260723c';
-import { sbCreateClient, sbDeleteClient, camelToSnake, supabase } from './api.js?v=20260723c';
-import { isAdmin } from './auth.js?v=20260723c';
+import { state, store, pendingWrites, deletedClientIds } from './app.js?v=20260724010617';
+import { CLIENT_PALETTE } from './config.js?v=20260724010617';
+import { render } from './render.js?v=20260724010617';
+import { str, uid, esc, isValidDate, getToday, svgIcon } from './utils.js?v=20260724010617';
+import { sbCreateClient, sbDeleteClient, camelToSnake, supabase } from './api.js?v=20260724010617';
+import { isAdmin } from './auth.js?v=20260724010617';
 
 // ─── Derive campaign keyword from client name ───
 const SKIP_PREFIXES = /^(the|a|an)\s+/i;
@@ -16,7 +16,12 @@ function deriveKeyword(name) {
   let s = (name || '').trim();
   s = s.replace(STRIP_SUFFIXES, '');
   s = s.replace(SKIP_PREFIXES, '');
-  return (s.split(/\s/)[0] || name.split(/\s/)[0] || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  // Keep internal punctuation, trim only edge punctuation, so the keyword stays a
+  // faithful substring of the campaign name. "Woody's" → "woody's" (a substring of
+  // "woody's landcare…"), NOT "woodys" (matches nothing). Stripping punctuation out
+  // entirely broke apostrophe/ampersand names; truncating at it over-shortens
+  // ("O'Brien" → "o", which matches everything).
+  return (s.split(/\s/)[0] || name.split(/\s/)[0] || '').toLowerCase().replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, '');
 }
 
 // ─── Client lookup (single source of truth: state.clients) ───
