@@ -1,8 +1,8 @@
 // Push a CRM activity to the logged-in user's Google Tasks as an all-day task.
-import { state } from './app.js?v=20260723c';
-import { invokeEdgeFunction, showToast } from './api.js?v=20260723c';
-import { currentUser } from './auth.js?v=20260723c';
-import { str } from './utils.js?v=20260723c';
+import { state } from './app.js?v=20260724010617';
+import { invokeEdgeFunction, showToast } from './api.js?v=20260724010617';
+import { currentUser } from './auth.js?v=20260724010617';
+import { str } from './utils.js?v=20260724010617';
 
 export function buildTaskFields(activity, deal) {
   const company = str(deal.company) || str(deal.contact) || 'Deal';
