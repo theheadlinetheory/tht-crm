@@ -1,9 +1,9 @@
 // ═══════════════════════════════════════════════════════════
 // PD-ACTIONS — Power Dialer maps, modals, Calendly booking
 // ═══════════════════════════════════════════════════════════
-import { supabase, showToast } from './api.js?v=20260724075901';
-import { ACQ_CALENDLY_URLS } from './config.js?v=20260724075901';
-import { openCalendlyEmbed } from './calendly.js?v=20260724075901';
+import { supabase, showToast } from './api.js?v=20260724120456';
+import { ACQ_CALENDLY_URLS } from './config.js?v=20260724120456';
+import { openCalendlyEmbed } from './calendly.js?v=20260724120456';
 
 let _miniMap = null;
 let _miniMapAddr = '';
@@ -170,20 +170,36 @@ export function bookCall(type, queue, queueIndex) {
   openCalendlyEmbed(null, url, null, contact.name, contact.email);
 }
 
-export function showStrategyPicker(queue, queueIndex) {
+// Shared power-dialer call picker — books the current contact onto a chosen person's Calendly.
+// options: [{label, color, type}] where type is a key in ACQ_CALENDLY_URLS.
+function showAcqCallPicker(title, options) {
   const overlay = document.createElement('div');
-  overlay.id = 'strategy-call-picker';
+  overlay.id = 'acq-call-picker';
   overlay.className = 'modal-overlay';
   overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  const buttons = options.map(o =>
+    `<button class="btn btn-primary" style="width:100%;padding:12px;font-size:13px;background:${o.color};border-color:${o.color}" onclick="document.getElementById('acq-call-picker').remove();pdBookCall('${o.type}')">${o.label}</button>`
+  ).join('');
   overlay.innerHTML = `<div class="modal" style="width:320px" onclick="event.stopPropagation()">
-    <div class="modal-header"><h3>Who's booking the strategy call?</h3><button class="modal-close" onclick="document.getElementById('strategy-call-picker').remove()">×</button></div>
-    <div class="modal-body" style="display:flex;flex-direction:column;gap:8px">
-      <button class="btn btn-primary" style="width:100%;padding:12px;font-size:13px;background:#7c3aed;border-color:#7c3aed" onclick="document.getElementById('strategy-call-picker').remove();pdBookCall('strategy')">Aidan</button>
-      <button class="btn btn-primary" style="width:100%;padding:12px;font-size:13px;background:#2563eb;border-color:#2563eb" onclick="document.getElementById('strategy-call-picker').remove();pdBookCall('strategy_ioannis')">Ioannis</button>
-    </div>
+    <div class="modal-header"><h3>${title}</h3><button class="modal-close" onclick="document.getElementById('acq-call-picker').remove()">×</button></div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:8px">${buttons}</div>
     <div class="modal-footer" style="justify-content:flex-end">
-      <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="document.getElementById('strategy-call-picker').remove()">Cancel</button>
+      <button class="btn" style="background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb" onclick="document.getElementById('acq-call-picker').remove()">Cancel</button>
     </div>
   </div>`;
   document.body.appendChild(overlay);
+}
+
+export function showStrategyPicker(queue, queueIndex) {
+  showAcqCallPicker("Who's booking the strategy call?", [
+    { label: 'Aidan', color: '#7c3aed', type: 'strategy' },
+    { label: 'Ioannis', color: '#2563eb', type: 'strategy_ioannis' },
+  ]);
+}
+
+export function showDemoPicker(queue, queueIndex) {
+  showAcqCallPicker("Who's taking the demo call?", [
+    { label: 'Aidan', color: '#2563eb', type: 'demo' },
+    { label: 'Lars', color: '#7c3aed', type: 'demo_lars' },
+  ]);
 }

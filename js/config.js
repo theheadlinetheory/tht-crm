@@ -207,6 +207,7 @@ export function isInternationalAddress(addr) {
 // ─── Acquisition Pipeline Calendly URLs ───
 export const ACQ_CALENDLY_URLS = {
   demo:'https://calendly.com/aidan-theheadlinetheory/demo-call-with-the-headline-theory',
+  demo_lars:'https://calendly.com/aidan-theheadlinetheory/30-min-with-lars',
   strategy:'https://calendly.com/aidan-theheadlinetheory/discovery-call-with-the-headline-theory-clone',
   strategy_ioannis:'https://calendly.com/contact-theheadlinetheory/strategy-call-with-the-headline-theory'
 };

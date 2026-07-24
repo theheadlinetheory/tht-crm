@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // PD-VIEWS — Power Dialer rendering (pure HTML generators)
 // ═══════════════════════════════════════════════════════════
-import { esc, svgIcon, str } from './utils.js?v=20260724075901';
+import { esc, svgIcon, str } from './utils.js?v=20260724120456';
 
 const IS_MX_RECORD = /mail\.protection|aspmx|mx\d|ppe-hosted|pphosted|mimecast/i;
 
@@ -454,7 +454,7 @@ function renderDisposition(contact, saving, leadCreated) {
     <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
       <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:8px">Book a Call</div>
       <div style="display:flex;gap:8px">
-        <button class="btn btn-primary" style="flex:1;font-size:12px;background:#2563eb;border-color:#2563eb;display:flex;align-items:center;justify-content:center;gap:4px" onclick="pdBookCall('demo')">
+        <button class="btn btn-primary" style="flex:1;font-size:12px;background:#2563eb;border-color:#2563eb;display:flex;align-items:center;justify-content:center;gap:4px" onclick="pdShowDemoPicker()">
           ${svgIcon('calendar',12,'#fff')} Demo Call
         </button>
         <button class="btn btn-primary" style="flex:1;font-size:12px;background:#7c3aed;border-color:#7c3aed;display:flex;align-items:center;justify-content:center;gap:4px" onclick="pdShowStrategyPicker()">
