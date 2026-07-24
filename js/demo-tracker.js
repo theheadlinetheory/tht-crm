@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // DEMO TRACKER — SDR commission tracking for acquisition calls
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites, pendingDealFields } from './app.js?v=20260724075901';
-import { sbCreateDemoEntry, sbUpdateDemoEntry, sbDeleteDemoEntry, sbUpdateDeal, camelToSnake, normalizeRow } from './api.js?v=20260724075901';
-import { render, refreshModal } from './render.js?v=20260724075901';
-import { isAdmin, isEmployee } from './auth.js?v=20260724075901';
-import { esc, str, svgIcon } from './utils.js?v=20260724075901';
+import { state, pendingWrites, pendingDealFields } from './app.js?v=20260724120456';
+import { sbCreateDemoEntry, sbUpdateDemoEntry, sbDeleteDemoEntry, sbUpdateDeal, camelToSnake, normalizeRow } from './api.js?v=20260724120456';
+import { render, refreshModal } from './render.js?v=20260724120456';
+import { isAdmin, isEmployee } from './auth.js?v=20260724120456';
+import { esc, str, svgIcon } from './utils.js?v=20260724120456';
 
 const DEMO_BASE_PAYOUT = 100;
 const DEMO_CLOSE_BONUS = 50;
@@ -13,7 +13,7 @@ const DEMO_CLOSE_BONUS = 50;
 const SHOW_OPTIONS = ['Showed', 'No-Show'];
 const OUTCOME_OPTIONS = ['Qualified — Pending', 'Qualified — Closed Won', 'Qualified — Closed Lost', 'Not Qualified'];
 
-const BOOKED_BY_OPTIONS = ['Ioannis', 'Aidan'];
+const BOOKED_BY_OPTIONS = ['Ioannis', 'Aidan', 'Lars'];
 
 const COLUMNS = [
   { key: 'bookedBy',    label: 'Booked By',   width: '100px', editable: true,  editType: 'select', options: BOOKED_BY_OPTIONS },
