@@ -1,8 +1,8 @@
-import { state, pendingWrites } from './app.js?v=20260724120456';
-import { sbUpdatePassOff, sbDeletePassOff, camelToSnake, normalizeRow, showToast } from './api.js?v=20260724120456';
-import { isAdmin } from './auth.js?v=20260724120456';
-import { esc, str } from './utils.js?v=20260724120456';
-import { render } from './render.js?v=20260724120456';
+import { state, pendingWrites } from './app.js?v=20260728143500';
+import { sbUpdatePassOff, sbDeletePassOff, camelToSnake, normalizeRow, showToast } from './api.js?v=20260728143500';
+import { isAdmin, isEmployee } from './auth.js?v=20260728143500';
+import { esc, str } from './utils.js?v=20260728143500';
+import { render } from './render.js?v=20260728143500';
 
 const COLUMNS = [
   { key: 'clientName',    label: 'Client',    editable: false },
@@ -104,7 +104,9 @@ export function renderPassOffs() {
   const clients = [...new Set(state.passOffs.map(e => e.clientName))].sort();
   const f = state.passOffsFilters;
   const clientColors = getClientColorMap();
-  const admin = isAdmin();
+  // Pass-offs are operational records, not pricing data — employees clean up
+  // their own duplicates. Lead cost stays admin-only elsewhere.
+  const canDelete = isAdmin() || isEmployee();
 
   let html = `<div class="tracker-container">`;
 
@@ -154,7 +156,7 @@ export function renderPassOffs() {
     const arrow = isSorted ? (state.passOffsSort.dir === 'asc' ? ' ↑' : ' ↓') : '';
     html += `<th onclick="passOffSort('${col.key}')" style="cursor:pointer;user-select:none">${esc(col.label)}${arrow}</th>`;
   }
-  if (admin) html += `<th style="width:50px"></th>`;
+  if (canDelete) html += `<th style="width:50px"></th>`;
   html += `</tr></thead>`;
 
   html += `<tbody>`;
@@ -177,13 +179,13 @@ export function renderPassOffs() {
         html += `<td>${esc(str(entry[col.key]))}</td>`;
       }
     }
-    if (admin) {
+    if (canDelete) {
       html += `<td><button onclick="passOffDelete('${entry.id}')" class="btn btn-ghost" style="font-size:10px;padding:2px 6px;color:#dc2626" title="Delete">✕</button></td>`;
     }
     html += `</tr>`;
   }
   if (entries.length === 0) {
-    html += `<tr><td colspan="${COLUMNS.length + (admin ? 1 : 0)}" style="text-align:center;padding:20px;color:var(--text-muted)">No pass-offs found</td></tr>`;
+    html += `<tr><td colspan="${COLUMNS.length + (canDelete ? 1 : 0)}" style="text-align:center;padding:20px;color:var(--text-muted)">No pass-offs found</td></tr>`;
   }
   html += `</tbody></table></div></div>`;
   return html;
