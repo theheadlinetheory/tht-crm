@@ -54,7 +54,6 @@ const REQUIRED_FEATURES = [
   { file: 'weekly-updates.js', needle: 'window.weeklyPrepare',               feature: 'Weekly Updates: Prepare handler wired to window' },
   // Top-level tabs
   { file: 'render.js',         needle: "state.pipeline==='dashboard'",  feature: 'Dashboard tab' },
-  { file: 'render.js',         needle: "state.pipeline==='payroll'",    feature: 'Payroll tab' },
   { file: 'render.js',         needle: "state.pipeline==='acquisition'", feature: 'Acquisition tab' },
   { file: 'render.js',         needle: "state.pipeline==='client_leads'", feature: 'Client Leads tab' },
   // Acquisition sub-tabs

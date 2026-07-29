@@ -120,15 +120,13 @@ function pipelineTabsHtml(){
 // ─── render ───
 export function render(){
   try{
-  // Skip re-render if user is typing in a payroll/settings input, or hand-editing
-  // a weekly-update email box. A full innerHTML re-render (fired by Supabase
-  // realtime on deals/activities/clients/appointments or the 2-min background
-  // sync) destroys the focused textarea — dropping the cursor mid-keystroke and
-  // resetting the manual drag-resize. Defer it; a later render reconciles on blur.
+  // Skip re-render if the user is hand-editing a weekly-update email box. A full
+  // innerHTML re-render (fired by Supabase realtime on deals/activities/clients/
+  // appointments or the 2-min background sync) destroys the focused textarea —
+  // dropping the cursor mid-keystroke and resetting the manual drag-resize.
+  // Defer it; a later render reconciles on blur.
   const focused = document.activeElement;
   if (focused && (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA' || focused.tagName === 'SELECT')) {
-    const inPayroll = focused.closest && (focused.id?.startsWith('payroll-') || focused.closest('[data-payroll]'));
-    if (inPayroll) return;
     if (focused.dataset && focused.dataset.weeklyEdit === '1') return;
   }
 
@@ -177,22 +175,6 @@ export function render(){
     state.pipeline='acquisition'; state.acquisitionSubTab='retargeting'; render(); return;
   }
 
-  // ─── Payroll Tab ───
-  if(state.pipeline==='payroll'){
-    if(!window._payrollModule && !window._payrollLoading){
-      window._payrollLoading=true;
-      import('./payroll.js?v=20260728143500').then(m=>{ window._payrollModule=m; if(state.pipeline==='payroll') render(); }).catch(()=>{ window._payrollLoading=false; });
-    }
-    let html=`<div class="topbar"><div style="display:flex;align-items:center"><div class="topbar-tabs">${pipelineTabsHtml()}</div></div><div class="topbar-right">${renderUserMenu()}</div></div>`;
-    if(window._payrollModule){
-      html+=window._payrollModule.renderPayroll();
-    } else {
-      html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading payroll...</div>';
-    }
-    app.innerHTML=html;
-    if(window._payrollModule) window._payrollModule.loadPayrollHistory();
-    return;
-  }
 
   // ─── Lead Tracker redirect (legacy URL compat) ───
   if(state.pipeline==='lead_tracker'){
