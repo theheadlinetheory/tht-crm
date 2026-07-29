@@ -41,7 +41,6 @@ export const ALL_PIPELINES = [
   { id: "dashboard", label: "Dashboard" },
   { id: "acquisition", label: "Acquisition" },
   { id: "client_leads", label: "Client Leads" },
-  { id: "payroll", label: "Payroll" },
 ];
 
 // ─── Retargeting Config ───
