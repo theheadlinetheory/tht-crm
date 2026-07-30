@@ -1,9 +1,9 @@
-import { state, pendingWrites } from './app.js?v=20260731041244';
-import { sbUpdatePassOff, sbDeletePassOff, camelToSnake, normalizeRow, showToast } from './api.js?v=20260731041244';
-import { isAdmin, isEmployee } from './auth.js?v=20260731041244';
-import { esc, str } from './utils.js?v=20260731041244';
-import { render } from './render.js?v=20260731041244';
-import { weekStartOf, ymd, weekLabel, currentWeekKey } from './dashboard.js?v=20260731041244';
+import { state, pendingWrites } from './app.js?v=20260731043710';
+import { sbUpdatePassOff, sbDeletePassOff, camelToSnake, normalizeRow, showToast } from './api.js?v=20260731043710';
+import { isAdmin, isEmployee } from './auth.js?v=20260731043710';
+import { esc, str } from './utils.js?v=20260731043710';
+import { render } from './render.js?v=20260731043710';
+import { weekStartOf, ymd, weekLabel, currentWeekKey } from './dashboard.js?v=20260731043710';
 
 // The billing month ('July/26') is deliberately not a column — the sheet shows
 // the exact date the lead was passed off instead.
@@ -173,7 +173,9 @@ export function renderPassOffs() {
     html += `<tr style="${rowStyle}">`;
     for (const col of COLUMNS) {
       if (col.key === 'datePassed') {
-        html += `<td>${formatDate(entry.datePassed)}</td>`;
+        // Show a dash rather than an empty cell, so a missing/unmapped date is
+        // visible instead of looking like a rendering gap.
+        html += `<td>${formatDate(entry.datePassed) || '<span style="color:#d1d5db">—</span>'}</td>`;
       } else if (col.key === 'clientName' && clientColor) {
         html += `<td style="color:${clientColor};font-weight:600">${esc(str(entry[col.key]))}</td>`;
       } else if (col.key === 'notes' && isEditing) {

@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════
 // THREADS — SmartLead thread viewer, client thread sender
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260731041244';
-import { refreshModal } from './render.js?v=20260731041244';
-import { apiPost, invokeEdgeFunction } from './api.js?v=20260731041244';
-import { esc } from './utils.js?v=20260731041244';
+import { state } from './app.js?v=20260731043710';
+import { refreshModal } from './render.js?v=20260731043710';
+import { apiPost, invokeEdgeFunction } from './api.js?v=20260731043710';
+import { esc } from './utils.js?v=20260731043710';
 
 // ─── SmartLead Thread Viewer ───
 let slThreadCache = {};
@@ -82,8 +82,8 @@ export function getThreadCache() { return slThreadCache; }
 export async function openSendToClientPreview(dealId, clientName){
   const deal=state.deals.find(d=>d.id===dealId);
   if(!deal) return;
-  const { getClientThreadId, lookupClientInfo } = await import('./client-info.js?v=20260731041244');
-  const { buildLeadMessage } = await import('./email.js?v=20260731041244');
+  const { getClientThreadId, lookupClientInfo } = await import('./client-info.js?v=20260731043710');
+  const { buildLeadMessage } = await import('./email.js?v=20260731043710');
   const threadId=getClientThreadId(clientName)||'';
   const info=lookupClientInfo(clientName)||{};
   const message=buildLeadMessage(deal, clientName);
