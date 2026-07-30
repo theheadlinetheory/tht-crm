@@ -341,7 +341,9 @@ details > summary::-webkit-details-marker { display:none; }
 .doc-thumb:hover { transform: scale(1.05); }
 
 /* ─── Lead Tracker Grid (spreadsheet-like) ─── */
-.tracker-container{padding:8px 12px;height:calc(100vh - 52px);display:flex;flex-direction:column;}
+/* --tracker-top: space taken above the sheet (top bar, and the weekly KPI strip
+   when render.js puts one there). Defaults to just the top bar. */
+.tracker-container{padding:8px 12px;height:calc(100vh - var(--tracker-top, 52px));display:flex;flex-direction:column;}
 .tracker-filters{display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;flex-shrink:0;}
 .tracker-table-wrap{overflow:auto;flex:1;border:1px solid #d0d5dd;}
 .tracker-table{width:100%;border-collapse:collapse;font-size:12px;font-family:'Inter',system-ui,sans-serif;}

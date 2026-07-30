@@ -3,10 +3,12 @@ import { sbUpdatePassOff, sbDeletePassOff, camelToSnake, normalizeRow, showToast
 import { isAdmin, isEmployee } from './auth.js?v=20260730111823';
 import { esc, str } from './utils.js?v=20260730111823';
 import { render } from './render.js?v=20260730111823';
+import { weekStartOf, ymd, weekLabel, currentWeekKey } from './dashboard.js?v=20260730111823';
 
+// The billing month ('July/26') is deliberately not a column — the sheet shows
+// the exact date the lead was passed off instead.
 const COLUMNS = [
   { key: 'clientName',    label: 'Client',    editable: false },
-  { key: 'month',         label: 'Month',     editable: false },
   { key: 'company',       label: 'Company',   editable: false },
   { key: 'contact',       label: 'Contact',   editable: false },
   { key: 'email',         label: 'Email',     editable: false },
@@ -21,11 +23,12 @@ function parseDate(s) {
   return isNaN(d.getTime()) ? 0 : d.getTime();
 }
 
+// Exact date, full year — 'Jul 26, 2026' rather than a bare month.
 function formatDate(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '';
-  return `${d.getMonth() + 1}/${d.getDate()}/${String(d.getFullYear()).slice(-2)}`;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function isoDate(iso) {
@@ -88,15 +91,18 @@ async function savePassOffNote(id, value) {
   }
 }
 
-function getMonthlySummary(entries) {
-  const byMonth = {};
+// Weekly (Mon–Sun) buckets, keyed by the Monday that starts the week.
+function getWeeklySummary(entries) {
+  const byWeek = {};
   for (const e of entries) {
-    const key = e.month || 'Unknown';
-    if (!byMonth[key]) byMonth[key] = {};
+    const ws = e.datePassed ? weekStartOf(new Date(e.datePassed)) : null;
+    const key = ws ? ymd(ws) : '';
+    if (!key) continue;
+    if (!byWeek[key]) byWeek[key] = {};
     const client = e.clientName || 'Unknown';
-    byMonth[key][client] = (byMonth[key][client] || 0) + 1;
+    byWeek[key][client] = (byWeek[key][client] || 0) + 1;
   }
-  return byMonth;
+  return byWeek;
 }
 
 export function renderPassOffs() {
@@ -110,20 +116,19 @@ export function renderPassOffs() {
 
   let html = `<div class="tracker-container">`;
 
-  // Summary cards
-  const summary = getMonthlySummary(entries);
-  const months = Object.keys(summary).sort((a, b) => {
-    const parse = m => { const [name, yr] = m.split('/'); return new Date(`${name} 1, 20${yr}`).getTime(); };
-    return parse(b) - parse(a);
-  });
+  // Summary cards — one per week (Mon–Sun), most recent first
+  const summary = getWeeklySummary(entries);
+  const weeks = Object.keys(summary).sort().reverse();
+  const thisWeek = currentWeekKey();
 
-  if (months.length > 0) {
+  if (weeks.length > 0) {
     html += `<div style="display:flex;gap:12px;flex-wrap:wrap;padding:0 0 12px 0">`;
-    for (const month of months.slice(0, 6)) {
-      const clientCounts = summary[month];
+    for (const week of weeks.slice(0, 6)) {
+      const clientCounts = summary[week];
       const total = Object.values(clientCounts).reduce((a, b) => a + b, 0);
-      html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:10px 16px;min-width:140px">
-        <div style="font-size:11px;color:var(--text-muted);font-weight:600">${esc(month)}</div>
+      const isCurrent = week === thisWeek;
+      html += `<div style="background:var(--bg-card);border:1px solid ${isCurrent ? 'var(--purple)' : 'var(--border)'};border-radius:8px;padding:10px 16px;min-width:150px">
+        <div style="font-size:11px;color:var(--text-muted);font-weight:600">${esc(weekLabel(week))}${isCurrent ? ' · this week' : ''}</div>
         <div style="font-size:22px;font-weight:700;color:var(--text)">${total}</div>
         <div style="font-size:10px;color:var(--text-muted)">${Object.entries(clientCounts).map(([c, n]) => `${esc(c)}: ${n}`).join(', ')}</div>
       </div>`;
@@ -145,7 +150,7 @@ export function renderPassOffs() {
       ${(f.dateFrom || f.dateTo) ? '<button onclick="passOffClearDates()" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;padding:0 4px" title="Clear dates">&times;</button>' : ''}
     </span>
     <span style="flex:1"></span>
-    <span style="font-size:12px;color:var(--text-muted)">${entries.length} pass-offs</span>
+    <span style="font-size:12px;color:var(--text-muted)">${entries.length} retainer leads</span>
   </div>`;
 
   // Table
@@ -185,7 +190,7 @@ export function renderPassOffs() {
     html += `</tr>`;
   }
   if (entries.length === 0) {
-    html += `<tr><td colspan="${COLUMNS.length + (canDelete ? 1 : 0)}" style="text-align:center;padding:20px;color:var(--text-muted)">No pass-offs found</td></tr>`;
+    html += `<tr><td colspan="${COLUMNS.length + (canDelete ? 1 : 0)}" style="text-align:center;padding:20px;color:var(--text-muted)">No retainer leads found</td></tr>`;
   }
   html += `</tbody></table></div></div>`;
   return html;
@@ -206,7 +211,7 @@ window.passOffSort = (field) => {
 };
 window.passOffSaveNote = (id, value) => savePassOffNote(id, value);
 window.passOffDelete = async (id) => {
-  if (!confirm('Delete this pass-off entry?')) return;
+  if (!confirm('Delete this retainer lead?')) return;
   state.passOffs = state.passOffs.filter(e => e.id !== id);
   render();
   try { await sbDeletePassOff(id); } catch (e) { console.error('Delete failed:', e); }

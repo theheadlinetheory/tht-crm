@@ -8,9 +8,11 @@ import { esc, svgIcon, str } from './utils.js?v=20260730111823';
 import { render } from './render.js?v=20260730111823';
 
 // ─── Column Definitions ───
+// The billing "Month" ('July/26') is deliberately not a column — the sheet shows
+// the exact date instead. It stays editable in bulk-edit (see BULK_EDIT_COLUMNS)
+// so invoicing can still be corrected.
 const COLUMNS = [
   { key: 'clientName',      label: 'Client',         editable: true,      adminOnly: false },
-  { key: 'month',           label: 'Month',          editable: true,      adminOnly: false },
   { key: 'leadName',        label: 'Lead Name',      editable: true,      adminOnly: false },
   { key: 'leadEmail',       label: 'Email',           editable: true,      adminOnly: false },
   { key: 'dateAdded',       label: 'Date',            editable: true,      adminOnly: false },
@@ -24,9 +26,30 @@ const COLUMNS = [
   { key: 'callbackStatus',  label: 'Callback',        editable: false,     adminOnly: false },
 ];
 
+// Fields offered in the bulk-edit dropdown: every editable column, plus the
+// billing month, which is no longer shown as a column.
+const BULK_EDIT_COLUMNS = [
+  ...COLUMNS.filter(c => c.editable),
+  { key: 'month', label: 'Billing Month (July/26)' },
+];
+
 function getVisibleColumns() {
   if (isAdmin()) return COLUMNS;
   return COLUMNS.filter(c => !c.adminOnly);
+}
+
+// Dates are stored as 'M/D/YY'; show them in full so "7/26" can't be read as a
+// bare month/day.
+const DATE_COLUMNS = new Set(['dateAdded', 'datePaid']);
+function fmtExactDate(mdy) {
+  const parts = String(mdy || '').split('/');
+  if (parts.length !== 3) return String(mdy || '');
+  const m = parseInt(parts[0], 10);
+  const d = parseInt(parts[1], 10);
+  let y = parseInt(parts[2], 10);
+  if (isNaN(m) || isNaN(d) || isNaN(y)) return String(mdy);
+  if (y < 100) y += 2000;
+  return `${m}/${d}/${y}`;
 }
 
 // ─── Load Tracker Data ───
@@ -252,6 +275,9 @@ function fmtMoneyCents(cents) {
 // Inner HTML for an editable cell in its display (non-editing) state, folding the
 // setup-fee surcharge into Lead Cost and a "setup i/N" badge into Notes.
 function editableCellInner(colKey, val, fee) {
+  if (DATE_COLUMNS.has(colKey)) {
+    return val ? esc(fmtExactDate(val)) : '<span style="color:#d1d5db">—</span>';
+  }
   if (fee && colKey === 'leadCost') {
     // Show the effective TOTAL (base + setup-fee surcharge). Editing still edits
     // the raw base value; this only enhances the display state.
@@ -303,7 +329,7 @@ export function renderLeadTracker() {
     </span>
     <span style="flex:1"></span>
     <span id="tracker-save-status" style="font-size:11px;font-weight:600;opacity:0;transition:opacity 0.3s"></span>
-    <span style="font-size:12px;color:var(--text-muted)">${entries.length} entries</span>
+    <span style="font-size:12px;color:var(--text-muted)">${entries.length} PPM meetings booked</span>
     ${isAdmin() ? `<button class="btn btn-primary" style="font-size:11px;padding:4px 12px" onclick="openInvoiceModal()">Generate Invoice</button>` : ''}
     ${isAdmin() ? `<button class="btn btn-primary" style="font-size:11px;padding:4px 12px;background:#7c3aed" onclick="openPayoutReport()">Payout Report</button>` : ''}
     ${isAdmin()||isEmployee() ? `<button class="btn btn-ghost" style="font-size:11px;padding:4px 10px" onclick="trackerAddRow()">+ Add Row</button>` : ''}
@@ -312,7 +338,7 @@ export function renderLeadTracker() {
 
   // Bulk edit bar (shown when rows are selected)
   if (isAdmin() && selCount > 0) {
-    const editableCols = COLUMNS.filter(c => c.editable);
+    const editableCols = BULK_EDIT_COLUMNS;
     html += `<div class="tracker-bulk-bar">
       <span style="font-weight:600;font-size:12px">${selCount} selected</span>
       <select id="tracker-bulk-field" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font)" onchange="trackerBulkFieldChange(this.value)">
@@ -373,7 +399,7 @@ export function renderLeadTracker() {
       } else if (col.editable && !isCalledBack) {
         html += `<td class="tracker-cell-editable" style="${cellColorStyle}" onclick="trackerEditCell('${entry.id}','${col.key}')">${editableCellInner(col.key, val, feeMap[entry.id])}</td>`;
       } else if (isCalledBack) {
-        html += `<td><s style="color:#ef4444">${esc(val)}</s></td>`;
+        html += `<td><s style="color:#ef4444">${esc(DATE_COLUMNS.has(col.key) ? fmtExactDate(val) : val)}</s></td>`;
       } else if (col.key === 'leadEmail' && val) {
         html += `<td><a href="mailto:${esc(val)}" style="color:var(--purple);text-decoration:none;font-size:12px">${esc(val)}</a></td>`;
       } else {

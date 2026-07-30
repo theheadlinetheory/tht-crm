@@ -29,6 +29,7 @@ export const state = {
   savedSettings: null,
   dashboardTab: 'client_leads',
   dashboardMonth: new Date().toISOString().slice(0,7),
+  dashboardWeek: null, // Monday of the selected week, 'YYYY-MM-DD' (null = current week)
   rerunQueue: [],
   rerunLoading: false,
   nurtureFilterCampaign: '',

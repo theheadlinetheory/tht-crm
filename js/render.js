@@ -10,7 +10,7 @@ import { initialSync as syncFromSheet } from './api.js?v=20260730111823';
 import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js?v=20260730111823';
 import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWonDrop, renderDealModal, renderNewDealModal, renderAddClientModal, toggleBadgeDropdown } from './deal-modal.js?v=20260730111823';
 import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from './activities.js?v=20260730111823';
-import { renderDashboard } from './dashboard.js?v=20260730111823';
+import { renderDashboard, renderKpiTargetBar } from './dashboard.js?v=20260730111823';
 import { loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js?v=20260730111823';
 import { toggleBulkMode, bulkMoveStage, bulkSelectAll, bulkArchive, bulkAddActivity, toggleBulkSelect } from './deals.js?v=20260730111823';
 import { openSettings } from './settings.js?v=20260730111823';
@@ -394,11 +394,16 @@ export function render(){
     }
 
     if(clSubTab === 'lead_tracker' && (isAdmin()||isEmployee())){
-      // Sub-tabs: Entries / Trends
+      // Weekly KPI targets, kept at the top so they are always visible. The
+      // wrapper's --tracker-top compensates the fixed-height .tracker-container
+      // for the strip's own height.
+      html+=`<div style="--tracker-top:96px">
+        <div style="padding:0 12px">${renderKpiTargetBar(null, { compact:true })}</div>`;
+      // Sub-tabs: PPM Meetings Booked / Trends / Retainer Leads
       html+=`<div style="display:flex;gap:0;border-bottom:1px solid var(--border);padding:0 12px">
-        <button class="topbar-tab ${state.trackerView==='entries'?'active':''}" onclick="switchTrackerView('entries')">Entries</button>
+        <button class="topbar-tab ${state.trackerView==='entries'?'active':''}" onclick="switchTrackerView('entries')">PPM Meetings Booked</button>
         <button class="topbar-tab ${state.trackerView==='trends'?'active':''}" onclick="switchTrackerView('trends')">Trends</button>
-        ${isAdmin()||isEmployee()?`<button class="topbar-tab ${state.trackerView==='passoffs'?'active':''}" onclick="switchTrackerView('passoffs')">Pass-Offs</button>`:''}
+        ${isAdmin()||isEmployee()?`<button class="topbar-tab ${state.trackerView==='passoffs'?'active':''}" onclick="switchTrackerView('passoffs')">Retainer Leads</button>`:''}
       </div>`;
 
       if(state.trackerView==='trends'){
@@ -422,7 +427,7 @@ export function render(){
         if(state.passOffsLoaded && window._passOffsModule){
           html+=window._passOffsModule.renderPassOffs();
         } else {
-          html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading pass-offs...</div>';
+          html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading retainer leads...</div>';
           if(!window._passOffsLoading){
             window._passOffsLoading=true;
             import('./pass-offs.js?v=20260730111823').then(m=>{ window._passOffsModule=m; render(); }).catch(()=>{ window._passOffsLoading=false; });
@@ -453,6 +458,7 @@ export function render(){
           import('./invoice.js?v=20260730111823').then(m=>{ window._invoiceModule=m; render(); });
         }
       }
+      html+=`</div>`; // close the --tracker-top wrapper
       const trackerWrap=document.querySelector('.tracker-table-wrap');
       const savedTrackerScrollTop=trackerWrap?trackerWrap.scrollTop:0;
       const savedTrackerScrollLeft=trackerWrap?trackerWrap.scrollLeft:0;
