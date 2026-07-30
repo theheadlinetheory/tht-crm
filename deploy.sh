@@ -25,6 +25,81 @@ fi
 
 cd "$(dirname "$0")"
 
+# ─────────────────────────────────────────────────────────────
+# Step 0 — reconcile with anything a teammate pushed while you worked.
+#
+# Several of us deploy from this repo. Every deploy rewrites the ?v= token in
+# every file, so a plain `git pull` conflicts in ALL of them — and resolving 47
+# token conflicts by hand is exactly how someone silently reverts a colleague's
+# work (that nearly happened on 2026-07-23).
+#
+# So instead of merging blind, compare with the tokens stripped out. That shows
+# what each side ACTUALLY changed. No overlap → reconcile automatically. Same
+# file touched by both → stop and make a human look.
+# ─────────────────────────────────────────────────────────────
+strip_tokens() { sed -E 's/\?v=[0-9A-Za-z]+//g'; }
+
+# Does $1 really differ between two treeish refs (ignoring token churn)?
+really_differs() { # really_differs <file> <refA> <refB>
+  ! diff -q <(git show "$2:$1" 2>/dev/null | strip_tokens) \
+            <(git show "$3:$1" 2>/dev/null | strip_tokens) >/dev/null 2>&1
+}
+
+echo "→ Checking for changes pushed by others…"
+git fetch -q origin main
+
+BEHIND=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
+if [ "$BEHIND" -gt 0 ]; then
+  echo "  Someone pushed $BEHIND commit(s) while you were working. Comparing…"
+
+  # What THEY really changed (tokens ignored).
+  THEIRS=""
+  for f in $(git diff --name-only HEAD origin/main); do
+    if really_differs "$f" HEAD origin/main; then THEIRS="$THEIRS $f"; fi
+  done
+
+  # What YOU really changed — your edits are still uncommitted at this point,
+  # so compare the working tree against HEAD. Untracked files count too.
+  MINE=""
+  for f in $(git status --porcelain | awk '{print $2}'); do
+    if [ -f "$f" ]; then
+      if ! diff -q <(git show "HEAD:$f" 2>/dev/null | strip_tokens) \
+                   <(strip_tokens < "$f") >/dev/null 2>&1; then
+        MINE="$MINE $f"
+      fi
+    fi
+  done
+
+  echo "  They really changed:${THEIRS:- (tokens only)}"
+  echo "  You really changed: ${MINE:- (tokens only)}"
+
+  # Same file on both sides → a human must decide.
+  OVERLAP=""
+  for m in $MINE; do
+    for t in $THEIRS; do
+      if [ "$m" = "$t" ]; then OVERLAP="$OVERLAP $m"; fi
+    done
+  done
+
+  if [ -n "$OVERLAP" ]; then
+    echo ""
+    echo "✗ You and a teammate both changed:$OVERLAP"
+    echo "  Nothing was pushed. Open those file(s), combine both sets of changes,"
+    echo "  then re-run deploy.sh. Do NOT 'git pull' and mass-resolve conflicts —"
+    echo "  that is how someone's work gets silently reverted."
+    exit 1
+  fi
+
+  # No overlap: rebuild on top of theirs, keeping your files verbatim.
+  echo "  No overlap — reconciling automatically."
+  TMP=$(mktemp -d)
+  for f in $MINE; do mkdir -p "$TMP/$(dirname "$f")"; cp "$f" "$TMP/$f"; done
+  git reset --hard -q origin/main
+  for f in $MINE; do cp "$TMP/$f" "$f"; done
+  rm -rf "$TMP"
+  echo "  Rebased onto $(git rev-parse --short origin/main); your changes re-applied."
+fi
+
 # Current uniform version token (all files share one; grab it from index.html)
 CUR=$(grep -oE '\?v=[0-9A-Za-z]+' index.html | head -1 | sed 's/?v=//')
 if [ -z "$CUR" ]; then
