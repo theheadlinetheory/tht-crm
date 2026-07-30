@@ -1121,7 +1121,7 @@ export function renderDealModal(deal){
     if(_tc[deal.id]){
       h+=renderSmartleadThread(deal.id, _tc[deal.id]);
     } else {
-      h+=`<button id="sl-thread-btn-${esc(deal.id)}" class="sl-thread-btn" onclick="event.stopPropagation();var _b=this;_b.disabled=true;_b.innerHTML='Loading...';loadSmartleadThread('${esc(deal.id)}').then(function(){_b.style.display='none'})">
+      h+=`<button id="sl-thread-btn-${esc(deal.id)}" class="sl-thread-btn" onclick="event.stopPropagation();var _b=this;_b.disabled=true;_b.innerHTML='Loading...';loadSmartleadThread('${esc(deal.id)}').then(function(ok){if(ok)_b.style.display='none'})">
         ${svgIcon('mail',14)} View Email Thread
       </button>`;
     }

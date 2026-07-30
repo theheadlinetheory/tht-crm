@@ -11,20 +11,24 @@ let slThreadCache = {};
 
 export async function loadSmartleadThread(dealId) {
   const deal=state.deals.find(d=>d.id===dealId);
-  if(!deal||!deal.slLeadId||!deal.slCampaignId){ resetThreadBtn(dealId,'No SmartLead data'); return; }
-  if(slThreadCache[dealId]) return;
+  if(!deal||!deal.slLeadId||!deal.slCampaignId){ resetThreadBtn(dealId,'No SmartLead data'); return false; }
+  if(slThreadCache[dealId]) return true;
   try {
     const resp=await apiPost('get_smartlead_thread',{slLeadId:deal.slLeadId,slCampaignId:deal.slCampaignId});
     const messages=resp?.messages||resp;
     if(Array.isArray(messages) && messages.length){
       slThreadCache[dealId]=messages;
       refreshModal();
-    } else {
-      resetThreadBtn(dealId,'No thread found');
+      return true;
     }
+    // Backend reached but returned no thread (e.g. {"error":"SmartLead API returned 401"})
+    console.warn('No SmartLead thread for deal', dealId, resp);
+    resetThreadBtn(dealId,'No thread found');
+    return false;
   } catch(e){
     console.warn('Failed to load SmartLead thread:', e);
     resetThreadBtn(dealId,'Failed to load thread');
+    return false;
   }
 }
 
@@ -162,6 +166,7 @@ export async function doSendToClientThread(dealId, clientName, threadId){
 }
 
 // Expose to inline HTML handlers
+window.loadSmartleadThread = loadSmartleadThread;
 window.toggleFullThread = toggleFullThread;
 window.openSendToClientPreview = openSendToClientPreview;
 window.doSendToClientThread = doSendToClientThread;
