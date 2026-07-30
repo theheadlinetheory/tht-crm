@@ -1,14 +1,14 @@
 // ═══════════════════════════════════════════════════════════
 // NURTURE — Two-bucket nurture pipeline (Not Now + Service Area Taken)
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20260729103000';
-import { render } from './render.js?v=20260729103000';
-import { sbGetRerunQueue, sbAddToRerun, sbUpdateRerunItem, sbUpdateRerunStatus, sbUpdateDeal, sbUpdateActivity, sbArchiveDeal, sbDeleteDeal, camelToSnake, normalizeRow, invokeEdgeFunction } from './api.js?v=20260729103000';
-import { esc, getToday, fmtDate, svgIcon } from './utils.js?v=20260729103000';
-import { registerActions } from './delegate.js?v=20260729103000';
-import { statCard, filterSelect, modalWrap, modalHeader, modalFooter } from './html-helpers.js?v=20260729103000';
-import { NURTURE_NOT_NOW_SEQUENCE, ACQUISITION_STAGES } from './config.js?v=20260729103000';
-import { isAdmin } from './auth.js?v=20260729103000';
+import { state, store, pendingWrites } from './app.js?v=20260730093000';
+import { render } from './render.js?v=20260730093000';
+import { sbGetRerunQueue, sbAddToRerun, sbUpdateRerunItem, sbUpdateRerunStatus, sbUpdateDeal, sbUpdateActivity, sbArchiveDeal, sbDeleteDeal, camelToSnake, normalizeRow, invokeEdgeFunction } from './api.js?v=20260730093000';
+import { esc, getToday, fmtDate, svgIcon } from './utils.js?v=20260730093000';
+import { registerActions } from './delegate.js?v=20260730093000';
+import { statCard, filterSelect, modalWrap, modalHeader, modalFooter } from './html-helpers.js?v=20260730093000';
+import { NURTURE_NOT_NOW_SEQUENCE, ACQUISITION_STAGES } from './config.js?v=20260730093000';
+import { isAdmin, getOwnerNameForDeal, getOwnerColor, loadAssignableUsers } from './auth.js?v=20260730093000';
 
 // ─── Data Loading ───
 
@@ -204,11 +204,59 @@ function getUrgencyBadge(followUpDate, today) {
   return { label: `${diffDays}d overdue`, color: '#dc2626', bg: '#fef2f2' };
 }
 
+// ─── Owner Chip ───
+
+// Colour-coded owner selector for a nurture row. Reuses the same ownerOverride
+// field and colour source as the deal modal, so a person looks identical here
+// and everywhere else in the CRM. Falls back to read-only text while the
+// assignable-user list is still loading.
+function ownerChip(deal, dealId) {
+  if (!deal) return '';
+  const name = getOwnerNameForDeal(deal);
+  const style = getOwnerColor(name);
+  // getOwnerColor returns { label, bg, fg } — not { color, border }.
+  const css = style
+    ? `background:${style.bg};color:${style.fg};border:1px solid ${style.fg}33`
+    : 'background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb';
+
+  if (!state.assignableUsers.length) {
+    return `<span style="font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;flex-shrink:0;${css}">${esc(name || 'Unassigned')}</span>`;
+  }
+
+  const opts = state.assignableUsers
+    .map(u => `<option value="${esc(u.name)}" ${name === u.name ? 'selected' : ''}>${esc(u.name)}</option>`)
+    .join('');
+  return `<select data-action="setNurtureOwner" data-deal-id="${esc(dealId)}" title="Owner"
+    style="font-size:10px;font-weight:600;padding:2px 4px;border-radius:4px;flex-shrink:0;cursor:pointer;font-family:var(--font);${css}">
+    <option value="" ${!name ? 'selected' : ''}>Unassigned</option>${opts}</select>`;
+}
+
+// Mirrors changeDealOwner in deal-modal.js — same field, same write path.
+export function setNurtureOwner(dealId, ownerName) {
+  const deal = state.deals.find(d => String(d.id) === String(dealId));
+  if (!deal) return;
+  deal.ownerOverride = ownerName;
+  render();
+  pendingWrites.value++;
+  sbUpdateDeal(dealId, camelToSnake({ ownerOverride: ownerName }))
+    .catch(e => console.error('Set nurture owner failed:', e))
+    .finally(() => { pendingWrites.value--; });
+}
+
 // ─── Due Today Banner (Acquisition Pipeline) ───
 
 export function renderDueTodayBanner() {
   const dueItems = getDueNurtureItems();
   if (!dueItems.length) return '';
+
+  // The owner picker needs assignableUsers, which loads lazily. The banner can
+  // render before any deal modal has opened, so pull the list here too. Until
+  // it arrives the chip falls back to plain text (see ownerChip below).
+  if (state.assignableUsers.length === 0 && !state._loadingAssignableUsers) {
+    state._loadingAssignableUsers = true;
+    loadAssignableUsers().then(() => { state._loadingAssignableUsers = false; render(); })
+      .catch(() => { state._loadingAssignableUsers = false; });
+  }
 
   const today = getToday();
   let h = `<div class="nurture-banner" style="margin:8px 16px;padding:10px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px">
@@ -231,6 +279,7 @@ export function renderDueTodayBanner() {
       <span style="font-size:10px;font-weight:700;color:${urgencyColor};min-width:60px">${esc(urgencyLabel)}</span>
       <span style="font-weight:600;font-size:11px;min-width:120px;cursor:pointer" data-action="openNurtureDeal" data-id="${esc(item.dealId)}">${esc(item.dealName || 'Unknown')}</span>
       <span style="font-size:10px;color:var(--text-muted);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(nextTask)}</span>
+      ${ownerChip(deal, item.dealId)}
       <div style="display:flex;gap:3px;flex-shrink:0">
         ${phone ? `<a href="tel:${esc(phone)}" class="btn" style="font-size:10px;padding:2px 6px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;text-decoration:none;display:inline-flex;align-items:center;gap:2px" title="Call ${esc(phone)}">${svgIcon('phone', 10)} Call</a>` : ''}
         <button class="btn" style="font-size:10px;padding:2px 6px;background:#ecfdf5;color:#059669;border:1px solid #a7f3d0;display:inline-flex;align-items:center;gap:2px" data-action="completeNurtureActivity" data-deal-id="${esc(item.dealId)}" title="Complete">${svgIcon('check', 10)} Done</button>
@@ -460,6 +509,11 @@ export function renderSnoozeModal(nurtureId, dealId) {
 // ─── Event Delegation Handlers ───
 
 registerActions({
+  // Owner picker on the nurture banner (fires on change, not click)
+  setNurtureOwner(el) {
+    setNurtureOwner(el.dataset.dealId, el.value);
+  },
+
   // Filters
   nurtureFilterCampaign(el) {
     state.nurtureFilterCampaign = el.value;
