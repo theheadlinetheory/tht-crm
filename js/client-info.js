@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // CLIENT-INFO — Client data, thread IDs, lookup functions
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, deletedClientIds } from './app.js?v=20260730093000';
-import { CLIENT_PALETTE } from './config.js?v=20260730093000';
-import { render } from './render.js?v=20260730093000';
-import { str, uid, esc, isValidDate, getToday, svgIcon } from './utils.js?v=20260730093000';
-import { sbCreateClient, sbDeleteClient, camelToSnake, supabase } from './api.js?v=20260730093000';
-import { isAdmin } from './auth.js?v=20260730093000';
+import { state, store, pendingWrites, deletedClientIds } from './app.js?v=20260730221127';
+import { CLIENT_PALETTE } from './config.js?v=20260730221127';
+import { render } from './render.js?v=20260730221127';
+import { str, uid, esc, isValidDate, getToday, svgIcon } from './utils.js?v=20260730221127';
+import { sbCreateClient, sbDeleteClient, camelToSnake, supabase } from './api.js?v=20260730221127';
+import { isAdmin } from './auth.js?v=20260730221127';
 
 // ─── Derive campaign keyword from client name ───
 const SKIP_PREFIXES = /^(the|a|an)\s+/i;
@@ -73,6 +73,21 @@ export function getWarmCallQA(clientName){
   return qa;
 }
 
+// A keyword only counts when it lands on a word boundary. A bare `includes` let
+// GM Landscaping's 2-char keyword "gm" match INSIDE "non GMaps", so every lead
+// from "Timesavers … non GMaps Housing leads Tampa FL" and "LawnValue … non
+// GMaps Leads Nashville TN" auto-assigned to GM Landscaping.
+function keywordHitsCampaign(campaign, kw){
+  let i=campaign.indexOf(kw);
+  while(i!==-1){
+    const before=i>0?campaign[i-1]:' ';
+    const after=campaign[i+kw.length]||' ';
+    if(!/[a-z0-9]/.test(before) && !/[a-z0-9]/.test(after)) return true;
+    i=campaign.indexOf(kw,i+1);
+  }
+  return false;
+}
+
 export function findClientForDeal(deal){
   if(deal.pipeline==='Client' && deal.stage){
     const stageClient=state.clients.find(c=>c.name===deal.stage);
@@ -80,13 +95,17 @@ export function findClientForDeal(deal){
   }
   const cn=str(deal.campaignName).toLowerCase();
   if(!cn) return null;
+  // Longest matching keyword wins — NOT whichever client comes first. state.clients
+  // is loaded with a plain select('*') and has no stable order, so first-match-wins
+  // made an ambiguous campaign resolve to a different client run to run.
+  let best=null, bestLen=0;
   for(const c of state.clients){
     const keywords=(str(c.campaignKeywords)+','+str(c.campaignName)).toLowerCase().split(',').map(k=>k.trim()).filter(k=>k);
     for(const kw of keywords){
-      if(cn.includes(kw)) return c;
+      if(kw.length>bestLen && keywordHitsCampaign(cn,kw)){ best=c; bestLen=kw.length; }
     }
   }
-  return null;
+  return best;
 }
 
 export function buildServiceAreaUrl(mapUrl, address){
