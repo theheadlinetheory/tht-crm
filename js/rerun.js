@@ -1,14 +1,14 @@
 // ═══════════════════════════════════════════════════════════
 // NURTURE — Two-bucket nurture pipeline (Not Now + Service Area Taken)
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20260730221127';
-import { render } from './render.js?v=20260730221127';
-import { sbGetRerunQueue, sbAddToRerun, sbUpdateRerunItem, sbUpdateRerunStatus, sbUpdateDeal, sbUpdateActivity, sbArchiveDeal, sbDeleteDeal, camelToSnake, normalizeRow, invokeEdgeFunction } from './api.js?v=20260730221127';
-import { esc, getToday, fmtDate, svgIcon } from './utils.js?v=20260730221127';
-import { registerActions } from './delegate.js?v=20260730221127';
-import { statCard, filterSelect, modalWrap, modalHeader, modalFooter } from './html-helpers.js?v=20260730221127';
-import { NURTURE_NOT_NOW_SEQUENCE, ACQUISITION_STAGES } from './config.js?v=20260730221127';
-import { isAdmin, getOwnerNameForDeal, getOwnerColor, loadAssignableUsers } from './auth.js?v=20260730221127';
+import { state, store, pendingWrites } from './app.js?v=20260730101500';
+import { render } from './render.js?v=20260730101500';
+import { sbGetRerunQueue, sbAddToRerun, sbUpdateRerunItem, sbUpdateRerunStatus, sbUpdateDeal, sbUpdateActivity, sbArchiveDeal, sbDeleteDeal, camelToSnake, normalizeRow, invokeEdgeFunction } from './api.js?v=20260730101500';
+import { esc, getToday, fmtDate, svgIcon } from './utils.js?v=20260730101500';
+import { registerActions } from './delegate.js?v=20260730101500';
+import { statCard, filterSelect, modalWrap, modalHeader, modalFooter } from './html-helpers.js?v=20260730101500';
+import { NURTURE_NOT_NOW_SEQUENCE, ACQUISITION_STAGES } from './config.js?v=20260730101500';
+import { isAdmin, getOwnerNameForDeal, getOwnerColor, loadAssignableUsers } from './auth.js?v=20260730101500';
 
 // ─── Data Loading ───
 
@@ -74,7 +74,7 @@ export async function updateNurtureStatus(id, newStatus) {
   finally { pendingWrites.value--; }
 }
 
-export async function addToNurture(dealId, bucket, followUpDate, note) {
+export async function addToNurture(dealId, bucket, followUpDate, note, blockedByClient) {
   const deal = state.deals.find(d => String(d.id) === String(dealId));
   if (!deal) return null;
 
@@ -85,6 +85,7 @@ export async function addToNurture(dealId, bucket, followUpDate, note) {
     existing.bucket = bucket;
     existing.followUpDate = followUpDate || '';
     existing.notes = note || '';
+    existing.blockedByClient = blockedByClient || '';
     existing.status = 'active';
     render();
     pendingWrites.value++;
@@ -93,6 +94,7 @@ export async function addToNurture(dealId, bucket, followUpDate, note) {
         bucket,
         followUpDate: followUpDate || null,
         notes: note || '',
+        blockedByClient: blockedByClient || null,
         status: 'active'
       }));
     } finally { pendingWrites.value--; }
@@ -112,6 +114,7 @@ export async function addToNurture(dealId, bucket, followUpDate, note) {
     bucket,
     followUpDate: followUpDate || null,
     notes: note || '',
+    blockedByClient: blockedByClient || null,
     status: 'active'
   };
 
@@ -202,6 +205,39 @@ function getUrgencyBadge(followUpDate, today) {
   const diffDays = Math.floor((new Date(today) - new Date(followUp)) / 86400000);
   if (diffDays <= 3) return { label: `${diffDays}d overdue`, color: '#ea580c', bg: '#fff7ed' };
   return { label: `${diffDays}d overdue`, color: '#dc2626', bg: '#fef2f2' };
+}
+
+// ─── Blocked-by Client (Service Area Taken) ───
+
+// Which client's service area is blocking this lead. Editable inline so the
+// existing backlog can be filled in while working the list. When that client
+// is inactive the area has freed up, so the lead is reactivatable now — that
+// is the whole point of recording it.
+function blockedByCell(r) {
+  const current = r.blockedByClient || '';
+  const client = state.clients.find(c => String(c.name) === String(current));
+  const churned = client && String(client.status) === 'inactive';
+  const opts = [...state.clients]
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)))
+    .map(c => `<option value="${esc(c.name)}" ${current === c.name ? 'selected' : ''}>${esc(c.name)}${String(c.status) === 'inactive' ? ' (churned)' : ''}</option>`)
+    .join('');
+  const badge = churned
+    ? `<div style="font-size:9px;font-weight:700;color:#dc2626;margin-top:2px">AREA FREED — reactivate</div>`
+    : '';
+  return `<select data-action="setBlockedByClient" data-id="${esc(r.id)}"
+    style="font-size:11px;padding:2px 4px;border:1px solid var(--border);border-radius:4px;font-family:var(--font);max-width:150px;${churned ? 'border-color:#dc2626;color:#dc2626;font-weight:600' : ''}">
+    <option value="">— not set —</option>${opts}</select>${badge}`;
+}
+
+export function setBlockedByClient(rerunId, clientName) {
+  const item = state.rerunQueue.find(r => String(r.id) === String(rerunId));
+  if (!item) return;
+  item.blockedByClient = clientName;
+  render();
+  pendingWrites.value++;
+  sbUpdateRerunItem(rerunId, camelToSnake({ blockedByClient: clientName || null }))
+    .catch(e => console.error('Set blocked-by client failed:', e))
+    .finally(() => { pendingWrites.value--; });
 }
 
 // ─── Owner Chip ───
@@ -373,7 +409,7 @@ export function renderNurtureTab() {
       h += `<table class="rerun-table">
         <thead><tr>
           <th style="width:30px"><input type="checkbox" data-action="toggleAllSAT" ${allSelected ? 'checked' : ''}></th>
-          <th>Company</th><th>Contact</th><th>Campaign / Market</th><th>Date Added</th><th>Note</th><th></th>
+          <th>Company</th><th>Contact</th><th>Blocked by</th><th>Date Added</th><th>Note</th><th></th>
         </tr></thead><tbody>`;
 
       for (const r of satItems) {
@@ -382,7 +418,7 @@ export function renderNurtureTab() {
           <td><input type="checkbox" data-action="toggleSATSelect" data-id="${esc(r.id)}" ${checked ? 'checked' : ''}></td>
           <td style="font-weight:600;cursor:pointer" data-action="openNurtureDeal" data-id="${esc(r.dealId)}">${esc(r.dealName || r.company || '')}</td>
           <td style="color:var(--text-muted)">${esc(r.email || '')}</td>
-          <td>${esc(r.campaignName || '')}</td>
+          <td>${blockedByCell(r)}</td>
           <td style="color:var(--text-muted)">${esc(r.queuedAt ? fmtDate(r.queuedAt.split('T')[0]) : '-')}</td>
           <td style="color:var(--text-muted);font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.notes || '')}">${esc(r.notes || '')}</td>
           <td style="white-space:nowrap">
@@ -444,6 +480,15 @@ export function renderNurtureEntryModal(dealId) {
         <option value="not_now" ${selectedBucket === 'not_now' ? 'selected' : ''}>Not Now</option>
         <option value="service_area_taken" ${selectedBucket === 'service_area_taken' ? 'selected' : ''}>Service Area Taken</option>
       </select>
+    </div>
+
+    <div id="nurture-blocked-row" style="margin-bottom:12px;${showDate ? 'display:none' : ''}">
+      <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Blocked by</label>
+      <select id="nurture-blocked-by" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+        <option value="">Which client's area? (optional)</option>
+        ${[...state.clients].sort((a,b)=>String(a.name).localeCompare(String(b.name))).map(c=>`<option value="${esc(c.name)}">${esc(c.name)}${String(c.status)==='inactive'?' (churned)':''}</option>`).join('')}
+      </select>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:4px">Recording this is what lets the lead resurface when that client leaves.</div>
     </div>
 
     <div id="nurture-date-row" style="margin-bottom:12px;${showDate ? '' : 'display:none'}">
@@ -509,6 +554,11 @@ export function renderSnoozeModal(nurtureId, dealId) {
 // ─── Event Delegation Handlers ───
 
 registerActions({
+  // Blocked-by client picker on the Service Area Taken table
+  setBlockedByClient(el) {
+    setBlockedByClient(el.dataset.id, el.value);
+  },
+
   // Owner picker on the nurture banner (fires on change, not click)
   setNurtureOwner(el) {
     setNurtureOwner(el.dataset.dealId, el.value);
@@ -529,6 +579,8 @@ registerActions({
     state._nurtureEntryBucket = el.value;
     const dateRow = document.getElementById('nurture-date-row');
     if (dateRow) dateRow.style.display = el.value === 'not_now' ? '' : 'none';
+    const blockedRow = document.getElementById('nurture-blocked-row');
+    if (blockedRow) blockedRow.style.display = el.value === 'service_area_taken' ? '' : 'none';
   },
 
   // Nurture entry modal
@@ -554,6 +606,8 @@ registerActions({
     const followUpDate = bucket === 'not_now' && dateEl ? dateEl.value : '';
     const reasonEl = document.getElementById('nurture-reason');
     const reason = reasonEl ? reasonEl.value : '';
+    const blockedEl = document.getElementById('nurture-blocked-by');
+    const blockedByClient = bucket === 'service_area_taken' && blockedEl ? blockedEl.value : '';
     const noteEl = document.getElementById('nurture-note');
     const noteText = noteEl ? noteEl.value : '';
     const note = [reason, noteText].filter(Boolean).join(' — ');
@@ -581,7 +635,7 @@ registerActions({
       }
 
       clearDealActivities(id);
-      await addToNurture(id, bucket, followUpDate, note);
+      await addToNurture(id, bucket, followUpDate, note, blockedByClient);
 
       if (bucket === 'not_now' && followUpDate) {
         createNurtureSequence(id, followUpDate);
