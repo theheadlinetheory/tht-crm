@@ -11,16 +11,16 @@
 // /sequence-analytics endpoint the Weekly Updates tab uses, so the two tabs
 // can never report different numbers for the same week.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260801024812';
-import { render } from './render.js?v=20260801024812';
-import { esc, str } from './utils.js?v=20260801024812';
-import { isAdmin } from './auth.js?v=20260801024812';
-import { showToast, invokeEdgeFunction } from './api.js?v=20260801024812';
+import { state } from './app.js?v=20260801034132';
+import { render } from './render.js?v=20260801034132';
+import { esc, str } from './utils.js?v=20260801034132';
+import { isAdmin } from './auth.js?v=20260801034132';
+import { showToast } from './api.js?v=20260801034132';
 import {
   currentWeekKey, weekLabel, shiftWeeks, ymd, weekStartOf,
   getWeeklyKpiStatus, getPpmClients, getRetainerClients,
   PPM_WEEKLY_TARGET, RETAINER_WEEKLY_TARGET,
-} from './dashboard.js?v=20260801024812';
+} from './dashboard.js?v=20260801034132';
 
 // Lives on the fulfillment-dashboard Supabase project (verify_jwt=false),
 // same as the Weekly Updates stats proxy.
@@ -195,14 +195,27 @@ export async function runAnalysis() {
       .filter(t => t.client);
 
     // 2. Which campaigns belong to them? DRAFTED campaigns have never sent.
-    const campaigns = await invokeEdgeFunction('list-campaigns', {});
+    // NOTE: the CRM's own `list-campaigns` edge function is NOT usable here —
+    // it returns only acquisition campaigns (it backs Settings → Acquisition
+    // Campaign Assignments), so every client campaign is missing from it. The
+    // fulfillment proxy returns the full Smartlead account list.
+    const campResp = await fetch(STATS_PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'list_campaigns' }),
+    });
+    const campPayload = await campResp.json().catch(() => ({ error: `Campaign list returned a non-JSON response (${campResp.status})` }));
     if (stale()) return;
+    if (!campResp.ok || campPayload.error) throw new Error(campPayload.error || `Campaign list failed (${campResp.status})`);
+    const campaigns = campPayload.data;
     if (!Array.isArray(campaigns)) throw new Error('Could not load the campaign list from Smartlead.');
 
     const owned = [];
+    let considered = 0;
     for (const camp of campaigns) {
       if (String(camp.status || '').toUpperCase() === 'DRAFTED') continue;
       if (/acquisi?tion/i.test(camp.name || '')) continue; // our own outreach, not a client's
+      considered++;
       const owner = matchClientForCampaign(camp.name, targetClients.map(t => t.client));
       if (!owner) continue;
       const t = targetClients.find(x => x.client.name === owner.name);
@@ -212,7 +225,9 @@ export async function runAnalysis() {
     if (!owned.length) {
       a.step = 'done';
       a.rows = [];
-      a.errors.push('No campaigns matched these clients. Check Settings → Clients → campaign keywords.');
+      // Say what was actually searched — "no match" reads identically whether
+      // the keywords are wrong or the campaign list came back the wrong shape.
+      a.errors.push(`None of the ${considered} client campaigns in Smartlead (${campaigns.length} total) matched ${targetClients.length} client${targetClients.length === 1 ? '' : 's'}: ${targetClients.map(t => t.client.name).join(', ')}. Check Settings → Clients → campaign keywords.`);
       render();
       return;
     }
