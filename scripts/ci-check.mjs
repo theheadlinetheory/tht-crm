@@ -71,6 +71,11 @@ const REQUIRED_FEATURES = [
   // for as long as this mapping was missing — normalizeRow left the column as
   // date_passed, so entry.datePassed was undefined everywhere.
   { file: 'api.js',            needle: "date_passed: 'datePassed'", feature: 'Retainer Leads: date_passed → datePassed field mapping' },
+  // Analysis tab (why a client missed their weekly KPI)
+  { file: 'render.js',         needle: "clientLeadsSubTab='analysis'", feature: 'Client Leads: Analysis tab button' },
+  { file: 'render.js',         needle: "clSubTab === 'analysis'",      feature: 'Client Leads: Analysis render dispatch' },
+  { file: 'analysis.js',       needle: 'export function renderAnalysis', feature: 'Analysis: module entrypoint' },
+  { file: 'analysis.js',       needle: "action: 'client_week_breakdown'", feature: 'Analysis: weekly Smartlead breakdown pull' },
 ];
 console.log('2. Feature inventory …');
 const fileCache = {};

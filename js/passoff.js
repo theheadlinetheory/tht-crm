@@ -2,11 +2,11 @@
 // PASSOFF — Passoff instructions generator + transcript polling
 // ═══════════════════════════════════════════════════════════
 
-import { state, pendingWrites } from './app.js?v=20260731043710';
-import { invokeEdgeFunction, sbUpdateDeal } from './api.js?v=20260731043710';
-import { esc, str } from './utils.js?v=20260731043710';
-import { refreshModal } from './render.js?v=20260731043710';
-import { isAdmin, isEmployee } from './auth.js?v=20260731043710';
+import { state, pendingWrites } from './app.js?v=20260801024812';
+import { invokeEdgeFunction, sbUpdateDeal } from './api.js?v=20260801024812';
+import { esc, str } from './utils.js?v=20260801024812';
+import { refreshModal } from './render.js?v=20260801024812';
+import { isAdmin, isEmployee } from './auth.js?v=20260801024812';
 
 // ─── Transcript Polling ───
 
