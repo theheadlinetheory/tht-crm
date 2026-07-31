@@ -11,16 +11,16 @@
 // /sequence-analytics endpoint the Weekly Updates tab uses, so the two tabs
 // can never report different numbers for the same week.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260801034132';
-import { render } from './render.js?v=20260801034132';
-import { esc, str } from './utils.js?v=20260801034132';
-import { isAdmin } from './auth.js?v=20260801034132';
-import { showToast } from './api.js?v=20260801034132';
+import { state } from './app.js?v=20260801034620';
+import { render } from './render.js?v=20260801034620';
+import { esc, str } from './utils.js?v=20260801034620';
+import { isAdmin } from './auth.js?v=20260801034620';
+import { showToast } from './api.js?v=20260801034620';
 import {
   currentWeekKey, weekLabel, shiftWeeks, ymd, weekStartOf,
   getWeeklyKpiStatus, getPpmClients, getRetainerClients,
   PPM_WEEKLY_TARGET, RETAINER_WEEKLY_TARGET,
-} from './dashboard.js?v=20260801034132';
+} from './dashboard.js?v=20260801034620';
 
 // Lives on the fulfillment-dashboard Supabase project (verify_jwt=false),
 // same as the Weekly Updates stats proxy.
@@ -162,6 +162,30 @@ export function matchClientForCampaign(campaignName, clients) {
   return best;
 }
 
+// One call to the stats proxy. Smartlead's 600/min cap is shared with the
+// dashboard's cache-sync crons, which burst around :00/:30, so a collision is
+// routine rather than exceptional — retry once after the window clears before
+// giving up. Same treatment the Weekly Updates tab gives its stats pull.
+async function proxyCall(body, label, onRetry) {
+  const attempt = async () => {
+    const resp = await fetch(STATS_PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const payload = await resp.json().catch(() => ({ error: `${label} returned a non-JSON response (${resp.status})` }));
+    if (!resp.ok || payload.error) throw new Error(payload.error || `${label} failed (${resp.status})`);
+    return payload;
+  };
+  try {
+    return await attempt();
+  } catch (e) {
+    if (onRetry) onRetry(e);
+    await new Promise(r => setTimeout(r, 20000));
+    return attempt();
+  }
+}
+
 // ─── Run the analysis ────────────────────────────────────────
 export async function runAnalysis() {
   const a = getA();
@@ -199,14 +223,11 @@ export async function runAnalysis() {
     // it returns only acquisition campaigns (it backs Settings → Acquisition
     // Campaign Assignments), so every client campaign is missing from it. The
     // fulfillment proxy returns the full Smartlead account list.
-    const campResp = await fetch(STATS_PROXY_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'list_campaigns' }),
+    const campPayload = await proxyCall({ action: 'list_campaigns' }, 'Campaign list', () => {
+      a.progress = 'Smartlead rate-limit collision — retrying in 20s…';
+      render();
     });
-    const campPayload = await campResp.json().catch(() => ({ error: `Campaign list returned a non-JSON response (${campResp.status})` }));
     if (stale()) return;
-    if (!campResp.ok || campPayload.error) throw new Error(campPayload.error || `Campaign list failed (${campResp.status})`);
     const campaigns = campPayload.data;
     if (!Array.isArray(campaigns)) throw new Error('Could not load the campaign list from Smartlead.');
 
@@ -236,19 +257,16 @@ export async function runAnalysis() {
     a.progress = `Pulling Smartlead stats for ${owned.length} campaign${owned.length === 1 ? '' : 's'}… (up to a minute)`;
     render();
 
-    const resp = await fetch(STATS_PROXY_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'client_week_breakdown',
-        campaign_ids: owned.map(c => Number(c.id)),
-        start_date: start,
-        end_date: end,
-      }),
+    const payload = await proxyCall({
+      action: 'client_week_breakdown',
+      campaign_ids: owned.map(c => Number(c.id)),
+      start_date: start,
+      end_date: end,
+    }, 'Stats pull', () => {
+      a.progress = 'Smartlead rate-limit collision — retrying in 20s…';
+      render();
     });
-    const payload = await resp.json().catch(() => ({ error: `Stats proxy returned a non-JSON response (${resp.status})` }));
     if (stale()) return;
-    if (!resp.ok || payload.error) throw new Error(payload.error || `Stats fetch failed (${resp.status})`);
 
     const byId = {};
     for (const row of (payload.data || [])) byId[String(row.id)] = row;
@@ -298,13 +316,7 @@ export async function loadCopy(campaignId, campaignName) {
   a.copy = { campaignId, campaignName, loading: true, sequences: null, error: '' };
   render();
   try {
-    const resp = await fetch(STATS_PROXY_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'get_sequences', campaign_id: Number(campaignId) }),
-    });
-    const payload = await resp.json().catch(() => ({ error: `Proxy returned a non-JSON response (${resp.status})` }));
-    if (!resp.ok || payload.error) throw new Error(payload.error || `Copy fetch failed (${resp.status})`);
+    const payload = await proxyCall({ action: 'get_sequences', campaign_id: Number(campaignId) }, 'Copy fetch');
     const seqs = payload.data?.data ?? payload.data ?? [];
     if (!a.copy || a.copy.campaignId !== campaignId) return; // user moved on
     a.copy.sequences = Array.isArray(seqs) ? seqs : [];
