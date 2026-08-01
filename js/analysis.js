@@ -11,16 +11,16 @@
 // /sequence-analytics endpoint the Weekly Updates tab uses, so the two tabs
 // can never report different numbers for the same week.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260801034620';
-import { render } from './render.js?v=20260801034620';
-import { esc, str } from './utils.js?v=20260801034620';
-import { isAdmin } from './auth.js?v=20260801034620';
-import { showToast } from './api.js?v=20260801034620';
+import { state } from './app.js?v=20260801052828';
+import { render } from './render.js?v=20260801052828';
+import { esc, str } from './utils.js?v=20260801052828';
+import { isAdmin } from './auth.js?v=20260801052828';
+import { showToast } from './api.js?v=20260801052828';
 import {
   currentWeekKey, weekLabel, shiftWeeks, ymd, weekStartOf,
   getWeeklyKpiStatus, getPpmClients, getRetainerClients,
   PPM_WEEKLY_TARGET, RETAINER_WEEKLY_TARGET,
-} from './dashboard.js?v=20260801034620';
+} from './dashboard.js?v=20260801052828';
 
 // Lives on the fulfillment-dashboard Supabase project (verify_jwt=false),
 // same as the Weekly Updates stats proxy.
@@ -35,9 +35,70 @@ const POSITIVE_CATEGORIES = new Set(['Interested', 'Meeting Request', 'Informati
 
 function getA() {
   if (!state.analysis) {
-    state.analysis = { step: 'idle', week: null, rows: [], errors: [], progress: '', scope: 'missed', copy: null, showDormant: false };
+    state.analysis = { step: 'idle', week: null, rows: [], errors: [], progress: '', scope: 'missed', copy: null, showDormant: false, hydratedKey: null, pulledAt: null };
   }
   return state.analysis;
+}
+
+// ─── Run cache (localStorage) ────────────────────────────────
+// A run costs a minute of live Smartlead calls, so losing it to a closed tab,
+// a reload, or the deploy auto-reload means paying that again. Completed runs
+// are cached per week + scope and restored on the way back in; the header
+// shows how old the restored numbers are, with Refresh to re-pull.
+const RUNS_KEY = 'tht_analysis_runs';
+const MAX_CACHED_RUNS = 6;
+const runKey = (week, scope) => `${week}|${scope}`;
+
+function readRuns() {
+  try { return JSON.parse(localStorage.getItem(RUNS_KEY) || '{}') || {}; }
+  catch { return {}; }
+}
+
+function saveRun(week, scope, rows, errors) {
+  try {
+    const runs = readRuns();
+    runs[runKey(week, scope)] = { at: new Date().toISOString(), rows, errors };
+    // Keep only the newest few so a season of weekly runs can't fill the quota.
+    const keys = Object.keys(runs).sort((a, b) => new Date(runs[b].at) - new Date(runs[a].at));
+    const trimmed = {};
+    for (const k of keys.slice(0, MAX_CACHED_RUNS)) trimmed[k] = runs[k];
+    localStorage.setItem(RUNS_KEY, JSON.stringify(trimmed));
+  } catch (e) {
+    // Quota or serialize failure is non-fatal — the tab still holds the live run.
+    console.warn('Could not cache the analysis run:', e);
+  }
+}
+
+// Pull a cached run into state when the tab is opened on a week/scope we've
+// already analysed. Guarded by hydratedKey so it runs once per key, not on
+// every render.
+function hydrate(a, week) {
+  const key = runKey(week, a.scope);
+  if (a.hydratedKey === key) return;
+  a.hydratedKey = key;
+  if (a.step === 'loading') return;
+  const cached = readRuns()[key];
+  if (cached && Array.isArray(cached.rows) && cached.rows.length) {
+    a.rows = cached.rows;
+    a.errors = cached.errors || [];
+    a.pulledAt = cached.at;
+    a.step = 'done';
+  } else {
+    a.rows = [];
+    a.errors = [];
+    a.pulledAt = null;
+    a.step = 'idle';
+  }
+}
+
+function agoLabel(iso) {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} hour${hrs === 1 ? '' : 's'} ago`;
+  const days = Math.round(hrs / 24);
+  return `${days} day${days === 1 ? '' : 's'} ago`;
 }
 
 // Most of a client's campaigns are paused or finished and sent nothing this
@@ -286,6 +347,8 @@ export async function runAnalysis() {
         status: c.status,
         ...parsed,
         sent: Number(b.sent) || 0,
+        firstTouch: Number(b.first_touch_sent) || 0,
+        followUp: Number(b.follow_up_sent) || 0,
         replies: Number(b.replies) || 0,
         positives: Number(b.positives) || 0,
         bounces: Number(b.bounces) || 0,
@@ -302,6 +365,9 @@ export async function runAnalysis() {
 
     a.step = 'done';
     a.progress = '';
+    a.pulledAt = new Date().toISOString();
+    a.hydratedKey = runKey(week, a.scope);
+    saveRun(week, a.scope, a.rows, a.errors);
   } catch (e) {
     if (stale()) return;
     a.step = 'idle';
@@ -417,6 +483,7 @@ const TD = 'padding:4px 8px;font-size:12px;border:1px solid #e2e5e9;white-space:
 export function renderAnalysis() {
   const a = getA();
   const week = selectedWeek();
+  hydrate(a, week); // restore a previous run for this week/scope, if there is one
   const { start, end } = weekBounds(week);
   const thisWeek = currentWeekKey();
   const weeks = [];
@@ -446,7 +513,7 @@ export function renderAnalysis() {
         <option value="missed" ${a.scope === 'missed' ? 'selected' : ''}>Clients below KPI (${missed.length})</option>
         <option value="all" ${a.scope === 'all' ? 'selected' : ''}>All active clients (${kpi.ppm.length + kpi.retainer.length})</option>
       </select>
-      <button class="btn btn-primary" style="font-size:11px;padding:5px 14px" onclick="analysisRun()" ${a.step === 'loading' ? 'disabled' : ''}>${a.step === 'loading' ? 'Pulling…' : 'Run analysis'}</button>
+      <button class="btn btn-primary" style="font-size:11px;padding:5px 14px" onclick="analysisRun()" ${a.step === 'loading' ? 'disabled' : ''}>${a.step === 'loading' ? 'Pulling…' : a.rows.length ? 'Refresh' : 'Run analysis'}</button>
       ${a.rows.length ? `<button class="btn btn-ghost" style="font-size:11px;padding:5px 12px" onclick="analysisExportCsv()" title="Exports every matched campaign, including ones that sent nothing">Export CSV (${a.rows.length})</button>` : ''}
     </div>
   </div>`;
@@ -489,11 +556,12 @@ export function renderAnalysis() {
 
   h += `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--text-muted);padding:0 0 6px">
     <span>${rows.length} campaign${rows.length === 1 ? '' : 's'} across ${clientCount} client${clientCount === 1 ? '' : 's'} · week of ${esc(weekLabel(week))} (${esc(start)} → ${esc(end)}, America/New_York)</span>
+    ${a.pulledAt ? `<span style="background:#f3f4f6;padding:1px 8px;border-radius:999px;font-weight:600" title="Saved in this browser — reopening the tab restores it instead of re-pulling. Hit Refresh for live numbers.">Pulled ${esc(agoLabel(a.pulledAt))}</span>` : ''}
     ${hidden ? `<button class="btn btn-ghost" style="font-size:10px;padding:2px 8px" onclick="analysisToggleDormant()">Show ${hidden} campaign${hidden === 1 ? '' : 's'} that sent nothing</button>`
       : a.showDormant ? `<button class="btn btn-ghost" style="font-size:10px;padding:2px 8px" onclick="analysisToggleDormant()">Hide campaigns that sent nothing</button>` : ''}
   </div>`;
 
-  h += `<div class="tracker-table-wrap"><table class="tracker-table" style="min-width:1800px">
+  h += `<div class="tracker-table-wrap"><table class="tracker-table" style="min-width:2060px">
     <thead><tr>
       <th style="${TH}">Client</th>
       <th style="${TH}">Type</th>
@@ -504,6 +572,8 @@ export function renderAnalysis() {
       <th style="${TH}">Data source</th>
       <th style="${TH}">DM type</th>
       <th style="${TH};text-align:right">Emails sent</th>
+      <th style="${TH};text-align:right" title="Sequence step 1 — the first email to a lead">New leads</th>
+      <th style="${TH};text-align:right" title="Sequence steps 2+ — follow-ups to leads already emailed">Follow-ups</th>
       <th style="${TH}">Days sending</th>
       <th style="${TH};text-align:right">Total replies</th>
       <th style="${TH};text-align:right">Reply rate</th>
@@ -524,6 +594,8 @@ export function renderAnalysis() {
       const clientRows = a.rows.filter(x => x.clientName === r.clientName);
       const t = {
         sent: clientRows.reduce((s, x) => s + x.sent, 0),
+        firstTouch: clientRows.reduce((s, x) => s + (x.firstTouch || 0), 0),
+        followUp: clientRows.reduce((s, x) => s + (x.followUp || 0), 0),
         replies: clientRows.reduce((s, x) => s + x.replies, 0),
         positives: clientRows.reduce((s, x) => s + x.positives, 0),
         bounces: clientRows.reduce((s, x) => s + x.bounces, 0),
@@ -539,6 +611,8 @@ export function renderAnalysis() {
           <span style="font-size:11px;color:var(--text-muted);margin-left:8px">${clientRows.length} campaign${clientRows.length === 1 ? '' : 's'}</span>
         </td>
         <td style="${TD};text-align:right;font-weight:800">${t.sent.toLocaleString()}</td>
+        <td style="${TD};text-align:right;font-weight:700">${t.firstTouch.toLocaleString()}<span style="color:var(--text-muted);font-weight:400;font-size:10px"> ${fmtPct(t.firstTouch, t.sent, 0)}</span></td>
+        <td style="${TD};text-align:right;font-weight:700">${t.followUp.toLocaleString()}<span style="color:var(--text-muted);font-weight:400;font-size:10px"> ${fmtPct(t.followUp, t.sent, 0)}</span></td>
         <td style="${TD};font-weight:700">${days.size}/${r.daysInRange} days</td>
         <td style="${TD};text-align:right;font-weight:800">${t.replies}</td>
         <td style="${TD};text-align:right;font-weight:700">${fmtPct(t.replies, t.sent)}</td>
@@ -565,6 +639,8 @@ export function renderAnalysis() {
       <td style="${TD}">${esc(r.dataSource)}</td>
       <td style="${TD};font-size:11px;color:var(--text-muted)">${esc(r.dmType)}</td>
       <td style="${TD};text-align:right;font-weight:600">${r.sent.toLocaleString()}</td>
+      <td style="${TD};text-align:right">${(r.firstTouch || 0).toLocaleString()}<span style="color:var(--text-muted);font-size:10px"> ${fmtPct(r.firstTouch || 0, r.sent, 0)}</span></td>
+      <td style="${TD};text-align:right">${(r.followUp || 0).toLocaleString()}<span style="color:var(--text-muted);font-size:10px"> ${fmtPct(r.followUp || 0, r.sent, 0)}</span></td>
       <td style="${TD};color:${r.sendingDays === 0 ? '#b91c1c' : r.sendingDays <= 2 ? '#b45309' : 'inherit'};font-weight:${r.sendingDays <= 2 ? '700' : '400'}">${r.sendingDays}/${r.daysInRange}${dayStrip(r)}</td>
       <td style="${TD};text-align:right">${r.replies}</td>
       <td style="${TD};text-align:right;color:var(--text-muted)">${fmtPct(r.replies, r.sent)}</td>
@@ -585,7 +661,8 @@ export function renderAnalysis() {
 
 // ─── CSV export ──────────────────────────────────────────────
 const CSV_HEADERS = ['Client', 'Type', 'KPI actual', 'KPI target', 'Campaign', 'Smartlead URL', 'Status',
-  'Industry', 'Data source', 'DM type', 'Emails sent', 'Days sending', 'Days in week', 'Per-day sends',
+  'Industry', 'Data source', 'DM type', 'Emails sent', 'New leads (step 1)', 'Follow-ups (step 2+)',
+  'New lead %', 'Days sending', 'Days in week', 'Per-day sends',
   'Total replies', 'Reply rate %', 'Positive replies', 'Positive per send %', 'Bounces', 'Bounce rate %',
   'Reply categories'];
 
@@ -605,6 +682,9 @@ export function buildCsv(rows) {
       r.status,
       r.industry, r.dataSource, r.dmType,
       r.sent,
+      r.firstTouch || 0,
+      r.followUp || 0,
+      r.sent ? ((r.firstTouch || 0) / r.sent * 100).toFixed(1) : '',
       r.sendingDays, r.daysInRange,
       r.daily.map(d => `${d.date}:${d.sent}`).join(' '),
       r.replies,
@@ -621,8 +701,10 @@ export function buildCsv(rows) {
 
 // ─── Window handlers ─────────────────────────────────────────
 window.analysisRun = () => runAnalysis();
-window.analysisSetWeek = (w) => { const a = getA(); a.week = w; a.step = 'idle'; a.rows = []; a.errors = []; render(); };
-window.analysisSetScope = (s) => { const a = getA(); a.scope = s; a.step = 'idle'; a.rows = []; a.errors = []; render(); };
+// Switching week or scope re-hydrates from the cache for that key, so flipping
+// between two already-analysed weeks is instant instead of two fresh pulls.
+window.analysisSetWeek = (w) => { const a = getA(); a.week = w; a.hydratedKey = null; render(); };
+window.analysisSetScope = (s) => { const a = getA(); a.scope = s; a.hydratedKey = null; render(); };
 window.analysisToggleDormant = () => { const a = getA(); a.showDormant = !a.showDormant; render(); };
 window.analysisShowCopy = (id, name) => loadCopy(id, name);
 window.analysisCloseCopy = () => { getA().copy = null; render(); };
