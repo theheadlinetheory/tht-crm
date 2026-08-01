@@ -46,9 +46,14 @@ console.log(`   checked ${jsFiles.length} files`);
 // stable structural anchors for whole features/tabs — not cosmetic strings.
 const REQUIRED_FEATURES = [
   // Client Leads sub-tabs + the Weekly Updates feature (the one that got deleted)
-  { file: 'render.js',         needle: "clientLeadsSubTab='pipeline'",       feature: 'Client Leads: Pipeline tab' },
-  { file: 'render.js',         needle: "clientLeadsSubTab='lead_tracker'",   feature: 'Client Leads: Lead Tracker tab' },
-  { file: 'render.js',         needle: "clientLeadsSubTab='weekly_updates'", feature: 'Client Leads: Weekly Updates tab button' },
+  // The sub-tab buttons route through switchClientLeadsTab(), which also writes
+  // the URL hash so the tab survives a reload — don't go back to setting
+  // state.clientLeadsSubTab inline.
+  { file: 'render.js',         needle: "switchClientLeadsTab('pipeline')",       feature: 'Client Leads: Pipeline tab' },
+  { file: 'render.js',         needle: "switchClientLeadsTab('lead_tracker')",   feature: 'Client Leads: Lead Tracker tab' },
+  { file: 'render.js',         needle: "switchClientLeadsTab('weekly_updates')", feature: 'Client Leads: Weekly Updates tab button' },
+  { file: 'render.js',         needle: "location.hash = tab === 'pipeline' ? 'client_leads'", feature: 'Client Leads: sub-tab mirrored into the URL' },
+  { file: 'state.js',          needle: "parts[0] === 'client_leads' && parts[1]", feature: 'Client Leads: sub-tab restored from the URL on load' },
   { file: 'render.js',         needle: "clSubTab === 'weekly_updates'",      feature: 'Client Leads: Weekly Updates render dispatch' },
   { file: 'weekly-updates.js', needle: 'export function renderWeeklyUpdates', feature: 'Weekly Updates: module entrypoint' },
   { file: 'weekly-updates.js', needle: 'window.weeklyPrepare',               feature: 'Weekly Updates: Prepare handler wired to window' },
@@ -72,8 +77,13 @@ const REQUIRED_FEATURES = [
   // date_passed, so entry.datePassed was undefined everywhere.
   { file: 'api.js',            needle: "date_passed: 'datePassed'", feature: 'Retainer Leads: date_passed → datePassed field mapping' },
   // Analysis tab (why a client missed their weekly KPI)
-  { file: 'render.js',         needle: "clientLeadsSubTab='analysis'", feature: 'Client Leads: Analysis tab button' },
-  { file: 'render.js',         needle: "clSubTab === 'analysis'",      feature: 'Client Leads: Analysis render dispatch' },
+  { file: 'render.js',         needle: "switchClientLeadsTab('analysis')", feature: 'Client Leads: Analysis tab button' },
+  { file: 'render.js',         needle: "clSubTab === 'analysis'",          feature: 'Client Leads: Analysis render dispatch' },
+  // A throw in renderAnalysis must stay inside the tab: render() is one big
+  // try/catch, so an unguarded throw aborts before app.innerHTML is assigned
+  // and silently leaves the previous screen up.
+  { file: 'render.js',         needle: "Analysis render failed",           feature: 'Analysis: render failure contained inside the tab' },
+  { file: 'analysis.js',       needle: 'function normalizeRow',            feature: 'Analysis: cached rows coerced to the current shape' },
   { file: 'analysis.js',       needle: 'export function renderAnalysis', feature: 'Analysis: module entrypoint' },
   { file: 'analysis.js',       needle: "action: 'client_week_breakdown'", feature: 'Analysis: weekly Smartlead breakdown pull' },
 ];

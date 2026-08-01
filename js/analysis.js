@@ -11,16 +11,16 @@
 // /sequence-analytics endpoint the Weekly Updates tab uses, so the two tabs
 // can never report different numbers for the same week.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260801052828';
-import { render } from './render.js?v=20260801052828';
-import { esc, str } from './utils.js?v=20260801052828';
-import { isAdmin } from './auth.js?v=20260801052828';
-import { showToast } from './api.js?v=20260801052828';
+import { state } from './app.js?v=20260801054521';
+import { render } from './render.js?v=20260801054521';
+import { esc, str } from './utils.js?v=20260801054521';
+import { isAdmin } from './auth.js?v=20260801054521';
+import { showToast } from './api.js?v=20260801054521';
 import {
   currentWeekKey, weekLabel, shiftWeeks, ymd, weekStartOf,
   getWeeklyKpiStatus, getPpmClients, getRetainerClients,
   PPM_WEEKLY_TARGET, RETAINER_WEEKLY_TARGET,
-} from './dashboard.js?v=20260801052828';
+} from './dashboard.js?v=20260801054521';
 
 // Lives on the fulfillment-dashboard Supabase project (verify_jwt=false),
 // same as the Weekly Updates stats proxy.
@@ -54,6 +54,37 @@ function readRuns() {
   catch { return {}; }
 }
 
+// A cached run outlives the code that wrote it: a deploy that adds a column
+// leaves rows in localStorage without it, and reading `.daily.forEach` on one
+// of those throws — which aborts the whole render and leaves the previous
+// screen up. Every row is coerced back to the current shape on the way in, so
+// an older (or hand-corrupted) cache degrades to blanks instead of breaking
+// the tab.
+function normalizeRow(r) {
+  return {
+    ...r,
+    clientName: str(r && r.clientName),
+    campaignName: str(r && r.campaignName),
+    industry: str(r && r.industry) || '—',
+    dataSource: str(r && r.dataSource) || '—',
+    dmType: str(r && r.dmType) || '—',
+    sent: Number(r && r.sent) || 0,
+    firstTouch: Number(r && r.firstTouch) || 0,
+    followUp: Number(r && r.followUp) || 0,
+    replies: Number(r && r.replies) || 0,
+    positives: Number(r && r.positives) || 0,
+    bounces: Number(r && r.bounces) || 0,
+    daily: (Array.isArray(r && r.daily) ? r.daily : [])
+      .filter(d => d && typeof d === 'object')
+      .map(d => ({ date: str(d.date), sent: Number(d.sent) || 0, replies: Number(d.replies) || 0, bounces: Number(d.bounces) || 0 })),
+    sendingDays: Number(r && r.sendingDays) || 0,
+    daysInRange: Number(r && r.daysInRange) || 7,
+    categories: (r && r.categories && typeof r.categories === 'object') ? r.categories : {},
+    kpiTarget: Number(r && r.kpiTarget) || 0,
+    kpiActual: Number(r && r.kpiActual) || 0,
+  };
+}
+
 function saveRun(week, scope, rows, errors) {
   try {
     const runs = readRuns();
@@ -79,8 +110,8 @@ function hydrate(a, week) {
   if (a.step === 'loading') return;
   const cached = readRuns()[key];
   if (cached && Array.isArray(cached.rows) && cached.rows.length) {
-    a.rows = cached.rows;
-    a.errors = cached.errors || [];
+    a.rows = cached.rows.map(normalizeRow);
+    a.errors = Array.isArray(cached.errors) ? cached.errors : [];
     a.pulledAt = cached.at;
     a.step = 'done';
   } else {
@@ -459,9 +490,10 @@ const pct = (n, d) => (d > 0 ? (n / d * 100) : 0);
 const fmtPct = (n, d, digits = 2) => (d > 0 ? `${(n / d * 100).toFixed(digits)}%` : '—');
 
 function dayStrip(row) {
-  if (!row.daily.length) return '';
-  const max = Math.max(...row.daily.map(d => d.sent), 1);
-  return `<span style="display:inline-flex;gap:2px;margin-left:6px;vertical-align:middle">${row.daily.map(d => {
+  const daily = (row && Array.isArray(row.daily)) ? row.daily : [];
+  if (!daily.length) return '';
+  const max = Math.max(...daily.map(d => d.sent), 1);
+  return `<span style="display:inline-flex;gap:2px;margin-left:6px;vertical-align:middle">${daily.map(d => {
     const h = d.sent > 0 ? Math.max(4, Math.round(d.sent / max * 14)) : 2;
     const bg = d.sent > 0 ? '#6366f1' : '#e5e7eb';
     return `<span title="${esc(d.date)}: ${d.sent} sent, ${d.replies} replies, ${d.bounces} bounced" style="display:inline-block;width:5px;height:${h}px;background:${bg};border-radius:1px"></span>`;
@@ -469,7 +501,7 @@ function dayStrip(row) {
 }
 
 function categoryChips(categories) {
-  const entries = Object.entries(categories).sort((a, b) => b[1] - a[1]);
+  const entries = Object.entries(categories || {}).sort((a, b) => b[1] - a[1]);
   if (!entries.length) return '<span style="color:var(--text-muted)">—</span>';
   return entries.map(([cat, n]) => {
     const good = POSITIVE_CATEGORIES.has(cat);
@@ -601,7 +633,7 @@ export function renderAnalysis() {
         bounces: clientRows.reduce((s, x) => s + x.bounces, 0),
       };
       const days = new Set();
-      clientRows.forEach(x => x.daily.forEach(d => { if (d.sent > 0) days.add(d.date); }));
+      clientRows.forEach(x => (x.daily || []).forEach(d => { if (d && d.sent > 0) days.add(d.date); }));
       const client = state.clients.find(c => c.name === r.clientName);
       h += `<tr style="background:#f5f3ff">
         <td style="${TD};font-weight:800" colspan="8">
@@ -705,6 +737,13 @@ window.analysisRun = () => runAnalysis();
 // between two already-analysed weeks is instant instead of two fresh pulls.
 window.analysisSetWeek = (w) => { const a = getA(); a.week = w; a.hydratedKey = null; render(); };
 window.analysisSetScope = (s) => { const a = getA(); a.scope = s; a.hydratedKey = null; render(); };
+// Escape hatch behind the in-tab error panel: bin every cached run and the
+// in-memory state so a bad payload can't keep breaking the tab on every visit.
+window.analysisReset = () => {
+  try { localStorage.removeItem(RUNS_KEY); } catch (e) { /* nothing to clear */ }
+  state.analysis = null;
+  render();
+};
 window.analysisToggleDormant = () => { const a = getA(); a.showDormant = !a.showDormant; render(); };
 window.analysisShowCopy = (id, name) => loadCopy(id, name);
 window.analysisCloseCopy = () => { getA().copy = null; render(); };
