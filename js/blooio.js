@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // BLOOIO — In-CRM texting via Blooio API (thread viewer + send)
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20260803145856';
-import { showToast, sbCreateActivity, sbUpdateDeal, camelToSnake } from './api.js?v=20260803145856';
-import { uid, getToday, esc, applyTemplate } from './utils.js?v=20260803145856';
-import { refreshModal } from './render.js?v=20260803145856';
-import { BLOOIO_BASE_URL, BLOOIO_API_KEY, SEQUENCE_TEMPLATES, CLIENT_LEAD_TEMPLATES, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260803145856';
-import { findClientForDeal } from './client-info.js?v=20260803145856';
+import { state, pendingWrites } from './app.js?v=20260803163104';
+import { showToast, sbCreateActivity, sbUpdateDeal, camelToSnake } from './api.js?v=20260803163104';
+import { uid, getToday, esc, applyTemplate } from './utils.js?v=20260803163104';
+import { refreshModal } from './render.js?v=20260803163104';
+import { BLOOIO_BASE_URL, BLOOIO_API_KEY, SEQUENCE_TEMPLATES, CLIENT_LEAD_TEMPLATES, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260803163104';
+import { findClientForDeal } from './client-info.js?v=20260803163104';
 
 let cachedFromNumber = null;
 
@@ -17,7 +17,7 @@ function formatE164(phone){
   return '+' + digits;
 }
 
-function formatDisplay(phone){
+export function formatDisplay(phone){
   const digits = String(phone).replace(/\D/g, '');
   if(digits.length === 10) return '(' + digits.slice(0,3) + ') ' + digits.slice(3,6) + '-' + digits.slice(6);
   if(digits.length === 11 && digits[0] === '1') return '(' + digits.slice(1,4) + ') ' + digits.slice(4,7) + '-' + digits.slice(7);
@@ -85,7 +85,7 @@ async function fetchThread(phone){
   }
 }
 
-async function sendBlooioText(phone, message){
+export async function sendBlooioText(phone, message){
   const e164 = formatE164(phone);
   const encoded = encodeURIComponent(e164);
   const fromNumber = await getFromNumber();

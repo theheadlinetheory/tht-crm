@@ -11,10 +11,10 @@
 //   CCs are ALSO editable here, on the idle checklist and on review rows.
 //   Lars's signature appended. The Client Info sheet is NOT used.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260803145856';
-import { render } from './render.js?v=20260803145856';
-import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20260803145856';
-import { esc, str, svgIcon } from './utils.js?v=20260803145856';
+import { state } from './app.js?v=20260803163104';
+import { render } from './render.js?v=20260803163104';
+import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20260803163104';
+import { esc, str, svgIcon } from './utils.js?v=20260803163104';
 
 // Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';

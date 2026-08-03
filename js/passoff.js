@@ -2,11 +2,11 @@
 // PASSOFF — Passoff instructions generator + transcript polling
 // ═══════════════════════════════════════════════════════════
 
-import { state, pendingWrites } from './app.js?v=20260803145856';
-import { invokeEdgeFunction, sbUpdateDeal } from './api.js?v=20260803145856';
-import { esc, str } from './utils.js?v=20260803145856';
-import { refreshModal } from './render.js?v=20260803145856';
-import { isAdmin, isEmployee } from './auth.js?v=20260803145856';
+import { state, pendingWrites } from './app.js?v=20260803163104';
+import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20260803163104';
+import { esc, str } from './utils.js?v=20260803163104';
+import { refreshModal } from './render.js?v=20260803163104';
+import { isAdmin, isEmployee } from './auth.js?v=20260803163104';
 
 // ─── Transcript Polling ───
 
@@ -98,7 +98,7 @@ function savePassoffText(dealId, text) {
   clearTimeout(passoffSaveTimer);
   passoffSaveTimer = setTimeout(() => {
     pendingWrites.value++;
-    sbUpdateDeal(dealId, { passoffInstructions: text })
+    sbUpdateDeal(dealId, camelToSnake({ passoffInstructions: text }))
       .finally(() => { pendingWrites.value--; });
   }, 1500);
 }
@@ -122,7 +122,7 @@ async function sendPassoffToClient(dealId, clientName) {
 
     deal.passoffSentAt = new Date().toISOString();
     pendingWrites.value++;
-    sbUpdateDeal(dealId, { passoffSentAt: deal.passoffSentAt })
+    sbUpdateDeal(dealId, camelToSnake({ passoffSentAt: deal.passoffSentAt }))
       .finally(() => { pendingWrites.value--; });
 
     if (state.selectedDeal === dealId) refreshModal();

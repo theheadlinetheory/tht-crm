@@ -2,16 +2,17 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260803145856';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260803145856';
-import { render } from './render.js?v=20260803145856';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20260803145856';
-import { renderRoutingRules } from './routing-rules.js?v=20260803145856';
-import { esc, str, svgIcon } from './utils.js?v=20260803145856';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20260803145856';
-import { lookupClientInfo } from './client-info.js?v=20260803145856';
-import { findPolygonForClient } from './maps.js?v=20260803145856';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260803145856';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260803163104';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260803163104';
+import { render } from './render.js?v=20260803163104';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20260803163104';
+import { renderRoutingRules } from './routing-rules.js?v=20260803163104';
+import { esc, str, svgIcon } from './utils.js?v=20260803163104';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20260803163104';
+import { lookupClientInfo } from './client-info.js?v=20260803163104';
+import { findPolygonForClient } from './maps.js?v=20260803163104';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260803163104';
+import { DEFAULT_BOOKING_SMS_TEMPLATE } from './booking-sms.js?v=20260803163104';
 
 export function getDefaultSettings(){
   return {
@@ -35,6 +36,7 @@ export function openSettings(defaultTab){
   }
   if(state.savedSettings?.instructions_template) draft.instructions_template = state.savedSettings.instructions_template;
   if(state.savedSettings?.delivery_template) draft.delivery_template = state.savedSettings.delivery_template;
+  if(state.savedSettings?.booking_sms_template) draft.booking_sms_template = state.savedSettings.booking_sms_template;
   if(state.savedSettings?.sequence_templates?.length) draft.sequence_templates = JSON.parse(JSON.stringify(state.savedSettings.sequence_templates));
   else draft.sequence_templates = JSON.parse(JSON.stringify(SEQUENCE_TEMPLATES));
   setSettingsDraft(draft);
@@ -108,6 +110,8 @@ function buildClientUpdate(c) {
     enableTracker:str(c.enableTracker),
     enablePassoff:str(c.enablePassoff),
     enableCrmLink:str(c.enableCrmLink),
+    smsEnabled:str(c.smsEnabled ?? ''),
+    notifyPhone:str(c.notifyPhone ?? ''),
     hasInboxMgmt:str(c.hasInboxMgmt),
     leadCost:str(c.leadCost),
     setupFeeTotal:str(c.setupFeeTotal ?? ''),
@@ -293,7 +297,7 @@ export function refreshSettingsBody(){
       window._dialerFieldsLoaded = true;
       supabase.from('crm_settings').select('value').eq('key','dialer_default_fields').single()
         .then(({ data }) => { window._dialerDefaultFields = data?.value ? JSON.parse(data.value) : []; refreshSettingsBody(); });
-      import('./number-health.js?v=20260803145856').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
+      import('./number-health.js?v=20260803163104').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
     }
     h=renderDialerSettings();
   }
@@ -542,6 +546,9 @@ function renderClientsSettings(){
         <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid ${isOn('enableCrmLink')?'#0891b2':'var(--border)'};border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableCrmLink')?'#ecfeff':'var(--card)'}">
           <input type="checkbox" ${isOn('enableCrmLink')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableCrmLink',this.checked)"> ${svgIcon('link',12)} CRM Link in Email
         </label>
+        <label title="Shows a 'Text Client' button on booked deals. Texts go to the Notify Phone below." style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid ${isOn('smsEnabled')?'#059669':'var(--border)'};border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('smsEnabled')?'#ecfdf5':'var(--card)'}">
+          <input type="checkbox" ${isOn('smsEnabled')?'checked':''} onchange="toggleClientField('${esc(c.id)}','smsEnabled',this.checked)"> ${svgIcon('message-circle',12)} Text on Booking
+        </label>
         <div style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--card)">
           ${svgIcon('clock',12)}
           <select onchange="updateClientField('${esc(c.id)}','timeZone',this.value);debouncedAutoSave()"
@@ -604,6 +611,14 @@ function renderClientsSettings(){
               <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Phone</label>
               <input type="text" placeholder="(555) 123-4567" value="${esc(str(c.clientPhone))}"
                 oninput="updateClientField('${esc(c.id)}','clientPhone',this.value)"
+                style="${inputStyle}">
+            </div>
+            <div style="flex:1">
+              <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Text Alerts Phone
+                ${isOn('smsEnabled') && !str(c.notifyPhone).trim() ? '<span style="color:#dc2626;font-weight:700" title="Text on Booking is on but there is no number to text — the button will not appear.">— required</span>' : ''}</label>
+              <input type="text" placeholder="(555) 123-4567" value="${esc(str(c.notifyPhone))}"
+                oninput="updateClientField('${esc(c.id)}','notifyPhone',this.value)"
+                title="Where booking texts go when 'Text on Booking' is on."
                 style="${inputStyle}">
             </div>
             <div style="flex:1">
@@ -1384,6 +1399,7 @@ export { DEFAULT_INSTRUCTIONS_TEMPLATE, DEFAULT_DELIVERY_TEMPLATE };
 function renderTemplatesSettings(){
   const instrTpl = settingsDraft.instructions_template || DEFAULT_INSTRUCTIONS_TEMPLATE;
   const delivTpl = settingsDraft.delivery_template || DEFAULT_DELIVERY_TEMPLATE;
+  const bookingSmsTpl = settingsDraft.booking_sms_template || DEFAULT_BOOKING_SMS_TEMPLATE;
   return `
     <div style="margin-bottom:16px;padding:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;font-size:12px;color:#166534;line-height:1.6">
       <strong>Available placeholders:</strong> {BUSINESS}, {CONTACT}, {EMAIL}, {PHONE}, {MOBILE_PHONE}, {WEBSITE}, {ADDRESS}, {JOB_TITLE}, {CLIENT_NAME}, {CLIENT_FIRST}, {MEETING_TIME}, {NOTES}
@@ -1432,6 +1448,14 @@ function renderTemplatesSettings(){
       <textarea id="tpl-delivery" rows="12" oninput="settingsDraft.delivery_template=this.value;debouncedAutoSave()"
         style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:var(--font);line-height:1.5;resize:vertical;color:var(--text);background:var(--card)">${esc(delivTpl)}</textarea>
       <button onclick="settingsDraft.delivery_template='';document.getElementById('tpl-delivery').value='';debouncedAutoSave()" style="margin-top:4px;font-size:11px;color:#6b7280;background:none;border:none;cursor:pointer;text-decoration:underline">Reset to default</button>
+    </div>
+
+    <div style="margin-bottom:20px">
+      <label style="font-size:13px;font-weight:700;color:var(--text);display:block;margin-bottom:6px">${svgIcon('message-circle',14)} Booking Text Template</label>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Pre-fills the "Text Client" message on a booked deal, for clients with "Text on Booking" enabled. Lines whose merge fields come back empty are dropped automatically.</div>
+      <textarea id="tpl-booking-sms" rows="10" oninput="settingsDraft.booking_sms_template=this.value;debouncedAutoSave()"
+        style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:var(--font);line-height:1.5;resize:vertical;color:var(--text);background:var(--card)">${esc(bookingSmsTpl)}</textarea>
+      <button onclick="settingsDraft.booking_sms_template='';document.getElementById('tpl-booking-sms').value='';debouncedAutoSave()" style="margin-top:4px;font-size:11px;color:#6b7280;background:none;border:none;cursor:pointer;text-decoration:underline">Reset to default</button>
     </div>`;
 }
 
@@ -1574,7 +1598,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260803145856');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260803163104');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);
