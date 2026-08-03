@@ -2,16 +2,16 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260801062210';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260801062210';
-import { render } from './render.js?v=20260801062210';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20260801062210';
-import { renderRoutingRules } from './routing-rules.js?v=20260801062210';
-import { esc, str, svgIcon } from './utils.js?v=20260801062210';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20260801062210';
-import { lookupClientInfo } from './client-info.js?v=20260801062210';
-import { findPolygonForClient } from './maps.js?v=20260801062210';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260801062210';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260803145856';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260803145856';
+import { render } from './render.js?v=20260803145856';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20260803145856';
+import { renderRoutingRules } from './routing-rules.js?v=20260803145856';
+import { esc, str, svgIcon } from './utils.js?v=20260803145856';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20260803145856';
+import { lookupClientInfo } from './client-info.js?v=20260803145856';
+import { findPolygonForClient } from './maps.js?v=20260803145856';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260803145856';
 
 export function getDefaultSettings(){
   return {
@@ -98,6 +98,7 @@ function buildClientUpdate(c) {
     campaignKeywords:str(c.campaignKeywords),
     contactFirstName:str(c.contactFirstName),
     contactLastName:str(c.contactLastName),
+    otherContacts:str(c.otherContacts ?? ''), // CC list for the weekly update
     clientPhone:str(c.clientPhone ?? ''),
     calendlyUrl:str(c.calendlyUrl),
     enableForward:str(c.enableForward),
@@ -292,7 +293,7 @@ export function refreshSettingsBody(){
       window._dialerFieldsLoaded = true;
       supabase.from('crm_settings').select('value').eq('key','dialer_default_fields').single()
         .then(({ data }) => { window._dialerDefaultFields = data?.value ? JSON.parse(data.value) : []; refreshSettingsBody(); });
-      import('./number-health.js?v=20260801062210').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
+      import('./number-health.js?v=20260803145856').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
     }
     h=renderDialerSettings();
   }
@@ -611,6 +612,13 @@ function renderClientsSettings(){
                 oninput="updateClientField('${esc(c.id)}','notifyEmails',this.value)"
                 style="${inputStyle}">
             </div>
+          </div>
+          <div>
+            <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Additional Contacts <span style="font-weight:400">— CC'd on the weekly update</span></label>
+            <input type="text" placeholder="e.g. ops@company.com, owner@company.com" value="${esc(str(c.otherContacts))}"
+              oninput="updateClientField('${esc(c.id)}','otherContacts',this.value)"
+              title="Comma-separated. Anyone here is CC'd on this client's weekly update email every week. aidan@ is always CC'd on top. Also editable from the Weekly Updates tab."
+              style="${inputStyle}">
           </div>
         </div>`;
       })()}
@@ -1566,7 +1574,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260801062210');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260803145856');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);

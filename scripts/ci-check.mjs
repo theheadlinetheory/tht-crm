@@ -57,6 +57,9 @@ const REQUIRED_FEATURES = [
   { file: 'render.js',         needle: "clSubTab === 'weekly_updates'",      feature: 'Client Leads: Weekly Updates render dispatch' },
   { file: 'weekly-updates.js', needle: 'export function renderWeeklyUpdates', feature: 'Weekly Updates: module entrypoint' },
   { file: 'weekly-updates.js', needle: 'window.weeklyPrepare',               feature: 'Weekly Updates: Prepare handler wired to window' },
+  // Adding an extra CC recipient must stay self-serve — it used to need a dev.
+  { file: 'weekly-updates.js', needle: 'window.weeklyClientCcChange',        feature: 'Weekly Updates: add-a-CC on the idle client checklist' },
+  { file: 'settings.js',       needle: "'otherContacts',this.value",         feature: 'Settings → Clients: Additional Contacts (weekly-update CC) field' },
   // Top-level tabs
   { file: 'render.js',         needle: "state.pipeline==='dashboard'",  feature: 'Dashboard tab' },
   { file: 'render.js',         needle: "state.pipeline==='acquisition'", feature: 'Acquisition tab' },

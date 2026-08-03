@@ -5,15 +5,16 @@
 // Send: fulfillment `weekly-update-send` edge fn — sends FROM
 //   lars@theheadlinetheory.com via Gmail on dedicated "<Client> weekly
 //   update" threads (first send starts the thread, later weeks reply into
-//   it). Recipients from the CRM DB: TO = clients.notify_email
-//   (edit in Settings → Clients → Client Contact Info), CC = aidan@ +
-//   crm_settings.weekly_update_extra_ccs (editable per client below).
+//   it). Recipients from the CRM DB: TO = clients.notify_email, CC = aidan@ +
+//   clients.other_contacts ("Additional Contacts"). Both live on the client
+//   row and are editable in Settings → Clients → Client Contact Info; the
+//   CCs are ALSO editable here, on the idle checklist and on review rows.
 //   Lars's signature appended. The Client Info sheet is NOT used.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260801062210';
-import { render } from './render.js?v=20260801062210';
-import { showToast, sbSaveSettings } from './api.js?v=20260801062210';
-import { esc, str, svgIcon } from './utils.js?v=20260801062210';
+import { state } from './app.js?v=20260803145856';
+import { render } from './render.js?v=20260803145856';
+import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20260803145856';
+import { esc, str, svgIcon } from './utils.js?v=20260803145856';
 
 // Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
@@ -326,24 +327,78 @@ export function weeklyDiscardDraft(){
   showToast('Saved draft discarded.','success');
 }
 
-// ─── Per-client CC editing (persists to crm_settings.weekly_update_extra_ccs) ───
+// ─── Additional contacts = the per-client CC list ─────────────────────────
+// Stored on the client row itself (clients.other_contacts, comma-separated),
+// the same field Settings → Clients → Client Contact Info edits. The sender
+// always adds aidan@ on top of it.
+// (Was crm_settings.weekly_update_extra_ccs, a JSON blob keyed by client NAME
+// — renaming a client orphaned its CCs and nothing surfaced that. Moved onto
+// the client row 2026-08-03 so there is one place to look and one to edit.)
+const INTERNAL_CCS = ['aidan@theheadlinetheory.com','lars@theheadlinetheory.com'];
+const ALWAYS_CC = 'aidan@theheadlinetheory.com';
+const normName = s => str(s).toLowerCase().replace(/[^a-z0-9]/g,'');
+
+// Free-typed text → the addresses we actually store. Drops our own internal
+// addresses (aidan@ is always CC'd by the sender, lars@ IS the sender), dupes,
+// and anyone already on the To line — `toLine` holds one address or several,
+// so it is compared address-by-address, not as one joined string (comparing
+// the whole string is how pdirlis@ ended up in Dallas Land Care's To AND Cc).
+export function parseExtraCcs(value, toLine){
+  const to = new Set(str(toLine).split(/[,;\s]+/).map(e=>e.trim().toLowerCase()).filter(Boolean));
+  const seen = new Set();
+  return str(value).split(/[,;\s]+/).map(e=>e.trim()).filter(e=>e.includes('@'))
+    .filter(e=>{
+      const x = e.toLowerCase();
+      if(INTERNAL_CCS.includes(x) || to.has(x) || seen.has(x)) return false;
+      seen.add(x); return true;
+    });
+}
+
+function clientByName(name){
+  const n = normName(name);
+  return (state.clients||[]).find(c=>normName(c.name)===n);
+}
+
+// Optimistic write to clients.other_contacts, reverted if Supabase rejects it.
+// state.clients is the single in-memory copy Settings autosaves from too, so
+// patching it here keeps the two screens in agreement without a refetch.
+async function saveExtraCcs(client, extras){
+  const prev = str(client.otherContacts);
+  const value = extras.join(', ');
+  if(value === prev) return true; // no-op edit (e.g. blur without a change)
+  client.otherContacts = value;
+  try{
+    await sbUpdateClient(client.id, { other_contacts: value });
+    showToast(value ? `CCs saved for ${client.name}` : `CCs cleared for ${client.name}`, 'success');
+    return true;
+  }catch(e){
+    client.otherContacts = prev;
+    showToast('CC save failed: '+str(e.message),'error');
+    return false;
+  }
+}
+
+// Review-row editor (post-Prepare). Also refreshes the row's displayed CC line
+// so it matches what the sender will actually put on the email.
 export async function weeklyCcChange(i, value){
   const w = getWeekly(); const row = w.rows[i]; if(!row) return;
-  const emails = str(value).split(/[,;\s]+/).map(e=>e.trim()).filter(e=>e.includes('@'));
-  const extras = emails.filter(e=>{
-    const x=e.toLowerCase();
-    return x!=='aidan@theheadlinetheory.com' && x!=='lars@theheadlinetheory.com' && x!==str(row.to).toLowerCase();
-  });
-  row.cc = ['aidan@theheadlinetheory.com'].concat(extras).join(', ');
+  const extras = parseExtraCcs(value, row.to);
+  row.cc = [ALWAYS_CC].concat(extras).join(', ');
   saveDraftNow(); // keep the persisted draft's recipients in sync
-  // Merge into the stored map (preserve entries for clients not in this run)
-  const map = { ...(state.savedSettings?.weekly_update_extra_ccs || {}) };
-  if(extras.length) map[row.name] = extras; else delete map[row.name];
-  try{
-    await sbSaveSettings({ weekly_update_extra_ccs: map });
-    state.savedSettings = { ...(state.savedSettings||{}), weekly_update_extra_ccs: map };
-    showToast('CCs saved for '+row.name,'success');
-  }catch(e){ showToast('CC save failed: '+e.message,'error'); }
+  const client = clientByName(row.name);
+  if(!client){ showToast(`No CRM client named "${row.name}" — CC not saved`,'error'); render(); return; }
+  await saveExtraCcs(client, extras);
+  render();
+}
+
+// Idle-checklist editor (pre-Prepare) — the one that matters, because the
+// greeting is resolved at Prepare time: a non-internal CC switches it from
+// "Hey <first name>," to "Hey Team,".
+export async function weeklyClientCcChange(clientId, value){
+  const client = (state.clients||[]).find(c=>str(c.id)===str(clientId));
+  if(!client) return;
+  await saveExtraCcs(client, parseExtraCcs(value, client.notifyEmail));
+  render();
 }
 
 // ─── Template editing ───
@@ -370,6 +425,11 @@ export function weeklyResetTemplate(){
 const card = 'background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:12px';
 const btnP = 'class="btn btn-primary"';
 const btnG = 'style="padding:7px 14px;border-radius:8px;border:1px solid var(--border);background:#f9fafb;color:#6b7280;font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer"';
+
+// esc() escapes &<> but not quotes, so it can't safely fill a quoted attribute
+// (an address typed with a stray " would break out of value="…"). Everything
+// that renders user-typed text INTO an attribute here goes through this.
+const attr = s => esc(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
 function statChip(label,val,color){
   return `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;background:${color}14;color:${color};font-size:12px;font-weight:700">${val} ${esc(label)}</span>`;
@@ -409,7 +469,7 @@ function renderRow(r,i,w){
         <div>
           <div style="font-size:14px;font-weight:700;color:var(--text)">${esc(r.name)} ${badge}</div>
           <div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            ${sendable?`<span>To: ${esc(r.to)}</span><span>·</span><span>CC:</span><input value="${esc(r.cc)}" ${w.step==='sending'?'disabled':''} onchange="weeklyCcChange(${i},this.value)" title="Comma-separated. Saved per client for future weeks. aidan@ is always included." style="font-size:11.5px;font-family:var(--font);color:var(--text-secondary);border:1px solid var(--border);border-radius:6px;padding:2px 6px;min-width:280px;flex:1;max-width:420px">`:`<span style="color:var(--red);font-weight:600">${r.previewError?esc(r.previewError):'No primary email — set it in Settings → Clients → Client Contact Info'}</span>`}
+            ${sendable?`<span>To: ${esc(r.to)}</span><span>·</span><span>CC:</span><input value="${attr(r.cc)}" ${w.step==='sending'?'disabled':''} onchange="weeklyCcChange(${i},this.value)" title="Comma-separated. Saved to this client's Additional Contacts, so it applies to every future week too. aidan@ is always included; anyone already on the To line is dropped." style="font-size:11.5px;font-family:var(--font);color:var(--text-secondary);border:1px solid var(--border);border-radius:6px;padding:2px 6px;min-width:280px;flex:1;max-width:420px">`:`<span style="color:var(--red);font-weight:600">${r.previewError?esc(r.previewError):'No primary email — set it in Settings → Clients → Client Contact Info'}</span>`}
             <span>·</span><span>${r.threadFound?'↩ replies into the weekly update thread':'✉ starts the weekly update thread'}</span>
           </div>
         </div>
@@ -449,13 +509,25 @@ function renderWeeklyClientSelect(w){
           onclick="event.preventDefault();event.stopPropagation();restoreClient('${esc(str(c.id))}')">Restore</button>`
       : `<button style="margin-left:auto;flex-shrink:0;font-size:11px;font-weight:600;color:var(--text-muted);background:none;border:none;cursor:pointer;padding:2px 4px" title="Mark inactive in the master clients table — drops out of weekly updates from now on (restorable below or in Settings → Clients)"
           onclick="event.preventDefault();event.stopPropagation();weeklyDeactivateClient('${esc(str(c.id))}')">Make inactive</button>`;
-    return `<label style="display:flex;align-items:center;gap:9px;padding:7px 2px;border-top:1px solid var(--border);cursor:pointer">
-      <input type="checkbox" ${sel.has(c.name)?'checked':''} style="width:15px;height:15px;accent-color:var(--purple);cursor:pointer"
-        onchange="weeklyToggleClient(atob('${b64(c.name)}'))">
-      <span style="font-size:13.5px;font-weight:600;color:var(--text)">${esc(c.name)}</span>
-      ${contact?`<span style="font-size:11.5px;color:var(--text-muted)">· ${esc(contact)}</span>`:''}
-      ${action}
-    </label>`;
+    // The CC input sits OUTSIDE the <label> — a text input nested inside it
+    // inherits the label's click target and fights the checkbox.
+    const ccVal = str(c.otherContacts);
+    return `<div style="border-top:1px solid var(--border)">
+      <label style="display:flex;align-items:center;gap:9px;padding:7px 2px 3px;cursor:pointer">
+        <input type="checkbox" ${sel.has(c.name)?'checked':''} style="width:15px;height:15px;accent-color:var(--purple);cursor:pointer"
+          onchange="weeklyToggleClient(atob('${b64(c.name)}'))">
+        <span style="font-size:13.5px;font-weight:600;color:var(--text)">${esc(c.name)}</span>
+        ${contact?`<span style="font-size:11.5px;color:var(--text-muted)">· ${esc(contact)}</span>`:''}
+        ${action}
+      </label>
+      <div style="display:flex;align-items:center;gap:6px;padding:0 2px 8px 24px">
+        <span style="font-size:11px;color:var(--text-muted);flex-shrink:0">CC:</span>
+        <input value="${attr(ccVal)}" placeholder="add an email to CC — saved to this client's profile"
+          onchange="weeklyClientCcChange('${attr(str(c.id))}',this.value)"
+          title="Additional Contacts for ${attr(c.name)} — CC'd on every weekly update from now on. Same field as Settings → Clients → Client Contact Info. aidan@ is always CC'd on top, and anyone already on the To line is dropped."
+          style="font-size:11px;font-family:var(--font);color:var(--text-secondary);border:1px solid var(--border);border-radius:6px;padding:3px 7px;background:var(--card);flex:1;max-width:420px">
+      </div>
+    </div>`;
   };
   let html = `<div style="${card}">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
@@ -502,8 +574,8 @@ export function renderWeeklyUpdates(){
           <div style="font-size:12.5px;color:var(--text-muted);margin-top:4px">
             Pulls last week's Smartlead stats (<strong>${esc(range.label)}</strong>, the most recent completed Saturday→Friday week) for every active client,
             fills the template, and lets you review + customize each email before sending them all at once.<br>
-            Sent from lars@theheadlinetheory.com on each client's "weekly update" thread. Recipients come from the CRM
-            (primary email in Settings → Clients → Client Contact Info; CC = aidan@ + per-client extras, editable in the review list).
+            Sent from lars@theheadlinetheory.com on each client's "weekly update" thread. Recipients come from the client's
+            profile — TO = Contact Email, CC = aidan@ + Additional Contacts. Add a CC on any client below and it sticks for every future week.
           </div>
           ${lastRun?`<div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">Last run: ${esc(str(lastRun.range))} — ${lastRun.sent||0} sent${lastRun.failed?`, ${lastRun.failed} failed`:''} (${esc(str(lastRun.sentAt).slice(0,10))})</div>`:''}
         </div>
@@ -575,6 +647,7 @@ window.weeklyDiscardDraft = weeklyDiscardDraft;
 window.weeklySaveTemplate = weeklySaveTemplate;
 window.weeklyResetTemplate = weeklyResetTemplate;
 window.weeklyCcChange = weeklyCcChange;
+window.weeklyClientCcChange = weeklyClientCcChange;
 window.weeklyToggleClient = weeklyToggleClient;
 window.weeklyDeactivateClient = weeklyDeactivateClient;
 window.weeklySelectAllClients = weeklySelectAllClients;
