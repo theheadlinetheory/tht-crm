@@ -11,17 +11,28 @@
 //   CCs are ALSO editable here, on the idle checklist and on review rows.
 //   Lars's signature appended. The Client Info sheet is NOT used.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260803163104';
-import { render } from './render.js?v=20260803163104';
-import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20260803163104';
-import { esc, str, svgIcon } from './utils.js?v=20260803163104';
+import { supabase } from './supabase-client.js?v=20260803173121';
+import { state } from './app.js?v=20260803173121';
+import { render } from './render.js?v=20260803173121';
+import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20260803173121';
+import { esc, str, svgIcon } from './utils.js?v=20260803173121';
 
 // Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
 const SEND_FN_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/weekly-update-send';
 
+// Sends the caller's Supabase session token so the edge function can prove the
+// request came from a signed-in @theheadlinetheory.com user. weekly-update-send
+// emails real clients from lars@, and its URL is in this public repo — without
+// this header anyone could POST it arbitrary copy. The function verifies the
+// token against this project's auth server before sending anything.
 async function sendFn(payload){
-  const resp = await fetch(SEND_FN_URL,{ method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
+  const { data: { session } } = await supabase.auth.getSession();
+  if(!session) throw new Error('Your session expired. Reload the page and sign in again.');
+  const resp = await fetch(SEND_FN_URL,{
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+session.access_token },
+    body: JSON.stringify(payload) });
   const data = await resp.json().catch(()=>({ error:'weekly-update-send returned a non-JSON response ('+resp.status+')' }));
   if(!resp.ok || data.error) throw new Error(data.error || ('weekly-update-send failed ('+resp.status+')'));
   return data;
