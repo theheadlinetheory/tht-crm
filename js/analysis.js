@@ -11,16 +11,16 @@
 // /sequence-analytics endpoint the Weekly Updates tab uses, so the two tabs
 // can never report different numbers for the same week.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260803173121';
-import { render } from './render.js?v=20260803173121';
-import { esc, str } from './utils.js?v=20260803173121';
-import { isAdmin } from './auth.js?v=20260803173121';
-import { showToast } from './api.js?v=20260803173121';
+import { state } from './app.js?v=20260806010537';
+import { render } from './render.js?v=20260806010537';
+import { esc, str } from './utils.js?v=20260806010537';
+import { isAdmin } from './auth.js?v=20260806010537';
+import { showToast } from './api.js?v=20260806010537';
 import {
   currentWeekKey, weekLabel, shiftWeeks, ymd, weekStartOf,
   getWeeklyKpiStatus, getPpmClients, getRetainerClients,
   PPM_WEEKLY_TARGET, RETAINER_WEEKLY_TARGET,
-} from './dashboard.js?v=20260803173121';
+} from './dashboard.js?v=20260806010537';
 
 // Lives on the fulfillment-dashboard Supabase project (verify_jwt=false),
 // same as the Weekly Updates stats proxy.
@@ -254,7 +254,8 @@ export function matchClientForCampaign(campaignName, clients) {
   return best;
 }
 
-// One call to the stats proxy. Smartlead's 600/min cap is shared with the
+// One call to the stats proxy. Smartlead's 800/min cap (we self-cap at 780 via
+// the dashboard's app_settings.smartlead_rate_limit) is shared with the
 // dashboard's cache-sync crons, which burst around :00/:30, so a collision is
 // routine rather than exceptional — retry once after the window clears before
 // giving up. Same treatment the Weekly Updates tab gives its stats pull.
