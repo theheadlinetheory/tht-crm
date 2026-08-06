@@ -376,6 +376,7 @@ export function render(){
         <button onclick="switchClientLeadsTab('pipeline')" style="${subCs};background:${clSubTab==='pipeline'?'var(--purple)':'#f3f4f6'};color:${clSubTab==='pipeline'?'#fff':'var(--text-muted)'}">Pipeline</button>
         ${isAdmin()||isEmployee()?`<button onclick="switchClientLeadsTab('lead_tracker')" style="${subCs};background:${clSubTab==='lead_tracker'?'var(--purple)':'#f3f4f6'};color:${clSubTab==='lead_tracker'?'#fff':'var(--text-muted)'}">Lead Tracker</button>`:''}
         ${isAdmin()?`<button onclick="switchClientLeadsTab('weekly_updates')" style="${subCs};background:${clSubTab==='weekly_updates'?'var(--purple)':'#f3f4f6'};color:${clSubTab==='weekly_updates'?'#fff':'var(--text-muted)'}">Weekly Updates</button>`:''}
+        ${isAdmin()?`<button onclick="switchClientLeadsTab('followups')" style="${subCs};background:${clSubTab==='followups'?'var(--purple)':'#f3f4f6'};color:${clSubTab==='followups'?'#fff':'var(--text-muted)'}">Follow-Ups</button>`:''}
         ${isAdmin()||isEmployee()?`<button onclick="switchClientLeadsTab('analysis')" style="${subCs};background:${clSubTab==='analysis'?'var(--purple)':'#f3f4f6'};color:${clSubTab==='analysis'?'#fff':'var(--text-muted)'}">Analysis</button>`:''}
       </div>
     </div>`;
@@ -417,6 +418,20 @@ export function render(){
       app.innerHTML=html;
       const newAWrap=document.querySelector('.tracker-table-wrap');
       if(newAWrap){ newAWrap.scrollTop=aTop; newAWrap.scrollLeft=aLeft; }
+      return;
+    }
+
+    if(clSubTab === 'followups' && isAdmin()){
+      if(window._followupModule){
+        html+=window._followupModule.renderFollowupReminders();
+      } else {
+        html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading follow-up reminders...</div>';
+        if(!window._followupLoading){
+          window._followupLoading=true;
+          import('./followup-reminders.js?v=20260806214630').then(m=>{ window._followupModule=m; render(); }).catch(()=>{ window._followupLoading=false; });
+        }
+      }
+      app.innerHTML=html;
       return;
     }
 
