@@ -363,6 +363,7 @@ const FIELD_MAP = {
   monthly_retainer: 'monthlyRetainer',
   retainer_currency: 'retainerCurrency',
   launch_date: 'launchDate',
+  agreement_type: 'agreementType',
   retainer_last_billed: 'retainerLastBilled',
   invoice_id: 'invoiceId',
   invoice_amount: 'invoiceAmount',

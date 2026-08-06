@@ -60,7 +60,7 @@ export const state = {
   // Mirrored in the URL (#client_leads/analysis) like acquisitionSubTab, so the
   // sub-tab survives a reload — including the automatic one a new deploy
   // triggers. Without this any reload silently dropped you back on Pipeline.
-  clientLeadsSubTab: (() => { try { const parts = location.hash.replace('#','').split('/'); if (parts[0] === 'client_leads' && parts[1]) { const valid = ['pipeline','lead_tracker','weekly_updates','followups','analysis']; return valid.includes(parts[1]) ? parts[1] : 'pipeline'; } return 'pipeline'; } catch { return 'pipeline'; } })(),
+  clientLeadsSubTab: (() => { try { const parts = location.hash.replace('#','').split('/'); if (parts[0] === 'client_leads' && parts[1]) { const valid = ['pipeline','lead_tracker','weekly_updates','monthly_updates','followups','analysis']; return valid.includes(parts[1]) ? parts[1] : 'pipeline'; } return 'pipeline'; } catch { return 'pipeline'; } })(),
   analysis: null, // Analysis tab run state — see analysis.js getA()
   assignableUsers: [],
   myDealsFilter: false,

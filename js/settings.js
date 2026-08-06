@@ -124,6 +124,7 @@ function buildClientUpdate(c) {
     monthlyRetainer:str(c.monthlyRetainer ?? ''),
     retainerCurrency:str(c.retainerCurrency||'usd'),
     launchDate:str(c.launchDate ?? ''),
+    agreementType:str(c.agreementType ?? ''), // drives the monthly update's billing wording
     clientNotes:str(c.clientNotes ?? ''),
     warmCallNotesText:str(c.warmCallNotesText ?? ''),
     passoffInstructions:str(c.passoffInstructions ?? ''),
@@ -774,7 +775,19 @@ function renderClientsSettings(){
           <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Launch Date (billing start) — leave blank for TBD</label>
           <input type="date" value="${esc(str(c.launchDate||''))}"
             onchange="updateClientField('${esc(c.id)}','launchDate',this.value);debouncedAutoSave()"
+            title="The first day their campaigns sent email. This is the billing anchor — its day-of-month is their billing day, and it's what the monthly update email reports against."
             style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+        </div>
+        <div style="margin-top:6px">
+          <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Agreement Type — sets what the monthly update email says about money</label>
+          <select onchange="updateClientField('${esc(c.id)}','agreementType',this.value);debouncedAutoSave()"
+            title="Paid up front: the email makes no mention of billing. Multi-month: auto-charged each month, the email says so. Month-to-month: gets 7/3/1-day pre-renewal warnings instead of a billing-date email."
+            style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+            ${[['prepaid','Paid up front — no billing language'],
+               ['multi_month','Multi-month — auto-charged monthly'],
+               ['month_to_month','Month-to-month — 7/3/1 day renewal warnings']]
+              .map(([v,label])=>`<option value="${v}" ${str(c.agreementType||'prepaid')===v?'selected':''}>${esc(label)}</option>`).join('')}
+          </select>
         </div>
       </div>`:''}
 

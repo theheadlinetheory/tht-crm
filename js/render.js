@@ -127,7 +127,7 @@ export function render(){
   // Defer it; a later render reconciles on blur.
   const focused = document.activeElement;
   if (focused && (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA' || focused.tagName === 'SELECT')) {
-    if (focused.dataset && focused.dataset.weeklyEdit === '1') return;
+    if (focused.dataset && (focused.dataset.weeklyEdit === '1' || focused.dataset.monthlyEdit === '1')) return;
   }
 
   // Skip background re-renders while power dialer is active (preserves scroll)
@@ -376,6 +376,7 @@ export function render(){
         <button onclick="switchClientLeadsTab('pipeline')" style="${subCs};background:${clSubTab==='pipeline'?'var(--purple)':'#f3f4f6'};color:${clSubTab==='pipeline'?'#fff':'var(--text-muted)'}">Pipeline</button>
         ${isAdmin()||isEmployee()?`<button onclick="switchClientLeadsTab('lead_tracker')" style="${subCs};background:${clSubTab==='lead_tracker'?'var(--purple)':'#f3f4f6'};color:${clSubTab==='lead_tracker'?'#fff':'var(--text-muted)'}">Lead Tracker</button>`:''}
         ${isAdmin()?`<button onclick="switchClientLeadsTab('weekly_updates')" style="${subCs};background:${clSubTab==='weekly_updates'?'var(--purple)':'#f3f4f6'};color:${clSubTab==='weekly_updates'?'#fff':'var(--text-muted)'}">Weekly Updates</button>`:''}
+        ${isAdmin()?`<button onclick="switchClientLeadsTab('monthly_updates')" style="${subCs};background:${clSubTab==='monthly_updates'?'var(--purple)':'#f3f4f6'};color:${clSubTab==='monthly_updates'?'#fff':'var(--text-muted)'}">Monthly Updates</button>`:''}
         ${isAdmin()?`<button onclick="switchClientLeadsTab('followups')" style="${subCs};background:${clSubTab==='followups'?'var(--purple)':'#f3f4f6'};color:${clSubTab==='followups'?'#fff':'var(--text-muted)'}">Follow-Ups</button>`:''}
         ${isAdmin()||isEmployee()?`<button onclick="switchClientLeadsTab('analysis')" style="${subCs};background:${clSubTab==='analysis'?'var(--purple)':'#f3f4f6'};color:${clSubTab==='analysis'?'#fff':'var(--text-muted)'}">Analysis</button>`:''}
       </div>
@@ -443,6 +444,20 @@ export function render(){
         if(!window._weeklyLoading){
           window._weeklyLoading=true;
           import('./weekly-updates.js?v=20260807034647').then(m=>{ window._weeklyModule=m; render(); }).catch(()=>{ window._weeklyLoading=false; });
+        }
+      }
+      app.innerHTML=html;
+      return;
+    }
+
+    if(clSubTab === 'monthly_updates' && isAdmin()){
+      if(window._monthlyModule){
+        html+=window._monthlyModule.renderMonthlyUpdates();
+      } else {
+        html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading monthly updates...</div>';
+        if(!window._monthlyLoading){
+          window._monthlyLoading=true;
+          import('./monthly-updates.js?v=20260806214630').then(m=>{ window._monthlyModule=m; render(); }).catch(()=>{ window._monthlyLoading=false; });
         }
       }
       app.innerHTML=html;
