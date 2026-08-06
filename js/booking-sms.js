@@ -100,9 +100,15 @@ export function renderBookingSmsButton(deal, client) {
     ? `<span style="color:#059669">${svgIcon('check', 14)} Texted ${esc(fmtDate(sentAt))} — Text Again?</span>`
     : `${svgIcon('message-circle', 14)} Text ${esc(who)} about this meeting`;
   const style = sentAt ? '' : 'background:#059669;border-color:#059669';
+  // Inline onclick, not data-action: this button lives inside the deal modal, and
+  // renderDealModal's `.modal` carries onclick="event.stopPropagation()". That kills
+  // the bubble before it reaches delegate.js's listener on document.body, so a
+  // delegated action here silently does nothing. Every other deal-modal button is
+  // inline for the same reason. The preview overlay below is appended to <body>, so
+  // its own data-action buttons are fine.
   return `<div style="margin:0 0 8px 0">
     <button class="btn ${sentAt ? 'btn-ghost' : 'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px;${style}"
-      data-action="openBookingSms" data-id="${esc(deal.id)}"
+      onclick="openBookingSmsPreview('${esc(deal.id)}')"
       title="Text ${esc(clientPhone(client))} about this booked meeting">${label}</button>
   </div>`;
 }
@@ -194,8 +200,12 @@ export async function sendBookingSms(dealId) {
   if (state.selectedDeal && str(state.selectedDeal.id) === str(deal.id)) refreshModal(true);
 }
 
+// The preview overlay is a direct child of <body>, so its buttons reach the
+// delegated listener. Only the trigger button inside the deal modal needs to be
+// reachable from an inline handler — hence the window export.
 registerActions({
-  openBookingSms(el) { openBookingSmsPreview(el.dataset.id); },
   closeBookingSms() { closeBookingSmsPreview(); },
   sendBookingSms(el) { sendBookingSms(el.dataset.id); },
 });
+
+window.openBookingSmsPreview = openBookingSmsPreview;
