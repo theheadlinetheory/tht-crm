@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // ACTIVITIES — Activity CRUD, SOP sequences, overdue tracking
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, completedActivityIds, deletedActivityIds, inFlightActivityIds } from './app.js?v=20260814054400';
-import { SOP_DAYS, CLIENT_SOP_DAYS, PRE_CALL_SEQUENCE, NO_SHOW_SEQUENCE } from './config.js?v=20260814054400';
-import { render, refreshModal } from './render.js?v=20260814054400';
-import { sbCreateActivity, sbUpdateActivity, sbDeleteActivity, camelToSnake } from './api.js?v=20260814054400';
-import { uid, getToday, isValidDate, fmtTime12 } from './utils.js?v=20260814054400';
-import { findClientForDeal } from './client-info.js?v=20260814054400';
+import { state, store, pendingWrites, completedActivityIds, deletedActivityIds, inFlightActivityIds } from './app.js?v=20260814074811';
+import { SOP_DAYS, CLIENT_SOP_DAYS, PRE_CALL_SEQUENCE, NO_SHOW_SEQUENCE } from './config.js?v=20260814074811';
+import { render, refreshModal } from './render.js?v=20260814074811';
+import { sbCreateActivity, sbUpdateActivity, sbDeleteActivity, camelToSnake } from './api.js?v=20260814074811';
+import { uid, getToday, isValidDate, fmtTime12 } from './utils.js?v=20260814074811';
+import { findClientForDeal } from './client-info.js?v=20260814074811';
 
 async function retryActivityWrite(fn, label, maxRetries=3){
   pendingWrites.value++;

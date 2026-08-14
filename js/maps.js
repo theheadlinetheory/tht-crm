@@ -7,11 +7,11 @@
 // moved to a separate data file (e.g., service_area_data.js).
 // This module provides the functions that operate on that data.
 
-import { state, pendingWrites } from './app.js?v=20260814054400';
-import { GEOCODIO_KEY, CA_PROVINCES, CA_POSTAL, CA_CITIES, detectCountry, isInternationalAddress } from './config.js?v=20260814054400';
-import { render, refreshModal } from './render.js?v=20260814054400';
-import { str, esc } from './utils.js?v=20260814054400';
-import { findClientForDeal, lookupClientInfo } from './client-info.js?v=20260814054400';
+import { state, pendingWrites } from './app.js?v=20260814074811';
+import { GEOCODIO_KEY, CA_PROVINCES, CA_POSTAL, CA_CITIES, detectCountry, isInternationalAddress } from './config.js?v=20260814074811';
+import { render, refreshModal } from './render.js?v=20260814074811';
+import { str, esc } from './utils.js?v=20260814074811';
+import { findClientForDeal, lookupClientInfo } from './client-info.js?v=20260814074811';
 
 let SERVICE_AREA_POLYGONS = {};
 let POLYGON_ALIASES = {};
@@ -25,6 +25,136 @@ export const serviceAreaResults = {};
 export let geocodeCache = {};
 const activeMapInstances = {};
 
+// ── Service-area geometry normalization ──────────────────────────────
+// A service area is a dissolved union of counties/ZIPs/FSAs, so it routinely
+// has holes — pockets inside the outer boundary that the client does NOT
+// cover. Both KML importers (settings.js uploadKml and onboarding's
+// push_service_area_to_crm.py) used to walk every <coordinates> element and
+// make each one its own top-level part, which turns a hole into a solid
+// island. Stored that way a hole paints as covered on the map AND reads as
+// "inside" in the point check, so re-nest on read — that repairs every client
+// already stored flat, and one repair feeds both the map and the check.
+//
+// Containment alone is NOT enough to call something a hole. Some areas are a
+// pile of overlapping per-city shapes that were never dissolved (Hammer
+// Excavations: 482 rings, 1421 overlapping pairs), where a small ring inside a
+// big one is a legitimate member, not a pocket. What separates the two is
+// winding order: a writer emits a hole wound opposite to its shell. So a ring
+// is a hole only when its smallest container is an outer AND winds the other
+// way — on Hammer that correctly infers zero holes instead of 428.
+//
+// Rings already nested by the source are trusted as-is; inference is only for
+// the flattened ones.
+const _polygonCache = new Map();
+
+export function invalidateServiceAreaCache(clientName){
+  if(clientName) _polygonCache.delete(clientName); else _polygonCache.clear();
+}
+
+function ringBBox(ring){
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  for(const c of ring){
+    if(c[0]<x0)x0=c[0]; if(c[0]>x1)x1=c[0];
+    if(c[1]<y0)y0=c[1]; if(c[1]>y1)y1=c[1];
+  }
+  return [x0,y0,x1,y1];
+}
+
+function ringArea(ring){
+  let sum=0;
+  for(let i=0;i<ring.length-1;i++){
+    sum += ring[i][0]*ring[i+1][1] - ring[i+1][0]*ring[i][1];
+  }
+  return Math.abs(sum)/2;
+}
+
+function pointInRing(pt, ring){
+  let inside=false;
+  for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+    const xi=ring[i][0], yi=ring[i][1], xj=ring[j][0], yj=ring[j][1];
+    if((yi>pt[1])!==(yj>pt[1]) && pt[0] < (xj-xi)*(pt[1]-yi)/(yj-yi)+xi) inside=!inside;
+  }
+  return inside;
+}
+
+// Every vertex of a true hole lies inside its shell, so sample around the ring
+// and require all of them — a ring that merely overlaps has vertices outside
+// and gets rejected on the first one. One stray miss is forgiven so a hole that
+// grazes the shell isn't lost to a sample landing on the boundary.
+const CONTAINMENT_SAMPLES = 8;
+function ringContainsRing(outer, outerBox, inner, innerBox){
+  if(innerBox[0]<outerBox[0] || innerBox[1]<outerBox[1] ||
+     innerBox[2]>outerBox[2] || innerBox[3]>outerBox[3]) return false;
+  let misses=0;
+  for(let s=0;s<CONTAINMENT_SAMPLES;s++){
+    const pt=inner[Math.floor(inner.length*s/CONTAINMENT_SAMPLES)];
+    if(!pointInRing(pt, outer) && ++misses>1) return false;
+  }
+  return true;
+}
+
+function closeRing(ring){
+  const a=ring[0], b=ring[ring.length-1];
+  return (a[0]===b[0] && a[1]===b[1]) ? ring : ring.concat([a]);
+}
+
+function isClockwise(ring){
+  let sum=0;
+  for(let i=0;i<ring.length-1;i++){
+    sum += ring[i][0]*ring[i+1][1] - ring[i+1][0]*ring[i][1];
+  }
+  return sum < 0;
+}
+
+export function normalizeServiceAreaPolygon(feature){
+  const geom = feature && feature.geometry;
+  if(!geom) return feature;
+  const parts = geom.type==='MultiPolygon' ? geom.coordinates
+              : geom.type==='Polygon'      ? [geom.coordinates]
+              : null;
+  if(!parts) return feature;
+
+  // Parts the source already nested keep their rings; only lone rings are
+  // candidates for inference.
+  const coordinates=[];
+  const loose=[];
+  for(const part of parts){
+    const valid=(part||[]).filter(r=>r && r.length>=4).map(closeRing);
+    if(!valid.length) continue;
+    if(valid.length>1) coordinates.push(valid);
+    else loose.push(valid[0]);
+  }
+  if(!coordinates.length && !loose.length) return feature;
+
+  // Largest first: a container is always bigger than what it holds, so by the
+  // time a ring is reached every possible container of it is already
+  // classified — which is what lets an island inside a hole come back out as
+  // covered rather than chaining into another hole.
+  const boxes=loose.map(ringBBox);
+  const areas=loose.map(ringArea);
+  const cw=loose.map(isClockwise);
+  const order=loose.map((_,i)=>i).sort((a,b)=>areas[b]-areas[a]);
+  const slotOf=new Map();   // ring index -> its slot in `coordinates` (outers only)
+
+  order.forEach((i,rank)=>{
+    let container=-1, smallest=Infinity;
+    for(let k=0;k<rank;k++){
+      const j=order[k];
+      if(!ringContainsRing(loose[j],boxes[j],loose[i],boxes[i])) continue;
+      if(areas[j]<smallest){ smallest=areas[j]; container=j; }
+    }
+    const isHole = container>=0 && slotOf.has(container) && cw[i]!==cw[container];
+    if(isHole) coordinates[slotOf.get(container)].push(loose[i]);
+    else { slotOf.set(i, coordinates.length); coordinates.push([loose[i]]); }
+  });
+
+  return {
+    type:'Feature',
+    properties:(feature.properties||{}),
+    geometry:{ type:'MultiPolygon', coordinates },
+  };
+}
+
 export function saveGeocodeCache(){
   try { localStorage.setItem('tht_geocodeCache', JSON.stringify(geocodeCache)); } catch(e){}
 }
@@ -34,9 +164,20 @@ try { geocodeCache = JSON.parse(localStorage.getItem('tht_geocodeCache')||'{}');
 
 export function findPolygonForClient(clientName){
   if(!clientName) return null;
+  if(_polygonCache.has(clientName)) return _polygonCache.get(clientName);
+  const found = resolvePolygonForClient(clientName);
+  // Normalize once per client — re-nesting is O(rings^2) and the biggest areas
+  // run to a few hundred rings, so don't redo it on every deal render.
+  const result = found ? { key: found.key, polygon: normalizeServiceAreaPolygon(found.polygon) } : null;
+  _polygonCache.set(clientName, result);
+  return result;
+}
+
+function resolvePolygonForClient(clientName){
   const client = state.clients.find(c => c.name === clientName);
   if(client && client.serviceAreaPolygons){
-    const p = typeof client.serviceAreaPolygons === 'string' ? JSON.parse(client.serviceAreaPolygons) : client.serviceAreaPolygons;
+    let p = client.serviceAreaPolygons;
+    if(typeof p === 'string'){ try { p = JSON.parse(p); } catch(e){ p = null; } }
     if(p && (p.geometry || p.type)) return { key: clientName, polygon: p };
   }
   const cn=clientName.toLowerCase().replace(/[^a-z0-9]/g,'');
@@ -79,15 +220,22 @@ function makePinIcon(color){
   return L.divIcon({className:'',html:`<svg width="24" height="36" viewBox="0 0 24 36"><path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" fill="${color}"/><circle cx="12" cy="12" r="5" fill="#fff"/></svg>`,iconSize:[24,36],iconAnchor:[12,36]});
 }
 
+const SERVICE_AREA_STYLE={color:'#15803d',weight:2,fillColor:'#22c55e',fillOpacity:0.3};
+
 function drawPolygonLayers(map, polygon){
   const layers=[];
   if(!polygon || !polygon.geometry) return layers;
-  const coords=polygon.geometry.type==='MultiPolygon'
-    ? polygon.geometry.coordinates.flat(1)
-    : polygon.geometry.coordinates;
-  for(const ring of coords){
-    const pl=L.polygon(ring.map(c=>[c[1],c[0]]),{color:'#22c55e',weight:2,fillColor:'#bbf7d0',fillOpacity:0.25}).addTo(map);
-    layers.push(pl);
+  const parts=polygon.geometry.type==='MultiPolygon'
+    ? polygon.geometry.coordinates
+    : [polygon.geometry.coordinates];
+  for(const part of parts){
+    // One layer per part, rings kept nested — Leaflet punches the holes out
+    // itself. Flattening them into separate layers paints every hole solid and
+    // strokes the interior boundaries, which is what made a covered area
+    // unreadable at zoom.
+    const latlngs=part.map(ring=>ring.map(c=>[c[1],c[0]]));
+    if(!latlngs.length) continue;
+    layers.push(L.polygon(latlngs, SERVICE_AREA_STYLE).addTo(map));
   }
   return layers;
 }

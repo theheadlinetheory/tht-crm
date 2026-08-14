@@ -2,17 +2,17 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260814054400';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260814054400';
-import { render } from './render.js?v=20260814054400';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20260814054400';
-import { renderRoutingRules } from './routing-rules.js?v=20260814054400';
-import { esc, str, svgIcon } from './utils.js?v=20260814054400';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20260814054400';
-import { lookupClientInfo } from './client-info.js?v=20260814054400';
-import { findPolygonForClient } from './maps.js?v=20260814054400';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260814054400';
-import { DEFAULT_BOOKING_SMS_TEMPLATE } from './booking-sms.js?v=20260814054400';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260814074811';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260814074811';
+import { render } from './render.js?v=20260814074811';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20260814074811';
+import { renderRoutingRules } from './routing-rules.js?v=20260814074811';
+import { esc, str, svgIcon } from './utils.js?v=20260814074811';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20260814074811';
+import { lookupClientInfo } from './client-info.js?v=20260814074811';
+import { findPolygonForClient, invalidateServiceAreaCache } from './maps.js?v=20260814074811';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260814074811';
+import { DEFAULT_BOOKING_SMS_TEMPLATE } from './booking-sms.js?v=20260814074811';
 
 export function getDefaultSettings(){
   return {
@@ -298,7 +298,7 @@ export function refreshSettingsBody(){
       window._dialerFieldsLoaded = true;
       supabase.from('crm_settings').select('value').eq('key','dialer_default_fields').single()
         .then(({ data }) => { window._dialerDefaultFields = data?.value ? JSON.parse(data.value) : []; refreshSettingsBody(); });
-      import('./number-health.js?v=20260814054400').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
+      import('./number-health.js?v=20260814074811').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
     }
     h=renderDialerSettings();
   }
@@ -1196,18 +1196,39 @@ export function uploadKml(clientId){
       const text=await file.text();
       const parser=new DOMParser();
       const xml=parser.parseFromString(text,'text/xml');
-      const coords=[];
-      for(const pm of xml.querySelectorAll('Placemark')){
-        const coordEls=pm.querySelectorAll('coordinates');
-        for(const ce of coordEls){
-          const raw=ce.textContent.trim();
-          const ring=raw.split(/\s+/).map(s=>{const p=s.split(',');return [parseFloat(p[0]),parseFloat(p[1])];}).filter(p=>!isNaN(p[0])&&!isNaN(p[1]));
-          if(ring.length>=3) coords.push(ring);
+      const readRing=ce=>{
+        const ring=ce.textContent.trim().split(/\s+/)
+          .map(s=>{const p=s.split(',');return [parseFloat(p[0]),parseFloat(p[1])];})
+          .filter(p=>!isNaN(p[0])&&!isNaN(p[1]));
+        return ring.length>=3?ring:null;
+      };
+      // Keep each Polygon's inner boundaries as holes. Treating every
+      // <coordinates> element as its own polygon paints a client's uncovered
+      // pockets as covered and makes them read "inside" in the area check.
+      const parts=[];
+      for(const poly of xml.querySelectorAll('Polygon')){
+        const outerEl=poly.querySelector('outerBoundaryIs coordinates');
+        const outer=outerEl&&readRing(outerEl);
+        if(!outer) continue;
+        const part=[outer];
+        for(const inner of poly.querySelectorAll('innerBoundaryIs coordinates')){
+          const hole=readRing(inner);
+          if(hole) part.push(hole);
+        }
+        parts.push(part);
+      }
+      if(!parts.length){
+        // Not a Polygon KML (or an unusual dialect) — fall back to the old
+        // every-ring read so such a file still imports.
+        for(const ce of xml.querySelectorAll('coordinates')){
+          const ring=readRing(ce);
+          if(ring) parts.push([ring]);
         }
       }
-      if(!coords.length){ showToast('No polygon coordinates found in KML file','error'); return; }
-      const polygon={type:'Feature',properties:{name:c.name},geometry:coords.length===1?{type:'Polygon',coordinates:[coords[0]]}:{type:'MultiPolygon',coordinates:coords.map(r=>[r])}};
+      if(!parts.length){ showToast('No polygon coordinates found in KML file','error'); return; }
+      const polygon={type:'Feature',properties:{name:c.name},geometry:parts.length===1?{type:'Polygon',coordinates:parts[0]}:{type:'MultiPolygon',coordinates:parts}};
       c.serviceAreaPolygons=polygon;
+      invalidateServiceAreaCache(c.name);
       pendingWrites.value++;
       try {
         await sbUpdateClient(c.id,{service_area_polygons:polygon});
@@ -1611,7 +1632,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260814054400');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260814074811');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);
