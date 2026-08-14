@@ -13,11 +13,11 @@
 //   thread (separate from the weekly thread). Recipients + Lars's signature
 //   resolve exactly as they do for the weekly update.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20260814103753';
-import { state } from './app.js?v=20260814103753';
-import { render } from './render.js?v=20260814103753';
-import { showToast, sbSaveSettings } from './api.js?v=20260814103753';
-import { esc, str, svgIcon } from './utils.js?v=20260814103753';
+import { supabase } from './supabase-client.js?v=20260815005724';
+import { state } from './app.js?v=20260815005724';
+import { render } from './render.js?v=20260815005724';
+import { showToast, sbSaveSettings } from './api.js?v=20260815005724';
+import { esc, str, svgIcon } from './utils.js?v=20260815005724';
 
 const SEND_FN_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/monthly-update-send';
 
@@ -98,6 +98,7 @@ export async function monthlyLoad(){
         id: d.id,
         name: str(d.client_name),
         monthNumber: Number(d.month_number)||0,
+        touch: Number(d.touch)||0,
         periodStart: str(d.period_start).slice(0,10),
         periodEnd: str(d.period_end).slice(0,10),
         sent: d.emails_sent, positives: d.positives, replies: d.replies,
@@ -109,7 +110,11 @@ export async function monthlyLoad(){
         include: !!str(p.to),
         dirty: false, saving:false, sendStatus:null, testStatus:null, error:''
       };
-    }).sort((a,b)=> b.periodEnd.localeCompare(a.periodEnd) || a.name.localeCompare(b.name));
+    }).sort((a,b)=>
+      // Renewal notices outrank month-in-reviews (they expire), and within
+      // them the 1-day notice is the most urgent.
+      (b.touch>0) - (a.touch>0) || a.touch - b.touch ||
+      b.periodEnd.localeCompare(a.periodEnd) || a.name.localeCompare(b.name));
     m.loaded = true;
     m.step = m.rows.length ? 'review' : 'empty';
   }catch(e){
@@ -283,7 +288,7 @@ function renderRow(r,i,m){
         <input type="checkbox" ${r.include?'checked':''} ${r.to&&m.step!=='sending'?'':'disabled'} style="width:16px;height:16px;accent-color:var(--purple);cursor:pointer"
           onchange="state.monthly.rows[${i}].include=this.checked;render()">
         <div>
-          <div style="font-size:14px;font-weight:700;color:var(--text)">${esc(r.name)} <span style="font-size:11px;font-weight:600;color:var(--purple);background:#f5f3ff;padding:2px 7px;border-radius:20px">Month ${r.monthNumber}</span> ${badge}</div>
+          <div style="font-size:14px;font-weight:700;color:var(--text)">${esc(r.name)} <span style="font-size:11px;font-weight:600;color:var(--purple);background:#f5f3ff;padding:2px 7px;border-radius:20px">Month ${r.monthNumber}</span>${r.touch>0?` <span style="font-size:11px;font-weight:700;color:#b45309;background:#fffbeb;border:1px solid #fde68a;padding:2px 7px;border-radius:20px" title="Month-to-month client: renewal notice. They are only charged once they say yes.">Renews in ${r.touch} day${r.touch===1?'':'s'}</span>`:''} ${badge}</div>
           <div style="font-size:11.5px;color:var(--text-muted);margin-top:2px">
             ${r.to?`<span>To: ${esc(r.to)}</span>${r.cc?` · <span>CC: ${esc(r.cc)}</span>`:''}`:`<span style="color:var(--red);font-weight:600">${r.previewError?esc(r.previewError):'No primary email — set it in Settings → Clients'}</span>`}
             · <span>${esc(r.periodStart)} → ${esc(r.periodEnd)}</span>
@@ -292,10 +297,10 @@ function renderRow(r,i,m){
         </div>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
-        ${statChip('sent',r.sent,'#2563eb')}${statChip('replies',r.replies,'#d97706')}${statChip('positive',r.positives,'#059669')}
+        ${r.touch===3||r.touch===1?`<span style="font-size:11.5px;color:var(--text-muted)">short nudge — no metrics by design</span>`:`${statChip('sent',r.sent,'#2563eb')}${statChip('replies',r.replies,'#d97706')}${statChip('positive',r.positives,'#059669')}`}
       </div>
     </div>
-    ${noMetrics?`<div style="margin:8px 0 0 26px;font-size:11.5px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 10px">Smartlead metrics could not be pulled for this window — the numbers show as "—" in the copy. Fill them in by hand before sending.</div>`:''}
+    ${noMetrics&&(r.touch===0||r.touch===7)?`<div style="margin:8px 0 0 26px;font-size:11.5px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 10px">Smartlead metrics could not be pulled for this window — the numbers show as "—" in the copy. Fill them in by hand before sending.</div>`:''}
     ${r.campaigns.length?`<div style="font-size:10.5px;color:var(--text-muted);margin:6px 0 0 26px">Campaigns: ${esc(r.campaigns.join(', '))}</div>`:''}
     <textarea rows="9" data-monthly-edit="1" ${m.step==='sending'?'disabled':''} style="width:100%;margin-top:10px;border:1px solid var(--border);border-radius:8px;padding:10px;font-size:13px;font-family:var(--font);resize:vertical;box-sizing:border-box"
       oninput="monthlyEdit(${i},this.value)">${esc(r.body)}</textarea>
@@ -321,8 +326,8 @@ export function renderMonthlyUpdates(){
       <div>
         <div style="font-size:16px;font-weight:800;color:var(--text)">Monthly Retainer Updates</div>
         <div style="font-size:12.5px;color:var(--text-muted);margin-top:4px">
-          A draft is built automatically on each retainer client's <strong>billing date</strong> (the day-of-month of their Launch Date in Settings → Clients → Retainer Billing),
-          covering that month's sending. Review, edit and send — <strong>nothing goes to a client until you press send here</strong>.<br>
+          Two kinds of draft land here. <strong>Month-in-review</strong> goes out on a client's billing date (the day-of-month of their Launch Date). <strong>Renewal notices</strong> go to month-to-month clients 7, 3 and 1 days before their renewal day — they're only charged once they reply, so these ask rather than tell.
+          Review, edit and send — <strong>nothing goes to a client until you press send here</strong>. If a client has already replied, hit Skip.<br>
           Sent from lars@theheadlinetheory.com on each client's "monthly update" thread. Edits save to the draft as you type.
         </div>
       </div>
