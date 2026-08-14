@@ -14,7 +14,7 @@
      per-version sessionStorage guard prevents any reload loop. -->
 <script>
 (function(){
-  window.__APP_V='20260806214630';
+  window.__APP_V='20260814054400';
   function check(){
     fetch('version.json?t='+Date.now(),{cache:'no-store'})
       .then(function(r){return r.ok?r.json():null;})
