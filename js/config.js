@@ -184,7 +184,10 @@ export const DEFAULT_CLIENT_STAGES = [
 // ─── Country Detection from Campaign Name / Location ───
 const COUNTRY_RULES = [
   { patterns: [/\baustralia\b/,/\.com\.au\b/,/\.au$/,/\b(nsw|qld|vic|tas|act|wa|nt)\s+\d{4}\b/,/\bsa\s+5\d{3}\b/,/\bnew south wales\b/,/\bqueensland\b/,/\bsydney\b/,/\bmelbourne\b/,/\bbrisbane\b/,/\bperth\b/,/\badelaide\b/,/\bcanberra\b/,/\bgold coast\b/,/\bhobart\b/,/\bdarwin\b/,/\bnewcastle nsw\b/,/\bwollongong\b/,/\bgeelong\b/,/\bcairns\b/,/\btownsville\b/,/\btoowoomba\b/], code: 'AU', flag: '\u{1F1E6}\u{1F1FA}', label: 'Australia' },
-  { patterns: [/\btoronto\b/,/\bmontreal\b/,/\bvancouver\b/,/\bcalgary\b/,/\bottawa\b/,/\bedmonton\b/,/\bwinnipeg\b/,/\bcanada\b/], code: 'CA', flag: '\u{1F1E8}\u{1F1E6}', label: 'Canada' },
+  // The postal code (A1A 1A1) and a comma-anchored province code are the two
+  // unambiguous Canadian signals — bare province codes are not usable here
+  // because this text is lowercased, and "on"/"ab"/"sk" match ordinary prose.
+  { patterns: [/\btoronto\b/,/\bmontreal\b/,/\bvancouver\b/,/\bcalgary\b/,/\bottawa\b/,/\bedmonton\b/,/\bwinnipeg\b/,/\bcanada\b/,/\b[a-z]\d[a-z]\s?\d[a-z]\d\b/,/,\s*(ab|bc|mb|nb|nl|ns|nt|nu|on|pe|qc|sk|yt)\b/], code: 'CA', flag: '\u{1F1E8}\u{1F1E6}', label: 'Canada' },
   { patterns: [/\blondon\b/,/\bmanchester\b/,/\bbirmingham\b/,/\bleeds\b/,/\bglasgow\b/,/\bunited kingdom\b/,/\bbristol\b/,/\bliverpool\b/,/\buk\b/,/\.co\.uk\b/], code: 'GB', flag: '\u{1F1EC}\u{1F1E7}', label: 'UK' },
   { patterns: [/\bauckland\b/,/\bwellington\b/,/\bchristchurch\b/,/\bnew zealand\b/,/\bnz\b/,/\.co\.nz\b/], code: 'NZ', flag: '\u{1F1F3}\u{1F1FF}', label: 'New Zealand' },
 ];
@@ -239,7 +242,12 @@ export const GEOCODIO_KEY = 'c9ca6a4ab56ca94ca65ac2c66646952d69d2d6a';
 export const GOOGLE_MAPS_API_KEY = 'AIzaSyDeVLh36Ms4R7WaHZA0mIT8fXIHylk1eKk';
 export const CA_PROVINCES = /\b(AB|BC|MB|NB|NL|NS|NT|NU|ON|PE|QC|SK|YT)\b/;
 export const CA_POSTAL = /\b[A-Za-z]\d[A-Za-z]\s?\d[A-Za-z]\d\b/;
-export const CA_CITIES = /\b(Vancouver|Toronto|Montreal|Ottawa|Calgary|Edmonton|Winnipeg|Halifax|Victoria|Surrey|Burnaby|Richmond|Mississauga|Brampton|Hamilton|Saskatoon|Regina|Kelowna|Nanaimo|Kamloops|Kitchener|Waterloo|Markham|Vaughan|Mount Albert|Quebec City)\b/i;
+// Routing hint only — decides which geocoder an address goes to, not the flag
+// shown in the UI. GTA boroughs and Metro Vancouver municipalities are here
+// because those leads often arrive with no province code at all ("601 Magnetic
+// Drive, Unit 34, North York"). Names that collide with common US cities
+// (Aurora, Cambridge, Windsor, London) are deliberately left out.
+export const CA_CITIES = /\b(Vancouver|Toronto|Montreal|Ottawa|Calgary|Edmonton|Winnipeg|Halifax|Victoria|Surrey|Burnaby|Richmond|Mississauga|Brampton|Hamilton|Saskatoon|Regina|Kelowna|Nanaimo|Kamloops|Kitchener|Waterloo|Markham|Vaughan|Mount Albert|Quebec City|North York|Scarborough|Etobicoke|East York|Woodbridge|Thornhill|Oakville|Whitby|Pickering|Oshawa|Barrie|Guelph|Niagara Falls|Abbotsford|Langley|Coquitlam|Maple Ridge|Pitt Meadows|New Westminster|Chilliwack|White Rock|Laval|Longueuil|Gatineau|Brantford)\b/i;
 
 // ─── Blooio ───
 export const BLOOIO_BASE_URL = 'https://backend.blooio.com/v2/api';

@@ -7,11 +7,11 @@
 // moved to a separate data file (e.g., service_area_data.js).
 // This module provides the functions that operate on that data.
 
-import { state, pendingWrites } from './app.js?v=20260808025240';
-import { GEOCODIO_KEY, GOOGLE_MAPS_API_KEY, CA_PROVINCES, CA_POSTAL, CA_CITIES, detectCountry, isInternationalAddress } from './config.js?v=20260808025240';
-import { render, refreshModal } from './render.js?v=20260808025240';
-import { str, esc } from './utils.js?v=20260808025240';
-import { findClientForDeal, lookupClientInfo } from './client-info.js?v=20260808025240';
+import { state, pendingWrites } from './app.js?v=20260814054400';
+import { GEOCODIO_KEY, CA_PROVINCES, CA_POSTAL, CA_CITIES, detectCountry, isInternationalAddress } from './config.js?v=20260814054400';
+import { render, refreshModal } from './render.js?v=20260814054400';
+import { str, esc } from './utils.js?v=20260814054400';
+import { findClientForDeal, lookupClientInfo } from './client-info.js?v=20260814054400';
 
 let SERVICE_AREA_POLYGONS = {};
 let POLYGON_ALIASES = {};
@@ -104,23 +104,92 @@ function enrichAddress(deal){
     }
   }
   const ctry = detectCountry(deal);
-  if(ctry.code !== 'US' && ctry.code !== 'CA'){
+  // Canada included: normalizeAddressForGeocode strips a trailing "Canada", and
+  // without it back on, a Canadian address with no province/postal code falls
+  // into the US bucket below — where Geocodio happily matches it to a US town
+  // ("100 Queen St W, Toronto, ON" → Jonestown, PA).
+  if(ctry.code !== 'US'){
     if(!addr.toLowerCase().includes(ctry.label.toLowerCase())) addr += ', ' + ctry.label;
   }
   return addr;
 }
 
+// Addresses a provider answered on but couldn't match. In-session only (not
+// persisted) so runServiceAreaChecks — which fires on every data refresh —
+// doesn't re-request the same dead address over and over.
+const geocodeFailures = new Set();
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// Progressively looser forms of an address, most precise first. A unit/suite
+// number routinely defeats an OSM geocoder ("21331 Gordon Way Unit 1120" misses,
+// "21331 Gordon Way" hits), and a lead whose street simply isn't in OSM is still
+// better off with a city-level pin than with none. Deliberately no postal-code
+// fallback — Photon fuzzy-matches those badly (V6W 1J9 → Cape Breton, NS).
+function geocodeVariants(addr){
+  const out=[addr];
+  const noUnit=addr
+    .replace(/\b(unit|suite|ste|apt|apartment|floor|fl|bldg|building|rm|room)\s*#?\s*[\w-]+/gi,'')
+    .replace(/#\s*[\w-]+/g,'')
+    .replace(/\s*,\s*,/g,',').replace(/\s{2,}/g,' ').replace(/\s+,/g,',').trim();
+  if(noUnit && noUnit !== addr) out.push(noUnit);
+  const m=addr.match(/,\s*([^,]+?),\s*([A-Za-z]{2})\b/);
+  if(m) out.push(m[1].trim()+', '+m[2]+(/\bcanada\b/i.test(addr)?', Canada':''));
+  return out;
+}
+
+// Geocodio is US-only on our plan, so Canadian and international addresses need
+// their own provider. Both of these are OSM-backed, keyless and CORS-enabled;
+// Photon leads because Nominatim's usage policy caps us at 1 request/second.
+// Returns {lat,lng} on a hit, null when a provider answered with no match, and
+// undefined when both errored (transient — worth retrying on the next refresh).
+async function geocodeOneViaOSM(addr){
+  let answered = false;
+  try {
+    const resp = await fetch('https://photon.komoot.io/api/?limit=1&q='+encodeURIComponent(addr));
+    if(resp.ok){
+      answered = true;
+      const data = await resp.json();
+      const feat = data.features && data.features[0];
+      const c = feat && feat.geometry && feat.geometry.coordinates;
+      if(c && c.length === 2) return {lat:c[1], lng:c[0]};
+    }
+  } catch(e){ console.warn('Photon geocode error for', addr, e); }
+  try {
+    await sleep(1100);
+    const resp = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(addr));
+    if(resp.ok){
+      answered = true;
+      const data = await resp.json();
+      if(Array.isArray(data) && data.length) return {lat:parseFloat(data[0].lat), lng:parseFloat(data[0].lon)};
+    }
+  } catch(e){ console.warn('Nominatim geocode error for', addr, e); }
+  return answered ? null : undefined;
+}
+
+async function geocodeViaOSM(addr){
+  for(const variant of geocodeVariants(addr)){
+    const loc = await geocodeOneViaOSM(variant);
+    if(loc) return loc;
+    if(loc === undefined) return undefined; // both providers errored — retry later
+  }
+  return null;
+}
+
 export async function batchGeocode(addresses){
   if(!addresses.length) return {};
   // Filter out already-cached
-  const toGeocode = addresses.filter(a => !geocodeCache[a]);
+  const toGeocode = addresses.filter(a => !geocodeCache[a] && !geocodeFailures.has(a));
   if(!toGeocode.length) return geocodeCache;
 
   const usAddrs = [];
   const caAddrs = [];
   const intlAddrs = [];
   for(const addr of toGeocode){
-    if(CA_PROVINCES.test(addr) || CA_POSTAL.test(addr) || CA_CITIES.test(addr)){
+    // Anchored to the end because enrichAddress appends ", Canada" — an
+    // unanchored match would claim US street names ("13727 Camino Canada,
+    // El Cajon, CA").
+    if(CA_PROVINCES.test(addr) || CA_POSTAL.test(addr) || CA_CITIES.test(addr) || /,\s*canada\s*$/i.test(addr)){
       caAddrs.push(addr);
     } else if(isInternationalAddress(addr)){
       intlAddrs.push(addr);
@@ -150,16 +219,13 @@ export async function batchGeocode(addresses){
     } catch(e){ console.warn('Geocodio batch error:', e); }
   }
 
-  // Geocode Canadian + international addresses via Google Maps Geocoding API
+  // Geocode Canadian + international addresses via OSM. This used to go through
+  // Google's Geocoding API, but billing lapsed on that Cloud project and every
+  // request came back REQUEST_DENIED — which is why Canada leads had no pin.
   for(const addr of caAddrs.concat(intlAddrs)){
-    try {
-      const resp = await fetch('https://maps.googleapis.com/maps/api/geocode/json?address='+encodeURIComponent(addr)+'&key='+GOOGLE_MAPS_API_KEY);
-      const data = await resp.json();
-      if(data.results && data.results.length){
-        const loc = data.results[0].geometry.location;
-        geocodeCache[addr]={lat:loc.lat,lng:loc.lng};
-      }
-    } catch(e){ console.warn('Google geocode error for', addr, e); }
+    const loc = await geocodeViaOSM(addr);
+    if(loc) geocodeCache[addr]=loc;
+    else if(loc === null) geocodeFailures.add(addr);
   }
 
   saveGeocodeCache();
