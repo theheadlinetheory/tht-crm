@@ -11,12 +11,12 @@
 //   CCs are ALSO editable here, on the idle checklist and on review rows.
 //   Lars's signature appended. The Client Info sheet is NOT used.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20260815165540';
-import { state } from './app.js?v=20260815165540';
-import { render } from './render.js?v=20260815165540';
-import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20260815165540';
-import { esc, str, svgIcon } from './utils.js?v=20260815165540';
-import { crmWeekContext, ctxDay, ctxSummary, ctxSection } from './weekly-context.js?v=20260815165540';
+import { supabase } from './supabase-client.js?v=20260815171948';
+import { state } from './app.js?v=20260815171948';
+import { render } from './render.js?v=20260815171948';
+import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20260815171948';
+import { esc, str, svgIcon } from './utils.js?v=20260815171948';
+import { crmWeekContext, ctxDay, ctxSummary, ctxSection } from './weekly-context.js?v=20260815171948';
 
 // Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
@@ -58,9 +58,9 @@ async function fetchRecap(range, names){
       body: JSON.stringify({ start: range.start, end: range.end, client_names: names }) });
     const data = await resp.json().catch(()=>({ error:'client-week-recap returned a non-JSON response ('+resp.status+')' }));
     if(!resp.ok || data.error) throw new Error(data.error || ('client-week-recap failed ('+resp.status+')'));
-    return { clients: data.clients || {}, errors: data.errors || [] };
+    return { clients: data.clients || {}, errors: data.errors || [], unmatched: data.unmatched || [] };
   }catch(e){
-    return { clients:{}, errors:[], failed: str(e.message) };
+    return { clients:{}, errors:[], unmatched:[], failed: str(e.message) };
   }
 }
 
@@ -267,7 +267,12 @@ export async function weeklyPrepare(){
         work: server.work || [],
         swcl: server.swcl || [],
         checkins: server.checkins || { had: [], upcoming: [] },
-        errors: recap.errors || []
+        errors: recap.errors || [],
+        // recap.unmatched lists requested CRM names client-week-recap could not
+        // resolve to a fulfillment client. On a total fetch failure (recap.failed
+        // set), fetchRecap's catch path returns unmatched:[] — so nobody gets
+        // wrongly flagged as unmatched just because the whole fetch died.
+        unmatched: (recap.unmatched || []).includes(name)
       };
       row.ctxOpen = false;
       row.body = applyWeeklyTemplate(tpl, { ...row, first: greetName, rangeLabel: range.label });
@@ -550,6 +555,13 @@ function renderCtxPanel(r,i,w){
       // The CRM-side numbers (meetings/passed, below) never depended on this
       // fetch, so they still render even when the recap fetch failed.
       body += `<div style="margin-top:8px;font-size:11.5px;color:#b45309">⚠ ${esc(w.recapError)} — the CRM-side numbers below are still accurate.</div>`;
+    }
+    if(ctx.unmatched){
+      // Distinct from a quiet week: this client has no fulfillment client
+      // record, so work/swcl/checkins were never even looked up (they're only
+      // written for resolved ids). Meetings/passed below are CRM-side and
+      // still accurate — they don't depend on the fulfillment match.
+      body += `<div style="margin-top:8px;font-size:11.5px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:6px 9px">⚠ No fulfillment record matches this client, so work, notes and check-ins could not be looked up.</div>`;
     }
     if((ctx.errors||[]).length){
       // A failed source must look different from a quiet week.

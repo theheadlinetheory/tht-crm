@@ -148,7 +148,12 @@ export function ctxSummary(ctx) {
   if (updates) parts.push(`${updates} update${updates === 1 ? '' : 's'}`);
   const next = upcoming[0];
   if (next) parts.push(`check-in ${ctxDay(next && next.date)}`);
-  return parts.length ? parts.join(' · ') : 'nothing logged this week';
+  if (parts.length) return parts.join(' · ');
+  // An unmatched client (no fulfillment client record) never had work/swcl/
+  // checkins looked up — an empty summary here means "we couldn't look", not
+  // "it was a quiet week". Say so, instead of the misleading default. Local
+  // CRM data (meetings/passed) still counts above if present, same as always.
+  return ctx.unmatched ? "couldn't match this client" : 'nothing logged this week';
 }
 
 // One labelled section of the expanded panel: a title and a list of

@@ -180,6 +180,22 @@ test('ctxSummary reads "nothing logged this week" for a completely empty ctx', (
   assert.equal(ctxSummary(empty), 'nothing logged this week');
 });
 
+// ─── ctxSummary: unmatched clients (no fulfillment client record) ─────────
+test('ctxSummary reads "couldn\'t match this client" for an unmatched, otherwise-empty ctx', () => {
+  const unmatched = { meetings: [], passed: [], work: [], swcl: [], checkins: { had: [], upcoming: [] }, errors: [], unmatched: true };
+  assert.equal(ctxSummary(unmatched), "couldn't match this client");
+});
+
+test('ctxSummary still reports real content for an unmatched ctx with local CRM data', () => {
+  // meetings/passed are computed client-side from CRM tables and don't depend
+  // on the fulfillment match — an unmatched client can still have them.
+  const ctx = {
+    meetings: [{ date: '2026-08-11', leadName: 'Acme Co', apptTime: '' }],
+    passed: [], work: [], swcl: [], checkins: { had: [], upcoming: [] }, errors: [], unmatched: true,
+  };
+  assert.equal(ctxSummary(ctx), '1 meeting booked');
+});
+
 test('ctxSummary never throws when a ctx is missing optional sub-objects', () => {
   const partials = [
     {},                                                            // completely bare
