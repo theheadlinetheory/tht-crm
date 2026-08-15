@@ -11,12 +11,12 @@
 //   CCs are ALSO editable here, on the idle checklist and on review rows.
 //   Lars's signature appended. The Client Info sheet is NOT used.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20260815164225';
-import { state } from './app.js?v=20260815164225';
-import { render } from './render.js?v=20260815164225';
-import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20260815164225';
-import { esc, str, svgIcon } from './utils.js?v=20260815164225';
-import { crmWeekContext, ctxDay, ctxSummary, ctxSection } from './weekly-context.js?v=20260815164225';
+import { supabase } from './supabase-client.js?v=20260815165540';
+import { state } from './app.js?v=20260815165540';
+import { render } from './render.js?v=20260815165540';
+import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20260815165540';
+import { esc, str, svgIcon } from './utils.js?v=20260815165540';
+import { crmWeekContext, ctxDay, ctxSummary, ctxSection } from './weekly-context.js?v=20260815165540';
 
 // Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
@@ -178,7 +178,7 @@ export async function weeklyPrepare(){
   const range = weekRange();
   const runId = (w.runId||0)+1; w.runId = runId; // Back/re-prep abandons stale in-flight runs
   w.step='preparing'; w.progress='Pulling Smartlead stats for '+range.label+'... (can take ~1 min)';
-  w.rows=[]; w.unmatched=[]; w.statErrors=[]; w.rangeLabel=range.label; w.range=range;
+  w.rows=[]; w.unmatched=[]; w.statErrors=[]; w.recapError=''; w.rangeLabel=range.label; w.range=range;
   render();
   const stale = () => state.weekly!==w || w.runId!==runId || w.step!=='preparing';
   try{
@@ -561,10 +561,10 @@ function renderCtxPanel(r,i,w){
       day: ctxDay(p.date), text: p.contact ? `${p.company} — ${p.contact}` : p.company })));
     body += ctxSection('What we did', [...(ctx.work||[]), ...(ctx.swcl||[])]
       .sort((a,b)=>str(a.date).localeCompare(str(b.date)))
-      .map(l=>({ day: ctxDay(l.date), text: l.text })));
+      .map(l=>({ day: ctxDay(l.date), text: str(l.text) })));
     const calls = [
-      ...((ctx.checkins&&ctx.checkins.had)||[]).map(c=>({ day: ctxDay(c.date), text: `${c.title} (this week)` })),
-      ...((ctx.checkins&&ctx.checkins.upcoming)||[]).map(c=>({ day: ctxDay(c.date), text: `${c.title} (next week)` }))
+      ...((ctx.checkins&&ctx.checkins.had)||[]).map(c=>({ day: ctxDay(c.date), text: `${str(c.title)} (this week)` })),
+      ...((ctx.checkins&&ctx.checkins.upcoming)||[]).map(c=>({ day: ctxDay(c.date), text: `${str(c.title)} (next week)` }))
     ];
     body += ctxSection('Check-ins', calls);
     if(!body) body = `<div style="margin-top:8px;font-size:12px;color:var(--text-muted)">Nothing was logged for this client between ${esc(w.rangeLabel)}.</div>`;
