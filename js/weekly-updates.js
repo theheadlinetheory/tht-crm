@@ -11,15 +11,17 @@
 //   CCs are ALSO editable here, on the idle checklist and on review rows.
 //   Lars's signature appended. The Client Info sheet is NOT used.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20260815161907';
-import { state } from './app.js?v=20260815161907';
-import { render } from './render.js?v=20260815161907';
-import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20260815161907';
-import { esc, str, svgIcon } from './utils.js?v=20260815161907';
+import { supabase } from './supabase-client.js?v=20260815162809';
+import { state } from './app.js?v=20260815162809';
+import { render } from './render.js?v=20260815162809';
+import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20260815162809';
+import { esc, str, svgIcon } from './utils.js?v=20260815162809';
+import { crmWeekContext } from './weekly-context.js?v=20260815162809';
 
 // Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
 const SEND_FN_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/weekly-update-send';
+const RECAP_FN_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/client-week-recap';
 
 // Sends the caller's Supabase session token so the edge function can prove the
 // request came from a signed-in @theheadlinetheory.com user. weekly-update-send
@@ -36,6 +38,30 @@ async function sendFn(payload){
   const data = await resp.json().catch(()=>({ error:'weekly-update-send returned a non-JSON response ('+resp.status+')' }));
   if(!resp.ok || data.error) throw new Error(data.error || ('weekly-update-send failed ('+resp.status+')'));
   return data;
+}
+
+// The week's context for the compose screen: what we delivered, Tim's notes,
+// and check-in calls. Same CRM-session auth as sendFn — the function is
+// verify_jwt=false and its URL is in this public repo, so it verifies the
+// caller's own CRM session before reading anything.
+//
+// Never throws: a failed recap must cost the context panel, not the drafts.
+// Prepare takes about a minute and rebuilds every email from the template, so
+// losing a whole run to a Slack outage would be a bad trade.
+async function fetchRecap(range, names){
+  try{
+    const { data: { session } } = await supabase.auth.getSession();
+    if(!session) throw new Error('Your session expired. Reload the page and sign in again.');
+    const resp = await fetch(RECAP_FN_URL,{
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+session.access_token },
+      body: JSON.stringify({ start: range.start, end: range.end, client_names: names }) });
+    const data = await resp.json().catch(()=>({ error:'client-week-recap returned a non-JSON response ('+resp.status+')' }));
+    if(!resp.ok || data.error) throw new Error(data.error || ('client-week-recap failed ('+resp.status+')'));
+    return { clients: data.clients || {}, errors: data.errors || [] };
+  }catch(e){
+    return { clients:{}, errors:[], failed: str(e.message) };
+  }
 }
 
 export const DEFAULT_WEEKLY_UPDATE_TEMPLATE = `Hey {CLIENT_FIRST},
@@ -196,10 +222,17 @@ export async function weeklyPrepare(){
       }
     }
 
-    w.progress='Resolving recipients...'; render();
+    w.progress='Resolving recipients and pulling the week\'s context...'; render();
     const names = Object.keys(byClient);
-    const preview = await sendFn({ action:'preview', client_names: names });
+    // Both depend only on the client list, not on the stats, so they run
+    // together. fetchRecap never rejects, so Promise.all cannot lose the
+    // preview to a recap failure.
+    const [preview, recap] = await Promise.all([
+      sendFn({ action:'preview', client_names: names }),
+      fetchRecap(range, names),
+    ]);
     if(stale()) return;
+    w.recapError = recap.failed || '';
 
     const tpl = currentTemplate();
     w.rows = names.map((name)=>{
@@ -217,6 +250,26 @@ export async function weeklyPrepare(){
         previewError: p.error ? str(p.error) : '',
         sendStatus: null, error: ''
       };
+      // The CRM half is computed here, not fetched — lead_tracker and pass_offs
+      // are already in state from bootstrapData(). Stored on the row so the
+      // localStorage draft carries it through a reload.
+      const server = (recap.clients || {})[name] || {};
+      const local = crmWeekContext({
+        clientName: name,
+        range,
+        trackerEntries: state.trackerEntries || [],
+        passOffs: state.passOffs || [],
+        clientNames: (state.clients || []).map(c => c.name),
+      });
+      row.ctx = {
+        meetings: local.meetings,
+        passed: local.passed,
+        work: server.work || [],
+        swcl: server.swcl || [],
+        checkins: server.checkins || { had: [], upcoming: [] },
+        errors: recap.errors || []
+      };
+      row.ctxOpen = false;
       row.body = applyWeeklyTemplate(tpl, { ...row, first: greetName, rangeLabel: range.label });
       row.include = b.sent>0 && !!row.to;
       return row;
