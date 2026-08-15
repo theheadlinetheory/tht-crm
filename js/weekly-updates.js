@@ -11,12 +11,12 @@
 //   CCs are ALSO editable here, on the idle checklist and on review rows.
 //   Lars's signature appended. The Client Info sheet is NOT used.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20260815171948';
-import { state } from './app.js?v=20260815171948';
-import { render } from './render.js?v=20260815171948';
-import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20260815171948';
-import { esc, str, svgIcon } from './utils.js?v=20260815171948';
-import { crmWeekContext, ctxDay, ctxSummary, ctxSection } from './weekly-context.js?v=20260815171948';
+import { supabase } from './supabase-client.js?v=20260815193007';
+import { state } from './app.js?v=20260815193007';
+import { render } from './render.js?v=20260815193007';
+import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20260815193007';
+import { esc, str, svgIcon } from './utils.js?v=20260815193007';
+import { crmWeekContext, ctxCheckinLines, ctxDay, ctxSummary, ctxSection } from './weekly-context.js?v=20260815193007';
 
 // Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
@@ -574,11 +574,11 @@ function renderCtxPanel(r,i,w){
     body += ctxSection('What we did', [...(ctx.work||[]), ...(ctx.swcl||[])]
       .sort((a,b)=>str(a.date).localeCompare(str(b.date)))
       .map(l=>({ day: ctxDay(l.date), text: str(l.text) })));
-    const calls = [
-      ...((ctx.checkins&&ctx.checkins.had)||[]).map(c=>({ day: ctxDay(c.date), text: `${str(c.title)} (this week)` })),
-      ...((ctx.checkins&&ctx.checkins.upcoming)||[]).map(c=>({ day: ctxDay(c.date), text: `${str(c.title)} (next week)` }))
-    ];
-    body += ctxSection('Check-ins', calls);
+    // One sentence, not a labelled section — a client has either a call this
+    // week or one next week, never a list of them (bi-weekly cadence).
+    for(const line of ctxCheckinLines(ctx.checkins)){
+      body += `<div style="margin-top:10px;font-size:12px;color:var(--text-secondary)">${esc(line)}</div>`;
+    }
     if(!body) body = `<div style="margin-top:8px;font-size:12px;color:var(--text-muted)">Nothing was logged for this client between ${esc(w.rangeLabel)}.</div>`;
   }
   return `<div style="margin:8px 0 0 26px;border:1px solid var(--border);border-radius:8px;background:#fafafa;padding:7px 10px">

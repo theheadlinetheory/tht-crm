@@ -126,12 +126,68 @@ export function ctxDay(iso) {
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' });
 }
 
+// '2026-08-17T19:00:00+02:00' → 'Mon, Aug 17, 10:00 AM PT'.
+//
+// Rendered in PACIFIC, explicitly labelled, because that is the basis the rest
+// of this panel already uses: the work and note dates, the Sat→Fri week range,
+// and — crucially — the this-week/next-week bucketing that decided which
+// sentence this call appears in. Two rejected alternatives, both of which put
+// the sentence at odds with its own bucket:
+//   - The event's own offset. lars@'s calendar is Europe/Zurich, so a call at
+//     Thu 3:30 PM Pacific reads '2026-08-14T00:30:00+02:00' and would render as
+//     FRIDAY the 14th while the panel filed it under Thursday the 13th.
+//   - The reader's browser clock. Same class of drift, and it would make the
+//     same call render differently for two people reading the same screen.
+// The 'PT' suffix is what keeps it honest for whoever is reading from Bali or
+// Zurich. Falls back to the date alone when there is no usable timestamp.
+function checkinWhen(ev) {
+  const e = ev || {};
+  const raw = String(e.start == null ? '' : e.start);
+  const t = Date.parse(raw);
+  if (isNaN(t)) return ctxDay(e.date);
+  try {
+    return new Date(t).toLocaleString('en-US', {
+      timeZone: 'America/Los_Angeles',
+      weekday: 'short', month: 'short', day: 'numeric',
+      hour: 'numeric', minute: '2-digit',
+    }) + ' PT';
+  } catch (err) {
+    // A runtime without full ICU would reject the timeZone option rather than
+    // silently ignore it; the date alone is still true and still useful.
+    return ctxDay(e.date);
+  }
+}
+
+// One sentence per check-in call:
+//   'Check-in call this week — Thu, Aug 13, 12:15 PM'
+//   'Check-in call next week — Mon, Aug 17, 9:00 AM'
+//
+// Deliberately NOT a labelled section with a date column like the other three:
+// client check-ins run on a bi-weekly cadence, so a client has either one this
+// week or one next week, never a list. The calendar event's own title is
+// dropped — it is redundant under that client's own panel.
+//
+// Both buckets are still rendered if both are somehow populated. That should
+// not happen, but silently dropping a real call to enforce an assumption is the
+// wrong failure for a panel whose whole job is to be trustworthy.
+export function ctxCheckinLines(checkins) {
+  const c = checkins || {};
+  const had = Array.isArray(c.had) ? c.had : [];
+  const upcoming = Array.isArray(c.upcoming) ? c.upcoming : [];
+  const out = [];
+  for (const ev of had) out.push(`Check-in call this week — ${checkinWhen(ev)}`);
+  for (const ev of upcoming) out.push(`Check-in call next week — ${checkinWhen(ev)}`);
+  return out;
+}
+
 // Collapsed-header summary: names only the non-empty parts, in a fixed order,
-// and reads 'nothing logged this week' when there is nothing to mention. The
-// check-in named is the UPCOMING one — the call still ahead, worth flagging
-// in the email — not one that already happened. Defensive against a ctx
-// missing any optional sub-object (old localStorage drafts predate some of
-// these fields); never throws, always returns a string.
+// and reads 'nothing logged this week' when there is nothing to mention. An
+// UPCOMING check-in is named ahead of one that already happened — it is the
+// more actionable of the two — but a call that happened this week is named too,
+// because with only ever one per client, omitting it would hide the call
+// entirely unless you opened the panel, which defeats the summary's purpose.
+// Defensive against a ctx missing any optional sub-object (old localStorage
+// drafts predate some of these fields); never throws, always returns a string.
 export function ctxSummary(ctx) {
   if (!ctx) return 'nothing logged this week';
   const meetings = Array.isArray(ctx.meetings) ? ctx.meetings : [];
@@ -140,6 +196,7 @@ export function ctxSummary(ctx) {
   const swcl = Array.isArray(ctx.swcl) ? ctx.swcl : [];
   const checkins = ctx.checkins || {};
   const upcoming = Array.isArray(checkins.upcoming) ? checkins.upcoming : [];
+  const had = Array.isArray(checkins.had) ? checkins.had : [];
   const parts = [];
   const m = meetings.length, p = passed.length;
   const updates = work.length + swcl.length;
@@ -147,7 +204,9 @@ export function ctxSummary(ctx) {
   if (p) parts.push(`${p} lead${p === 1 ? '' : 's'} passed`);
   if (updates) parts.push(`${updates} update${updates === 1 ? '' : 's'}`);
   const next = upcoming[0];
-  if (next) parts.push(`check-in ${ctxDay(next && next.date)}`);
+  const past = had[0];
+  if (next) parts.push(`check-in ${ctxDay(next.date)}`);
+  else if (past) parts.push(`check-in was ${ctxDay(past.date)}`);
   if (parts.length) return parts.join(' · ');
   // An unmatched client (no fulfillment client record) never had work/swcl/
   // checkins looked up — an empty summary here means "we couldn't look", not

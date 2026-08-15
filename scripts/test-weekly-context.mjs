@@ -3,7 +3,7 @@
 // the only one node can import (it has no ?v= imports and touches no browser
 // globals). Run: node scripts/test-weekly-context.mjs
 import assert from 'node:assert/strict';
-import { crmWeekContext, mdyToIso, normName, resolveClientName, localDay, ctxDay, ctxSummary, ctxSection } from '../js/weekly-context.js';
+import { crmWeekContext, mdyToIso, normName, resolveClientName, localDay, ctxDay, ctxSummary, ctxSection, ctxCheckinLines } from '../js/weekly-context.js';
 
 let passed = 0;
 const test = (name, fn) => {
@@ -235,5 +235,87 @@ test('ctxSection never throws on malformed input', () => {
     assert.equal(typeof result, 'string');
   }
 });
+
+// ── ctxCheckinLines ─────────────────────────────────────────────────────────
+// A client has either a call this week or one next week, never a list — so
+// this renders one sentence, not a labelled section with a date column.
+
+test('ctxCheckinLines renders a this-week call with its time, in Pacific', () => {
+  const out = ctxCheckinLines({ had: [{ date: '2026-08-13', start: '2026-08-13T12:15:00-07:00', title: 'Denair HVAC Bi-weekly check in' }], upcoming: [] });
+  assert.deepEqual(out, ['Check-in call this week — Thu, Aug 13, 12:15 PM PT']);
+});
+
+test('ctxCheckinLines renders a next-week call with its time, in Pacific', () => {
+  // 7pm Zurich is 10am Pacific — lars@'s calendar is Europe/Zurich, so the raw
+  // string carries a +02:00 offset that must NOT be rendered literally.
+  const out = ctxCheckinLines({ had: [], upcoming: [{ date: '2026-08-17', start: '2026-08-17T19:00:00+02:00', title: 'GM Landscaping & Design ...' }] });
+  assert.deepEqual(out, ['Check-in call next week — Mon, Aug 17, 10:00 AM PT']);
+});
+
+test('ctxCheckinLines agrees with the Pacific date that bucketed the call', () => {
+  // Real shape: 00:30 on the 14th in Zurich is Thu the 13th, 3:30 PM Pacific.
+  // The edge function files this under date '2026-08-13'; rendering the raw
+  // offset would print 'Fri, Aug 14' and contradict its own bucket.
+  const out = ctxCheckinLines({ had: [{ date: '2026-08-13', start: '2026-08-14T00:30:00+02:00' }], upcoming: [] });
+  assert.deepEqual(out, ['Check-in call this week — Thu, Aug 13, 3:30 PM PT']);
+});
+
+test('ctxCheckinLines renders midnight and noon correctly', () => {
+  assert.equal(ctxCheckinLines({ upcoming: [{ date: '2026-08-17', start: '2026-08-17T00:05:00-07:00' }] })[0],
+    'Check-in call next week — Mon, Aug 17, 12:05 AM PT');
+  assert.equal(ctxCheckinLines({ upcoming: [{ date: '2026-08-17', start: '2026-08-17T12:00:00-07:00' }] })[0],
+    'Check-in call next week — Mon, Aug 17, 12:00 PM PT');
+});
+
+test('ctxCheckinLines renders the same string regardless of the reader timezone', () => {
+  // Guards the other rejected alternative: browser-local rendering would make
+  // the same call read differently for two people on the same screen.
+  const ev = { had: [], upcoming: [{ date: '2026-08-17', start: '2026-08-17T19:00:00+02:00' }] };
+  const before = process.env.TZ;
+  const seen = new Set();
+  for (const tz of ['America/Los_Angeles', 'Asia/Makassar', 'Europe/Zurich', 'UTC']) {
+    process.env.TZ = tz;
+    seen.add(ctxCheckinLines(ev)[0]);
+  }
+  process.env.TZ = before;
+  assert.equal(seen.size, 1, `expected one rendering, got: ${[...seen].join(' / ')}`);
+});
+
+test('ctxCheckinLines renders both when both somehow exist', () => {
+  const out = ctxCheckinLines({
+    had: [{ date: '2026-08-13', start: '2026-08-13T12:15:00-07:00' }],
+    upcoming: [{ date: '2026-08-17', start: '2026-08-17T09:00:00+02:00' }] });
+  assert.equal(out.length, 2);
+  assert.ok(out[0].startsWith('Check-in call this week'));
+  assert.ok(out[1].startsWith('Check-in call next week'));
+});
+
+test('ctxCheckinLines falls back to the date when start is missing or junk', () => {
+  assert.equal(ctxCheckinLines({ upcoming: [{ date: '2026-08-17' }] })[0],
+    `Check-in call next week — ${ctxDay('2026-08-17')}`);
+  assert.equal(ctxCheckinLines({ upcoming: [{ date: '2026-08-17', start: 'not-a-date' }] })[0],
+    `Check-in call next week — ${ctxDay('2026-08-17')}`);
+});
+
+test('ctxCheckinLines never throws on missing or malformed input', () => {
+  for (const bad of [undefined, null, {}, { had: null, upcoming: undefined }, { had: 'x' }, 0, 'str',
+                     { upcoming: [{}] }, { upcoming: [{ start: '2026-99-99T09:00:00Z' }] }]) {
+    assert.doesNotThrow(() => ctxCheckinLines(bad), `input: ${JSON.stringify(bad)}`);
+    assert.ok(Array.isArray(ctxCheckinLines(bad)));
+  }
+});
+
+test('ctxSummary names a this-week check-in when there is no upcoming one', () => {
+  const s = ctxSummary({ meetings: [], passed: [], work: [], swcl: [],
+    checkins: { had: [{ date: '2026-08-13' }], upcoming: [] } });
+  assert.equal(s, `check-in was ${ctxDay('2026-08-13')}`);
+});
+
+test('ctxSummary prefers the upcoming check-in over one that already happened', () => {
+  const s = ctxSummary({ meetings: [], passed: [], work: [], swcl: [],
+    checkins: { had: [{ date: '2026-08-13' }], upcoming: [{ date: '2026-08-17' }] } });
+  assert.equal(s, `check-in ${ctxDay('2026-08-17')}`);
+});
+
 
 console.log(`\n${passed} passed`);
