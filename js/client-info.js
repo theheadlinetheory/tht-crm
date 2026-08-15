@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // CLIENT-INFO — Client data, thread IDs, lookup functions
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, deletedClientIds } from './app.js?v=20260815162809';
-import { CLIENT_PALETTE } from './config.js?v=20260815162809';
-import { render } from './render.js?v=20260815162809';
-import { str, uid, esc, isValidDate, getToday, svgIcon } from './utils.js?v=20260815162809';
-import { sbCreateClient, sbDeleteClient, camelToSnake, supabase } from './api.js?v=20260815162809';
-import { isAdmin } from './auth.js?v=20260815162809';
+import { state, store, pendingWrites, deletedClientIds } from './app.js?v=20260815164225';
+import { CLIENT_PALETTE } from './config.js?v=20260815164225';
+import { render } from './render.js?v=20260815164225';
+import { str, uid, esc, isValidDate, getToday, svgIcon } from './utils.js?v=20260815164225';
+import { sbCreateClient, sbDeleteClient, camelToSnake, supabase } from './api.js?v=20260815164225';
+import { isAdmin } from './auth.js?v=20260815164225';
 
 // ─── Derive campaign keyword from client name ───
 const SKIP_PREFIXES = /^(the|a|an)\s+/i;

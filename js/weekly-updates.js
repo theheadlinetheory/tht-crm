@@ -11,12 +11,12 @@
 //   CCs are ALSO editable here, on the idle checklist and on review rows.
 //   Lars's signature appended. The Client Info sheet is NOT used.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20260815162809';
-import { state } from './app.js?v=20260815162809';
-import { render } from './render.js?v=20260815162809';
-import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20260815162809';
-import { esc, str, svgIcon } from './utils.js?v=20260815162809';
-import { crmWeekContext } from './weekly-context.js?v=20260815162809';
+import { supabase } from './supabase-client.js?v=20260815164225';
+import { state } from './app.js?v=20260815164225';
+import { render } from './render.js?v=20260815164225';
+import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20260815164225';
+import { esc, str, svgIcon } from './utils.js?v=20260815164225';
+import { crmWeekContext, ctxDay, ctxSummary, ctxSection } from './weekly-context.js?v=20260815164225';
 
 // Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
@@ -338,6 +338,18 @@ export async function weeklyTestSend(i){
   render();
 }
 
+// Collapsed by default: with ~20 clients the review screen is already long, and
+// most weeks there is one thing to mention that you already know. The summary
+// line on the collapsed header is what decides whether opening it is worth it.
+export function weeklyToggleCtx(i){
+  const w = getWeekly();
+  const row = w.rows[i];
+  if(!row) return;
+  row.ctxOpen = !row.ctxOpen;
+  weeklyAutosave();
+  render();
+}
+
 // ─── Draft autosave / restore (localStorage) ───
 // state.weekly is in-memory only, so a reload/crash/tab-discard loses hand
 // edits. We mirror the whole review state to localStorage (debounced on every
@@ -520,6 +532,52 @@ function renderTemplateEditor(w){
   </div>`;
 }
 
+// Read-only. It surfaces the week's facts; the copy stays hand-written — no
+// click-to-insert, no editing here.
+function renderCtxPanel(r,i,w){
+  const ctx = r.ctx;
+  if(!ctx){
+    // Old localStorage drafts saved before this feature existed have no
+    // row.ctx at all — render nothing rather than a false "unavailable".
+    return w.recapError
+      ? `<div style="margin-top:10px;font-size:11.5px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:7px 10px">⚠ Context unavailable — ${esc(w.recapError)}</div>`
+      : '';
+  }
+  const summary = w.recapError ? 'unavailable' : ctxSummary(ctx);
+  let body = '';
+  if(r.ctxOpen){
+    if(w.recapError){
+      // The CRM-side numbers (meetings/passed, below) never depended on this
+      // fetch, so they still render even when the recap fetch failed.
+      body += `<div style="margin-top:8px;font-size:11.5px;color:#b45309">⚠ ${esc(w.recapError)} — the CRM-side numbers below are still accurate.</div>`;
+    }
+    if((ctx.errors||[]).length){
+      // A failed source must look different from a quiet week.
+      body += `<div style="margin-top:8px;font-size:11.5px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:6px 9px">⚠ These sources failed to load, so this week may be incomplete: ${esc(ctx.errors.join(' · '))}</div>`;
+    }
+    body += ctxSection('Meetings booked', (ctx.meetings||[]).map(m=>({
+      day: ctxDay(m.date), text: m.apptTime ? `${m.leadName} — ${m.apptTime}` : m.leadName })));
+    body += ctxSection('Leads passed', (ctx.passed||[]).map(p=>({
+      day: ctxDay(p.date), text: p.contact ? `${p.company} — ${p.contact}` : p.company })));
+    body += ctxSection('What we did', [...(ctx.work||[]), ...(ctx.swcl||[])]
+      .sort((a,b)=>str(a.date).localeCompare(str(b.date)))
+      .map(l=>({ day: ctxDay(l.date), text: l.text })));
+    const calls = [
+      ...((ctx.checkins&&ctx.checkins.had)||[]).map(c=>({ day: ctxDay(c.date), text: `${c.title} (this week)` })),
+      ...((ctx.checkins&&ctx.checkins.upcoming)||[]).map(c=>({ day: ctxDay(c.date), text: `${c.title} (next week)` }))
+    ];
+    body += ctxSection('Check-ins', calls);
+    if(!body) body = `<div style="margin-top:8px;font-size:12px;color:var(--text-muted)">Nothing was logged for this client between ${esc(w.rangeLabel)}.</div>`;
+  }
+  return `<div style="margin:8px 0 0 26px;border:1px solid var(--border);border-radius:8px;background:#fafafa;padding:7px 10px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer" onclick="weeklyToggleCtx(${i})">
+      <div style="font-size:11.5px;font-weight:700;color:var(--text-secondary)">${r.ctxOpen?'▾':'▸'} Context — <span style="font-weight:600;color:var(--text-muted)">${esc(summary)}</span></div>
+      <span style="font-size:11px;color:var(--text-muted);flex-shrink:0">${r.ctxOpen?'collapse':'show'}</span>
+    </div>
+    ${body}
+  </div>`;
+}
+
 function renderRow(r,i,w){
   const sendable = !!r.to;
   const badge =
@@ -544,6 +602,7 @@ function renderRow(r,i,w){
       </div>
     </div>
     ${r.campaigns.length?`<div style="font-size:10.5px;color:var(--text-muted);margin:6px 0 0 26px">Campaigns: ${esc(r.campaigns.join(', '))}</div>`:''}
+    ${renderCtxPanel(r,i,w)}
     <textarea rows="7" data-weekly-edit="1" ${w.step==='sending'?'disabled':''} style="width:100%;margin-top:10px;${r.h?`height:${esc(r.h)};`:''}border:1px solid var(--border);border-radius:8px;padding:10px;font-size:13px;font-family:var(--font);resize:vertical;box-sizing:border-box"
       oninput="state.weekly.rows[${i}].body=this.value;weeklyAutosave()"
       onmouseup="if(this.style.height)state.weekly.rows[${i}].h=this.style.height">${esc(r.body)}</textarea>
@@ -706,6 +765,7 @@ export function renderWeeklyUpdates(){
 window.weeklyPrepare = weeklyPrepare;
 window.weeklySendAll = weeklySendAll;
 window.weeklyTestSend = weeklyTestSend;
+window.weeklyToggleCtx = weeklyToggleCtx;
 window.weeklyAutosave = weeklyAutosave;
 window.weeklyRestoreDraft = weeklyRestoreDraft;
 window.weeklyDiscardDraft = weeklyDiscardDraft;

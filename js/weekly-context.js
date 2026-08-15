@@ -1,5 +1,7 @@
 // ═══════════════════════════════════════════════════════════
-// WEEKLY CONTEXT — the CRM half of the Weekly Updates context panel.
+// WEEKLY CONTEXT — the CRM half of the Weekly Updates context panel, plus the
+// pure formatting helpers the panel renderer needs (ctxDay/ctxSummary/
+// ctxSection).
 //
 // Meetings booked (lead_tracker) and leads passed off (pass_offs) for one
 // client in one Saturday→Friday week. Both tables are already in state from
@@ -8,7 +10,12 @@
 // Deliberately IMPORT-FREE and browser-global-free: that is what lets
 // scripts/test-weekly-context.mjs load it in node. This repo has no test
 // runner, so a pure module is the only testable shape available. Keep it that
-// way — the moment this imports app.js it stops being verifiable.
+// way — the moment this imports app.js (or utils.js's DOM-based esc()) it
+// stops being verifiable. weekly-updates.js imports app.js, so it can NEVER
+// be loaded by node — a throw inside its renderRow would break the whole
+// Weekly Updates tab with nothing to catch it before it ships. The three
+// formatting helpers below live here instead, specifically so ci-check.mjs's
+// sibling test script can exercise them.
 // ═══════════════════════════════════════════════════════════
 
 export function normName(s) {
@@ -89,4 +96,73 @@ export function crmWeekContext({ clientName, range, trackerEntries, passOffs, cl
     .sort((a, b) => a.date.localeCompare(b.date));
 
   return { meetings, passed };
+}
+
+// ─── Panel formatting helpers (pure — no imports, no browser globals) ─────
+// utils.js's esc() escapes via a real <div> (document.createElement), which
+// is exactly the browser global this file can't touch. This mirrors its
+// output for the text-node context these three render into: & < > escaped,
+// quotes left alone (matching esc()'s own documented behavior elsewhere in
+// weekly-updates.js — "esc() escapes &<> but not quotes"). Every piece of
+// server- or user-derived text (lead names, company names, Tim's prose,
+// calendar titles) passes through here before it reaches the HTML string.
+function escHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+// '2026-08-13' → e.g. 'Thu, 8/13' (exact separator is locale-data dependent).
+// Parsed as a LOCAL date (not `new Date(iso)`, which reads a bare date string
+// as UTC and can render the previous day west of UTC). Never throws — bad
+// input falls back to the raw string, unchanged.
+export function ctxDay(iso) {
+  const raw = String(iso == null ? '' : iso);
+  const p = raw.split('-');
+  if (p.length !== 3) return raw;
+  const d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+  if (isNaN(d.getTime())) return raw;
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' });
+}
+
+// Collapsed-header summary: names only the non-empty parts, in a fixed order,
+// and reads 'nothing logged this week' when there is nothing to mention. The
+// check-in named is the UPCOMING one — the call still ahead, worth flagging
+// in the email — not one that already happened. Defensive against a ctx
+// missing any optional sub-object (old localStorage drafts predate some of
+// these fields); never throws, always returns a string.
+export function ctxSummary(ctx) {
+  if (!ctx) return 'nothing logged this week';
+  const meetings = Array.isArray(ctx.meetings) ? ctx.meetings : [];
+  const passed = Array.isArray(ctx.passed) ? ctx.passed : [];
+  const work = Array.isArray(ctx.work) ? ctx.work : [];
+  const swcl = Array.isArray(ctx.swcl) ? ctx.swcl : [];
+  const checkins = ctx.checkins || {};
+  const upcoming = Array.isArray(checkins.upcoming) ? checkins.upcoming : [];
+  const parts = [];
+  const m = meetings.length, p = passed.length;
+  const updates = work.length + swcl.length;
+  if (m) parts.push(`${m} meeting${m === 1 ? '' : 's'} booked`);
+  if (p) parts.push(`${p} lead${p === 1 ? '' : 's'} passed`);
+  if (updates) parts.push(`${updates} update${updates === 1 ? '' : 's'}`);
+  const next = upcoming[0];
+  if (next) parts.push(`check-in ${ctxDay(next && next.date)}`);
+  return parts.length ? parts.join(' · ') : 'nothing logged this week';
+}
+
+// One labelled section of the expanded panel: a title and a list of
+// {day, text} lines, both HTML-escaped. Empty/non-array `lines` renders
+// nothing (the caller concatenates section HTML, so '' just omits the
+// section). Never throws on a malformed line entry.
+export function ctxSection(title, lines) {
+  const arr = Array.isArray(lines) ? lines : [];
+  if (!arr.length) return '';
+  return `<div style="margin-top:10px">
+    <div style="font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.03em">${escHtml(title)}</div>
+    ${arr.map(l => `<div style="font-size:12px;color:var(--text-secondary);margin-top:3px;display:flex;gap:8px">
+      <span style="color:var(--text-muted);flex-shrink:0;min-width:62px">${escHtml(l && l.day)}</span>
+      <span>${escHtml(l && l.text)}</span>
+    </div>`).join('')}
+  </div>`;
 }
