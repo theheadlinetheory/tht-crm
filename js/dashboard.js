@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // DASHBOARD — Dashboard rendering (client fulfillment + acquisition)
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260816201328';
-import { ACQUISITION_STAGES, NURTURE_STAGES, DEFAULT_CLIENT_STAGES, ALL_PIPELINES } from './config.js?v=20260816201328';
-import { render } from './render.js?v=20260816201328';
-import { esc, fmt$ } from './utils.js?v=20260816201328';
-import { isAdmin, isEmployee } from './auth.js?v=20260816201328';
-import { getOverdueActivities } from './activities.js?v=20260816201328';
-import { sbGetArchivedDeals } from './api.js?v=20260816201328';
+import { state } from './app.js?v=20260818040001';
+import { ACQUISITION_STAGES, NURTURE_STAGES, DEFAULT_CLIENT_STAGES, ALL_PIPELINES } from './config.js?v=20260818040001';
+import { render } from './render.js?v=20260818040001';
+import { esc, fmt$ } from './utils.js?v=20260818040001';
+import { isAdmin, isEmployee } from './auth.js?v=20260818040001';
+import { getOverdueActivities } from './activities.js?v=20260818040001';
+import { sbGetArchivedDeals } from './api.js?v=20260818040001';
 
 function dateAddedToDate(dateAdded) {
   if (!dateAdded) return null;
@@ -182,6 +182,67 @@ function isPplTrackerEntry(e) {
 function isPplDeal(deal) {
   const cn = getClientForDeal(deal);
   return cn ? isActivePplClient(cn) : deal.stage === 'Client Not Distributed';
+}
+
+// ═══════════════════════════════════════════════════════════
+// CLIENT TENURE — how long each client has been with us
+//
+// Source of truth is Google Drive: the date the first document was created
+// in the client's Drive folder, which is their "<Client> - Onboarding Data"
+// doc in almost every case. We keep it here rather than in the database
+// because `clients.created_at` is not a reliable onboarding date — five of
+// the older clients share a single 2026-04-11 bulk-import timestamp — and
+// `launch_date` means billing start, which is a different thing.
+//
+// Verified against Drive on 2026-08-18. When you onboard a new client, add
+// a line here; until you do, the column falls back to activated_date /
+// launch_date and finally shows "—" rather than a wrong number.
+// ═══════════════════════════════════════════════════════════
+const ONBOARDED_ON = {
+  'timesavers': '2025-12-09',
+  'lightning lawn care': '2026-01-22',
+  'dallas land care': '2026-02-21',
+  'gm landscaping & design': '2026-04-01',
+  'denair hvac, inc.': '2026-04-23',
+  'mighty oak landscaping': '2026-05-18',
+  'clear heating & air, inc.': '2026-05-19',
+  'quantum heating & air conditioning inc.': '2026-05-28',
+  'ecological improvements': '2026-06-04',
+  'hammer excavations': '2026-06-04',
+  'peak services colorado, inc.': '2026-06-05',
+  'vandenberg landscapes': '2026-06-30',
+  'northstar hvac & refrigeration inc.': '2026-07-02',
+  'airlast': '2026-07-09',
+  'galaxy plumbing inc.': '2026-07-16',
+  'landy rose media': '2026-07-16',
+  "woody's landcare llc": '2026-07-17',
+  "landry's landscape": '2026-08-10',
+  'mcfarlane douglass': '2026-08-11',
+};
+
+function onboardedOnDate(client, name) {
+  const mapped = ONBOARDED_ON[String(name || '').trim().toLowerCase()];
+  const raw = mapped || client?.activatedDate || client?.launchDate;
+  if (!raw) return null;
+  const d = parseYmd(String(raw).slice(0, 10));
+  return d && !isNaN(d.getTime()) ? d : null;
+}
+
+// Whole months elapsed, then leftover days — e.g. "8mo 9d", "3mo", "12d".
+// A client onboarded today reads "today" rather than "0d".
+function tenureLabel(from, today) {
+  if (!from || from > today) return '—';
+  let months = (today.getFullYear() - from.getFullYear()) * 12 + (today.getMonth() - from.getMonth());
+  if (today.getDate() < from.getDate()) months--;
+  // Anchor = the monthly anniversary on/before today; clamps short months
+  // (Jan 31 + 1mo → Feb 28) so the leftover-day count can never go negative.
+  const anchor = new Date(from.getFullYear(), from.getMonth() + months, 1);
+  const lastDay = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0).getDate();
+  anchor.setDate(Math.min(from.getDate(), lastDay));
+  const days = Math.round((today - anchor) / 86400000);
+  if (months <= 0 && days <= 0) return 'today';
+  if (months <= 0) return `${days}d`;
+  return days > 0 ? `${months}mo ${days}d` : `${months}mo`;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -399,6 +460,9 @@ export function renderClientDashboard(){
 
 function renderClientTable(selWeek, wkLabel, clientDeals) {
   const today = new Date();
+  // Tenure counts whole days, so compare midnight-to-midnight — otherwise the
+  // time-of-day remainder rounds a client's day count up by one.
+  const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const clientCounts = {};
   const blank = () => ({ active: 0, booked: 0, calledBack: 0, interested: 0, lastLead: null });
 
@@ -455,6 +519,7 @@ function renderClientTable(selWeek, wkLabel, clientDeals) {
     <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;border:1px solid var(--border)">
       <thead><tr style="background:#f9fafb">
         <th style="text-align:left;${th}">Client</th>
+        <th style="text-align:center;${th}">Time With Us</th>
         <th style="text-align:center;${th}">Type</th>
         <th style="text-align:center;${th}">Active</th>
         <th style="text-align:center;${th}">Delivered (this week)</th>
@@ -489,8 +554,14 @@ function renderClientTable(selWeek, wkLabel, clientDeals) {
       : `<span style="background:#dbeafe;color:#1d4ed8;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px">PPM</span>`;
     const targetBadge = `<span style="background:${hit ? '#dcfce7' : '#fee2e2'};color:${hit ? '#166534' : '#991b1b'};font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap">${hit ? '\u2713' : '\u2717'} \u2265 ${target}</span>`;
 
+    const since = onboardedOnDate(client, name);
+    const sinceTitle = since
+      ? `Onboarded ${since.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+      : 'Onboarding date unknown — add this client to ONBOARDED_ON in dashboard.js';
+
     h += `<tr style="border-top:1px solid #f3f4f6;${hit ? '' : 'background:#fffbfb'}">
       <td style="padding:8px 12px;font-size:12px;font-weight:600">${dot}${esc(name)}</td>
+      <td style="text-align:center;padding:8px 12px;font-size:12px;color:var(--text-muted);white-space:nowrap" title="${esc(sinceTitle)}">${esc(tenureLabel(since, todayMidnight))}</td>
       <td style="text-align:center;padding:8px 12px">${typeBadge}</td>
       <td style="text-align:center;padding:8px 12px;font-size:12px">${c.active}</td>
       <td style="text-align:center;padding:8px 12px;font-size:13px;font-weight:700;color:${hit ? '#111827' : '#b91c1c'}">${delivered}</td>

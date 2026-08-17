@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════════════
 // LEAD-TRACKER-SHEET — UI-free helper for creating/linking sheets
 // ═══════════════════════════════════════════════════════════
-import { invokeEdgeFunction, sbUpdateClient } from './api.js?v=20260816201328';
-import { state } from './app.js?v=20260816201328';
+import { invokeEdgeFunction, sbUpdateClient } from './api.js?v=20260818040001';
+import { state } from './app.js?v=20260818040001';
 
 // Create + link a client's Lead Tracker sheet if it doesn't have one yet.
 // Idempotent: returns the existing sheetId when already present (ONE sheet per client).
