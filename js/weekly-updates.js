@@ -11,12 +11,12 @@
 //   CCs are ALSO editable here, on the idle checklist and on review rows.
 //   Lars's signature appended. The Client Info sheet is NOT used.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20260815193007';
-import { state } from './app.js?v=20260815193007';
-import { render } from './render.js?v=20260815193007';
-import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20260815193007';
-import { esc, str, svgIcon } from './utils.js?v=20260815193007';
-import { crmWeekContext, ctxCheckinLines, ctxDay, ctxSummary, ctxSection } from './weekly-context.js?v=20260815193007';
+import { supabase } from './supabase-client.js?v=20260816201328';
+import { state } from './app.js?v=20260816201328';
+import { render } from './render.js?v=20260816201328';
+import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20260816201328';
+import { esc, str, svgIcon } from './utils.js?v=20260816201328';
+import { crmWeekContext, ctxCheckinLines, ctxDay, ctxSummary, ctxSection } from './weekly-context.js?v=20260816201328';
 
 // Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';

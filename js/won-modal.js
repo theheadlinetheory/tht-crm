@@ -3,12 +3,13 @@
 // create client + lead sheet + SmartLead tags. Blocking, ordered,
 // stop-on-failure with Retry. Body-level overlay (survives render()).
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260815193007';
-import { str, esc, getToday } from './utils.js?v=20260815193007';
-import { createClientRecord, deriveTimezone } from './client-info.js?v=20260815193007';
-import { ensureLeadTrackerSheet } from './lead-tracker-sheet.js?v=20260815193007';
-import { invokeEdgeFunction, showToast } from './api.js?v=20260815193007';
-import { isAdmin } from './auth.js?v=20260815193007';
+import { state } from './app.js?v=20260816201328';
+import { str, esc, getToday } from './utils.js?v=20260816201328';
+import { createClientRecord, deriveTimezone } from './client-info.js?v=20260816201328';
+import { ensureLeadTrackerSheet } from './lead-tracker-sheet.js?v=20260816201328';
+import { invokeEdgeFunction, showToast } from './api.js?v=20260816201328';
+import { isAdmin } from './auth.js?v=20260816201328';
+import { prepaidNote } from './retainer-billing.js?v=20260816201328';
 
 let _w = null; // { deal, clientId, sheetId, tagsDone }
 const CURRENCIES = ['USD', 'AUD', 'CAD'];
@@ -87,7 +88,17 @@ function renderBillingFields(type) {
       <div style="grid-column:1/3">${lbl('Payment terms')}${inp('won-terms', 'Monthly')}</div>
       <div style="grid-column:1/3">
         <label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#64748b"><input type="checkbox" id="won-launch-tbd" checked onchange="wonToggleLaunchTBD()"> Launch date TBD (set later in Settings)</label>
-        <input type="date" id="won-launch" disabled style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;margin-top:3px;opacity:.5">
+        <input type="date" id="won-launch" disabled onchange="wonUpdatePrepaidNote()" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;margin-top:3px;opacity:.5">
+      </div>
+      <div style="grid-column:1/3">
+        <label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#64748b"><input type="checkbox" id="won-prepaid" onchange="wonTogglePrepaid()"> Prepaid — they already paid up front, don't invoice them yet</label>
+        <div id="won-prepaid-row" style="display:none;margin-top:4px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="number" id="won-prepaid-months" value="3" min="1" step="1" oninput="wonUpdatePrepaidNote()" style="width:80px;box-sizing:border-box;padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px">
+            <span style="font-size:11px;color:#64748b">months paid up front, counted from the launch date</span>
+          </div>
+          <div id="won-prepaid-note" style="font-size:11px;color:#16a34a;margin-top:4px"></div>
+        </div>
       </div>
     </div>`;
   } else {
@@ -114,6 +125,21 @@ export function wonToggleLaunchTBD() {
   const tbd = document.getElementById('won-launch-tbd')?.checked;
   const d = document.getElementById('won-launch');
   if (d) { d.disabled = !!tbd; d.style.opacity = tbd ? '.5' : '1'; if (tbd) d.value = ''; }
+  wonUpdatePrepaidNote();
+}
+
+export function wonTogglePrepaid() {
+  const row = document.getElementById('won-prepaid-row');
+  if (row) row.style.display = document.getElementById('won-prepaid')?.checked ? 'block' : 'none';
+  wonUpdatePrepaidNote();
+}
+
+// Says in plain English when billing will actually start.
+export function wonUpdatePrepaidNote() {
+  const note = document.getElementById('won-prepaid-note');
+  if (!note) return;
+  const on = document.getElementById('won-prepaid')?.checked;
+  note.textContent = on ? prepaidNote(val('won-launch'), val('won-prepaid-months')) : '';
 }
 
 export function wonModalDismiss() {
@@ -148,6 +174,12 @@ function buildFields() {
     const tbd = document.getElementById('won-launch-tbd')?.checked;
     const ld = document.getElementById('won-launch')?.value;
     f.launchDate = (!tbd && ld) ? ld : ''; // blank/TBD → stored as null
+    // Prepaid: months already paid for, counted from the launch date. The invoice
+    // creator stays quiet until the term ends. Blank → invoiced monthly.
+    const months = parseInt(val('won-prepaid-months'), 10);
+    const prepaid = !!document.getElementById('won-prepaid')?.checked && months > 0;
+    f.prepaidMonths = prepaid ? months : '';
+    f.agreementType = prepaid ? 'prepaid' : 'multi_month';
   } else {
     f.leadCost = val('won-cost') || '';
     f.paymentTerms = document.getElementById('won-terms-sel')?.value || 'Net 7';
@@ -214,7 +246,7 @@ async function runSteps(f, startIdx) {
     const dealId = _w.deal.id;
     const clientName = f.name;
     wonModalDismiss();
-    const { deleteDeal } = await import('./deals.js?v=20260815193007');
+    const { deleteDeal } = await import('./deals.js?v=20260816201328');
     deleteDeal(dealId, 'Closed Won', clientName);
     showToast(`Client "${clientName}" created and deal won`, 'success');
   } catch (e) {
@@ -227,7 +259,7 @@ async function runSteps(f, startIdx) {
 export async function wonModalLink(existingName) {
   const dealId = _w.deal.id;
   wonModalDismiss();
-  const { deleteDeal } = await import('./deals.js?v=20260815193007');
+  const { deleteDeal } = await import('./deals.js?v=20260816201328');
   deleteDeal(dealId, 'Closed Won', existingName);
   showToast(`Deal linked to existing client "${existingName}"`, 'success');
 }
@@ -237,4 +269,6 @@ window.wonModalDismiss = wonModalDismiss;
 window.wonModalRetry = wonModalRetry;
 window.wonModalToggleType = wonModalToggleType;
 window.wonToggleLaunchTBD = wonToggleLaunchTBD;
+window.wonTogglePrepaid = wonTogglePrepaid;
+window.wonUpdatePrepaidNote = wonUpdatePrepaidNote;
 window.wonModalLink = wonModalLink;

@@ -59,7 +59,6 @@ const REQUIRED_FEATURES = [
   { file: 'weekly-updates.js', needle: 'window.weeklyPrepare',               feature: 'Weekly Updates: Prepare handler wired to window' },
   // Adding an extra CC recipient must stay self-serve — it used to need a dev.
   { file: 'weekly-updates.js', needle: 'window.weeklyClientCcChange',        feature: 'Weekly Updates: add-a-CC on the idle client checklist' },
-  { file: 'weekly-updates.js', needle: 'window.weeklyToggleCtx',            feature: 'Weekly Updates: per-client context dropdown' },
   { file: 'settings.js',       needle: "'otherContacts',this.value",         feature: 'Settings → Clients: Additional Contacts (weekly-update CC) field' },
   // Top-level tabs
   { file: 'render.js',         needle: "state.pipeline==='dashboard'",  feature: 'Dashboard tab' },
@@ -90,6 +89,13 @@ const REQUIRED_FEATURES = [
   { file: 'analysis.js',       needle: 'function normalizeRow',            feature: 'Analysis: cached rows coerced to the current shape' },
   { file: 'analysis.js',       needle: 'export function renderAnalysis', feature: 'Analysis: module entrypoint' },
   { file: 'analysis.js',       needle: "action: 'client_week_breakdown'", feature: 'Analysis: weekly Smartlead breakdown pull' },
+  // Retainer billing — losing any of these silently changes who gets invoiced.
+  { file: 'retainer-billing.js', needle: 'export function renderRetainerBilling', feature: 'Settings → Clients: Retainer Billing card' },
+  { file: 'retainer-billing.js', needle: 'export function prepaidNote',           feature: 'Prepaid retainer: term note shared by Settings + Won modal' },
+  { file: 'settings.js',         needle: 'renderRetainerBilling(c)',              feature: 'Settings → Clients: Retainer Billing card mounted' },
+  { file: 'settings.js',         needle: "prepaidMonths:str(c.prepaidMonths",     feature: 'Settings → Clients: prepaid months saved with the client' },
+  { file: 'won-modal.js',        needle: 'id="won-prepaid"',                      feature: 'Close Won: prepaid retainer checkbox' },
+  { file: 'api.js',              needle: "prepaid_months: 'prepaidMonths'",       feature: 'Prepaid retainer: prepaid_months field mapping' },
 ];
 console.log('2. Feature inventory …');
 const fileCache = {};

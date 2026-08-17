@@ -2,17 +2,18 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260815193007';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260815193007';
-import { render } from './render.js?v=20260815193007';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20260815193007';
-import { renderRoutingRules } from './routing-rules.js?v=20260815193007';
-import { esc, str, svgIcon } from './utils.js?v=20260815193007';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20260815193007';
-import { lookupClientInfo } from './client-info.js?v=20260815193007';
-import { findPolygonForClient, invalidateServiceAreaCache } from './maps.js?v=20260815193007';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260815193007';
-import { DEFAULT_BOOKING_SMS_TEMPLATE } from './booking-sms.js?v=20260815193007';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260816201328';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260816201328';
+import { render } from './render.js?v=20260816201328';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20260816201328';
+import { renderRoutingRules } from './routing-rules.js?v=20260816201328';
+import { esc, str, svgIcon } from './utils.js?v=20260816201328';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20260816201328';
+import { lookupClientInfo } from './client-info.js?v=20260816201328';
+import { findPolygonForClient, invalidateServiceAreaCache } from './maps.js?v=20260816201328';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260816201328';
+import { DEFAULT_BOOKING_SMS_TEMPLATE } from './booking-sms.js?v=20260816201328';
+import { renderRetainerBilling } from './retainer-billing.js?v=20260816201328';
 
 export function getDefaultSettings(){
   return {
@@ -125,6 +126,7 @@ function buildClientUpdate(c) {
     retainerCurrency:str(c.retainerCurrency||'usd'),
     launchDate:str(c.launchDate ?? ''),
     agreementType:str(c.agreementType ?? ''), // drives the monthly update's billing wording
+    prepaidMonths:str(c.prepaidMonths ?? ''), // months paid up front from launchDate; blank/0 = invoiced monthly
     clientNotes:str(c.clientNotes ?? ''),
     warmCallNotesText:str(c.warmCallNotesText ?? ''),
     passoffInstructions:str(c.passoffInstructions ?? ''),
@@ -298,7 +300,7 @@ export function refreshSettingsBody(){
       window._dialerFieldsLoaded = true;
       supabase.from('crm_settings').select('value').eq('key','dialer_default_fields').single()
         .then(({ data }) => { window._dialerDefaultFields = data?.value ? JSON.parse(data.value) : []; refreshSettingsBody(); });
-      import('./number-health.js?v=20260815193007').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
+      import('./number-health.js?v=20260816201328').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
     }
     h=renderDialerSettings();
   }
@@ -754,42 +756,7 @@ function renderClientsSettings(){
         </div>
       </div>`:''}
 
-      ${str(c.billingModel)==='retainer'?`<div style="margin-bottom:8px;padding:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px">
-        <div style="font-size:10px;font-weight:700;color:#16a34a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Retainer Billing</div>
-        <div style="display:flex;gap:8px;margin-bottom:6px">
-          <div style="flex:2">
-            <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Monthly Amount</label>
-            <input type="number" step="0.01" placeholder="e.g. 3000" value="${esc(str(c.monthlyRetainer ?? ''))}"
-              oninput="updateClientField('${esc(c.id)}','monthlyRetainer',this.value)"
-              style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
-          </div>
-          <div style="flex:1">
-            <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Currency</label>
-            <select onchange="updateClientField('${esc(c.id)}','retainerCurrency',this.value);debouncedAutoSave()"
-              style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
-              ${['usd','aud','cad','gbp'].map(cc=>`<option value="${cc}" ${str(c.retainerCurrency||'usd')===cc?'selected':''}>${cc.toUpperCase()}</option>`).join('')}
-            </select>
-          </div>
-        </div>
-        <div>
-          <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Launch Date (billing start) — leave blank for TBD</label>
-          <input type="date" value="${esc(str(c.launchDate||''))}"
-            onchange="updateClientField('${esc(c.id)}','launchDate',this.value);debouncedAutoSave()"
-            title="The first day their campaigns sent email. This is the billing anchor — its day-of-month is their billing day, and it's what the monthly update email reports against."
-            style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
-        </div>
-        <div style="margin-top:6px">
-          <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Agreement Type — sets what the monthly update email says about money</label>
-          <select onchange="updateClientField('${esc(c.id)}','agreementType',this.value);debouncedAutoSave()"
-            title="Paid up front: the email makes no mention of billing. Multi-month: auto-charged each month, the email says so. Month-to-month: gets 7/3/1-day pre-renewal warnings instead of a billing-date email."
-            style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
-            ${[['prepaid','Paid up front — no billing language'],
-               ['multi_month','Multi-month — auto-charged monthly'],
-               ['month_to_month','Month-to-month — 7/3/1 day renewal warnings']]
-              .map(([v,label])=>`<option value="${v}" ${str(c.agreementType||'prepaid')===v?'selected':''}>${esc(label)}</option>`).join('')}
-          </select>
-        </div>
-      </div>`:''}
+      ${renderRetainerBilling(c)}
 
       <div style="margin-bottom:8px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">\uD83D\uDDFA\uFE0F Service Area</label>
@@ -1632,7 +1599,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260815193007');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260816201328');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);
