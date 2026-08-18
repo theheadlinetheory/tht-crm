@@ -16,11 +16,11 @@
 // rules as Weekly Updates: TO = clients.notify_email, CC = aidan@ + per-client
 // extras. Structure mirrors weekly-updates.js on purpose.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20260818040001';
-import { state } from './app.js?v=20260818040001';
-import { render } from './render.js?v=20260818040001';
-import { showToast, sbSaveSettings } from './api.js?v=20260818040001';
-import { esc, str, svgIcon } from './utils.js?v=20260818040001';
+import { supabase } from './supabase-client.js?v=20260817172313';
+import { state } from './app.js?v=20260817172313';
+import { render } from './render.js?v=20260817172313';
+import { showToast, sbSaveSettings } from './api.js?v=20260817172313';
+import { esc, str, svgIcon } from './utils.js?v=20260817172313';
 
 // Lives on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const FN_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/followup-reminder-send';

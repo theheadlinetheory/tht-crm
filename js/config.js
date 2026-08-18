@@ -207,12 +207,32 @@ export function isInternationalAddress(addr) {
 }
 
 // ─── Acquisition Pipeline Calendly URLs ───
+// Acquisition booking links, keyed by <call type>_<who takes it>.
+// Ioannis is "David" on his client-facing booking pages; the CRM calls him
+// Ioannis so the team recognises him.
 export const ACQ_CALENDLY_URLS = {
   demo:'https://calendly.com/aidan-theheadlinetheory/demo-call-with-the-headline-theory',
+  demo_ioannis:'https://calendly.com/contact-theheadlinetheory/30min',
   demo_lars:'https://calendly.com/aidan-theheadlinetheory/30-min-with-lars',
   strategy:'https://calendly.com/aidan-theheadlinetheory/discovery-call-with-the-headline-theory-clone',
   strategy_ioannis:'https://calendly.com/contact-theheadlinetheory/strategy-call-with-the-headline-theory'
 };
+
+// Who can take each acquisition call. One list per call type, used by BOTH
+// pickers (deal modal + power dialer) so adding a person is a one-line change
+// here instead of the same edit in two files. One colour per person throughout.
+const BOOKER_COLOR = { aidan:'#7c3aed', ioannis:'#2563eb', lars:'#059669' };
+
+export const ACQ_STRATEGY_BOOKERS = [
+  { label:'Aidan',   color:BOOKER_COLOR.aidan,   type:'strategy' },
+  { label:'Ioannis', color:BOOKER_COLOR.ioannis, type:'strategy_ioannis' },
+];
+
+export const ACQ_DEMO_BOOKERS = [
+  { label:'Aidan',   color:BOOKER_COLOR.aidan,   type:'demo' },
+  { label:'Ioannis', color:BOOKER_COLOR.ioannis, type:'demo_ioannis' },
+  { label:'Lars',    color:BOOKER_COLOR.lars,    type:'demo_lars' },
+];
 
 // ─── Timezone mapping for Calendly ───
 export const TZ_TO_IANA = {

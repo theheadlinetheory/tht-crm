@@ -96,6 +96,11 @@ const REQUIRED_FEATURES = [
   { file: 'settings.js',         needle: "prepaidMonths:str(c.prepaidMonths",     feature: 'Settings → Clients: prepaid months saved with the client' },
   { file: 'won-modal.js',        needle: 'id="won-prepaid"',                      feature: 'Close Won: prepaid retainer checkbox' },
   { file: 'api.js',              needle: "prepaid_months: 'prepaidMonths'",       feature: 'Prepaid retainer: prepaid_months field mapping' },
+  // Acquisition booking — one list per call type, shared by the deal modal and
+  // the power dialer. Dropping a person here silently removes their calendar.
+  { file: 'config.js',           needle: 'export const ACQ_STRATEGY_BOOKERS',     feature: 'Acquisition: strategy-call booker list' },
+  { file: 'config.js',           needle: 'export const ACQ_DEMO_BOOKERS',         feature: 'Acquisition: demo-call booker list' },
+  { file: 'config.js',           needle: 'demo_ioannis:',                         feature: "Acquisition: Ioannis's demo Calendly link" },
 ];
 console.log('2. Feature inventory …');
 const fileCache = {};

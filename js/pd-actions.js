@@ -1,9 +1,9 @@
 // ═══════════════════════════════════════════════════════════
 // PD-ACTIONS — Power Dialer maps, modals, Calendly booking
 // ═══════════════════════════════════════════════════════════
-import { supabase, showToast } from './api.js?v=20260818040001';
-import { ACQ_CALENDLY_URLS } from './config.js?v=20260818040001';
-import { openCalendlyEmbed } from './calendly.js?v=20260818040001';
+import { supabase, showToast } from './api.js?v=20260817172313';
+import { ACQ_CALENDLY_URLS, ACQ_STRATEGY_BOOKERS, ACQ_DEMO_BOOKERS } from './config.js?v=20260817172313';
+import { openCalendlyEmbed } from './calendly.js?v=20260817172313';
 
 let _miniMap = null;
 let _miniMapAddr = '';
@@ -191,15 +191,9 @@ function showAcqCallPicker(title, options) {
 }
 
 export function showStrategyPicker(queue, queueIndex) {
-  showAcqCallPicker("Who's booking the strategy call?", [
-    { label: 'Aidan', color: '#7c3aed', type: 'strategy' },
-    { label: 'Ioannis', color: '#2563eb', type: 'strategy_ioannis' },
-  ]);
+  showAcqCallPicker("Who's booking the strategy call?", ACQ_STRATEGY_BOOKERS);
 }
 
 export function showDemoPicker(queue, queueIndex) {
-  showAcqCallPicker("Who's taking the demo call?", [
-    { label: 'Aidan', color: '#2563eb', type: 'demo' },
-    { label: 'Lars', color: '#7c3aed', type: 'demo_lars' },
-  ]);
+  showAcqCallPicker("Who's taking the demo call?", ACQ_DEMO_BOOKERS);
 }
