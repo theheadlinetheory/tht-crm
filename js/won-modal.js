@@ -4,14 +4,14 @@
 // portal. Blocking, ordered, stop-on-failure with Retry.
 // Body-level overlay (survives render()).
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260820073712';
-import { str, esc, getToday } from './utils.js?v=20260820073712';
-import { createClientRecord, deriveTimezone } from './client-info.js?v=20260820073712';
-import { ensureLeadTrackerSheet } from './lead-tracker-sheet.js?v=20260820073712';
-import { invokeEdgeFunction, showToast } from './api.js?v=20260820073712';
-import { isAdmin } from './auth.js?v=20260820073712';
-import { prepaidNote } from './retainer-billing.js?v=20260820073712';
-import { createSmartleadPortal } from './smartlead-portal.js?v=20260820073712';
+import { state } from './app.js?v=20260821052046';
+import { str, esc, getToday } from './utils.js?v=20260821052046';
+import { createClientRecord, deriveTimezone } from './client-info.js?v=20260821052046';
+import { ensureLeadTrackerSheet } from './lead-tracker-sheet.js?v=20260821052046';
+import { invokeEdgeFunction, showToast } from './api.js?v=20260821052046';
+import { isAdmin } from './auth.js?v=20260821052046';
+import { prepaidNote } from './retainer-billing.js?v=20260821052046';
+import { createSmartleadPortal } from './smartlead-portal.js?v=20260821052046';
 
 let _w = null; // { deal, clientId, sheetId, tagsDone, portal }
 const CURRENCIES = ['USD', 'AUD', 'CAD'];
@@ -264,11 +264,11 @@ async function runSteps(f, startIdx) {
     const clientName = f.name;
     const portal = _w.portal;
     wonModalDismiss();
-    const { deleteDeal } = await import('./deals.js?v=20260820073712');
+    const { deleteDeal } = await import('./deals.js?v=20260821052046');
     deleteDeal(dealId, 'Closed Won', clientName);
-    // Smartlead discloses the password exactly once, at creation. It's already
-    // in Slack and on the client row, but show it here too so whoever closed the
-    // deal can hand it over without going looking.
+    // Smartlead only ever hands back a password at creation. It's already in
+    // Slack and on the client row, but show it here too so whoever closed the
+    // deal can pass it on without going looking.
     if (portal?.password) showPortalCredentials(clientName, portal);
     else showToast(`Client "${clientName}" created and deal won`, 'success');
   } catch (e) {
@@ -283,7 +283,7 @@ function showPortalCredentials(clientName, portal) {
   const html = `<div id="won-portal-overlay" style="position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:center;padding:20px" onclick="if(event.target===this)wonPortalDismiss()">
     <div style="background:#fff;border-radius:12px;max-width:460px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25);padding:22px" onclick="event.stopPropagation()">
       <h2 style="margin:0 0 4px;font-size:16px;color:#1e293b">Smartlead portal created</h2>
-      <div style="font-size:12px;color:#64748b;margin-bottom:14px">${esc(clientName)} can sign in at <strong>app.smartlead.ai</strong>. This password is shown once — it's also in Slack and on the client's Settings row.</div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:14px">${esc(clientName)} can sign in at <strong>app.smartlead.ai</strong>. Every client portal uses this same password — it's also in Slack and on the client's Settings row.</div>
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;font-size:13px">
         <div style="margin-bottom:6px"><span style="color:#64748b">Login</span><br><code id="won-portal-email" style="font-size:13px">${esc(portal.email)}</code></div>
         <div><span style="color:#64748b">Password</span><br><code id="won-portal-pw" style="font-size:13px">${esc(portal.password)}</code></div>
@@ -312,7 +312,7 @@ export function wonPortalCopy() {
 export async function wonModalLink(existingName) {
   const dealId = _w.deal.id;
   wonModalDismiss();
-  const { deleteDeal } = await import('./deals.js?v=20260820073712');
+  const { deleteDeal } = await import('./deals.js?v=20260821052046');
   deleteDeal(dealId, 'Closed Won', existingName);
   showToast(`Deal linked to existing client "${existingName}"`, 'success');
 }
