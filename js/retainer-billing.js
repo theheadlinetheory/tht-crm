@@ -5,7 +5,7 @@
 // term = launch date → launch date + prepaidMonths months. The backend is
 // the authority; this only shows the operator what it will do.
 // ═══════════════════════════════════════════════════════════
-import { esc, str } from './utils.js?v=20260817172313';
+import { esc, str } from './utils.js?v=20260820073712';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const CURRENCIES = ['usd','aud','cad','gbp'];
@@ -52,6 +52,43 @@ export function prepaidNote(launchDate, prepaidMonths) {
   return `Prepaid through ${prettyDate(end)} — no invoices until then, billing resumes that day.`;
 }
 
+// Month-to-month clients renew on a stored day of the month that is deliberately
+// NOT derivable from the launch date — Denair launched on the 23rd and renews on
+// the 29th, Hammer launched on the 14th and renews on the 2nd. Without it the
+// 7/3/1-day notices never fire and the client gets charged with no warning, so an
+// unset day is an error rather than a blank.
+export function renewalDayNote(agreementType, renewalDay) {
+  const day = Number(renewalDay) || 0;
+  const m2m = str(agreementType) === 'month_to_month';
+  if (m2m && !day) return 'Set a renewal day — without it no renewal notices are sent.';
+  if (!m2m && day) return 'Only month-to-month clients use a renewal day; this one is ignored.';
+  if (m2m) return `Renews on the ${ordinal(day)} — notices go out 7, 3 and 1 days before.`;
+  return '';
+}
+
+// Whether that note is a problem (amber) rather than a confirmation (green).
+export function renewalDayIsProblem(agreementType, renewalDay) {
+  const day = Number(renewalDay) || 0;
+  return (str(agreementType) === 'month_to_month' && !day) || (str(agreementType) !== 'month_to_month' && !!day);
+}
+
+function ordinal(n) {
+  const rem100 = n % 100;
+  if (rem100 >= 11 && rem100 <= 13) return `${n}th`;
+  return `${n}${({ 1: 'st', 2: 'nd', 3: 'rd' })[n % 10] || 'th'}`;
+}
+
+// Live-update the note without a full re-render (typing must not be interrupted).
+export function setRenewalDay(clientId, agreementType, value) {
+  window.updateClientField?.(clientId, 'renewalDay', value);
+  const note = document.getElementById(`renewal-note-${clientId}`);
+  if (note) {
+    note.textContent = renewalDayNote(agreementType, value);
+    note.style.color = renewalDayIsProblem(agreementType, value) ? '#b45309' : '#16a34a';
+  }
+  window.debouncedAutoSave?.();
+}
+
 // Live-update the note without a full re-render (typing must not be interrupted).
 export function setPrepaidMonths(clientId, launchDate, value) {
   window.updateClientField?.(clientId, 'prepaidMonths', value);
@@ -64,6 +101,7 @@ export function renderRetainerBilling(c) {
   if (str(c.billingModel) !== 'retainer') return '';
   const agreement = str(c.agreementType || 'prepaid');
   const months = str(c.prepaidMonths ?? '');
+  const renewalDay = str(c.renewalDay ?? '');
   const mismatch = (Number(months) || 0) > 0 && agreement !== 'prepaid';
   return `<div style="margin-bottom:8px;padding:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px">
     <div style="font-size:10px;font-weight:700;color:#16a34a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Retainer Billing</div>
@@ -91,11 +129,19 @@ export function renderRetainerBilling(c) {
     </div>
     <div style="margin-top:6px">
       <label style="${LABEL}">Agreement Type — sets what the monthly update email says about money</label>
-      <select onchange="updateClientField('${esc(c.id)}','agreementType',this.value);debouncedAutoSave()"
+      <select onchange="setAgreementType('${esc(c.id)}',this.value)"
         title="Paid up front: the email makes no mention of billing. Multi-month: auto-charged each month, the email says so. Month-to-month: gets 7/3/1-day pre-renewal warnings instead of a billing-date email."
         style="${FIELD}">
         ${AGREEMENT_TYPES.map(([v, label]) => `<option value="${v}" ${agreement === v ? 'selected' : ''}>${esc(label)}</option>`).join('')}
       </select>
+    </div>
+    <div style="margin-top:6px">
+      <label style="${LABEL}">Renewal Day — month-to-month only, not derived from the launch date</label>
+      <input type="number" min="1" max="31" step="1" placeholder="e.g. 25" value="${esc(renewalDay)}"
+        oninput="setRenewalDay('${esc(c.id)}','${esc(agreement)}',this.value)"
+        title="The day of the month a month-to-month client renews. Stored, not calculated: Denair launched on the 23rd but renews on the 29th. Drives the 7/3/1-day pre-renewal notices; a day past the end of a short month is clamped (31 renews Feb 28)."
+        style="${FIELD}">
+      <div id="renewal-note-${esc(c.id)}" style="font-size:10px;color:${renewalDayIsProblem(agreement, renewalDay) ? '#b45309' : '#16a34a'};margin-top:4px">${esc(renewalDayNote(agreement, renewalDay))}</div>
     </div>
     <div style="margin-top:6px">
       <label style="${LABEL}">Prepaid Months — blank or 0 = invoiced every month</label>
@@ -109,4 +155,22 @@ export function renderRetainerBilling(c) {
   </div>`;
 }
 
+// Changing the agreement type changes whether a renewal day is required, so the
+// note has to be re-evaluated against the new type — the card is not re-rendered.
+export function setAgreementType(clientId, value) {
+  window.updateClientField?.(clientId, 'agreementType', value);
+  const input = document.querySelector(`#renewal-note-${clientId}`)?.previousElementSibling;
+  const day = input ? input.value : '';
+  const note = document.getElementById(`renewal-note-${clientId}`);
+  if (note) {
+    note.textContent = renewalDayNote(value, day);
+    note.style.color = renewalDayIsProblem(value, day) ? '#b45309' : '#16a34a';
+  }
+  // Keep the renewal-day input's own handler pointed at the new type.
+  if (input) input.setAttribute('oninput', `setRenewalDay('${clientId}','${value}',this.value)`);
+  window.debouncedAutoSave?.();
+}
+
 window.setPrepaidMonths = setPrepaidMonths;
+window.setRenewalDay = setRenewalDay;
+window.setAgreementType = setAgreementType;

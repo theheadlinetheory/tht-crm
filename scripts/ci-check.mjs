@@ -96,6 +96,11 @@ const REQUIRED_FEATURES = [
   { file: 'settings.js',         needle: "prepaidMonths:str(c.prepaidMonths",     feature: 'Settings → Clients: prepaid months saved with the client' },
   { file: 'won-modal.js',        needle: 'id="won-prepaid"',                      feature: 'Close Won: prepaid retainer checkbox' },
   { file: 'api.js',              needle: "prepaid_months: 'prepaidMonths'",       feature: 'Prepaid retainer: prepaid_months field mapping' },
+  // Month-to-month: no renewal day means no 7/3/1 notices, so the client is
+  // charged with no warning. The field and its warning are load-bearing.
+  { file: 'retainer-billing.js', needle: 'export function renewalDayNote',        feature: 'Month-to-month: renewal day note + missing-day warning' },
+  { file: 'settings.js',         needle: 'renewalDay:str(c.renewalDay',           feature: 'Settings → Clients: renewal day saved with the client' },
+  { file: 'api.js',              needle: "renewal_day: 'renewalDay'",             feature: 'Month-to-month: renewal_day field mapping' },
   // Acquisition booking — one list per call type, shared by the deal modal and
   // the power dialer. Dropping a person here silently removes their calendar.
   { file: 'config.js',           needle: 'export const ACQ_STRATEGY_BOOKERS',     feature: 'Acquisition: strategy-call booker list' },
