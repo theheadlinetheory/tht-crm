@@ -642,6 +642,26 @@ function renderClientsSettings(){
         </div>`;
       })()}
 
+      ${isAdmin()?(()=>{
+        // The client's own Smartlead login. Created automatically when a deal is
+        // closed won; this panel is for clients signed before that existed, and
+        // for reading the password back — Smartlead only ever shows it once, at
+        // creation, so the copy on this row is the durable one.
+        const slId = str(c.smartleadClientId).trim();
+        const pw = str(c.smartleadPortalPassword).trim();
+        const login = str(c.notifyEmail || c.notifyEmails).split(',')[0].trim();
+        return `<div style="margin-bottom:8px;padding:10px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px">
+          <div style="font-size:10px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Smartlead Client Portal</div>
+          ${slId ? `<div style="font-size:12px;color:var(--text)">
+              <div>Client ID <code>${esc(slId)}</code></div>
+              ${login?`<div>Login <code>${esc(login)}</code></div>`:''}
+              <div>Password ${pw?`<code>${esc(pw)}</code>`:'<span style="color:var(--text-muted)">not stored — check Slack, or reset it in Smartlead</span>'}</div>
+            </div>`
+            : `<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">No portal yet — this client can't sign in to read their own leads.</div>
+              <button onclick="createClientPortal('${esc(c.id)}')" style="padding:6px 12px;background:#7c3aed;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">Create portal</button>`}
+        </div>`;
+      })():''}
+
       ${isAdmin()?`<div style="margin-bottom:8px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Billing Type</label>
         <select onchange="updateClientField('${esc(c.id)}','billingModel',this.value);debouncedAutoSave();renderSettingsPanel()"
@@ -1839,6 +1859,26 @@ window.restoreClient = async function(clientId) {
   const { error } = await supabase.from('clients').update({ status: 'active' }).eq('id', clientId);
   if (error) { showToast('Restore failed: ' + error.message, 'error'); c.status = 'inactive'; render(); }
   else showToast(`${c.name} restored`, 'success');
+};
+
+// Manual portal creation, for clients signed before the Won modal did it. The
+// confirm is deliberate: Smartlead has no delete endpoint, so a portal made by
+// mistake — or against the wrong address — is permanent.
+window.createClientPortal = async function(clientId) {
+  const c = state.clients.find(x => str(x.id) === str(clientId));
+  if (!c) return;
+  const { portalEmail, createSmartleadPortal } = await import('./smartlead-portal.js?v=20260820073712');
+  const email = portalEmail(c);
+  if (!email) { showToast('Add a contact email for this client first', 'error'); return; }
+  if (!confirm(`Create a Smartlead portal for ${c.name}?\n\nLogin: ${email}\n\nSmartlead has no way to delete a client portal, so this cannot be undone.`)) return;
+  try {
+    const r = await createSmartleadPortal(c);
+    render();
+    if (r.existed) showToast(`${c.name} already had a portal — linked it (id ${r.clientId})`, 'success');
+    else showToast(`Portal created for ${c.name} — password is on their Settings row and in Slack`, 'success');
+  } catch (e) {
+    showToast('Portal failed: ' + (e?.message || e), 'error');
+  }
 };
 
 window.deactivateClient = async function(clientId) {
