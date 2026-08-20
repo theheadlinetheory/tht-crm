@@ -1,7 +1,8 @@
 // ═══════════════════════════════════════════════════════════
 // WON-MODAL — Closed-Won drop (Acquisition): route retainer/PPL,
-// create client + lead sheet + SmartLead tags. Blocking, ordered,
-// stop-on-failure with Retry. Body-level overlay (survives render()).
+// create client + lead sheet + SmartLead tags + SmartLead client
+// portal. Blocking, ordered, stop-on-failure with Retry.
+// Body-level overlay (survives render()).
 // ═══════════════════════════════════════════════════════════
 import { state } from './app.js?v=20260820073712';
 import { str, esc, getToday } from './utils.js?v=20260820073712';
@@ -10,8 +11,9 @@ import { ensureLeadTrackerSheet } from './lead-tracker-sheet.js?v=20260820073712
 import { invokeEdgeFunction, showToast } from './api.js?v=20260820073712';
 import { isAdmin } from './auth.js?v=20260820073712';
 import { prepaidNote } from './retainer-billing.js?v=20260820073712';
+import { createSmartleadPortal } from './smartlead-portal.js?v=20260820073712';
 
-let _w = null; // { deal, clientId, sheetId, tagsDone }
+let _w = null; // { deal, clientId, sheetId, tagsDone, portal }
 const CURRENCIES = ['USD', 'AUD', 'CAD'];
 const TERMS_PPL = ['Net 7', 'Net 15', 'Net 30'];
 
@@ -33,7 +35,7 @@ const val = (id) => (document.getElementById(id)?.value || '').trim();
 export function openWonModal(deal) {
   if (!isAdmin()) return; // admin-only
   const name = str(deal.company || deal.contact || '').trim();
-  _w = { deal, clientId: '', sheetId: '', tagsDone: false };
+  _w = { deal, clientId: '', sheetId: '', tagsDone: false, portal: null };
   const tz = deriveTimezone(str(deal.location || deal.address || ''));
   const dup = findDuplicate(name);
   const dupBanner = dup
@@ -187,7 +189,11 @@ function buildFields() {
   return f;
 }
 
-const STEPS = ['Create client record', 'Create Lead Tracker sheet', 'Create SmartLead tags', 'Move deal to Won'];
+const STEPS = ['Create client record', 'Create Lead Tracker sheet', 'Create SmartLead tags', 'Create SmartLead client portal', 'Move deal to Won'];
+
+// Which step to resume from — the first one that hasn't completed. Every step is
+// idempotent, so re-running the failed one is always safe.
+const nextStep = () => !_w.clientId ? 0 : !_w.sheetId ? 1 : !_w.tagsDone ? 2 : 3;
 
 function setFooterProgress(activeIdx, failedIdx) {
   const f = document.getElementById('won-footer');
@@ -221,8 +227,7 @@ export async function wonModalSubmit() {
 
 // Retry resumes from the first not-yet-completed step (idempotent).
 export async function wonModalRetry() {
-  const startIdx = _w.clientId ? (_w.sheetId ? 2 : 1) : 0;
-  await runSteps(buildFields(), startIdx);
+  await runSteps(buildFields(), nextStep());
 }
 
 async function runSteps(f, startIdx) {
@@ -231,6 +236,7 @@ async function runSteps(f, startIdx) {
     if (startIdx <= 0) {
       const c = await createClientRecord(f);
       _w.clientId = c.id;
+      _w.client = c; // kept so the portal step can mirror onto the live row
     }
     setFooterProgress(1, null);
     if (startIdx <= 1) {
@@ -243,17 +249,64 @@ async function runSteps(f, startIdx) {
       _w.tagsDone = true;
     }
     setFooterProgress(3, null);
+    if (startIdx <= 3 && !_w.portal) {
+      // Their own Smartlead login, so they can read and reply to their leads.
+      // Idempotent server-side, so a Retry re-attaches rather than duplicating —
+      // which matters, because Smartlead has no way to delete a client portal.
+      // Pass the live clients row where we have it, so the id and password land
+      // on it and Settings shows them without waiting for the next sync.
+      const row = _w.client || state.clients.find(c => str(c.id) === str(_w.clientId))
+        || { id: _w.clientId, name: f.name, notifyEmail: f.notifyEmail };
+      _w.portal = await createSmartleadPortal(row);
+    }
+    setFooterProgress(4, null);
     const dealId = _w.deal.id;
     const clientName = f.name;
+    const portal = _w.portal;
     wonModalDismiss();
     const { deleteDeal } = await import('./deals.js?v=20260820073712');
     deleteDeal(dealId, 'Closed Won', clientName);
-    showToast(`Client "${clientName}" created and deal won`, 'success');
+    // Smartlead discloses the password exactly once, at creation. It's already
+    // in Slack and on the client row, but show it here too so whoever closed the
+    // deal can hand it over without going looking.
+    if (portal?.password) showPortalCredentials(clientName, portal);
+    else showToast(`Client "${clientName}" created and deal won`, 'success');
   } catch (e) {
-    const failedIdx = _w.clientId ? (_w.sheetId ? 2 : 1) : 0;
+    const failedIdx = nextStep();
     setFooterProgress(failedIdx, failedIdx);
     showToast('Step failed: ' + (e?.message || e), 'error');
   }
+}
+
+// Body-level so it survives the render() that deleteDeal triggers.
+function showPortalCredentials(clientName, portal) {
+  const html = `<div id="won-portal-overlay" style="position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:center;padding:20px" onclick="if(event.target===this)wonPortalDismiss()">
+    <div style="background:#fff;border-radius:12px;max-width:460px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25);padding:22px" onclick="event.stopPropagation()">
+      <h2 style="margin:0 0 4px;font-size:16px;color:#1e293b">Smartlead portal created</h2>
+      <div style="font-size:12px;color:#64748b;margin-bottom:14px">${esc(clientName)} can sign in at <strong>app.smartlead.ai</strong>. This password is shown once — it's also in Slack and on the client's Settings row.</div>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;font-size:13px">
+        <div style="margin-bottom:6px"><span style="color:#64748b">Login</span><br><code id="won-portal-email" style="font-size:13px">${esc(portal.email)}</code></div>
+        <div><span style="color:#64748b">Password</span><br><code id="won-portal-pw" style="font-size:13px">${esc(portal.password)}</code></div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+        <button onclick="wonPortalCopy()" style="padding:8px 16px;background:#f1f5f9;color:#475569;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Copy both</button>
+        <button onclick="wonPortalDismiss()" style="padding:8px 18px;background:#4f46e5;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Done</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+export function wonPortalDismiss() {
+  document.getElementById('won-portal-overlay')?.remove();
+}
+
+export function wonPortalCopy() {
+  const email = document.getElementById('won-portal-email')?.textContent || '';
+  const pw = document.getElementById('won-portal-pw')?.textContent || '';
+  navigator.clipboard.writeText(`Smartlead login: ${email}\nPassword: ${pw}\nSign in at https://app.smartlead.ai/`)
+    .then(() => showToast('Login copied', 'success'))
+    .catch(() => showToast('Could not copy — select the text instead', 'warning'));
 }
 
 export async function wonModalLink(existingName) {
@@ -272,3 +325,5 @@ window.wonToggleLaunchTBD = wonToggleLaunchTBD;
 window.wonTogglePrepaid = wonTogglePrepaid;
 window.wonUpdatePrepaidNote = wonUpdatePrepaidNote;
 window.wonModalLink = wonModalLink;
+window.wonPortalDismiss = wonPortalDismiss;
+window.wonPortalCopy = wonPortalCopy;

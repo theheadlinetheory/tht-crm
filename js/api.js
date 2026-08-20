@@ -234,6 +234,8 @@ const FIELD_MAP = {
   created_at: 'createdDate',
   updated_at: 'lastUpdated',
   smartlead_url: 'smartleadUrl',
+  smartlead_client_id: 'smartleadClientId',
+  smartlead_portal_password: 'smartleadPortalPassword',
   forwarded_at: 'forwardedAt',
   email_body: 'emailBody',
   mobile_phone: 'mobilePhone',
