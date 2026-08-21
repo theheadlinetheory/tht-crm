@@ -9,8 +9,8 @@
 // request came from a signed-in @theheadlinetheory.com user. Same reasoning as
 // weekly-updates.js and followup-reminders.js: this repo is public, so the
 // function's URL is published, and without the header anyone could POST it.
-import { supabase } from './supabase-client.js?v=20260821052046';
-import { str } from './utils.js?v=20260821052046';
+import { supabase } from './supabase-client.js?v=20260821053449';
+import { str } from './utils.js?v=20260821053449';
 
 // Lives on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const FN_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/crm-smartlead-client';
@@ -34,7 +34,8 @@ export function portalEmail(client){
 // That matters — Smartlead has no delete endpoint, so a duplicate is permanent.
 //
 // Returns { clientId, email, password, existed }. `password` is null when the
-// portal already existed: Smartlead only ever discloses it at creation.
+// portal already existed: Smartlead only ever discloses it at creation. It is
+// shown once to whoever closed the deal and never persisted here.
 export async function createSmartleadPortal(client){
   const email = portalEmail(client);
   if(!email) throw new Error('This client has no email and no usable name — add a contact email first.');
@@ -48,9 +49,10 @@ export async function createSmartleadPortal(client){
   const data = await resp.json().catch(() => ({ error: 'crm-smartlead-client returned a non-JSON response (' + resp.status + ')' }));
   if(!resp.ok || data.error) throw new Error(data.error || ('crm-smartlead-client failed (' + resp.status + ')'));
 
-  // Mirror onto the in-memory row so Settings shows it without a reload — the
-  // edge function has already written both columns to the database.
+  // Mirror the id onto the in-memory row so Settings shows it without a reload.
+  // The password is deliberately NOT kept on the client object: the clients
+  // table is readable with this repo's public anon key, and a stray write would
+  // publish it. Slack is where it lives.
   client.smartleadClientId = str(data.clientId);
-  if(data.password) client.smartleadPortalPassword = data.password;
   return data;
 }
