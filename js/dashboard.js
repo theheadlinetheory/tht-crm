@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // DASHBOARD — Dashboard rendering (client fulfillment + acquisition)
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260821053449';
-import { ACQUISITION_STAGES, NURTURE_STAGES, DEFAULT_CLIENT_STAGES, ALL_PIPELINES } from './config.js?v=20260821053449';
-import { render } from './render.js?v=20260821053449';
-import { esc, fmt$ } from './utils.js?v=20260821053449';
-import { isAdmin, isEmployee } from './auth.js?v=20260821053449';
-import { getOverdueActivities } from './activities.js?v=20260821053449';
-import { sbGetArchivedDeals } from './api.js?v=20260821053449';
+import { state } from './app.js?v=20260825022410';
+import { ACQUISITION_STAGES, NURTURE_STAGES, DEFAULT_CLIENT_STAGES, ALL_PIPELINES } from './config.js?v=20260825022410';
+import { render } from './render.js?v=20260825022410';
+import { esc, fmt$ } from './utils.js?v=20260825022410';
+import { isAdmin, isEmployee } from './auth.js?v=20260825022410';
+import { getOverdueActivities } from './activities.js?v=20260825022410';
+import { sbGetArchivedDeals } from './api.js?v=20260825022410';
 
 function dateAddedToDate(dateAdded) {
   if (!dateAdded) return null;
@@ -249,11 +249,11 @@ function tenureLabel(from, today) {
 // WEEKLY KPI TARGETS
 //   Pay-per-meeting clients: >= 1 booked meeting per week
 //     (bare minimum; ~4/month keeps margins)
-//   Retainer clients: >= 2 interested responses per week
-//     (usually more; < 2 = something seriously wrong)
+//   Retainer clients: >= 5 positive replies per week
+//     (the standing bar; below 5 = the campaigns need work)
 // ═══════════════════════════════════════════════════════════
 export const PPM_WEEKLY_TARGET = 1;
-export const RETAINER_WEEKLY_TARGET = 2;
+export const RETAINER_WEEKLY_TARGET = 5;
 
 function leadCostNum(c) {
   return parseFloat(String(c.leadCost ?? '').replace(/[^0-9.]/g, '')) || 0;
@@ -268,7 +268,7 @@ export function getPpmClients() {
   return state.clients.filter(c => isActiveClient(c) && !isRetainerBilled(c) && leadCostNum(c) > 0);
 }
 
-// Retainer clients — billed monthly, measured on interested responses passed off
+// Retainer clients — billed monthly, measured on positive replies passed off
 export function getRetainerClients() {
   return state.clients.filter(c => isActiveClient(c) && isRetainerBilled(c));
 }
@@ -285,8 +285,8 @@ function bookedMeetingsByClient(weekKey) {
   return map;
 }
 
-// clientName → interested responses (retainer lead pass-offs) in the given week
-function interestedResponsesByClient(weekKey) {
+// clientName → positive replies (retainer lead pass-offs) in the given week
+function positiveRepliesByClient(weekKey) {
   const map = {};
   for (const p of (state.passOffs || [])) {
     if (passOffWeekKey(p.datePassed) !== weekKey) continue;
@@ -299,16 +299,16 @@ function interestedResponsesByClient(weekKey) {
 
 export function getWeeklyKpiStatus(weekKey) {
   const booked = bookedMeetingsByClient(weekKey);
-  const interested = interestedResponsesByClient(weekKey);
+  const positives = positiveRepliesByClient(weekKey);
   const ppm = getPpmClients().map(c => {
     const n = booked[c.name] || 0;
     return { name: c.name, count: n, target: PPM_WEEKLY_TARGET, hit: n >= PPM_WEEKLY_TARGET };
   }).sort((a, b) => a.count - b.count || a.name.localeCompare(b.name));
   const retainer = getRetainerClients().map(c => {
-    const n = interested[c.name] || 0;
+    const n = positives[c.name] || 0;
     return { name: c.name, count: n, target: RETAINER_WEEKLY_TARGET, hit: n >= RETAINER_WEEKLY_TARGET };
   }).sort((a, b) => a.count - b.count || a.name.localeCompare(b.name));
-  return { ppm, retainer, booked, interested };
+  return { ppm, retainer, booked, positives };
 }
 
 function kpiTargetCard(title, rule, note, rows, accent) {
@@ -342,7 +342,7 @@ function renderKpiTargetStrip(wk, ppm, retainer) {
   return `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:6px 12px;margin:0 0 8px">
     <span style="font-size:10px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--text-muted)">Weekly KPI · ${weekLabel(wk)}</span>
     <span style="font-size:11px;font-weight:600;color:#2563eb">PPM ≥ ${PPM_WEEKLY_TARGET} booked meeting/wk</span> ${ratio(ppm)}
-    <span style="font-size:11px;font-weight:600;color:#7c3aed">Retainer ≥ ${RETAINER_WEEKLY_TARGET} interested responses/wk</span> ${ratio(retainer)}
+    <span style="font-size:11px;font-weight:600;color:#7c3aed">Retainer ≥ ${RETAINER_WEEKLY_TARGET} positive replies/wk</span> ${ratio(retainer)}
     ${below.length ? `<span style="font-size:11px;color:#b91c1c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b>Below:</b> ${below.map(r => `${esc(r.name)} (${r.count})`).join(', ')}</span>` : ''}
   </div>`;
 }
@@ -361,7 +361,7 @@ export function renderKpiTargetBar(weekKey, opts = {}) {
     </div>
     <div style="display:flex;gap:12px;flex-wrap:wrap">
       ${kpiTargetCard('Pay-per-meeting clients', `≥ ${PPM_WEEKLY_TARGET} booked meeting per week`, 'Bare minimum — ~4/month keeps margins. Counts Lead Tracker entries booked in the week.', ppm, '#2563eb')}
-      ${kpiTargetCard('Retainer clients', `≥ ${RETAINER_WEEKLY_TARGET} interested responses per week`, 'Usually more — fewer than 2 means something is seriously wrong. Counts retainer leads passed off in the week.', retainer, '#7c3aed')}
+      ${kpiTargetCard('Retainer clients', `≥ ${RETAINER_WEEKLY_TARGET} positive replies per week`, `The standing bar — under ${RETAINER_WEEKLY_TARGET} means the campaigns need work. Counts retainer leads passed off in the week.`, retainer, '#7c3aed')}
     </div>
   </div>`;
 }
@@ -396,11 +396,11 @@ export function renderClientDashboard(){
   const goodWeek = bookedWeek - calledBackWeek;
   const prevGood = prevBooked - prevCalledBack;
 
-  // KPI 4: Interested Responses — retainer lead pass-offs in the week
+  // KPI 4: Positive Replies — retainer lead pass-offs in the week
   const retainerNames = new Set(getRetainerClients().map(c => c.name));
   const passOffsIn = (wk) => (state.passOffs || []).filter(p => passOffWeekKey(p.datePassed) === wk && retainerNames.has(resolveClientName(p.clientName))).length;
-  const interestedWeek = passOffsIn(selWeek);
-  const prevInterested = passOffsIn(prevWeek);
+  const positivesWeek = passOffsIn(selWeek);
+  const prevPositives = passOffsIn(prevWeek);
 
   // KPI 5: Active Leads — PPL clients only
   const pplDeals = clientDeals.filter(d => isPplDeal(d));
@@ -440,7 +440,7 @@ export function renderClientDashboard(){
     ${renderKpiTargetBar(selWeek)}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px">
       <div style="${cardStyle}"><div style="${labelStyle}">Meetings Booked (${wkLabel})</div><div style="${numStyle};color:#2563eb">${bookedWeek}</div>${trend(bookedWeek, prevBooked)}</div>
-      <div style="${cardStyle}"><div style="${labelStyle}">Interested Responses</div><div style="${numStyle};color:#7c3aed">${interestedWeek}</div>${trend(interestedWeek, prevInterested)}</div>
+      <div style="${cardStyle}"><div style="${labelStyle}">Positive Replies</div><div style="${numStyle};color:#7c3aed">${positivesWeek}</div>${trend(positivesWeek, prevPositives)}</div>
       <div style="${cardStyle}"><div style="${labelStyle}">Called Back</div><div style="${numStyle};color:#ef4444">${calledBackWeek}</div>${trend(calledBackWeek, prevCalledBack)}</div>
       <div style="${cardStyle}"><div style="${labelStyle}">Good Leads</div><div style="${numStyle};color:#22c55e">${goodWeek}</div>${trend(goodWeek, prevGood)}</div>
       <div style="${cardStyle}"><div style="${labelStyle}">Active Leads</div><div style="${numStyle};color:var(--purple)">${activeLeads}</div></div>
@@ -464,7 +464,7 @@ function renderClientTable(selWeek, wkLabel, clientDeals) {
   // time-of-day remainder rounds a client's day count up by one.
   const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const clientCounts = {};
-  const blank = () => ({ active: 0, booked: 0, calledBack: 0, interested: 0, lastLead: null });
+  const blank = () => ({ active: 0, booked: 0, calledBack: 0, positives: 0, lastLead: null });
 
   state.clients.forEach(c => { clientCounts[c.name] = blank(); });
 
@@ -493,7 +493,7 @@ function renderClientTable(selWeek, wkLabel, clientDeals) {
     const cn = resolveClientName(p.clientName);
     if (!cn) return;
     if (!clientCounts[cn]) clientCounts[cn] = blank();
-    if (passOffWeekKey(p.datePassed) === selWeek) clientCounts[cn].interested++;
+    if (passOffWeekKey(p.datePassed) === selWeek) clientCounts[cn].positives++;
     const dt = p.datePassed ? new Date(p.datePassed) : null;
     if (dt && !isNaN(dt.getTime()) && (!clientCounts[cn].lastLead || dt > clientCounts[cn].lastLead)) {
       clientCounts[cn].lastLead = dt;
@@ -507,7 +507,7 @@ function renderClientTable(selWeek, wkLabel, clientDeals) {
     .filter(([name]) => ppmNames.has(name) || retainerNames.has(name))
     .map(([name, c]) => {
       const isRet = retainerNames.has(name);
-      const delivered = isRet ? c.interested : c.booked;
+      const delivered = isRet ? c.positives : c.booked;
       const target = isRet ? RETAINER_WEEKLY_TARGET : PPM_WEEKLY_TARGET;
       return { name, c, isRet, delivered, target, hit: delivered >= target };
     })
@@ -515,7 +515,7 @@ function renderClientTable(selWeek, wkLabel, clientDeals) {
 
   const th = 'padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)';
   let h = `<h3 style="font-size:14px;font-weight:700;margin-bottom:4px">Leads by Client \u2014 week of ${wkLabel}</h3>
-    <p style="font-size:11px;color:var(--text-muted);margin:0 0 10px">Delivered = booked meetings for pay-per-meeting clients, interested responses for retainer clients. Off-target clients are listed first.</p>
+    <p style="font-size:11px;color:var(--text-muted);margin:0 0 10px">Delivered = booked meetings for pay-per-meeting clients, positive replies for retainer clients. Off-target clients are listed first.</p>
     <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;border:1px solid var(--border)">
       <thead><tr style="background:#f9fafb">
         <th style="text-align:left;${th}">Client</th>

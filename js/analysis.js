@@ -11,16 +11,16 @@
 // /sequence-analytics endpoint the Weekly Updates tab uses, so the two tabs
 // can never report different numbers for the same week.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260821053449';
-import { render } from './render.js?v=20260821053449';
-import { esc, str } from './utils.js?v=20260821053449';
-import { isAdmin } from './auth.js?v=20260821053449';
-import { showToast } from './api.js?v=20260821053449';
+import { state } from './app.js?v=20260825022410';
+import { render } from './render.js?v=20260825022410';
+import { esc, str } from './utils.js?v=20260825022410';
+import { isAdmin } from './auth.js?v=20260825022410';
+import { showToast } from './api.js?v=20260825022410';
 import {
   currentWeekKey, weekLabel, shiftWeeks, ymd, weekStartOf,
   getWeeklyKpiStatus, getPpmClients, getRetainerClients,
   PPM_WEEKLY_TARGET, RETAINER_WEEKLY_TARGET,
-} from './dashboard.js?v=20260821053449';
+} from './dashboard.js?v=20260825022410';
 
 // Lives on the fulfillment-dashboard Supabase project (verify_jwt=false),
 // same as the Weekly Updates stats proxy.
@@ -534,6 +534,7 @@ export function renderAnalysis() {
       <div style="font-size:15px;font-weight:800">Analysis — why the KPI was missed</div>
       <div style="font-size:11.5px;color:var(--text-muted);margin-top:3px;max-width:760px">
         Every campaign belonging to a client who fell short this week, with the week's sending diagnostics side by side.
+        The bar is ≥ ${RETAINER_WEEKLY_TARGET} positive replies per week for retainer clients, ≥ ${PPM_WEEKLY_TARGET} booked meeting per week for pay-per-meeting.
         Sent / replies / positives come from the same Smartlead endpoint as the Weekly Updates tab.
         Bounce rate is bounces ÷ emails sent in the week; reply categories cover replies to those sends.
       </div>
@@ -640,7 +641,7 @@ export function renderAnalysis() {
         <td style="${TD};font-weight:800" colspan="8">
           ${client ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${client.color || '#818cf8'};margin-right:6px"></span>` : ''}${esc(r.clientName)}
           <span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:6px;background:${r.isRetainer ? '#ede9fe' : '#dbeafe'};color:${r.isRetainer ? '#6d28d9' : '#1d4ed8'}">${r.isRetainer ? 'RETAINER' : 'PPM'}</span>
-          <span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:4px;background:${r.kpiHit ? '#dcfce7' : '#fee2e2'};color:${r.kpiHit ? '#166534' : '#991b1b'}">${r.kpiActual}/${r.kpiTarget} ${r.isRetainer ? 'interested responses' : 'booked meetings'}</span>
+          <span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:4px;background:${r.kpiHit ? '#dcfce7' : '#fee2e2'};color:${r.kpiHit ? '#166534' : '#991b1b'}">${r.kpiActual}/${r.kpiTarget} ${r.isRetainer ? 'positive replies' : 'booked meetings'}</span>
           <span style="font-size:11px;color:var(--text-muted);margin-left:8px">${clientRows.length} campaign${clientRows.length === 1 ? '' : 's'}</span>
         </td>
         <td style="${TD};text-align:right;font-weight:800">${t.sent.toLocaleString()}</td>

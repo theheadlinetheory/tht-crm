@@ -113,7 +113,11 @@ echo "→ Bumping version token: $CUR → $NEXT"
 
 # Bump it everywhere it appears: module imports, the <script src> tags, the
 # __APP_V constant in index.html, and version.json.
-LC_ALL=C sed -i '' "s/$CUR/$NEXT/g" js/*.js index.html version.json
+# sed -i wants a mandatory backup suffix on BSD/macOS and none on GNU (Linux, or
+# git-bash on Windows). Detect the flavour instead of assuming macOS — the wrong
+# form makes sed treat the substitution as a filename and the bump silently fails.
+if sed --version >/dev/null 2>&1; then SED_INPLACE=(-i); else SED_INPLACE=(-i ''); fi
+LC_ALL=C sed "${SED_INPLACE[@]}" "s/$CUR/$NEXT/g" js/*.js index.html version.json
 
 echo "→ Running deploy guardrail (ci-check)…"
 if ! node scripts/ci-check.mjs; then

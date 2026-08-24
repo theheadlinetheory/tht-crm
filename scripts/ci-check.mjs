@@ -71,7 +71,7 @@ const REQUIRED_FEATURES = [
   // Lead Tracker views
   { file: 'render.js',         needle: "switchTrackerView('trends')",   feature: 'Lead Tracker: Trends view' },
   { file: 'render.js',         needle: "switchTrackerView('passoffs')", feature: 'Lead Tracker: Retainer Leads (pass-offs) view' },
-  // Weekly KPI targets (>=1 booked meeting / >=2 interested responses per week)
+  // Weekly KPI targets (>=1 booked meeting / >=5 positive replies per week)
   { file: 'dashboard.js',      needle: 'export function renderKpiTargetBar', feature: 'Weekly KPI targets: banner' },
   { file: 'dashboard.js',      needle: '${renderKpiTargetBar(selWeek)}',     feature: 'Weekly KPI targets: shown on the dashboard' },
   { file: 'render.js',         needle: 'renderKpiTargetBar(null, { compact:true })', feature: 'Weekly KPI targets: strip above the Lead Tracker sheets' },
