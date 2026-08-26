@@ -2,15 +2,21 @@
 // CALL TOUCHPOINTS — every JustCall call becomes a deal timeline entry
 // ═══════════════════════════════════════════════════════════
 //
-// Before this, a call from the deal card wrote an *activity* only, so the deal
-// card's Timeline still read "No touchpoints logged yet" no matter how many
-// times someone had dialled. Calls now write an `interactions` row too — that
-// is the table the Timeline reads.
+// Calls reach the timeline through the `justcall-crm-touchpoint` edge function,
+// which JustCall posts to on call.completed and again on call.updated — the
+// second being when the rep sets the disposition, which is always after hangup.
+// That is why the browser cannot own this: the disposition does not exist yet
+// when the call ends, and reading it back needs the JustCall API key, which
+// cannot live in a public repo.
+//
+// So nothing here writes a call touchpoint any more. What is left is the
+// rendering vocabulary and the manual correction path for calls the webhook
+// could not classify.
 //
 // The `interactions` table is (id, deal_id, type, content, created_at) and
-// nothing else, so everything about the call has to live in `content`. It is
-// written in a fixed, parseable shape so a later pass can find a call
-// touchpoint again and fill in the disposition:
+// nothing else, so everything about the call has to live in `content`. The
+// shape below is duplicated in the edge function and in
+// justcall/crm_touchpoint_sync.py — keep all three in step:
 //
 //   Outbound call — Answered · 4m 12s · from (904) 642-5303 · Ioannis
 //   Outbound call — Disco Conducted: Demo Scheduled · 12m 03s · Ioannis
@@ -18,7 +24,7 @@
 // Keep CALL_PREFIX and the " · " separator stable. applyDisposition() matches
 // on them.
 
-import { sbCreateInteraction, sbUpdateInteraction, sbGetInteractions } from './api.js?v=20260826144756';
+import { sbCreateInteraction, sbUpdateInteraction, sbGetInteractions } from './api.js?v=20260826150458';
 
 export const CALL_PREFIX_OUT = 'Outbound call';
 export const CALL_PREFIX_IN  = 'Inbound call';

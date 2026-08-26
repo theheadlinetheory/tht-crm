@@ -1,13 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // DIALER — JustCall Dialer (embedded iframe via SDK protocol)
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260826144756';
-import { str, esc, uid, getToday } from './utils.js?v=20260826144756';
-import { invokeEdgeFunction, sbCreateActivity, camelToSnake } from './api.js?v=20260826144756';
-import { getBestNumberForLead, getRegionForPhone, recordCallOutcome } from './number-health.js?v=20260826144756';
-import { JUSTCALL_USER_MAP } from './config.js?v=20260826144756';
-import { currentUser } from './auth.js?v=20260826144756';
-import { logCallTouchpoint, applyDisposition, agentName, JUSTCALL_DISPOSITIONS } from './call-touchpoints.js?v=20260826144756';
+import { state } from './app.js?v=20260826150458';
+import { str, esc, uid, getToday } from './utils.js?v=20260826150458';
+import { invokeEdgeFunction, sbCreateActivity, camelToSnake } from './api.js?v=20260826150458';
+import { getBestNumberForLead, getRegionForPhone, recordCallOutcome } from './number-health.js?v=20260826150458';
+import { JUSTCALL_USER_MAP } from './config.js?v=20260826150458';
+import { currentUser } from './auth.js?v=20260826150458';
 
 const DIALER_URL = 'https://app.justcall.io/dialer';
 let dialerReady = false;
@@ -15,8 +14,6 @@ let currentCallDealId = null;
 let currentCallNumber = null; // outbound number used
 let currentCallPhone = null;  // lead's phone
 let justcallNumbers = [];     // numbers available in JustCall account
-let lastCall = null;          // { dealId, interactionId } — target for the disposition
-let pendingTouchpoint = null; // resolves once the touchpoint row exists
 
 // Persistent iframe — created once, reused for all calls
 let persistentIframe = null;
@@ -43,14 +40,6 @@ export function initJustCallDialer(){
     }
     if(evtName === 'call-ended' || evtName === 'hangup' || data.type === 'call-ended') {
       onCallEnded();
-    }
-    // The rep picks the disposition in JustCall after hanging up. If the SDK
-    // announces it we can write it straight onto the touchpoint we just logged
-    // and nobody has to pick it twice. Event name unconfirmed — the console
-    // line above shows what actually arrives, so widen this when we see it.
-    if(evtName === 'disposition' || evtName === 'call-disposition' || evtName === 'disposition-updated') {
-      const code = evtData.disposition_code || evtData.disposition || evtData.code;
-      if(code && lastCall) applyDisposition(lastCall.dealId, lastCall.interactionId, code);
     }
   });
 }
@@ -105,9 +94,6 @@ export async function callInJustCall(dealId, phoneField){
   const regionBadge = document.getElementById('justcall-region-badge');
   if(regionBadge) regionBadge.textContent = outboundNumber ? 'From: ' + formattedOutbound + (bestNumber && bestNumber.region ? ' (' + bestNumber.region + ')' : '') : '';
 
-  const dispEl = document.getElementById('justcall-disposition');
-  if(dispEl) dispEl.style.display = 'none';
-
   // Track current call for outcome logging
   currentCallDealId = dealId;
   currentCallNumber = outboundNumber;
@@ -145,30 +131,17 @@ async function onCallEnded(){
   currentCallPhone = null;
   const deal = state.deals.find(d => d.id === dealId);
 
-  // Ask for the outcome FIRST, before anything that waits on the network.
-  // Enriching the touchpoint from JustCall's call log takes up to 13 seconds
-  // (5s settle plus two retries) and in practice returns nothing, so hanging
-  // the prompt off it would put it in front of the rep long after they had
-  // moved on. The disposition is the information here; the call log is a
-  // nice-to-have.
-  lastCall = { dealId, interactionId: null };
-  const pending = logCallTouchpoint(dealId, {
-    outcome: '', duration: 0, fromNumber: number, region: getRegionForPhone(phone),
-    agent: currentUser && currentUser.email ? agentName(currentUser.email) : '',
-  }).then(row => { if(lastCall && lastCall.dealId === dealId) lastCall.interactionId = row && row.id; return row; });
-  pendingTouchpoint = pending;
-  showPostCallDisposition(deal ? (deal.contact || deal.company) : '');
+  // NOTE: the deal-card touchpoint is NOT written here.
+  //
+  // JustCall posts call.completed and then call.updated (when the rep sets the
+  // disposition) to the justcall-crm-touchpoint edge function, which writes and
+  // then updates the timeline entry. Writing from here as well produced two
+  // rows for one call — the browser stamps "now", the webhook stamps the call's
+  // own start time, so they never dedupe against each other.
+  //
+  // It also means calls placed from the JustCall desktop or mobile app get a
+  // touchpoint too, which this path could never see.
 
-  try {
-    await pending;
-    const { refreshModal } = await import('./render.js?v=20260826144756');
-    if(state.selectedDeal === dealId) refreshModal();
-  } catch(e){
-    console.warn('[Dialer] Failed to log call touchpoint:', e);
-  }
-
-  // Now the slow part: the call log drives number-health scoring and the
-  // activity row. Neither is user-facing, so it can take as long as it takes.
   try {
     let call = null;
     for(let attempt = 0; attempt < 3; attempt++){
@@ -197,7 +170,10 @@ async function onCallEnded(){
       completedAt: new Date().toISOString(),
     }));
 
-    // Start transcript polling for Client pipeline deals after answered calls
+    // The webhook has had a few seconds by now — pull its touchpoint in.
+    const { refreshModal } = await import('./render.js?v=20260826140103');
+    if(state.selectedDeal === dealId) refreshModal();
+
     if(wasAnswered && deal && deal.pipeline === 'Client' && phone){
       window.startTranscriptPolling && window.startTranscriptPolling(dealId, phone);
     }
@@ -206,58 +182,8 @@ async function onCallEnded(){
   }
 }
 
-// ─── Post-call disposition ───
-//
-// The one place the outcome can be captured reliably is the seconds right after
-// hangup. Reading it back out of JustCall is not possible from the browser (the
-// API key is server-side, and this repo is public), and polling for it on a
-// timer means the touchpoint is wrong until the timer fires. So it is asked
-// for here and written straight through.
-
-function showPostCallDisposition(who){
-  const el = document.getElementById('justcall-disposition');
-  if(!el || !lastCall) return;
-  let h = '<div style="color:#94a3b8;font-size:11px;font-weight:600;margin-bottom:6px">How did that call go?'
-        + (who ? ' \u2014 <span style="color:#e2e8f0">' + esc(who) + '</span>' : '') + '</div>';
-  h += '<div style="display:flex;gap:6px">';
-  h += '<select id="jc-disp-select" style="flex:1;padding:5px 7px;border:1px solid #334155;border-radius:6px;font-size:11px;background:#1e293b;color:#e2e8f0;min-width:0">';
-  h += '<option value="">Skip</option>';
-  Object.entries(JUSTCALL_DISPOSITIONS).forEach(([group, values]) => {
-    h += '<optgroup label="' + esc(group) + '">';
-    values.forEach(v => { h += '<option value="' + esc(group + ': ' + v) + '">' + esc(v) + '</option>'; });
-    h += '</optgroup>';
-  });
-  h += '</select>';
-  h += '<button onclick="savePostCallDisposition()" style="padding:5px 12px;border:none;border-radius:6px;background:#7c3aed;color:#fff;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">Log it</button>';
-  h += '</div>';
-  el.innerHTML = h;
-  el.style.display = '';
-}
-
-async function savePostCallDisposition(){
-  const sel = document.getElementById('jc-disp-select');
-  const el = document.getElementById('justcall-disposition');
-  const value = sel && sel.value;
-  const target = lastCall;
-  if(el) el.style.display = 'none';
-  if(!value || !target) return;
-  // The rep can pick before the touchpoint row has come back. Wait for it
-  // rather than dropping the disposition on the floor.
-  if(!target.interactionId && pendingTouchpoint){
-    try { const row = await pendingTouchpoint; if(row) target.interactionId = row.id; } catch(e){}
-  }
-  await applyDisposition(target.dealId, target.interactionId, value);
-  // Repaint the deal card if it happens to be the one on screen.
-  const { refreshModal } = await import('./render.js?v=20260826144756');
-  if(state.selectedDeal === target.dealId) refreshModal();
-}
-
-window.savePostCallDisposition = savePostCallDisposition;
-
 export function closeJustCallWidget(){
   document.getElementById('justcall-widget').style.display = 'none';
-  const d = document.getElementById('justcall-disposition');
-  if(d) d.style.display = 'none';
 }
 
 export function toggleJustCallMinimize(){
