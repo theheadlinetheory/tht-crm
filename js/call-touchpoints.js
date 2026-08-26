@@ -18,7 +18,7 @@
 // Keep CALL_PREFIX and the " · " separator stable. applyDisposition() matches
 // on them.
 
-import { sbCreateInteraction, sbUpdateInteraction, sbGetInteractions } from './api.js?v=20260826140103';
+import { sbCreateInteraction, sbUpdateInteraction, sbGetInteractions } from './api.js?v=20260826144756';
 
 export const CALL_PREFIX_OUT = 'Outbound call';
 export const CALL_PREFIX_IN  = 'Inbound call';
@@ -68,17 +68,36 @@ function fmtUsPhone(p) {
   return ten.length === 10 ? '(' + ten.slice(0, 3) + ') ' + ten.slice(3, 6) + '-' + ten.slice(6) : String(p || '');
 }
 
-// JustCall reports a call `type` of answered / missed / voicemail / unknown.
-// "unknown" means the call log had not caught up yet — say so rather than
-// inventing an outcome, because a wrong outcome is worse than an absent one.
-function outcomeLabel(outcome, duration) {
+// The seat that placed the call. contact@ is the shared setter seat, so the
+// raw mailbox name would put "contact" on nearly every entry.
+const AGENTS = {
+  contact: 'Ioannis',
+  aidan: 'Aidan',
+  lars: 'Lars',
+};
+
+export function agentName(email) {
+  const local = String(email || '').split('@')[0].toLowerCase();
+  return AGENTS[local] || local;
+}
+
+// Return an outcome ONLY where one is actually known.
+//
+// Verified against all 2,501 JustCall records on 2026-08-26: `status` is 0 on
+// every one of them, and the reps' own dispositions rule out the obvious
+// fallback — calls of 2s, 5s and 8s were classified "No Answer" by the person
+// who made them, so a non-zero duration does not mean the call connected. That
+// is the same trap as level 02's ≥120s convention, which was 19% accurate.
+//
+// So an empty or unknown outcome produces no claim at all. The disposition the
+// rep picks is what fills it in, and a blank beats a wrong one.
+function outcomeLabel(outcome) {
   const o = String(outcome || '').toLowerCase();
   if (o === 'answered') return 'Answered';
   if (o === 'missed' || o === 'no-answer') return 'No answer';
   if (o === 'voicemail') return 'Voicemail';
   if (o === 'abandoned') return 'Abandoned';
-  if (!o || o === 'unknown') return duration > 0 ? 'Connected' : 'Outcome not reported';
-  return o.charAt(0).toUpperCase() + o.slice(1);
+  return '';
 }
 
 /**
@@ -88,7 +107,8 @@ function outcomeLabel(outcome, duration) {
  */
 export function buildCallContent({ outcome, duration, fromNumber, region, agent, recordingUrl, inbound }) {
   const parts = [];
-  parts.push((inbound ? CALL_PREFIX_IN : CALL_PREFIX_OUT) + ' — ' + outcomeLabel(outcome, duration));
+  const label = outcomeLabel(outcome);
+  parts.push((inbound ? CALL_PREFIX_IN : CALL_PREFIX_OUT) + (label ? ' — ' + label : ''));
   if (duration > 0) parts.push(fmtCallDuration(duration));
   if (fromNumber) parts.push('from ' + fmtUsPhone(fromNumber) + (region ? ' (' + region + ')' : ''));
   if (agent) parts.push(agent);

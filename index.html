@@ -14,7 +14,7 @@
      per-version sessionStorage guard prevents any reload loop. -->
 <script>
 (function(){
-  window.__APP_V='20260826140103';
+  window.__APP_V='20260826144756';
   function check(){
     fetch('version.json?t='+Date.now(),{cache:'no-store'})
       .then(function(r){return r.ok?r.json():null;})
@@ -81,12 +81,16 @@
     </div>
   </div>
   <div id="justcall-dialer" style="flex:1;width:100%;overflow:hidden"></div>
+  <!-- Post-call disposition. Hidden until a call ends, then filled by
+       showPostCallDisposition() in js/dialer.js. Sits inside the dialer widget
+       on purpose: the moment to catch the outcome is before the rep moves on. -->
+  <div id="justcall-disposition" style="display:none;flex-shrink:0;background:#0f172a;padding:10px 12px;border-top:1px solid #1e293b"></div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
 <script src="https://assets.calendly.com/assets/external/widget.js" async></script>
-<script src="service_area_data.min.js?v=20260826140103"></script>
+<script src="service_area_data.min.js?v=20260826144756"></script>
 <script>
 // Catch module load/syntax/runtime errors that would cause infinite loading
 function showCrashScreen(msg) {
