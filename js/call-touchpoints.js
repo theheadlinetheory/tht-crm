@@ -24,7 +24,7 @@
 // Keep CALL_PREFIX and the " · " separator stable. applyDisposition() matches
 // on them.
 
-import { sbCreateInteraction, sbUpdateInteraction, sbGetInteractions } from './api.js?v=20260826150458';
+import { sbCreateInteraction, sbUpdateInteraction, sbGetInteractions } from './api.js?v=20260826155515';
 
 export const CALL_PREFIX_OUT = 'Outbound call';
 export const CALL_PREFIX_IN  = 'Inbound call';
@@ -68,10 +68,13 @@ export function fmtCallDuration(sec) {
   return m + 'm ' + String(s % 60).padStart(2, '0') + 's';
 }
 
+// US/CA numbers get the familiar shape; everything else keeps its country code
+// with a leading + so an AU or UK line does not read as a bare blob.
 function fmtUsPhone(p) {
   const d = String(p || '').replace(/\D/g, '');
   const ten = d.length === 11 && d[0] === '1' ? d.slice(1) : d;
-  return ten.length === 10 ? '(' + ten.slice(0, 3) + ') ' + ten.slice(3, 6) + '-' + ten.slice(6) : String(p || '');
+  if (ten.length === 10 && d.length <= 11) return '(' + ten.slice(0, 3) + ') ' + ten.slice(3, 6) + '-' + ten.slice(6);
+  return d ? '+' + d : String(p || '');
 }
 
 // The seat that placed the call. contact@ is the shared setter seat, so the

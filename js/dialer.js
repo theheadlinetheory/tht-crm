@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // DIALER — JustCall Dialer (embedded iframe via SDK protocol)
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260826150458';
-import { str, esc, uid, getToday } from './utils.js?v=20260826150458';
-import { invokeEdgeFunction, sbCreateActivity, camelToSnake } from './api.js?v=20260826150458';
-import { getBestNumberForLead, getRegionForPhone, recordCallOutcome } from './number-health.js?v=20260826150458';
-import { JUSTCALL_USER_MAP } from './config.js?v=20260826150458';
-import { currentUser } from './auth.js?v=20260826150458';
+import { state } from './app.js?v=20260826155515';
+import { str, esc, uid, getToday } from './utils.js?v=20260826155515';
+import { invokeEdgeFunction, sbCreateActivity, camelToSnake } from './api.js?v=20260826155515';
+import { getBestNumberForLead, getRegionForPhone, recordCallOutcome } from './number-health.js?v=20260826155515';
+import { JUSTCALL_USER_MAP } from './config.js?v=20260826155515';
+import { currentUser } from './auth.js?v=20260826155515';
 
 const DIALER_URL = 'https://app.justcall.io/dialer';
 let dialerReady = false;
