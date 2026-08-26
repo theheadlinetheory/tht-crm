@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // BLOOIO — In-CRM texting via Blooio API (thread viewer + send)
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20260826155515';
-import { showToast, sbCreateActivity, sbUpdateDeal, camelToSnake } from './api.js?v=20260826155515';
-import { uid, getToday, esc, applyTemplate } from './utils.js?v=20260826155515';
-import { refreshModal } from './render.js?v=20260826155515';
-import { BLOOIO_BASE_URL, BLOOIO_API_KEY, SEQUENCE_TEMPLATES, CLIENT_LEAD_TEMPLATES, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260826155515';
-import { findClientForDeal } from './client-info.js?v=20260826155515';
+import { state, pendingWrites } from './app.js?v=20260827005843';
+import { showToast, sbCreateActivity, sbUpdateDeal, camelToSnake } from './api.js?v=20260827005843';
+import { uid, getToday, esc, applyTemplate } from './utils.js?v=20260827005843';
+import { refreshModal } from './render.js?v=20260827005843';
+import { BLOOIO_BASE_URL, BLOOIO_API_KEY, SEQUENCE_TEMPLATES, CLIENT_LEAD_TEMPLATES, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260827005843';
+import { findClientForDeal } from './client-info.js?v=20260827005843';
 
 let cachedFromNumber = null;
 
@@ -67,12 +67,14 @@ async function fetchThread(phone){
   const e164 = formatE164(phone);
   const encoded = encodeURIComponent(e164);
   try {
-    const res = await fetch(BLOOIO_BASE_URL + '/chats/' + encoded + '/messages?limit=50&sort=timestamp&direction=desc', {
+    // NOTE: this endpoint only accepts `limit` and `offset`. Any other query
+    // param (sort, direction, order) makes it 400 with an empty body.
+    const res = await fetch(BLOOIO_BASE_URL + '/chats/' + encoded + '/messages?limit=50', {
       headers: { 'Authorization': 'Bearer ' + BLOOIO_API_KEY }
     });
     if(!res.ok){
       if(res.status === 404) return []; // No conversation yet
-      throw new Error('Failed to load messages');
+      throw new Error('Failed to load messages (HTTP ' + res.status + '): ' + (await res.text().catch(()=>'')).slice(0, 200));
     }
     const data = await res.json();
     const messages = data.messages || data.data || data;
@@ -128,7 +130,7 @@ function renderMessages(messages, containerEl){
     const dir = msg.direction || msg.type || '';
     const isOutbound = /outbound|sent/i.test(dir);
     const text = esc(msg.text || msg.body || msg.message || '');
-    const time = formatTime(msg.timestamp || msg.created_at || msg.sent_at);
+    const time = formatTime(msg.time_sent || msg.timestamp || msg.created_at || msg.sent_at);
     if(!text) continue;
 
     if(isOutbound){
@@ -336,8 +338,17 @@ export function openBlooioModal(dealId, phoneField){
         dueDate: getToday(), done: true, completedAt: new Date().toISOString()
       })).catch(e => console.error('Create activity failed:', e)).finally(() => { pendingWrites.value--; });
 
-      // Refresh thread to show sent message
-      fetchThread(phone).then(messages => renderMessages(messages, threadEl));
+      // Refresh thread to show sent message. Blooio can take a moment to index
+      // it, so re-poll a couple of times until the new text shows up.
+      (async () => {
+        for(let i = 0; i < 4; i++){
+          const messages = await fetchThread(phone);
+          if(!document.getElementById('blooio-modal')) return; // modal closed
+          renderMessages(messages, threadEl);
+          if(messages.some(m => (m.text || m.body || m.message || '') === message)) return;
+          await new Promise(r => setTimeout(r, 1200));
+        }
+      })();
 
       // Refresh deal modal if open
       if(state.selectedDeal && state.selectedDeal.id === dealId) refreshModal();
