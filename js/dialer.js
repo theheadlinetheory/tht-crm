@@ -1,12 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // DIALER — JustCall Dialer (embedded iframe via SDK protocol)
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260825022410';
-import { str, esc, uid, getToday } from './utils.js?v=20260825022410';
-import { invokeEdgeFunction, sbCreateActivity, camelToSnake } from './api.js?v=20260825022410';
-import { getBestNumberForLead, getRegionForPhone, recordCallOutcome } from './number-health.js?v=20260825022410';
-import { JUSTCALL_USER_MAP } from './config.js?v=20260825022410';
-import { currentUser } from './auth.js?v=20260825022410';
+import { state } from './app.js?v=20260826140103';
+import { str, esc, uid, getToday } from './utils.js?v=20260826140103';
+import { invokeEdgeFunction, sbCreateActivity, camelToSnake } from './api.js?v=20260826140103';
+import { getBestNumberForLead, getRegionForPhone, recordCallOutcome } from './number-health.js?v=20260826140103';
+import { JUSTCALL_USER_MAP } from './config.js?v=20260826140103';
+import { currentUser } from './auth.js?v=20260826140103';
+import { logCallTouchpoint, applyDisposition } from './call-touchpoints.js?v=20260826140103';
 
 const DIALER_URL = 'https://app.justcall.io/dialer';
 let dialerReady = false;
@@ -14,6 +15,7 @@ let currentCallDealId = null;
 let currentCallNumber = null; // outbound number used
 let currentCallPhone = null;  // lead's phone
 let justcallNumbers = [];     // numbers available in JustCall account
+let lastCall = null;          // { dealId, interactionId } — target for a late disposition
 
 // Persistent iframe — created once, reused for all calls
 let persistentIframe = null;
@@ -40,6 +42,14 @@ export function initJustCallDialer(){
     }
     if(evtName === 'call-ended' || evtName === 'hangup' || data.type === 'call-ended') {
       onCallEnded();
+    }
+    // The rep picks the disposition in JustCall after hanging up. If the SDK
+    // announces it we can write it straight onto the touchpoint we just logged
+    // and nobody has to pick it twice. Event name unconfirmed — the console
+    // line above shows what actually arrives, so widen this when we see it.
+    if(evtName === 'disposition' || evtName === 'call-disposition' || evtName === 'disposition-updated') {
+      const code = evtData.disposition_code || evtData.disposition || evtData.code;
+      if(code && lastCall) applyDisposition(lastCall.dealId, lastCall.interactionId, code);
     }
   });
 }
@@ -167,8 +177,21 @@ async function onCallEnded(){
       completedAt: new Date().toISOString(),
     }));
 
+    // ...and a touchpoint, which is what the deal card's Timeline actually
+    // reads. The activity above drives task lists and reporting; without this
+    // second write the Timeline stayed empty however many times we called.
+    const touchpoint = await logCallTouchpoint(dealId, {
+      outcome,
+      duration,
+      fromNumber: number,
+      region,
+      agent: currentUser && currentUser.email ? currentUser.email.split('@')[0] : '',
+      recordingUrl: call && call.recording ? call.recording : '',
+    });
+    lastCall = touchpoint ? { dealId, interactionId: touchpoint.id } : null;
+
     // Refresh modal if open on this deal
-    const { refreshModal } = await import('./render.js?v=20260825022410');
+    const { refreshModal } = await import('./render.js?v=20260826140103');
     if(state.selectedDeal === dealId) refreshModal();
 
     // Start transcript polling for Client pipeline deals after answered calls
