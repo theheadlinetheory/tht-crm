@@ -289,7 +289,7 @@ function showPortalCredentials(clientName, portal) {
   const html = `<div id="won-portal-overlay" style="position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:center;padding:20px" onclick="if(event.target===this)wonPortalDismiss()">
     <div style="background:#fff;border-radius:12px;max-width:460px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25);padding:22px" onclick="event.stopPropagation()">
       <h2 style="margin:0 0 4px;font-size:16px;color:#1e293b">Smartlead portal created</h2>
-      <div style="font-size:12px;color:#64748b;margin-bottom:14px">${esc(clientName)} can sign in at <strong>app.smartlead.ai</strong>. Every client portal uses this same password — it's also posted to Slack. It is never stored in the CRM.</div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:14px">${esc(clientName)} can sign in at <strong>app.smartlead.ai/client-login</strong> (the plain app.smartlead.ai login is ours, not theirs — it drops them in an empty workspace). Every client portal uses this same password — it's also posted to Slack. It is never stored in the CRM.</div>
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;font-size:13px">
         <div style="margin-bottom:6px"><span style="color:#64748b">Login</span><br><code id="won-portal-email" style="font-size:13px">${esc(portal.email)}</code></div>
         <div><span style="color:#64748b">Password</span><br><code id="won-portal-pw" style="font-size:13px">${esc(portal.password)}</code></div>
@@ -310,7 +310,7 @@ export function wonPortalDismiss() {
 export function wonPortalCopy() {
   const email = document.getElementById('won-portal-email')?.textContent || '';
   const pw = document.getElementById('won-portal-pw')?.textContent || '';
-  navigator.clipboard.writeText(`Smartlead login: ${email}\nPassword: ${pw}\nSign in at https://app.smartlead.ai/`)
+  navigator.clipboard.writeText(`Smartlead login: ${email}\nPassword: ${pw}\nSign in at https://app.smartlead.ai/client-login`)
     .then(() => showToast('Login copied', 'success'))
     .catch(() => showToast('Could not copy — select the text instead', 'warning'));
 }
