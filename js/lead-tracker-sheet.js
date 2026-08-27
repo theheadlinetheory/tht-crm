@@ -13,13 +13,19 @@ export async function ensureLeadTrackerSheet(clientId, clientName, useInboxColum
   const existing = client && client.clientSheetId ? String(client.clientSheetId).trim() : '';
   if (existing) return existing;
 
+  // clientId lets the edge function read has_inbox_mgmt straight from the DB
+  // rather than trusting whatever the caller guessed — see PROPER-FIX notes.
   const result = await invokeEdgeFunction('client-sheet-setup', {
     action: 'create_sheet',
+    clientId,
     clientName,
     hasInboxMgmt: !!useInboxColumns,
   });
   if (!result || !result.sheetId) {
     throw new Error(result && result.error ? result.error : 'No sheet ID returned');
+  }
+  if (result.placed === false) {
+    console.error(`Lead Tracker for ${clientName} was not filed in the Active folder: ${result.placementError || 'unknown reason'}`);
   }
 
   if (client) client.clientSheetId = result.sheetId;

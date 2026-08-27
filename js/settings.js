@@ -587,7 +587,7 @@ function renderClientsSettings(){
           ${str(c.clientSheetId) ? `
             <a href="https://docs.google.com/spreadsheets/d/${esc(str(c.clientSheetId))}/edit" target="_blank" style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;background:#dcfce7;border:1px solid #86efac;border-radius:6px;font-size:11px;font-weight:600;color:#16a34a;text-decoration:none">${svgIcon('external-link',12)} Open Sheet</a>
           ` : `
-            <button onclick="createLeadTrackerSheet('${esc(c.id)}','${esc(c.name)}',${str(c.billingModel)==='retainer'})" style="padding:5px 12px;background:#4f46e5;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">${svgIcon('upload',12)} Create Lead Tracker</button>
+            <button onclick="createLeadTrackerSheet('${esc(c.id)}','${esc(c.name)}',${str(c.hasInboxMgmt).toUpperCase()==='TRUE'})" style="padding:5px 12px;background:#4f46e5;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">${svgIcon('upload',12)} Create Lead Tracker</button>
           `}
         </div>
       </div>
@@ -1258,10 +1258,14 @@ export async function createLeadTrackerSheet(clientId, clientName, hasInboxMgmt)
   try {
     const result = await invokeEdgeFunction('client-sheet-setup', {
       action: 'create_sheet',
+      clientId,
       clientName,
       hasInboxMgmt,
     });
     if (!result.sheetId) throw new Error(result.error || 'No sheet ID returned');
+    if (result.placed === false) {
+      showToast(`Sheet created but NOT filed in the Lead Trackers folder: ${result.placementError || 'unknown reason'}`, 'error');
+    }
     const c = state.clients.find(x => str(x.id) === str(clientId));
     if (c) c.clientSheetId = result.sheetId;
     await sbUpdateClient(clientId, { client_sheet_id: result.sheetId });
