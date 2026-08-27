@@ -4,14 +4,14 @@
 // portal. Blocking, ordered, stop-on-failure with Retry.
 // Body-level overlay (survives render()).
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260827062322';
-import { str, esc, getToday } from './utils.js?v=20260827062322';
-import { createClientRecord, deriveTimezone } from './client-info.js?v=20260827062322';
-import { ensureLeadTrackerSheet } from './lead-tracker-sheet.js?v=20260827062322';
-import { invokeEdgeFunction, showToast } from './api.js?v=20260827062322';
-import { isAdmin } from './auth.js?v=20260827062322';
-import { prepaidNote } from './retainer-billing.js?v=20260827062322';
-import { createSmartleadPortal } from './smartlead-portal.js?v=20260827062322';
+import { state } from './app.js?v=20260827214225';
+import { str, esc, getToday } from './utils.js?v=20260827214225';
+import { createClientRecord, deriveTimezone } from './client-info.js?v=20260827214225';
+import { ensureLeadTrackerSheet } from './lead-tracker-sheet.js?v=20260827214225';
+import { invokeEdgeFunction, showToast } from './api.js?v=20260827214225';
+import { isAdmin } from './auth.js?v=20260827214225';
+import { prepaidNote } from './retainer-billing.js?v=20260827214225';
+import { createSmartleadPortal } from './smartlead-portal.js?v=20260827214225';
 
 let _w = null; // { deal, clientId, sheetId, tagsDone, portal }
 const CURRENCIES = ['USD', 'AUD', 'CAD'];
@@ -269,7 +269,7 @@ async function runSteps(f, startIdx) {
     const clientName = f.name;
     const portal = _w.portal;
     wonModalDismiss();
-    const { deleteDeal } = await import('./deals.js?v=20260827062322');
+    const { deleteDeal } = await import('./deals.js?v=20260827214225');
     deleteDeal(dealId, 'Closed Won', clientName);
     // Shown to whoever closed the deal so they can pass it on straight away.
     // This is a transient display only — the password is never written to the
@@ -318,7 +318,7 @@ export function wonPortalCopy() {
 export async function wonModalLink(existingName) {
   const dealId = _w.deal.id;
   wonModalDismiss();
-  const { deleteDeal } = await import('./deals.js?v=20260827062322');
+  const { deleteDeal } = await import('./deals.js?v=20260827214225');
   deleteDeal(dealId, 'Closed Won', existingName);
   showToast(`Deal linked to existing client "${existingName}"`, 'success');
 }
