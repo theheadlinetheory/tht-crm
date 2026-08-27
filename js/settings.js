@@ -2,18 +2,18 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260827214225';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260827214225';
-import { render } from './render.js?v=20260827214225';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20260827214225';
-import { renderRoutingRules } from './routing-rules.js?v=20260827214225';
-import { esc, str, svgIcon } from './utils.js?v=20260827214225';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20260827214225';
-import { lookupClientInfo } from './client-info.js?v=20260827214225';
-import { findPolygonForClient, invalidateServiceAreaCache } from './maps.js?v=20260827214225';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260827214225';
-import { DEFAULT_BOOKING_SMS_TEMPLATE } from './booking-sms.js?v=20260827214225';
-import { renderRetainerBilling } from './retainer-billing.js?v=20260827214225';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260827115154';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260827115154';
+import { render } from './render.js?v=20260827115154';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20260827115154';
+import { renderRoutingRules } from './routing-rules.js?v=20260827115154';
+import { esc, str, svgIcon } from './utils.js?v=20260827115154';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20260827115154';
+import { lookupClientInfo } from './client-info.js?v=20260827115154';
+import { findPolygonForClient, invalidateServiceAreaCache } from './maps.js?v=20260827115154';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260827115154';
+import { DEFAULT_BOOKING_SMS_TEMPLATE } from './booking-sms.js?v=20260827115154';
+import { renderRetainerBilling } from './retainer-billing.js?v=20260827115154';
 
 export function getDefaultSettings(){
   return {
@@ -301,7 +301,7 @@ export function refreshSettingsBody(){
       window._dialerFieldsLoaded = true;
       supabase.from('crm_settings').select('value').eq('key','dialer_default_fields').single()
         .then(({ data }) => { window._dialerDefaultFields = data?.value ? JSON.parse(data.value) : []; refreshSettingsBody(); });
-      import('./number-health.js?v=20260827214225').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
+      import('./number-health.js?v=20260827115154').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
     }
     h=renderDialerSettings();
   }
@@ -570,9 +570,10 @@ function renderClientsSettings(){
 
       <div style="margin-bottom:8px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Client Email (Lead Delivery)</label>
-        <input type="text" placeholder="client@example.com" value="${esc(str(c.notifyEmails))}"
+        <input type="text" placeholder="client@example.com, owner@example.com" value="${esc(str(c.notifyEmails))}"
           oninput="updateClientField('${esc(c.id)}','notifyEmails',this.value)"
           style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
+        <div style="font-size:9px;color:var(--text-muted);margin-top:2px">Comma-separated. Everyone here is on the lead delivery thread. Same field as "Forward Email" below.</div>
       </div>
       <div style="margin-bottom:8px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Invoice Emails</label>
@@ -1166,9 +1167,27 @@ export function captureClientInputs(){
   }
 }
 
+// A client field can be rendered by more than one input — notifyEmails is both
+// "Client Email (Lead Delivery)" and "Forward Email", contactFirstName is in the
+// top row and in Client Contact Info. Only the input being typed in gets the new
+// value; its twin keeps the value it was rendered with. captureClientInputs()
+// (which Save runs first) reads every matching input in DOM order and lets the
+// last one win, so the stale twin silently overwrote the edit — that's why a
+// second address added to the lead delivery field never saved.
+function mirrorClientFieldInputs(clientId, field, value){
+  const panel=document.querySelector('.settings-body');
+  if(!panel) return;
+  panel.querySelectorAll('input[type="text"]').forEach(inp=>{
+    if(inp===document.activeElement) return;
+    const match=(inp.getAttribute('oninput')||'').match(/updateClientField\('([^']+)','([^']+)'/);
+    if(match && match[1]===str(clientId) && match[2]===field && inp.value!==value) inp.value=value;
+  });
+}
+
 export function updateClientField(clientId, field, value){
   const c=state.clients.find(x=>str(x.id)===str(clientId));
   if(c) c[field]=value;
+  mirrorClientFieldInputs(clientId, field, value);
 }
 
 export function uploadKml(clientId){
@@ -1624,7 +1643,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260827214225');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260827115154');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);
@@ -1871,7 +1890,7 @@ window.restoreClient = async function(clientId) {
 window.createClientPortal = async function(clientId) {
   const c = state.clients.find(x => str(x.id) === str(clientId));
   if (!c) return;
-  const { portalEmail, createSmartleadPortal } = await import('./smartlead-portal.js?v=20260827214225');
+  const { portalEmail, createSmartleadPortal } = await import('./smartlead-portal.js?v=20260827115154');
   const email = portalEmail(c);
   if (!email) { showToast('Add a contact email for this client first', 'error'); return; }
   if (!confirm(`Create a Smartlead portal for ${c.name}?\n\nLogin: ${email}\n\nSmartlead has no way to delete a client portal, so this cannot be undone.`)) return;
