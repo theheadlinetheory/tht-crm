@@ -125,8 +125,16 @@ console.log(`   checked ${REQUIRED_FEATURES.length} feature anchors`);
 // browser fetch a second copy of a module under a different cache key — a
 // duplicate instance with its own module-level state (subtle, nasty bugs).
 // Standalone data scripts (service_area_data*) are excluded — not ES modules.
+//
+// Compare the WHOLE token, not just its date. This used to capture (\d{8}[a-z]?),
+// so every token minted on the same day collapsed to one value and any drift
+// within a day reported as "in sync" — which is how a stale
+// `import('./render.js?v=…')` in dialer.js rode along for a day of green deploys
+// before failing the moment the date rolled over (2026-08-26). deploy.sh heals
+// drift via bump-tokens.mjs before this runs, so anything still mismatched here
+// was hand-edited and genuinely wants blocking.
 console.log('3. Cache-token consistency …');
-const TOKEN_RE = /([\w./-]+)\?v=(\d{8}[a-z]?)/g;
+const TOKEN_RE = /([\w./-]+)\?v=([0-9A-Za-z]+)/g;
 const tokens = new Map(); // token -> [ "file: importedThing", ... ]
 const scan = ['index.html', ...jsFiles.map(f => join('js', f))];
 for (const rel of scan) {

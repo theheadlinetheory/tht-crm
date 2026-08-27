@@ -100,24 +100,23 @@ if [ "$BEHIND" -gt 0 ]; then
   echo "  Rebased onto $(git rev-parse --short origin/main); your changes re-applied."
 fi
 
-# Current uniform version token (all files share one; grab it from index.html)
-CUR=$(grep -oE '\?v=[0-9A-Za-z]+' index.html | head -1 | sed 's/?v=//')
-if [ -z "$CUR" ]; then
-  echo "✗ Could not find a ?v= version token in index.html — aborting."
-  exit 1
-fi
-
-# New token = timestamp (always unique, always increasing)
+# Bump the token everywhere it appears: module imports, the <script src> tags,
+# the __APP_V constant in index.html, and version.json.
+#
+# This was a sed one-liner substituting ONE literal old value — whatever ?v=
+# happened to come first in index.html. Any token already out of step with that
+# value was skipped, so drift could never heal, only accumulate. On 2026-08-26 a
+# lazy `await import('./render.js?v=…')` in js/dialer.js sat a day behind the
+# rest of the tree; ci-check compares only the 8-digit date prefix, so it read as
+# "in sync" until the date rolled over — and then failed the deploy, with no way
+# for this script to fix what it had never been looking at.
+#
+# bump-tokens.mjs matches every token by pattern instead of by old value, so it
+# heals drift rather than stepping around it. It also moots the sed -i portability
+# dance this block used to do (BSD wants a backup suffix, GNU refuses one), since
+# it runs wherever node does — which this script already requires for ci-check.
 NEXT="$(date +%Y%m%d%H%M%S)"
-echo "→ Bumping version token: $CUR → $NEXT"
-
-# Bump it everywhere it appears: module imports, the <script src> tags, the
-# __APP_V constant in index.html, and version.json.
-# sed -i wants a mandatory backup suffix on BSD/macOS and none on GNU (Linux, or
-# git-bash on Windows). Detect the flavour instead of assuming macOS — the wrong
-# form makes sed treat the substitution as a filename and the bump silently fails.
-if sed --version >/dev/null 2>&1; then SED_INPLACE=(-i); else SED_INPLACE=(-i ''); fi
-LC_ALL=C sed "${SED_INPLACE[@]}" "s/$CUR/$NEXT/g" js/*.js index.html version.json
+node scripts/bump-tokens.mjs "$NEXT"
 
 echo "→ Running deploy guardrail (ci-check)…"
 if ! node scripts/ci-check.mjs; then
