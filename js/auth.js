@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // AUTH — Supabase Auth (Google OAuth), roles, campaign assignments
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20260827221534';
-import { state } from './app.js?v=20260827221534';
-import { render } from './render.js?v=20260827221534';
-import { esc, svgIcon } from './utils.js?v=20260827221534';
-import { resolveRoutingOwner } from './routing-rules.js?v=20260827221534';
+import { supabase } from './supabase-client.js?v=20260827230505';
+import { state } from './app.js?v=20260827230505';
+import { render } from './render.js?v=20260827230505';
+import { esc, svgIcon } from './utils.js?v=20260827230505';
+import { resolveRoutingOwner } from './routing-rules.js?v=20260827230505';
 
 const ALLOWED_DOMAIN = 'theheadlinetheory.com';
 export let currentUser = null;
@@ -92,7 +92,7 @@ export function setupAuthListener(onLogin){
 
       const hash = location.hash.replace('#','').split('/')[0];
       if(isAdmin()){
-        state.pipeline = hash && ['dashboard','acquisition','client_leads','nurture'].includes(hash) ? hash : 'client_leads';
+        state.pipeline = hash && ['dashboard','funnel','acquisition','client_leads','nurture'].includes(hash) ? hash : 'client_leads';
       } else {
         state.pipeline = hash && ['acquisition','client_leads'].includes(hash) ? hash : 'client_leads';
       }

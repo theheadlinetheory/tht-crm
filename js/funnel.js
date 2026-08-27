@@ -1,0 +1,124 @@
+// ═══════════════════════════════════════════════════════════
+// FUNNEL — the six sales-pipeline levels, live
+// ═══════════════════════════════════════════════════════════
+//
+// One page for the whole acquisition funnel: emails sent through to retained
+// clients. Reads `pipeline_latest` in this CRM's own database, which joins the
+// six level definitions to the most recent figure recorded for each.
+//
+// Every level is rendered, including the ones with no tracking yet. A row that
+// says "not tracked" is information; a level silently missing from the page
+// just looks like a bug, and this project has already lost weeks to numbers
+// that looked finished and were not.
+//
+// Two things travel with every figure and must not be dropped:
+//   source  'verified' means a hand-audited number that must NOT be recomputed
+//           from thinner evidence — level 03's 61 discos were settled by
+//           reading 364 call recordings, and a live count cannot reproduce it.
+//   detail  the scope and caveats, stored beside the number rather than in a
+//           doc, so a rate can never be read without the conditions on it.
+
+import { esc, svgIcon } from './utils.js?v=20260827230505';
+import { supabase } from './supabase-client.js?v=20260827230505';
+
+let _levels = null;      // null = not loaded, [] = loaded and empty
+let _loading = false;
+let _error = null;
+
+export function loadFunnel(rerender) {
+  if (_levels !== null || _loading) return;
+  _loading = true;
+  supabase.from('pipeline_latest').select('*')
+    .then(({ data, error }) => {
+      _loading = false;
+      if (error) { _error = error.message; _levels = []; }
+      else { _levels = data || []; }
+      if (rerender) rerender();
+    });
+}
+
+/** Force a refetch — used by the Refresh button. */
+export function reloadFunnel(rerender) {
+  _levels = null; _error = null;
+  loadFunnel(rerender);
+}
+
+const STATUS_STYLE = {
+  live:          { bg: '#dcfce7', fg: '#166534', label: 'Live' },
+  partial:       { bg: '#fef3c7', fg: '#92400e', label: 'Partial' },
+  'not tracked': { bg: '#f3f4f6', fg: '#6b7280', label: 'Not tracked' },
+};
+
+function fmtRate(r) {
+  return (r === null || r === undefined) ? '—' : `${Number(r).toFixed(1)}%`;
+}
+
+function levelCard(l) {
+  const st = STATUS_STYLE[l.status] || STATUS_STYLE['not tracked'];
+  const hasNumbers = l.numerator !== null && l.denominator !== null;
+  const verified = l.source === 'verified';
+
+  let h = `<div style="border:1px solid var(--border);border-radius:10px;padding:14px 16px;background:var(--card);display:flex;gap:16px;align-items:flex-start">`;
+
+  // Level number
+  h += `<div style="flex-shrink:0;width:34px;height:34px;border-radius:8px;background:#1e1b4b;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">${esc(l.level)}</div>`;
+
+  h += `<div style="flex:1;min-width:0">`;
+  h += `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:14px;font-weight:700;color:#1e1b4b">${esc(l.label)}</span>
+          <span style="padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;background:${st.bg};color:${st.fg}">${st.label}</span>
+        </div>`;
+  if (l.enters) {
+    h += `<div style="font-size:11px;color:#9ca3af;margin-top:2px">Enters when ${esc(l.enters)} · exits when ${esc(l.exits || '')}</div>`;
+  }
+
+  if (hasNumbers) {
+    h += `<div style="margin-top:10px;display:flex;align-items:baseline;gap:10px">
+            <span style="font-size:24px;font-weight:800;color:#1e1b4b;font-variant-numeric:tabular-nums">${fmtRate(l.rate)}</span>
+            <span style="font-size:12px;color:#6b7280;font-variant-numeric:tabular-nums">${l.numerator} of ${l.denominator}</span>
+            ${verified ? `<span style="font-size:10px;font-weight:700;color:#166534;background:#dcfce7;padding:1px 6px;border-radius:4px">verified baseline</span>` : ''}
+          </div>`;
+    if (l.snapshot_date) {
+      h += `<div style="font-size:10px;color:#9ca3af;margin-top:2px">as of ${esc(String(l.snapshot_date))}</div>`;
+    }
+    // The caveat is part of the number, not a footnote.
+    const caveat = l.detail && (l.detail.denominator_caveat || l.detail.note);
+    if (caveat) {
+      h += `<div style="margin-top:8px;font-size:11px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:6px 8px">${esc(String(caveat))}</div>`;
+    }
+  } else {
+    h += `<div style="margin-top:10px;font-size:12px;color:#9ca3af">No tracking yet — this level is still measured by hand.</div>`;
+  }
+  h += `</div></div>`;
+  return h;
+}
+
+export function renderFunnel() {
+  if (_error) {
+    return `<div style="padding:24px"><div style="color:#b91c1c;font-size:13px">Could not load the funnel: ${esc(_error)}</div></div>`;
+  }
+  if (_levels === null) {
+    return `<div style="padding:24px;color:#9ca3af;font-size:13px">Loading the funnel…</div>`;
+  }
+
+  let h = `<div style="padding:16px;max-width:900px;margin:0 auto">`;
+  h += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <div>
+            <div style="font-size:18px;font-weight:800;color:#1e1b4b">Sales pipeline</div>
+            <div style="font-size:12px;color:#6b7280">Every level of the acquisition funnel, from emails sent to clients retained.</div>
+          </div>
+          <button onclick="refreshFunnel()" style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border:1px solid var(--border);border-radius:7px;background:var(--card);font-size:12px;cursor:pointer">${svgIcon('refresh-cw', 12)} Refresh</button>
+        </div>`;
+  h += `<div style="display:flex;flex-direction:column;gap:10px;margin-top:14px">`;
+  h += _levels.map(levelCard).join('');
+  h += `</div>`;
+  h += `<div style="margin-top:16px;font-size:11px;color:#9ca3af;line-height:1.5">
+          A <strong>verified baseline</strong> was settled by hand against source evidence and is never recomputed from a live count — level 03's discovery calls were established by reading the call recordings one by one, which no automated count can reproduce. Live tracking adds to that baseline rather than replacing it.
+        </div>`;
+  h += `</div>`;
+  return h;
+}
+
+window.refreshFunnel = () => {
+  import('./render.js?v=20260827230505').then(m => reloadFunnel(m.render));
+};

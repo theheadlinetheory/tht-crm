@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // SEARCH — Global search, activity badges, pipeline helpers
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260827221534';
-import { ACQUISITION_STAGES, NURTURE_STAGES, CLIENT_PALETTE, ALL_PIPELINES } from './config.js?v=20260827221534';
-import { render } from './render.js?v=20260827221534';
-import { getToday } from './utils.js?v=20260827221534';
-import { isEmployee, getOwnerNameForDeal } from './auth.js?v=20260827221534';
-import { lookupClientInfo } from './client-info.js?v=20260827221534';
+import { state } from './app.js?v=20260827230505';
+import { ACQUISITION_STAGES, NURTURE_STAGES, CLIENT_PALETTE, ALL_PIPELINES } from './config.js?v=20260827230505';
+import { render } from './render.js?v=20260827230505';
+import { getToday } from './utils.js?v=20260827230505';
+import { isEmployee, isAdmin, getOwnerNameForDeal } from './auth.js?v=20260827230505';
+import { lookupClientInfo } from './client-info.js?v=20260827230505';
 
 export function globalSearch(q){
   state.searchQuery=q;
@@ -87,7 +87,10 @@ export function getVisiblePipelines(){
 }
 
 export function getVisiblePipelinesWithArchive(){
-  if(isEmployee()) return ALL_PIPELINES.filter(p => p.id === 'client_leads' || p.id === 'acquisition' || p.id === 'dashboard');
+  if(isEmployee()) return ALL_PIPELINES.filter(p => ['client_leads','acquisition','dashboard','funnel'].includes(p.id));
+  // Clients reach the CRM too. The funnel is our own acquisition performance and
+  // must never be one of their tabs.
+  if(!isAdmin()) return ALL_PIPELINES.filter(p => p.id !== 'funnel');
   return ALL_PIPELINES;
 }
 

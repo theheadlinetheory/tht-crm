@@ -39,6 +39,7 @@ export const NURTURE_STAGES = [
 
 export const ALL_PIPELINES = [
   { id: "dashboard", label: "Dashboard" },
+  { id: "funnel", label: "Funnel" },
   { id: "acquisition", label: "Acquisition" },
   { id: "client_leads", label: "Client Leads" },
 ];
