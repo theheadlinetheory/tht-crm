@@ -240,7 +240,12 @@ async function runSteps(f, startIdx) {
     }
     setFooterProgress(1, null);
     if (startIdx <= 1) {
-      _w.sheetId = await ensureLeadTrackerSheet(_w.clientId, f.name, f.billingModel === 'retainer');
+      // Layout must follow has_inbox_mgmt (what push-to-client-sheet writes), not
+      // the billing model — mismatching the two is what caused the purple-column
+      // bleed. A client being onboarded here has no inbox management configured
+      // yet, so false is the right seed; the edge function re-reads the real
+      // value from the DB via clientId anyway.
+      _w.sheetId = await ensureLeadTrackerSheet(_w.clientId, f.name, false);
     }
     setFooterProgress(2, null);
     if (startIdx <= 2 && !_w.tagsDone) {
