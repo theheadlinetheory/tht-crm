@@ -18,8 +18,8 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260827230505';
-import { supabase } from './supabase-client.js?v=20260827230505';
+import { esc, svgIcon } from './utils.js?v=20260827205002';
+import { supabase } from './supabase-client.js?v=20260827205002';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 let _loading = false;
@@ -51,6 +51,43 @@ const STATUS_STYLE = {
 
 function fmtRate(r) {
   return (r === null || r === undefined) ? '—' : `${Number(r).toFixed(1)}%`;
+}
+
+function ago(iso) {
+  if (!iso) return '';
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  if (mins < 60 * 48) return `${Math.round(mins / 60)}h ago`;
+  return `${Math.round(mins / 1440)}d ago`;
+}
+
+/** Where a level's number comes from, and whether each feed is actually
+ *  flowing. A source that quietly stopped is the failure this project exists to
+ *  prevent — the Calendly refresh claimed "auto, every 30 min" in a level file
+ *  and had never run once. */
+function sourcesTable(sources) {
+  if (!sources || !sources.length) return '';
+  let h = `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
+    <div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:6px">WHERE THIS NUMBER COMES FROM</div>`;
+  sources.forEach(s => {
+    const ok = s.live;
+    const dot = ok ? '#059669' : '#f59e0b';
+    h += `<div style="display:flex;gap:8px;align-items:flex-start;padding:5px 0">
+      <span style="width:7px;height:7px;border-radius:50%;background:${dot};flex-shrink:0;margin-top:5px"></span>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap">
+          <span style="font-size:12px;font-weight:600;color:#1f2937">${esc(s.name)}</span>
+          <span style="font-size:10px;color:#9ca3af">${esc(s.feeds)}</span>
+          ${s.contributes !== undefined ? `<span style="font-size:11px;color:#374151;font-variant-numeric:tabular-nums">+${s.contributes}</span>` : ''}
+          ${s.awaiting ? `<span style="font-size:10px;font-weight:700;color:#92400e;background:#fef3c7;padding:1px 6px;border-radius:4px">${s.awaiting} awaiting</span>` : ''}
+          ${s.last_activity ? `<span style="font-size:10px;color:#9ca3af">last ${esc(ago(s.last_activity))}</span>` : ''}
+        </div>
+        <div style="font-size:11px;color:#9ca3af;line-height:1.4">${esc(s.how || '')}</div>
+      </div>
+    </div>`;
+  });
+  h += `</div>`;
+  return h;
 }
 
 function levelCard(l) {
@@ -89,6 +126,7 @@ function levelCard(l) {
   } else {
     h += `<div style="margin-top:10px;font-size:12px;color:#9ca3af">No tracking yet — this level is still measured by hand.</div>`;
   }
+  if (l.detail && l.detail.sources) h += sourcesTable(l.detail.sources);
   h += `</div></div>`;
   return h;
 }
@@ -120,5 +158,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260827230505').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260827205002').then(m => reloadFunnel(m.render));
 };
