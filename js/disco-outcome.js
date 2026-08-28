@@ -20,9 +20,9 @@
 // The answer is stored as a normal CRM interaction, which means no new table and
 // no schema change: the same anon insert the call touchpoints already use.
 
-import { state } from './app.js?v=20260827205002';
-import { esc, svgIcon } from './utils.js?v=20260827205002';
-import { sbCreateInteraction, showToast } from './api.js?v=20260827205002';
+import { state } from './app.js?v=20260827210333';
+import { esc, svgIcon } from './utils.js?v=20260827210333';
+import { sbCreateInteraction, showToast } from './api.js?v=20260827210333';
 
 const PENDING_URL =
   'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/pipeline-level03?action=pending';
@@ -111,12 +111,19 @@ export async function markDisco(dealId, held) {
       type: 'Meeting',
       content: (held ? HELD : NO_SHOW) + ' · marked in the CRM',
     });
-    _pending = _pending.filter(p => p.deal_id !== dealId);
-    if (row) row.remove();
-    if (!_pending.length) { closeDiscoOutcomeQueue(); showToast('All discovery calls marked', 'success'); }
+    // Callable from the deal timeline as well as the queue, where the queue may
+    // never have loaded — guard rather than assume.
+    if (_pending) {
+      _pending = _pending.filter(p => p.deal_id !== dealId);
+      if (row) row.remove();
+      if (!_pending.length) { closeDiscoOutcomeQueue(); showToast('All discovery calls marked', 'success'); }
+    } else {
+      showToast(held ? 'Marked as held' : 'Marked as a no-show', 'success');
+    }
   } catch (e) {
     if (row) row.style.opacity = '1';
     showToast('Could not save: ' + e.message, 'error');
+    throw e;
   }
 }
 
