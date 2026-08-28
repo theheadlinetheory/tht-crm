@@ -20,9 +20,9 @@
 // The answer is stored as a normal CRM interaction, which means no new table and
 // no schema change: the same anon insert the call touchpoints already use.
 
-import { state } from './app.js?v=20260827213405';
-import { esc, svgIcon } from './utils.js?v=20260827213405';
-import { sbCreateInteraction, showToast } from './api.js?v=20260827213405';
+import { state } from './app.js?v=20260827214859';
+import { esc, svgIcon } from './utils.js?v=20260827214859';
+import { sbCreateInteraction, showToast } from './api.js?v=20260827214859';
 
 const PENDING_URL =
   'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/pipeline-level03?action=pending';
@@ -37,6 +37,13 @@ const PENDING_URL =
 //                   because a lead we rejected was never ours to convert
 //                   (see counting-rules.md)
 export const OUTCOME_PREFIX = 'Discovery call — ';
+
+// Level 05, same shape. A win needs no reporting — a client row in the CRM is
+// the signal — but a LOSS produces nothing anywhere, which is the asymmetry that
+// made this level need archaeology. Marked here for demos Aidan runs, which
+// demo_tracker structurally never sees because it is Ioannis's payout ledger.
+export const DEMO_OUTCOME_PREFIX = 'Demo — ';
+export const DEMO_OUTCOMES = ['Won', 'Lost', 'Not qualified'];
 export const DISCO_OUTCOMES = ['No-show', 'Demo booked', 'Not interested', 'Disqualified'];
 
 // Written before the four-way dropdown replaced them (2026-08-28). Still read
@@ -90,6 +97,28 @@ function rowFor(p) {
 }
 
 /** The four-way picker, shared by the queue and the deal-card timeline. */
+export function demoOutcomeSelect(dealId) {
+  return `<select onchange="markDemo('${esc(dealId)}',this.value);this.disabled=true"
+    style="padding:4px 8px;border:1px solid #d1d5db;border-radius:5px;font-size:11px;background:#fff;cursor:pointer">
+    <option value="">What happened?</option>
+    ${DEMO_OUTCOMES.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}
+  </select>`;
+}
+
+export async function markDemo(dealId, outcome) {
+  if (!outcome || !DEMO_OUTCOMES.includes(outcome)) return;
+  try {
+    await sbCreateInteraction({
+      deal_id: dealId, type: 'Meeting',
+      content: DEMO_OUTCOME_PREFIX + outcome + ' · marked in the CRM',
+    });
+    showToast('Marked: ' + outcome, 'success');
+  } catch (e) {
+    showToast('Could not save: ' + e.message, 'error');
+    throw e;
+  }
+}
+
 export function outcomeSelect(dealId) {
   return `<select onchange="markDisco('${esc(dealId)}',this.value);this.disabled=true"
     style="padding:4px 8px;border:1px solid #d1d5db;border-radius:5px;font-size:11px;background:#fff;cursor:pointer">
@@ -158,3 +187,4 @@ export async function markDisco(dealId, outcome) {
 window.openDiscoOutcomeQueue = openDiscoOutcomeQueue;
 window.closeDiscoOutcomeQueue = closeDiscoOutcomeQueue;
 window.markDisco = markDisco;
+window.markDemo = markDemo;
