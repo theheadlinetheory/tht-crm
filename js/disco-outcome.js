@@ -20,13 +20,27 @@
 // The answer is stored as a normal CRM interaction, which means no new table and
 // no schema change: the same anon insert the call touchpoints already use.
 
-import { state } from './app.js?v=20260827210333';
-import { esc, svgIcon } from './utils.js?v=20260827210333';
-import { sbCreateInteraction, showToast } from './api.js?v=20260827210333';
+import { state } from './app.js?v=20260827212404';
+import { esc, svgIcon } from './utils.js?v=20260827212404';
+import { sbCreateInteraction, showToast } from './api.js?v=20260827212404';
 
 const PENDING_URL =
   'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/pipeline-level03?action=pending';
 
+// The rep picks one of four after the meeting. Each counts differently in
+// level 03, which is why a plain "did it happen?" was not enough:
+//
+//   No-show         never happened — the disco does not enter the level at all
+//   Demo booked     happened, and it converted — denominator AND numerator
+//   Not interested  happened, they declined — denominator only, a real loss
+//   Disqualified    happened, WE ended it — LEAVES the denominator entirely,
+//                   because a lead we rejected was never ours to convert
+//                   (see counting-rules.md)
+export const OUTCOME_PREFIX = 'Discovery call — ';
+export const DISCO_OUTCOMES = ['No-show', 'Demo booked', 'Not interested', 'Disqualified'];
+
+// Written before the four-way dropdown replaced them (2026-08-28). Still read
+// so entries already on a timeline keep counting.
 export const HELD = 'Discovery call — held';
 export const NO_SHOW = 'Discovery call — no-show';
 
@@ -71,9 +85,17 @@ function rowFor(p) {
       <div style="font-size:13px;font-weight:600;color:#1f2937;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(who)}</div>
       <div style="font-size:11px;color:#9ca3af">${esc(p.email)}</div>
     </div>
-    <button onclick="markDisco('${esc(p.deal_id)}',true)" style="padding:4px 10px;border:none;border-radius:5px;background:#059669;color:#fff;font-size:11px;font-weight:600;cursor:pointer">Held</button>
-    <button onclick="markDisco('${esc(p.deal_id)}',false)" style="padding:4px 10px;border:none;border-radius:5px;background:#6b7280;color:#fff;font-size:11px;font-weight:600;cursor:pointer">No-show</button>
+    ${outcomeSelect(p.deal_id)}
   </div>`;
+}
+
+/** The four-way picker, shared by the queue and the deal-card timeline. */
+export function outcomeSelect(dealId) {
+  return `<select onchange="markDisco('${esc(dealId)}',this.value);this.disabled=true"
+    style="padding:4px 8px;border:1px solid #d1d5db;border-radius:5px;font-size:11px;background:#fff;cursor:pointer">
+    <option value="">What happened?</option>
+    ${DISCO_OUTCOMES.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}
+  </select>`;
 }
 
 export function openDiscoOutcomeQueue() {
@@ -102,14 +124,20 @@ export function closeDiscoOutcomeQueue() {
   if (el) el.remove();
 }
 
-export async function markDisco(dealId, held) {
+export async function markDisco(dealId, outcome) {
+  if (!outcome) return;
+  // Tolerate the old boolean call sites while any remain.
+  if (outcome === true) outcome = 'Demo booked';
+  if (outcome === false) outcome = 'No-show';
+  if (!DISCO_OUTCOMES.includes(outcome)) return;
+
   const row = document.getElementById('disco-row-' + dealId);
   if (row) row.style.opacity = '.4';
   try {
     await sbCreateInteraction({
       deal_id: dealId,
       type: 'Meeting',
-      content: (held ? HELD : NO_SHOW) + ' · marked in the CRM',
+      content: OUTCOME_PREFIX + outcome + ' · marked in the CRM',
     });
     // Callable from the deal timeline as well as the queue, where the queue may
     // never have loaded — guard rather than assume.
@@ -118,7 +146,7 @@ export async function markDisco(dealId, held) {
       if (row) row.remove();
       if (!_pending.length) { closeDiscoOutcomeQueue(); showToast('All discovery calls marked', 'success'); }
     } else {
-      showToast(held ? 'Marked as held' : 'Marked as a no-show', 'success');
+      showToast('Marked: ' + outcome, 'success');
     }
   } catch (e) {
     if (row) row.style.opacity = '1';
