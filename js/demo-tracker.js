@@ -1,17 +1,24 @@
 // ═══════════════════════════════════════════════════════════
 // DEMO TRACKER — SDR commission tracking for acquisition calls
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites, pendingDealFields } from './app.js?v=20260827214859';
-import { sbCreateDemoEntry, sbUpdateDemoEntry, sbDeleteDemoEntry, sbUpdateDeal, camelToSnake, normalizeRow } from './api.js?v=20260827214859';
-import { render, refreshModal } from './render.js?v=20260827214859';
-import { isAdmin, isEmployee } from './auth.js?v=20260827214859';
-import { esc, str, svgIcon } from './utils.js?v=20260827214859';
+import { state, pendingWrites, pendingDealFields } from './app.js?v=20260902162733';
+import { sbCreateDemoEntry, sbUpdateDemoEntry, sbDeleteDemoEntry, sbUpdateDeal, camelToSnake, normalizeRow, showToast } from './api.js?v=20260902162733';
+import { render, refreshModal } from './render.js?v=20260902162733';
+import { isAdmin, isEmployee } from './auth.js?v=20260902162733';
+import { esc, str, svgIcon } from './utils.js?v=20260902162733';
 
 const DEMO_BASE_PAYOUT = 100;
 const DEMO_CLOSE_BONUS = 50;
 
 const SHOW_OPTIONS = ['Showed', 'No-Show'];
-const OUTCOME_OPTIONS = ['Qualified — Pending', 'Qualified — Closed Won', 'Qualified — Closed Lost', 'Not Qualified'];
+
+// A demo that happened and went fine, but they are not buying yet. Kept apart
+// from Closed Lost because it is the opposite kind of lead: someone who sat
+// through a full demo and said "not right now" is far higher intent than a cold
+// email reply that said the same thing. Picking it moves the deal to Nurture.
+export const OUTCOME_NOT_NOW = 'Qualified — Not Right Now';
+
+const OUTCOME_OPTIONS = ['Qualified — Pending', 'Qualified — Closed Won', OUTCOME_NOT_NOW, 'Qualified — Closed Lost', 'Not Qualified'];
 
 const BOOKED_BY_OPTIONS = ['Ioannis', 'Aidan', 'Lars'];
 
@@ -35,8 +42,21 @@ function calcPayout(showStatus, outcome) {
   if (showStatus !== 'Showed') return 0;
   if (!outcome || outcome === 'Not Qualified') return 0;
   if (outcome === 'Qualified — Closed Won') return DEMO_BASE_PAYOUT + DEMO_CLOSE_BONUS;
+  // A postponed demo still pays the base — the booking was qualified, which is
+  // what the base rewards. Spelled out rather than left to the 'Qualified'
+  // prefix so a future outcome cannot inherit a payout by accident.
+  if (outcome === OUTCOME_NOT_NOW) return DEMO_BASE_PAYOUT;
   if (outcome.startsWith('Qualified')) return DEMO_BASE_PAYOUT;
   return 0;
+}
+
+/**
+ * Did this deal ever sit through a demo? Derived from the ledger rather than
+ * stored, so it is true for every past demo too and cannot drift out of sync.
+ */
+export function dealHadDemo(dealId) {
+  if (!dealId) return false;
+  return state.demoEntries.some(e => String(e.dealId) === String(dealId) && str(e.showStatus) === 'Showed');
 }
 
 function flashSaveStatus(ok) {
@@ -133,7 +153,8 @@ export function renderDemoTracker() {
   for (const entry of entries) {
     const isNoShow = str(entry.showStatus) === 'No-Show';
     const isWon = str(entry.outcome) === 'Qualified — Closed Won';
-    const rowStyle = isNoShow ? 'color:#9ca3af;' : isWon ? 'border-left:3px solid #059669;' : '';
+    const isNotNow = str(entry.outcome) === OUTCOME_NOT_NOW;
+    const rowStyle = isNoShow ? 'color:#9ca3af;' : isWon ? 'border-left:3px solid #059669;' : isNotNow ? 'border-left:3px solid #d97706;' : '';
     html += `<tr style="${rowStyle}border-bottom:1px solid var(--border)">`;
 
     for (const col of visibleCols) {
@@ -208,6 +229,8 @@ async function saveDemoCell(entryId, field, value) {
   state.demoEditingCell = null;
   render();
 
+  if (field === 'outcome' && value === OUTCOME_NOT_NOW) openNurtureFromDemo(entry);
+
   pendingWrites.value++;
   try {
     const updates = { [field]: value };
@@ -224,6 +247,23 @@ async function saveDemoCell(entryId, field, value) {
   } finally {
     pendingWrites.value--;
   }
+}
+
+// "Not right now" is a follow-up, not a loss, so the deal belongs in Nurture
+// with a date on it. Reuse the existing Move-to-Nurture modal instead of moving
+// it silently: picking the follow-up date is the whole point of "hit up later",
+// and the modal already handles the stage move, the sequence and the queue.
+function openNurtureFromDemo(entry) {
+  const dealId = str(entry.dealId);
+  const deal = dealId ? state.deals.find(d => String(d.id) === dealId) : null;
+  if (!deal) {
+    showToast('Marked. This row has no linked deal, so nothing moved to Nurture.', 'warn');
+    return;
+  }
+  state._nurtureEntryDealId = deal.id;
+  state._nurtureEntryBucket = 'not_now';
+  state._nurtureEntryFromDemo = true;
+  render();
 }
 
 function markDemoPaid(entryId) {
@@ -368,6 +408,7 @@ function renderDemoPayoutModal() {
   const showed = entries.filter(e => str(e.showStatus) === 'Showed').length;
   const qualified = entries.filter(e => str(e.outcome).startsWith('Qualified')).length;
   const closedWon = entries.filter(e => str(e.outcome) === 'Qualified — Closed Won').length;
+  const notRightNow = entries.filter(e => str(e.outcome) === OUTCOME_NOT_NOW).length;
   const notQualified = entries.filter(e => str(e.outcome) === 'Not Qualified').length;
 
   const qualifiedPayout = qualified * DEMO_BASE_PAYOUT;
@@ -399,7 +440,7 @@ function renderDemoPayoutModal() {
           <div style="font-size:11px;color:var(--text-muted)">Showed</div>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
         <div style="padding:12px;background:#eff6ff;border-radius:8px;text-align:center">
           <div style="font-size:20px;font-weight:700;color:#2563eb">${qualified}</div>
           <div style="font-size:11px;color:var(--text-muted)">Qualified</div>
@@ -407,6 +448,10 @@ function renderDemoPayoutModal() {
         <div style="padding:12px;background:#f0fdf4;border-radius:8px;text-align:center">
           <div style="font-size:20px;font-weight:700;color:#059669">${closedWon}</div>
           <div style="font-size:11px;color:var(--text-muted)">Closed Won</div>
+        </div>
+        <div style="padding:12px;background:#fffbeb;border-radius:8px;text-align:center">
+          <div style="font-size:20px;font-weight:700;color:#d97706">${notRightNow}</div>
+          <div style="font-size:11px;color:var(--text-muted)">Not Right Now</div>
         </div>
       </div>
       <div style="border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px">

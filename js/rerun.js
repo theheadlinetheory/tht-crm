@@ -1,14 +1,15 @@
 // ═══════════════════════════════════════════════════════════
 // NURTURE — Two-bucket nurture pipeline (Not Now + Service Area Taken)
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20260827214859';
-import { render } from './render.js?v=20260827214859';
-import { sbGetRerunQueue, sbAddToRerun, sbUpdateRerunItem, sbUpdateRerunStatus, sbUpdateDeal, sbUpdateActivity, sbArchiveDeal, sbDeleteDeal, camelToSnake, normalizeRow, invokeEdgeFunction } from './api.js?v=20260827214859';
-import { esc, getToday, fmtDate, svgIcon } from './utils.js?v=20260827214859';
-import { registerActions } from './delegate.js?v=20260827214859';
-import { statCard, filterSelect, modalWrap, modalHeader, modalFooter } from './html-helpers.js?v=20260827214859';
-import { NURTURE_NOT_NOW_SEQUENCE, ACQUISITION_STAGES } from './config.js?v=20260827214859';
-import { isAdmin, getOwnerNameForDeal, getOwnerColor, loadAssignableUsers } from './auth.js?v=20260827214859';
+import { state, store, pendingWrites } from './app.js?v=20260902162733';
+import { render } from './render.js?v=20260902162733';
+import { sbGetRerunQueue, sbAddToRerun, sbUpdateRerunItem, sbUpdateRerunStatus, sbUpdateDeal, sbUpdateActivity, sbArchiveDeal, sbDeleteDeal, camelToSnake, normalizeRow, invokeEdgeFunction } from './api.js?v=20260902162733';
+import { esc, getToday, fmtDate, svgIcon } from './utils.js?v=20260902162733';
+import { registerActions } from './delegate.js?v=20260902162733';
+import { statCard, filterSelect, modalWrap, modalHeader, modalFooter } from './html-helpers.js?v=20260902162733';
+import { NURTURE_NOT_NOW_SEQUENCE, ACQUISITION_STAGES } from './config.js?v=20260902162733';
+import { isAdmin, getOwnerNameForDeal, getOwnerColor, loadAssignableUsers } from './auth.js?v=20260902162733';
+import { dealHadDemo } from './demo-tracker.js?v=20260902162733';
 
 // ─── Data Loading ───
 
@@ -21,6 +22,14 @@ export async function loadNurtureData() {
   } catch (e) { console.warn('Failed to load nurture data:', e); }
   state.rerunLoading = false;
   render();
+}
+
+// A lead who sat through a full demo and said "not right now" is a different
+// animal from one who said it to a cold email, and by the time they resurface
+// months later nothing on the row remembers which. Hence the chip.
+export function demoHeldChip(dealId) {
+  if (!dealHadDemo(dealId)) return '';
+  return `<span title="Sat through a full demo — much higher intent than an email &quot;not now&quot;" style="display:inline-block;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;letter-spacing:.03em;background:#ede9fe;color:#6d28d9;border:1px solid #c4b5fd;vertical-align:middle;margin-left:5px">DEMO HELD</span>`;
 }
 
 // ─── Filter / Helper Functions ───
@@ -313,7 +322,7 @@ export function renderDueTodayBanner() {
 
     h += `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #fde68a">
       <span style="font-size:10px;font-weight:700;color:${urgencyColor};min-width:60px">${esc(urgencyLabel)}</span>
-      <span style="font-weight:600;font-size:11px;min-width:120px;cursor:pointer" data-action="openNurtureDeal" data-id="${esc(item.dealId)}">${esc(item.dealName || 'Unknown')}</span>
+      <span style="font-weight:600;font-size:11px;min-width:120px;cursor:pointer" data-action="openNurtureDeal" data-id="${esc(item.dealId)}">${esc(item.dealName || 'Unknown')}${demoHeldChip(item.dealId)}</span>
       <span style="font-size:10px;color:var(--text-muted);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(nextTask)}</span>
       ${ownerChip(deal, item.dealId)}
       <div style="display:flex;gap:3px;flex-shrink:0">
@@ -370,14 +379,16 @@ export function renderNurtureTab() {
         </tr></thead><tbody>`;
 
       const today = getToday();
-      for (const r of notNowItems) {
+      // Demo-held leads first — they are the ones worth calling back.
+      const orderedNotNow = [...notNowItems].sort((a, b) => (dealHadDemo(b.dealId) ? 1 : 0) - (dealHadDemo(a.dealId) ? 1 : 0));
+      for (const r of orderedNotNow) {
         const followUp = r.followUpDate || '';
         const badge = getUrgencyBadge(followUp, today);
         const statusLabel = badge.label || 'Scheduled';
         const statusColor = badge.label ? badge.color : '#6b7280';
 
         h += `<tr>
-          <td style="font-weight:600;cursor:pointer" data-action="openNurtureDeal" data-id="${esc(r.dealId)}">${esc(r.dealName || r.company || '')}</td>
+          <td style="font-weight:600;cursor:pointer" data-action="openNurtureDeal" data-id="${esc(r.dealId)}">${esc(r.dealName || r.company || '')}${demoHeldChip(r.dealId)}</td>
           <td style="color:var(--text-muted)">${esc(r.email || '')}</td>
           <td>${esc(r.campaignName || '')}</td>
           <td style="font-weight:600">${esc(followUp ? fmtDate(followUp) : '-')}</td>
@@ -416,7 +427,7 @@ export function renderNurtureTab() {
         const checked = state.satSelected.has(r.id);
         h += `<tr>
           <td><input type="checkbox" data-action="toggleSATSelect" data-id="${esc(r.id)}" ${checked ? 'checked' : ''}></td>
-          <td style="font-weight:600;cursor:pointer" data-action="openNurtureDeal" data-id="${esc(r.dealId)}">${esc(r.dealName || r.company || '')}</td>
+          <td style="font-weight:600;cursor:pointer" data-action="openNurtureDeal" data-id="${esc(r.dealId)}">${esc(r.dealName || r.company || '')}${demoHeldChip(r.dealId)}</td>
           <td style="color:var(--text-muted)">${esc(r.email || '')}</td>
           <td>${blockedByCell(r)}</td>
           <td style="color:var(--text-muted)">${esc(r.queuedAt ? fmtDate(r.queuedAt.split('T')[0]) : '-')}</td>
@@ -469,10 +480,17 @@ export function renderNurtureEntryModal(dealId) {
     String(defaultDate.getDate()).padStart(2, '0');
   const selectedBucket = state._nurtureEntryBucket || 'not_now';
   const showDate = selectedBucket === 'not_now';
+  // Opened straight off a "Not Right Now" demo outcome, so the answers are known.
+  const fromDemo = !!state._nurtureEntryFromDemo;
+  const defaultReason = fromDemo ? 'Wants to revisit later' : '';
 
   let body = modalHeader('Move to Nurture', 'closeNurtureModal');
   body += `<div class="modal-body">
     <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Moving <strong>${esc(dealName)}</strong> to the Nurture pipeline.</p>
+    ${fromDemo ? `<div style="display:flex;gap:8px;align-items:flex-start;padding:9px 11px;margin-bottom:14px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:7px">
+      <span style="font-size:9px;font-weight:700;letter-spacing:.03em;background:#ede9fe;color:#6d28d9;border:1px solid #c4b5fd;border-radius:3px;padding:1px 5px;white-space:nowrap;margin-top:1px">DEMO HELD</span>
+      <span style="font-size:11px;color:#5b21b6;line-height:1.4">They sat through the whole demo before saying not right now — treat this as a warm follow-up, not a cold one.</span>
+    </div>` : ''}
 
     <div style="margin-bottom:12px">
       <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Bucket</label>
@@ -499,12 +517,12 @@ export function renderNurtureEntryModal(dealId) {
     <div style="margin-bottom:12px">
       <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Reason</label>
       <select id="nurture-reason" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);margin-bottom:8px">
-        <option value="">Select a reason...</option>
+        <option value="" ${defaultReason ? '' : 'selected'}>Select a reason...</option>
         <option value="Went cold">Went cold</option>
         <option value="Not ready right now">Not ready right now</option>
         <option value="Budget issues">Budget issues</option>
         <option value="Already has a provider">Already has a provider</option>
-        <option value="Wants to revisit later">Wants to revisit later</option>
+        <option value="Wants to revisit later" ${defaultReason === 'Wants to revisit later' ? 'selected' : ''}>Wants to revisit later</option>
         <option value="Other">Other</option>
       </select>
       <input type="text" id="nurture-note" placeholder="Additional notes..." style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
@@ -587,12 +605,14 @@ registerActions({
   closeNurtureModal() {
     state._nurtureEntryDealId = null;
     state._nurtureEntryBucket = null;
+    state._nurtureEntryFromDemo = false;
     render();
   },
   dismissNurtureModal(el, e) {
     if (e.target === el) {
       state._nurtureEntryDealId = null;
       state._nurtureEntryBucket = null;
+      state._nurtureEntryFromDemo = false;
       render();
     }
   },
@@ -610,13 +630,17 @@ registerActions({
     const blockedByClient = bucket === 'service_area_taken' && blockedEl ? blockedEl.value : '';
     const noteEl = document.getElementById('nurture-note');
     const noteText = noteEl ? noteEl.value : '';
-    const note = [reason, noteText].filter(Boolean).join(' — ');
+    // Lead the note with it so the reason is legible in the table's note column
+    // and in anything exported out of the queue, not just in the chip.
+    const fromDemo = !!state._nurtureEntryFromDemo;
+    const note = [fromDemo ? 'Demo held' : '', reason, noteText].filter(Boolean).join(' — ');
 
     // Close modal
     const isBulk = !!state._nurtureEntryBulk;
     const bulkIds = isBulk ? (state._bulkNurtureIds || []) : [dealId];
     state._nurtureEntryDealId = null;
     state._nurtureEntryBucket = null;
+    state._nurtureEntryFromDemo = false;
     state._nurtureEntryBulk = false;
     state._bulkNurtureIds = null;
 
