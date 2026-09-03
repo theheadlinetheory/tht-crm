@@ -23,23 +23,21 @@
 // which is what pipeline-level02 reads. A field nobody is forced through stays
 // null; this one cannot be skipped.
 
-import { esc } from './utils.js?v=20260903132824';
-import { sbCreateInteraction } from './api.js?v=20260903132824';
+import { esc } from './utils.js?v=20260903134214';
+import { sbCreateInteraction } from './api.js?v=20260903134214';
 
 export const REMOVAL_PREFIX = 'Removed — ';
 
 // label = what the rep sees, and what the archive status becomes.
 // note  = what follows the prefix on the Timeline (the level reads this).
 // tone  = dq: we removed them (leaves the denominator) · lost: they dropped
+// hint  = shown under the label; the examples of what qualifies.
 export const ACQ_REMOVAL_REASONS = [
-  { label: 'Desk DQ — remote / small town', note: 'Desk DQ: remote / small town', tone: 'dq' },
-  { label: 'Desk DQ — out of ICP',          note: 'Desk DQ: out of ICP',          tone: 'dq' },
-  { label: 'Desk DQ — too small',           note: 'Desk DQ: too small',           tone: 'dq' },
-  { label: 'Desk DQ — no website',          note: 'Desk DQ: no website',          tone: 'dq' },
-  { label: 'Not a real positive',           note: 'Not a real positive',          tone: 'dq' },
-  { label: 'Duplicate',                     note: 'Duplicate',                    tone: 'dq' },
-  { label: 'Not interested / no response',  note: 'Not interested / no response', tone: 'lost' },
-  { label: 'Closed Lost',                   note: 'Closed Lost',                  tone: 'lost' },
+  { label: 'Desk DQ',        note: 'Desk DQ',        tone: 'dq',   hint: 'remote / small town · out of ICP · too small · no website' },
+  { label: 'Miscategorized', note: 'Miscategorized', tone: 'dq',   hint: 'the AI tagged a non-positive reply as positive — fix it in Smartlead too' },
+  { label: 'Duplicate',      note: 'Duplicate',      tone: 'dq',   hint: 'this company is already on the board' },
+  { label: 'Not interested / no response', note: 'Not interested / no response', tone: 'lost' },
+  { label: 'Closed Lost',    note: 'Closed Lost',    tone: 'lost' },
 ];
 
 const TONE = {
@@ -77,15 +75,23 @@ export function showAcquisitionRemovalPicker(dealIds, { onPick, onNurture }) {
   const box = document.createElement('div');
   box.style.cssText = 'background:#fff;border-radius:12px;padding:24px;width:360px;box-shadow:0 8px 30px rgba(0,0,0,.2)';
   box.innerHTML = `<h3 style="margin:0 0 4px;font-size:16px">Why is ${n === 1 ? 'this lead' : n + ' leads'} being removed?</h3>
-    <div style="font-size:11px;color:#6b7280;margin-bottom:14px">Feeds the sales pipeline. Desk DQ / not real / duplicate = we removed them. The rest = they dropped.</div>`;
+    <div style="font-size:11px;color:#6b7280;margin-bottom:14px">Feeds the sales pipeline. Desk DQ / miscategorized / duplicate = we removed them. The rest = they dropped.</div>`;
   const list = document.createElement('div');
   list.style.cssText = 'display:flex;flex-direction:column;gap:8px';
 
-  const button = (text, tone, handler) => {
+  const button = (text, tone, handler, hint) => {
     const b = document.createElement('button');
     b.className = 'btn';
-    b.style.cssText = 'width:100%;justify-content:start;padding:10px 14px;' + TONE[tone];
-    b.textContent = text;
+    b.style.cssText = 'width:100%;justify-content:start;padding:10px 14px;flex-direction:column;align-items:flex-start;gap:2px;' + TONE[tone];
+    const main = document.createElement('span');
+    main.textContent = text;
+    b.appendChild(main);
+    if (hint) {
+      const h = document.createElement('span');
+      h.style.cssText = 'font-size:10px;font-weight:400;opacity:.8;text-align:left';
+      h.textContent = hint;
+      b.appendChild(h);
+    }
     b.onclick = handler;
     list.appendChild(b);
   };
@@ -95,7 +101,7 @@ export function showAcquisitionRemovalPicker(dealIds, { onPick, onNurture }) {
     onPick(label);
   };
 
-  ACQ_REMOVAL_REASONS.forEach((r) => button(r.label, r.tone, () => pick(r.label, r.note)));
+  ACQ_REMOVAL_REASONS.forEach((r) => button(r.label, r.tone, () => pick(r.label, r.note), r.hint));
   if (onNurture) button('Move to Nurture', 'keep', () => { div.remove(); onNurture(); });
   button('Other…', 'other', () => {
     const r = prompt('Reason:');
