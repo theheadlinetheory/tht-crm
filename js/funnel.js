@@ -18,8 +18,8 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260902162733';
-import { supabase } from './supabase-client.js?v=20260902162733';
+import { esc, svgIcon } from './utils.js?v=20260903110705';
+import { supabase } from './supabase-client.js?v=20260903110705';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 let _loading = false;
@@ -50,8 +50,14 @@ const STATUS_STYLE = {
 };
 
 function fmtRate(r) {
-  return (r === null || r === undefined) ? '—' : `${Number(r).toFixed(1)}%`;
+  if (r === null || r === undefined) return '—';
+  const n = Number(r);
+  // Level 01 lives below 1% (0.41% is a good day); one decimal would print
+  // 0.4% for every value it will ever show.
+  return `${n.toFixed(n < 1 ? 2 : 1)}%`;
 }
+
+const fmtCount = (n) => (n === null || n === undefined) ? '—' : Number(n).toLocaleString('en-US');
 
 function ago(iso) {
   if (!iso) return '';
@@ -110,11 +116,19 @@ function levelCard(l) {
   }
 
   if (hasNumbers) {
-    h += `<div style="margin-top:10px;display:flex;align-items:baseline;gap:10px">
-            <span style="font-size:24px;font-weight:800;color:#1e1b4b;font-variant-numeric:tabular-nums">${fmtRate(l.rate)}</span>
-            <span style="font-size:12px;color:#6b7280;font-variant-numeric:tabular-nums">${l.numerator} of ${l.denominator}</span>
-            ${verified ? `<span style="font-size:10px;font-weight:700;color:#166534;background:#dcfce7;padding:1px 6px;border-radius:4px">verified baseline</span>` : ''}
-          </div>`;
+    // A level can carry more than one metric on the same numerator — level 01
+    // reports positives per email sent AND per unique lead contacted. The
+    // tracker puts them in detail.metrics; the top-level figure is the first.
+    const metrics = (l.detail && Array.isArray(l.detail.metrics) && l.detail.metrics.length)
+      ? l.detail.metrics
+      : [{ label: '', numerator: l.numerator, denominator: l.denominator, rate: l.rate }];
+    metrics.forEach((m, i) => {
+      h += `<div style="margin-top:${i ? 4 : 10}px;display:flex;align-items:baseline;gap:10px">
+              <span style="font-size:24px;font-weight:800;color:#1e1b4b;font-variant-numeric:tabular-nums">${fmtRate(m.rate)}</span>
+              <span style="font-size:12px;color:#6b7280;font-variant-numeric:tabular-nums">${fmtCount(m.numerator)} of ${fmtCount(m.denominator)}${m.label ? ` · ${esc(m.label)}` : ''}</span>
+              ${(!i && verified) ? `<span style="font-size:10px;font-weight:700;color:#166534;background:#dcfce7;padding:1px 6px;border-radius:4px">verified baseline</span>` : ''}
+            </div>`;
+    });
     if (l.snapshot_date) {
       h += `<div style="font-size:10px;color:#9ca3af;margin-top:2px">as of ${esc(String(l.snapshot_date))}</div>`;
     }
@@ -158,5 +172,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260902162733').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260903110705').then(m => reloadFunnel(m.render));
 };
