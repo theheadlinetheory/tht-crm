@@ -18,8 +18,8 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260903124251';
-import { supabase } from './supabase-client.js?v=20260903124251';
+import { esc, svgIcon } from './utils.js?v=20260903132824';
+import { supabase } from './supabase-client.js?v=20260903132824';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 let _loading = false;
@@ -172,5 +172,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260903124251').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260903132824').then(m => reloadFunnel(m.render));
 };

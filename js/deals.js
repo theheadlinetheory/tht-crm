@@ -1,11 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // DEALS — CRUD operations, bulk actions, drag-drop
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, pendingDealFields, deletedDealIds } from './app.js?v=20260903124251';
-import { render } from './render.js?v=20260903124251';
-import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbArchiveDeal, sbRestoreFromArchive, sbCreateActivity, camelToSnake, invokeEdgeFunction } from './api.js?v=20260903124251';
-import { clearDashboardArchiveCache } from './dashboard.js?v=20260903124251';
-import { uid, getToday, str } from './utils.js?v=20260903124251';
+import { state, store, pendingWrites, pendingDealFields, deletedDealIds } from './app.js?v=20260903132824';
+import { render } from './render.js?v=20260903132824';
+import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbArchiveDeal, sbRestoreFromArchive, sbCreateActivity, camelToSnake, invokeEdgeFunction } from './api.js?v=20260903132824';
+import { showAcquisitionRemovalPicker } from './removal-reason.js?v=20260903132824';
+import { clearDashboardArchiveCache } from './dashboard.js?v=20260903132824';
+import { uid, getToday, str } from './utils.js?v=20260903132824';
 
 const TODAY = getToday;
 
@@ -56,11 +57,11 @@ export async function moveDeal(dealId,newStage){
     if(pending && Object.keys(pending).length===0) delete pendingDealFields[String(dealId)];
   } finally { pendingWrites.value--; }
   if(d && (newStage==='Discovery Scheduled' || newStage==='Demo Scheduled') && d.bookedDate && /^\d{4}-\d{2}-\d{2}$/.test(d.bookedDate)){
-    const { generateAppointmentSequence } = await import('./activities.js?v=20260903124251');
+    const { generateAppointmentSequence } = await import('./activities.js?v=20260903132824');
     generateAppointmentSequence(d);
   }
   if(d && newStage==='No Show'){
-    const { assignNoShowSequence } = await import('./activities.js?v=20260903124251');
+    const { assignNoShowSequence } = await import('./activities.js?v=20260903132824');
     assignNoShowSequence(d);
   }
 }
@@ -117,7 +118,7 @@ export async function bulkAddActivity(){
   if(!dueDate||!dueDate.match(/^\d{4}-\d{2}-\d{2}$/)) return;
   const ids=[...state.bulkSelected];
   if(!confirm('Add "'+subject+'" activity to '+ids.length+' deal'+(ids.length!==1?'s':'')+'?')) return;
-  const { addActivity } = await import('./activities.js?v=20260903124251');
+  const { addActivity } = await import('./activities.js?v=20260903132824');
   for(const dealId of ids){
     addActivity(dealId,{type,subject,dueDate,dayLabel:''});
   }
@@ -127,6 +128,15 @@ export async function bulkAddActivity(){
 export async function bulkArchive(){
   const ids=[...state.bulkSelected];
   if(!ids.length) return;
+  // All acquisition leads → the sales-pipeline reason list (removal-reason.js).
+  const selected = ids.map(id => state.deals.find(d => String(d.id) === String(id))).filter(Boolean);
+  if(selected.length && selected.every(d => d.pipeline === 'Acquisition')){
+    showAcquisitionRemovalPicker(ids, {
+      onPick: (label) => executeBulkArchive(label),
+      onNurture: () => window.doBulkMoveToNurture(),
+    });
+    return;
+  }
 
   const existing = document.getElementById('archive-reason-picker');
   if (existing) existing.remove();
@@ -187,7 +197,7 @@ export async function bulkRestoreFromArchive(){
       await sbRestoreFromArchive(id);
     }
     clearDashboardArchiveCache();
-    const { initialSync } = await import('./api.js?v=20260903124251');
+    const { initialSync } = await import('./api.js?v=20260903132824');
     initialSync();
   }finally{ pendingWrites.value--; }
 }

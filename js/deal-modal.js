@@ -6,29 +6,30 @@
 // populated during the final migration. This module provides
 // the key functions other modules depend on.
 
-import { state, pendingWrites, pendingDealFields } from './app.js?v=20260903124251';
-import { flushRealtimeQueue } from './api.js?v=20260903124251';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, REACTIVATION_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY, detectCountry, ACQ_STRATEGY_BOOKERS, ACQ_DEMO_BOOKERS } from './config.js?v=20260903124251';
-import { render, refreshModal } from './render.js?v=20260903124251';
-import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20260903124251';
-import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20260903124251';
-import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20260903124251';
-import { renderBookingSmsButton } from './booking-sms.js?v=20260903124251';
-import { JUSTCALL_DISPOSITIONS, applyDisposition, isCallTouchpoint } from './call-touchpoints.js?v=20260903124251';
-import { HELD, NO_SHOW, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, markDisco, markDemo, outcomeSelect, demoOutcomeSelect } from './disco-outcome.js?v=20260903124251';
-import { renderDealInvoiceButton } from './deal-invoice.js?v=20260903124251';
-import { isAdmin, isEmployee, loadAssignableUsers } from './auth.js?v=20260903124251';
-import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js?v=20260903124251';
-import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, reschedulePreCallSequence, assignNoShowSequence } from './activities.js?v=20260903124251';
-import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js?v=20260903124251';
-import { getStagesForPipeline } from './dashboard.js?v=20260903124251';
-import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal } from './maps.js?v=20260903124251';
-import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js?v=20260903124251';
-import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js?v=20260903124251';
+import { state, pendingWrites, pendingDealFields } from './app.js?v=20260903132824';
+import { flushRealtimeQueue } from './api.js?v=20260903132824';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, REACTIVATION_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY, detectCountry, ACQ_STRATEGY_BOOKERS, ACQ_DEMO_BOOKERS } from './config.js?v=20260903132824';
+import { render, refreshModal } from './render.js?v=20260903132824';
+import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20260903132824';
+import { esc, str, getToday, TODAY, uid, svgIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20260903132824';
+import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20260903132824';
+import { renderBookingSmsButton } from './booking-sms.js?v=20260903132824';
+import { JUSTCALL_DISPOSITIONS, applyDisposition, isCallTouchpoint } from './call-touchpoints.js?v=20260903132824';
+import { HELD, NO_SHOW, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, markDisco, markDemo, outcomeSelect, demoOutcomeSelect } from './disco-outcome.js?v=20260903132824';
+import { renderDealInvoiceButton } from './deal-invoice.js?v=20260903132824';
+import { isAdmin, isEmployee, loadAssignableUsers } from './auth.js?v=20260903132824';
+import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn } from './deals.js?v=20260903132824';
+import { showAcquisitionRemovalPicker } from './removal-reason.js?v=20260903132824';
+import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, reschedulePreCallSequence, assignNoShowSequence } from './activities.js?v=20260903132824';
+import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js?v=20260903132824';
+import { getStagesForPipeline } from './dashboard.js?v=20260903132824';
+import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal } from './maps.js?v=20260903132824';
+import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js?v=20260903132824';
+import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js?v=20260903132824';
 import './blooio.js';
-import './google-task.js?v=20260903124251';
+import './google-task.js?v=20260903132824';
 import './demo-tracker.js';
-import { renderDealRetargetHistory } from './retargeting.js?v=20260903124251';
+import { renderDealRetargetHistory } from './retargeting.js?v=20260903132824';
 
 function actTypeClass(type){
   const t=(type||'').toLowerCase();
@@ -225,6 +226,15 @@ window.showArchiveReasonPicker = function(dealId){
   if (existing) existing.remove();
   const deal = state.deals.find(d => String(d.id) === String(dealId));
   const isAcq = deal?.pipeline === 'Acquisition';
+  // Acquisition leads get the sales-pipeline reason list (removal-reason.js):
+  // the reason decides level 02's denominator, so it cannot be skipped.
+  if (isAcq) {
+    showAcquisitionRemovalPicker([dealId], {
+      onPick: (label) => deleteDealFn(dealId, label),
+      onNurture: () => window.triggerNurtureFromArchive(dealId),
+    });
+    return;
+  }
   const div = document.createElement('div');
   div.id = 'archive-reason-picker';
   div.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:center';
@@ -461,7 +471,16 @@ export function doLostDrop(){
   const deal=state.deals.find(d=>d.id===id);
   const client=deal?(findClientForDeal(deal)||{name:deal.stage}):null;
   const { deleteDeal } = window;
-  if(deleteDeal) deleteDeal(id, 'Deleted/Lost', client?client.name:'');
+  if(!deleteDeal) return;
+  // Dragging an acquisition lead to the delete zone still has to say why.
+  if(deal && deal.pipeline === 'Acquisition'){
+    showAcquisitionRemovalPicker([id], {
+      onPick: (label) => deleteDeal(id, label, client?client.name:''),
+      onNurture: () => window.triggerNurtureFromArchive(id),
+    });
+    return;
+  }
+  deleteDeal(id, 'Deleted/Lost', client?client.name:'');
 }
 
 export async function doWonDrop(){
@@ -478,24 +497,24 @@ export async function doWonDrop(){
   // Client Won → push to Lead Tracker
   if(deal.pipeline==='Acquisition'){
     // Won-drop modal handles create + archive on success (or leaves the card in place on cancel)
-    const { openWonModal } = await import('./won-modal.js?v=20260903124251');
+    const { openWonModal } = await import('./won-modal.js?v=20260903132824');
     openWonModal(deal);
     return;
   }
 
   let wonSuccess = false;
   try {
-    const { autoPushToTracker } = await import('./email.js?v=20260903124251');
+    const { autoPushToTracker } = await import('./email.js?v=20260903132824');
     await autoPushToTracker(deal);
     wonSuccess = true;
   } catch(e){
     console.error('Won drop action failed:', e);
-    const { showToast } = await import('./api.js?v=20260903124251');
+    const { showToast } = await import('./api.js?v=20260903132824');
     showToast('Won action failed: ' + e.message, 'error');
   }
 
   if(wonSuccess) {
-    const { deleteDeal } = await import('./deals.js?v=20260903124251');
+    const { deleteDeal } = await import('./deals.js?v=20260903132824');
     deleteDeal(id, 'Closed Won', clientName);
   }
 }
@@ -604,7 +623,7 @@ async function confirmPhoneAssign() {
   try { await sbUpdateDeal(dealId, snakeUpdates); }
   finally { pendingWrites.value--; }
 
-  const { showToast } = await import('./api.js?v=20260903124251');
+  const { showToast } = await import('./api.js?v=20260903132824');
   showToast('Phone number(s) saved', 'success');
 }
 
@@ -619,7 +638,7 @@ let _interactionsCache = {};
 
 async function loadInteractions(dealId) {
   try {
-    const { sbGetInteractions } = await import('./api.js?v=20260903124251');
+    const { sbGetInteractions } = await import('./api.js?v=20260903132824');
     const rows = await sbGetInteractions(dealId);
     _interactionsCache[dealId] = (rows || []).map(r => ({
       id: r.id, dealId: r.deal_id, type: r.type, content: r.content,
@@ -829,7 +848,7 @@ async function attachRecording(interactionId, dealId) {
   const input = document.getElementById('rec-' + interactionId);
   const url = input && input.value.trim();
   if (!url) return;
-  const { sbUpdateInteraction, showToast } = await import('./api.js?v=20260903124251');
+  const { sbUpdateInteraction, showToast } = await import('./api.js?v=20260903132824');
   if (!/^https?:\/\/\S+$/i.test(url)) {
     showToast('That does not look like a link — paste the full https:// URL.', 'warn');
     return;
@@ -951,7 +970,7 @@ async function addInteraction(dealId) {
 
   contentEl.value = '';
   if (dateEl) dateEl.value = '';
-  const { sbCreateInteraction } = await import('./api.js?v=20260903124251');
+  const { sbCreateInteraction } = await import('./api.js?v=20260903132824');
   const row = await sbCreateInteraction(fields);
   if (row) {
     if (!_interactionsCache[dealId]) _interactionsCache[dealId] = [];
@@ -964,7 +983,7 @@ async function addInteraction(dealId) {
 }
 
 async function deleteInteraction(id, dealId) {
-  const { sbDeleteInteraction } = await import('./api.js?v=20260903124251');
+  const { sbDeleteInteraction } = await import('./api.js?v=20260903132824');
   await sbDeleteInteraction(id);
   if (_interactionsCache[dealId]) {
     _interactionsCache[dealId] = _interactionsCache[dealId].filter(i => i.id !== id);
@@ -985,7 +1004,7 @@ async function editInteractionDate(id, dealId) {
   const parsed = new Date(input);
   if (isNaN(parsed.getTime())) return;
 
-  const { sbUpdateInteraction } = await import('./api.js?v=20260903124251');
+  const { sbUpdateInteraction } = await import('./api.js?v=20260903132824');
   await sbUpdateInteraction(id, { created_at: parsed.toISOString() });
   item.createdAt = parsed.toISOString();
   closeTimelinePanel();
@@ -1014,7 +1033,7 @@ async function enrichLead(dealId) {
   const canEnrich = hasLinkedin || (hasContact && hasWebsite);
 
   if (!canEnrich) {
-    const { showToast } = await import('./api.js?v=20260903124251');
+    const { showToast } = await import('./api.js?v=20260903132824');
     showToast('Needs a LinkedIn URL or company name + website to enrich', 'warning');
     return;
   }
@@ -1026,7 +1045,7 @@ async function enrichLead(dealId) {
 
   try {
     const result = await invokeEdgeFunction('enrich-lead', { dealId });
-    const { showToast } = await import('./api.js?v=20260903124251');
+    const { showToast } = await import('./api.js?v=20260903132824');
     console.log('[enrich-lead] Response:', JSON.stringify(result));
 
     if (result.ok && result.phones && result.phones.length > 0) {
@@ -1042,7 +1061,7 @@ async function enrichLead(dealId) {
     }
   } catch (e) {
     showEnrichOverlay(false);
-    const { showToast } = await import('./api.js?v=20260903124251');
+    const { showToast } = await import('./api.js?v=20260903132824');
     console.error('[enrich-lead] Exception:', e);
     showToast('Enrichment failed: ' + e.message, 'error');
   }
@@ -1058,7 +1077,7 @@ async function enrichContact(dealId, contactIndex) {
   const hasDomain = website || email.includes('@');
 
   if (!name || !hasDomain) {
-    const { showToast } = await import('./api.js?v=20260903124251');
+    const { showToast } = await import('./api.js?v=20260903132824');
     showToast('Need contact name + company website or email to enrich', 'warning');
     return;
   }
@@ -1069,7 +1088,7 @@ async function enrichContact(dealId, contactIndex) {
 
   try {
     const result = await invokeEdgeFunction('enrich-lead', { dealId, contactIndex });
-    const { showToast } = await import('./api.js?v=20260903124251');
+    const { showToast } = await import('./api.js?v=20260903132824');
 
     if (result.ok && result.phones && result.phones.length > 0) {
       showEnrichOverlay(false);
@@ -1083,7 +1102,7 @@ async function enrichContact(dealId, contactIndex) {
     }
   } catch (e) {
     showEnrichOverlay(false);
-    const { showToast } = await import('./api.js?v=20260903124251');
+    const { showToast } = await import('./api.js?v=20260903132824');
     showToast('Enrichment failed: ' + e.message, 'error');
   }
 }
@@ -1105,7 +1124,7 @@ window.markAtYourConvenience = async (dealId) => {
   await updateDealField('bookedFor', 'AYC');
   const dateInput = document.getElementById('deal-bookedDate');
   if (dateInput) dateInput.value = today;
-  const { showToast: toast } = await import('./api.js?v=20260903124251');
+  const { showToast: toast } = await import('./api.js?v=20260903132824');
   toast('Marked as At Your Convenience', 'success');
   refreshModal();
 };
@@ -1874,7 +1893,7 @@ export function confirmScheduleAndCopy(){
   sbUpdateDeal(dealId, camelToSnake({bookedDate:dateVal,bookedTime:timeVal})).catch(e=>console.error('Update deal failed:',e)).finally(()=>{pendingWrites.value--;});
   const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
   if(client && dateVal){
-    import('./calendly.js?v=20260903124251').then(mod=>{
+    import('./calendly.js?v=20260903132824').then(mod=>{
       const apptAddr=(deal.address||deal.location||'').trim();
       mod.saveAppointment(client.name, deal.company||deal.contact||'Unknown', dateVal, timeVal, '', apptAddr);
     });
@@ -2023,14 +2042,14 @@ window.pushToClientSheet = async function(dealId) {
     btn.innerHTML = svgIcon('check',14)+' Pushed to Client Sheet';
     btn.className = 'btn btn-ghost';
     btn.style.cssText = 'width:100%;justify-content:center;gap:6px;font-size:13px';
-    const { showToast: toast } = await import('./api.js?v=20260903124251');
+    const { showToast: toast } = await import('./api.js?v=20260903132824');
     toast('Pushed to ' + (result.client || 'client') + "'s sheet", 'success');
     setTimeout(() => refreshModal(true), 800);
   } catch (e) {
     const msg = e.name === 'AbortError' ? 'Request timed out' : (e.message || 'Unknown error');
     btn.innerHTML = origText;
     btn.disabled = false;
-    const { showToast: toast2 } = await import('./api.js?v=20260903124251');
+    const { showToast: toast2 } = await import('./api.js?v=20260903132824');
     toast2('Push failed: ' + msg, 'error');
     alert('Client sheet push failed: ' + msg);
   }
@@ -2064,7 +2083,7 @@ window.pushToGhl = async function(dealId) {
     }
     btn.innerHTML = '<span style="color:#059669">✓ Pushed to GHL</span>';
     btn.disabled = true;
-    const { showToast: toast } = await import('./api.js?v=20260903124251');
+    const { showToast: toast } = await import('./api.js?v=20260903132824');
     const client = findClientForDeal(d) || {};
     toast('Pushed to ' + (client.name || 'GHL'), 'success');
     setTimeout(() => refreshModal(true), 800);
