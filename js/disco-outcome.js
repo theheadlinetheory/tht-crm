@@ -20,12 +20,15 @@
 // The answer is stored as a normal CRM interaction, which means no new table and
 // no schema change: the same anon insert the call touchpoints already use.
 
-import { state } from './app.js?v=20260903110705';
-import { esc, svgIcon } from './utils.js?v=20260903110705';
-import { sbCreateInteraction, showToast } from './api.js?v=20260903110705';
+import { state } from './app.js?v=20260903124251';
+import { esc, svgIcon } from './utils.js?v=20260903124251';
+import { sbCreateInteraction, showToast } from './api.js?v=20260903124251';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260903124251';
 
+// pipeline-level03 runs on the CRM's own Supabase project (moved 2026-09-03). It
+// is deployed with JWT verification, so the anon key goes along as the bearer.
 const PENDING_URL =
-  'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/pipeline-level03?action=pending';
+  SUPABASE_URL + '/functions/v1/pipeline-level03?action=pending';
 
 // The rep picks one of four after the meeting. Each counts differently in
 // level 03, which is why a plain "did it happen?" was not enough:
@@ -58,7 +61,7 @@ let _loading = false;
 export function loadDiscoOutcomes(rerender) {
   if (_pending !== null || _loading) return;
   _loading = true;
-  fetch(PENDING_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+  fetch(PENDING_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY } })
     .then(r => r.json())
     .then(j => {
       // Only rows we can actually attach an answer to. A pending disco whose
