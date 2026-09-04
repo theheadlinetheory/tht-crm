@@ -20,10 +20,10 @@
 // The answer is stored as a normal CRM interaction, which means no new table and
 // no schema change: the same anon insert the call touchpoints already use.
 
-import { state } from './app.js?v=20260904120704';
-import { esc, svgIcon } from './utils.js?v=20260904120704';
-import { sbCreateInteraction, showToast } from './api.js?v=20260904120704';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260904120704';
+import { state } from './app.js?v=20260905021730';
+import { esc, svgIcon } from './utils.js?v=20260905021730';
+import { sbCreateInteraction, showToast } from './api.js?v=20260905021730';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260905021730';
 
 // pipeline-level03 runs on the CRM's own Supabase project (moved 2026-09-03). It
 // is deployed with JWT verification, so the anon key goes along as the bearer.

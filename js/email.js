@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // EMAIL — Forward to client, lead tracker push, send to thread
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20260904120704';
-import { render, refreshModal } from './render.js?v=20260904120704';
-import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20260904120704';
-import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20260904120704';
-import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20260904120704';
-import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20260904120704';
-import { CRM_BASE_URL, GEOCODIO_KEY } from './config.js?v=20260904120704';
+import { state, pendingWrites } from './app.js?v=20260905021730';
+import { render, refreshModal } from './render.js?v=20260905021730';
+import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20260905021730';
+import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20260905021730';
+import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20260905021730';
+import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20260905021730';
+import { CRM_BASE_URL, GEOCODIO_KEY } from './config.js?v=20260905021730';
 
 function formatEmailBody(html){
   if(!html) return '';
@@ -63,8 +63,8 @@ function showForwardPreview(deal, client){
   const isEmail=rawNotify && rawNotify.includes('@') && !rawNotify.startsWith('http');
   const recipientTo=info.forwardEmail || (isEmail ? rawNotify : '') || 'NO EMAIL CONFIGURED';
   const recipientCCs=['aidan@theheadlinetheory.com','lars@theheadlinetheory.com'];
-  const threadId=getClientThreadId(client.name);
-  const recipientThread=threadId ? 'Lead Delivery Thread' : 'New email (no existing thread)';
+  // Lead delivery always starts a fresh thread — one email per lead.
+  const recipientThread='New thread (one per lead)';
 
   let emailPreview=`
     <div style="background:#1a1a2e;color:#fff;padding:20px 24px;border-radius:8px 8px 0 0">
@@ -226,7 +226,7 @@ export async function autoPushToTracker(deal){
   const month = `${months[billingDate.getMonth()]}/${String(billingDate.getFullYear()).slice(-2)}`;
 
   // Insert into lead_tracker table
-  const { sbCreateTrackerEntry, normalizeRow } = await import('./api.js?v=20260904120704');
+  const { sbCreateTrackerEntry, normalizeRow } = await import('./api.js?v=20260905021730');
   const entry = await sbCreateTrackerEntry({
     deal_id: deal.id,
     client_name: clientName,
@@ -403,7 +403,7 @@ export async function executePassOff(dealId, clientName){
     }
 
     if(btn) btn.textContent='Archiving...';
-    const { deleteDeal }=await import('./deals.js?v=20260904120704');
+    const { deleteDeal }=await import('./deals.js?v=20260905021730');
     await deleteDeal(dealId,'Passed Off',clientName);
 
     document.getElementById('passoff-preview-overlay')?.remove();
