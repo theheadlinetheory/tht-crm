@@ -4,7 +4,7 @@
 // All mutations go through store.* methods to prevent direct
 // state tampering and ensure consistent re-renders.
 
-import { render, refreshModal } from './render.js?v=20260903144704';
+import { render, refreshModal } from './render.js?v=20260904195537';
 
 // ─── Raw State (private — modules should use store.*) ───
 export const state = {
@@ -12,7 +12,7 @@ export const state = {
   activities: [],
   clients: [],
   appointments: [],
-  pipeline: (() => { try { const h=location.hash.replace('#','').split('/')[0]; if(h==='archive'||h==='nurture'){location.hash='acquisition';return 'acquisition';} return ['dashboard','acquisition','client_leads','retargeting'].includes(h)?h:'dashboard'; } catch(e){ return 'acquisition'; } })(),
+  pipeline: (() => { try { const h=location.hash.replace('#','').split('/')[0]; if(h==='archive'||h==='nurture'){location.hash='acquisition';return 'acquisition';} return ['dashboard','acquisition','client_leads','retargeting','renewals'].includes(h)?h:'dashboard'; } catch(e){ return 'acquisition'; } })(),
   selectedDeal: null,
   showNew: false,
   showAddClient: false,
