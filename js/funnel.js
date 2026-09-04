@@ -18,8 +18,8 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260904115001';
-import { supabase } from './supabase-client.js?v=20260904115001';
+import { esc, svgIcon } from './utils.js?v=20260904120124';
+import { supabase } from './supabase-client.js?v=20260904120124';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -136,6 +136,10 @@ function levelCard(l) {
     const d = l.detail || {};
     // One short line stays with the number: the window and the counting rule.
     if (d.note) h += `<div style="font-size:11px;color:#6b7280;margin-top:4px">${esc(String(d.note))}</div>`;
+    // Rep removals are the most common reason a level shrinks and a signal in
+    // their own right (a high desk-DQ share = list targeting), so they get their
+    // own always-visible block with one tile per reason (Lars, 2026-09-04).
+    if (d.removals && d.removals.items && d.removals.items.length) h += removalsBlock(d.removals);
     // Everything that explains the number — what came in, what we removed and
     // why, what is left, where the rest went, and which feed each part comes
     // from — sits behind one toggle (Lars, 2026-09-04: "the main number like it
@@ -158,6 +162,27 @@ function levelCard(l) {
   }
   h += `</div></div>`;
   return h;
+}
+
+/** What the reps removed from a level, per reason, shown big. Not losses —
+ *  a lead we removed leaves the level — but the share is a targeting signal. */
+function removalsBlock(r) {
+  const share = r.of ? ` · ${Math.round((r.total / r.of) * 100)}% of ${fmtCount(r.of)} ${esc(r.of_label || '')}` : '';
+  let h = `<div style="margin-top:10px;padding:10px 12px;border:1px solid #fde68a;background:#fffbeb;border-radius:8px">
+    <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+      <span style="font-size:11px;font-weight:700;color:#92400e;letter-spacing:.02em">REMOVED BY REPS</span>
+      <span style="font-size:12px;font-weight:600;color:#92400e;font-variant-numeric:tabular-nums">${fmtCount(r.total)}${share}</span>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">`;
+  r.items.forEach(it => {
+    h += `<div style="min-width:130px;padding:8px 12px;background:#fff;border:1px solid #fde68a;border-radius:7px">
+      <div style="font-size:22px;font-weight:800;color:#92400e;font-variant-numeric:tabular-nums;line-height:1.1">${fmtCount(it.value)}</div>
+      <div style="font-size:11px;color:#78350f;margin-top:3px;line-height:1.3">${esc(String(it.label))}</div>
+    </div>`;
+  });
+  h += `</div>`;
+  if (r.note) h += `<div style="font-size:11px;color:#92400e;margin-top:8px;line-height:1.4">${esc(String(r.note))}</div>`;
+  return h + `</div>`;
 }
 
 /** The arithmetic behind a level, as rows the tracker emits:
@@ -216,5 +241,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260904115001').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260904120124').then(m => reloadFunnel(m.render));
 };
