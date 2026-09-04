@@ -1,15 +1,15 @@
 // ═══════════════════════════════════════════════════════════
 // NURTURE — Two-bucket nurture pipeline (Not Now + Service Area Taken)
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20260904195537';
-import { render } from './render.js?v=20260904195537';
-import { sbGetRerunQueue, sbAddToRerun, sbUpdateRerunItem, sbUpdateRerunStatus, sbUpdateDeal, sbUpdateActivity, sbArchiveDeal, sbDeleteDeal, camelToSnake, normalizeRow, invokeEdgeFunction } from './api.js?v=20260904195537';
-import { esc, getToday, fmtDate, svgIcon } from './utils.js?v=20260904195537';
-import { registerActions } from './delegate.js?v=20260904195537';
-import { statCard, filterSelect, modalWrap, modalHeader, modalFooter } from './html-helpers.js?v=20260904195537';
-import { NURTURE_NOT_NOW_SEQUENCE, ACQUISITION_STAGES } from './config.js?v=20260904195537';
-import { isAdmin, getOwnerNameForDeal, getOwnerColor, loadAssignableUsers } from './auth.js?v=20260904195537';
-import { dealHadDemo } from './demo-tracker.js?v=20260904195537';
+import { state, store, pendingWrites } from './app.js?v=20260904110844';
+import { render } from './render.js?v=20260904110844';
+import { sbGetRerunQueue, sbAddToRerun, sbUpdateRerunItem, sbUpdateRerunStatus, sbUpdateDeal, sbUpdateActivity, sbArchiveDeal, sbDeleteDeal, camelToSnake, normalizeRow, invokeEdgeFunction } from './api.js?v=20260904110844';
+import { esc, getToday, fmtDate, svgIcon } from './utils.js?v=20260904110844';
+import { registerActions } from './delegate.js?v=20260904110844';
+import { statCard, filterSelect, modalWrap, modalHeader, modalFooter } from './html-helpers.js?v=20260904110844';
+import { NURTURE_NOT_NOW_SEQUENCE, ACQUISITION_STAGES } from './config.js?v=20260904110844';
+import { isAdmin, getOwnerNameForDeal, getOwnerColor, loadAssignableUsers } from './auth.js?v=20260904110844';
+import { dealHadDemo } from './demo-tracker.js?v=20260904110844';
 
 // ─── Data Loading ───
 
@@ -482,7 +482,8 @@ export function renderNurtureEntryModal(dealId) {
   const showDate = selectedBucket === 'not_now';
   // Opened straight off a "Not Right Now" demo outcome, so the answers are known.
   const fromDemo = !!state._nurtureEntryFromDemo;
-  const defaultReason = fromDemo ? 'Wants to revisit later' : '';
+  // The Reason dropdown was removed 2026-09-04 (Lars): the sales pipeline now
+  // captures why a lead leaves through the stage-aware removal picker.
 
   let body = modalHeader('Move to Nurture', 'closeNurtureModal');
   body += `<div class="modal-body">
@@ -515,16 +516,7 @@ export function renderNurtureEntryModal(dealId) {
     </div>
 
     <div style="margin-bottom:12px">
-      <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Reason</label>
-      <select id="nurture-reason" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);margin-bottom:8px">
-        <option value="" ${defaultReason ? '' : 'selected'}>Select a reason...</option>
-        <option value="Went cold">Went cold</option>
-        <option value="Not ready right now">Not ready right now</option>
-        <option value="Budget issues">Budget issues</option>
-        <option value="Already has a provider">Already has a provider</option>
-        <option value="Wants to revisit later" ${defaultReason === 'Wants to revisit later' ? 'selected' : ''}>Wants to revisit later</option>
-        <option value="Other">Other</option>
-      </select>
+      <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Notes</label>
       <input type="text" id="nurture-note" placeholder="Additional notes..." style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
     </div>
   </div>`;
@@ -624,8 +616,7 @@ registerActions({
     const bucket = bucketEl ? bucketEl.value : (state._nurtureEntryBucket || 'not_now');
     const dateEl = document.getElementById('nurture-follow-up-date');
     const followUpDate = bucket === 'not_now' && dateEl ? dateEl.value : '';
-    const reasonEl = document.getElementById('nurture-reason');
-    const reason = reasonEl ? reasonEl.value : '';
+    const reason = '';
     const blockedEl = document.getElementById('nurture-blocked-by');
     const blockedByClient = bucket === 'service_area_taken' && blockedEl ? blockedEl.value : '';
     const noteEl = document.getElementById('nurture-note');
