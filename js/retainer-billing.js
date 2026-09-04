@@ -5,7 +5,7 @@
 // term = launch date → launch date + prepaidMonths months. The backend is
 // the authority; this only shows the operator what it will do.
 // ═══════════════════════════════════════════════════════════
-import { esc, str } from './utils.js?v=20260904160806';
+import { esc, str } from './utils.js?v=20260904165257';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const CURRENCIES = ['usd','aud','cad','gbp'];

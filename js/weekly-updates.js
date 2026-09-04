@@ -11,12 +11,13 @@
 //   CCs are ALSO editable here, on the idle checklist and on review rows.
 //   Lars's signature appended. The Client Info sheet is NOT used.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20260904160806';
-import { state } from './app.js?v=20260904160806';
-import { render } from './render.js?v=20260904160806';
-import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20260904160806';
-import { esc, str, svgIcon } from './utils.js?v=20260904160806';
-import { crmWeekContext, ctxCheckinLines, ctxDay, ctxSummary, ctxSection } from './weekly-context.js?v=20260904160806';
+import { supabase } from './supabase-client.js?v=20260904165257';
+import { state } from './app.js?v=20260904165257';
+import { render } from './render.js?v=20260904165257';
+import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20260904165257';
+import { esc, str, svgIcon } from './utils.js?v=20260904165257';
+import { crmWeekContext, ctxCheckinLines, ctxDay, ctxSummary, ctxSection } from './weekly-context.js?v=20260904165257';
+import { DEFAULT_WEEKLY_UPDATE_TEMPLATE, WEEKLY_TOKENS, PPM_NOTE, applyWeeklyTemplate, weeklyGreeting } from './weekly-template.js?v=20260904165257';
 
 // Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
@@ -63,16 +64,6 @@ async function fetchRecap(range, names){
     return { clients:{}, errors:[], unmatched:[], failed: str(e.message) };
   }
 }
-
-export const DEFAULT_WEEKLY_UPDATE_TEMPLATE = `Hey {CLIENT_FIRST},
-
-Quick end of week update.
-
-This week we sent {SENT} emails, got {REPLIES} responses, and {POSITIVES} positive responses. Still in talks with some of them to figure out meeting times.
-
-Enjoy your weekend!`;
-
-const WEEKLY_TOKENS = ['{CLIENT_FIRST}','{CLIENT_NAME}','{SENT}','{REPLIES}','{POSITIVES}','{WEEK_RANGE}'];
 
 function getWeekly(){
   if(!state.weekly) state.weekly = { step:'idle', rows:[], unmatched:[], statErrors:[], progress:'', tplOpen:false, tplDraft:null, rangeLabel:'', selectedClients:null, inactiveOpen:false };
@@ -146,20 +137,6 @@ function weekRange(){
   const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const label = d => d.toLocaleDateString('en-US',{ month:'short', day:'numeric' });
   return { start: iso(start), end: iso(end), label: `${label(start)} – ${label(end)}` };
-}
-
-function applyWeeklyTemplate(tpl, ctx){
-  let out = str(tpl);
-  const map = {
-    '{CLIENT_FIRST}': ctx.first || 'there',
-    '{CLIENT_NAME}': ctx.name || '',
-    '{SENT}': String(ctx.sent ?? 0),
-    '{REPLIES}': String(ctx.replies ?? 0),
-    '{POSITIVES}': String(ctx.positives ?? 0),
-    '{WEEK_RANGE}': ctx.rangeLabel || ''
-  };
-  for(const [k,v] of Object.entries(map)) out = out.split(k).join(v);
-  return out.trim();
 }
 
 function clientKeywords(c){
@@ -239,11 +216,14 @@ export async function weeklyPrepare(){
       const b = byClient[name]; const p = (preview.clients||{})[name] || {};
       const first = str(p.first) || str(b.client.contactFirstName).trim().split(' ')[0] || 'there';
       const ccList = p.cc || [];
-      // Clients with additional stakeholders CC'd on the email (anyone beyond
-      // the internal @theheadlinetheory.com addresses like aidan@) get a
-      // "Hey Team," greeting instead of one person's first name.
-      const multiStakeholder = ccList.some(e => !str(e).toLowerCase().endsWith('@theheadlinetheory.com'));
-      const greetName = multiStakeholder ? 'Team' : first;
+      // More than one client-side person on the email — on To OR Cc — gets a
+      // "Hey Team," greeting instead of one person's first name. The rule
+      // (and why To counts) lives in weekly-template.js.
+      const greetName = weeklyGreeting(first, p.to, ccList);
+      const multiStakeholder = greetName === 'Team';
+      // Pay-per-meeting clients get the {PPM_NOTE} sentence after the stats;
+      // retainers get a blank. Same per_lead/retainer split as dashboard.js.
+      const ppm = str(b.client.billingModel) !== 'retainer';
       const row = {
         name, first, multiStakeholder, sent:b.sent, replies:b.replies, positives:b.positives, campaigns:b.campaigns,
         to: str(p.to), cc: ccList.join(', '), threadFound: !!p.threadFound,
@@ -275,7 +255,7 @@ export async function weeklyPrepare(){
         unmatched: (recap.unmatched || []).includes(name)
       };
       row.ctxOpen = false;
-      row.body = applyWeeklyTemplate(tpl, { ...row, first: greetName, rangeLabel: range.label });
+      row.body = applyWeeklyTemplate(tpl, { ...row, first: greetName, ppm, rangeLabel: range.label });
       row.include = b.sent>0 && !!row.to;
       return row;
     }).sort((a,b)=>b.sent-a.sent || a.name.localeCompare(b.name));
@@ -474,8 +454,8 @@ export async function weeklyCcChange(i, value){
 }
 
 // Idle-checklist editor (pre-Prepare) — the one that matters, because the
-// greeting is resolved at Prepare time: a non-internal CC switches it from
-// "Hey <first name>," to "Hey Team,".
+// greeting is resolved at Prepare time: a second client-side address (To or
+// Cc) switches it from "Hey <first name>," to "Hey Team,".
 export async function weeklyClientCcChange(clientId, value){
   const client = (state.clients||[]).find(c=>str(c.id)===str(clientId));
   if(!client) return;
@@ -527,6 +507,7 @@ function renderTemplateEditor(w){
     ${w.tplOpen?`
       <div style="margin-top:12px">
         <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Placeholders: ${WEEKLY_TOKENS.map(t=>`<code style="background:#f3f4f6;padding:1px 5px;border-radius:4px">${esc(t)}</code>`).join(' ')} — Lars's signature is appended automatically, don't include it here.</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px"><code style="background:#f3f4f6;padding:1px 5px;border-radius:4px">{PPM_NOTE}</code> becomes “${esc(PPM_NOTE)}” for pay-per-meeting clients and nothing for retainer clients. <code style="background:#f3f4f6;padding:1px 5px;border-radius:4px">{CLIENT_FIRST}</code> becomes “Team” when more than one client address is on the email (To or CC).</div>
         <textarea rows="9" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:10px;font-size:13px;font-family:var(--font);resize:vertical;box-sizing:border-box"
           oninput="state.weekly.tplDraft=this.value">${esc(tplVal)}</textarea>
         <div style="display:flex;gap:8px;margin-top:8px">

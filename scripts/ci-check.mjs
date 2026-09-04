@@ -59,6 +59,12 @@ const REQUIRED_FEATURES = [
   { file: 'weekly-updates.js', needle: 'window.weeklyPrepare',               feature: 'Weekly Updates: Prepare handler wired to window' },
   // Adding an extra CC recipient must stay self-serve — it used to need a dev.
   { file: 'weekly-updates.js', needle: 'window.weeklyClientCcChange',        feature: 'Weekly Updates: add-a-CC on the idle client checklist' },
+  // The email text rules live in the import-free weekly-template.js so node
+  // can test them (scripts/test-weekly-template.mjs). Losing either silently
+  // changes what every client reads on Friday.
+  { file: 'weekly-template.js', needle: 'export function weeklyGreeting',    feature: 'Weekly Updates: "Hey Team" when >1 client address is on the email (To or Cc)' },
+  { file: 'weekly-template.js', needle: "'{PPM_NOTE}': ctx.ppm ? PPM_NOTE : ''", feature: 'Weekly Updates: {PPM_NOTE} sentence for pay-per-meeting clients only' },
+  { file: 'weekly-updates.js', needle: 'weeklyGreeting(first, p.to, ccList)', feature: 'Weekly Updates: greeting resolved from To AND Cc at Prepare' },
   { file: 'settings.js',       needle: "'otherContacts',this.value",         feature: 'Settings → Clients: Additional Contacts (weekly-update CC) field' },
   // Top-level tabs
   { file: 'render.js',         needle: "state.pipeline==='dashboard'",  feature: 'Dashboard tab' },
