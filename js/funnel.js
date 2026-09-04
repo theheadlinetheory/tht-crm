@@ -18,10 +18,11 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260904110844';
-import { supabase } from './supabase-client.js?v=20260904110844';
+import { esc, svgIcon } from './utils.js?v=20260904115001';
+import { supabase } from './supabase-client.js?v=20260904115001';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
+const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
 let _loading = false;
 let _error = null;
 
@@ -132,18 +133,61 @@ function levelCard(l) {
     if (l.snapshot_date) {
       h += `<div style="font-size:10px;color:#9ca3af;margin-top:2px">as of ${esc(String(l.snapshot_date))}</div>`;
     }
-    // The caveat is part of the number, not a footnote.
-    const caveat = l.detail && (l.detail.denominator_caveat || l.detail.note);
-    if (caveat) {
-      h += `<div style="margin-top:8px;font-size:11px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:6px 8px">${esc(String(caveat))}</div>`;
+    const d = l.detail || {};
+    // One short line stays with the number: the window and the counting rule.
+    if (d.note) h += `<div style="font-size:11px;color:#6b7280;margin-top:4px">${esc(String(d.note))}</div>`;
+    // Everything that explains the number — what came in, what we removed and
+    // why, what is left, where the rest went, and which feed each part comes
+    // from — sits behind one toggle (Lars, 2026-09-04: "the main number like it
+    // is now and then a drop down with the details").
+    const hasDetails = (d.breakdown && d.breakdown.length) || d.denominator_caveat || (d.sources && d.sources.length);
+    if (hasDetails) {
+      const open = _open.has(l.level);
+      h += `<button id="funnel-toggle-${esc(l.level)}" onclick="toggleFunnelDetails('${esc(l.level)}')" style="margin-top:8px;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);font-size:11px;font-weight:600;color:#374151;cursor:pointer">${open ? '▾' : '▸'} Details</button>`;
+      h += `<div id="funnel-details-${esc(l.level)}" ${open ? '' : 'hidden'}>`;
+      if (d.breakdown && d.breakdown.length) h += breakdownTable(d.breakdown);
+      if (d.denominator_caveat) {
+        const warn = !/^complete/i.test(String(d.denominator_caveat));
+        h += `<div style="margin-top:10px;font-size:11px;${warn ? 'color:#92400e;background:#fffbeb;border:1px solid #fde68a;' : 'color:#6b7280;background:#f9fafb;border:1px solid var(--border);'}border-radius:6px;padding:6px 8px">${esc(String(d.denominator_caveat))}</div>`;
+      }
+      if (d.sources && d.sources.length) h += sourcesTable(d.sources);
+      h += `</div>`;
     }
   } else {
     h += `<div style="margin-top:10px;font-size:12px;color:#9ca3af">No tracking yet — this level is still measured by hand.</div>`;
   }
-  if (l.detail && l.detail.sources) h += sourcesTable(l.detail.sources);
   h += `</div></div>`;
   return h;
 }
+
+/** The arithmetic behind a level, as rows the tracker emits:
+ *  { label, value, indent (0–2), style: 'total' | 'out' | 'loss' | 'muted' }.
+ *  'out' is something WE removed from the level (shown with a minus);
+ *  'loss' is something that stayed in and did not convert. */
+function breakdownTable(rows) {
+  let h = `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
+    <div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:6px">HOW THE NUMBER BREAKS DOWN</div>
+    <table style="border-collapse:collapse;width:100%;max-width:560px;font-size:12px">`;
+  rows.forEach(r => {
+    const indent = 8 + 18 * (r.indent || 0);
+    const style = r.style || '';
+    const color = style === 'out' ? '#b45309' : style === 'loss' ? '#b91c1c' : style === 'muted' ? '#9ca3af' : '#1f2937';
+    const weight = style === 'total' ? 700 : (r.indent ? 400 : 600);
+    const border = style === 'total' ? 'border-top:1px solid var(--border);' : '';
+    const val = style === 'out' ? `−${fmtCount(r.value)}` : fmtCount(r.value);
+    h += `<tr><td style="padding:3px 8px 3px ${indent}px;color:${color};font-weight:${weight};${border}">${esc(String(r.label))}</td>
+          <td style="padding:3px 8px;text-align:right;font-variant-numeric:tabular-nums;color:${color};font-weight:${weight};white-space:nowrap;${border}">${val}</td></tr>`;
+  });
+  return h + `</table></div>`;
+}
+
+window.toggleFunnelDetails = (level) => {
+  if (_open.has(level)) _open.delete(level); else _open.add(level);
+  const el = document.getElementById('funnel-details-' + level);
+  if (el) el.hidden = !_open.has(level);
+  const btn = document.getElementById('funnel-toggle-' + level);
+  if (btn) btn.textContent = (_open.has(level) ? '▾' : '▸') + ' Details';
+};
 
 export function renderFunnel() {
   if (_error) {
@@ -172,5 +216,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260904110844').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260904115001').then(m => reloadFunnel(m.render));
 };
