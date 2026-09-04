@@ -1,17 +1,17 @@
 // ═══════════════════════════════════════════════════════════
 // POWER DIALER — State, data access, CSV parsing, handlers
 // ═══════════════════════════════════════════════════════════
-import { supabase, showToast, sbCreateDeal, camelToSnake } from './api.js?v=20260904120124';
-import { state } from './app.js?v=20260904120124';
-import { uid, getToday } from './utils.js?v=20260904120124';
-import { render as _render } from './render.js?v=20260904120124';
+import { supabase, showToast, sbCreateDeal, camelToSnake } from './api.js?v=20260904120704';
+import { state } from './app.js?v=20260904120704';
+import { uid, getToday } from './utils.js?v=20260904120704';
+import { render as _render } from './render.js?v=20260904120704';
 function render() { state._pdRenderRequested = true; _render(); }
-import { getBestNumberForLead, loadNumberHealth } from './number-health.js?v=20260904120124';
-import { currentUser } from './auth.js?v=20260904120124';
-import { JUSTCALL_USER_MAP } from './config.js?v=20260904120124';
-import { renderList, renderSetup, renderDialer, renderAnalytics, STANDARD_FIELDS, DISPOSITIONS, formatPhone, fmtDuration } from './pd-views.js?v=20260904120124';
-import { initMiniMap, cleanupMaps, showCampaignSettings, showScriptEditor, bookCall, showStrategyPicker, showDemoPicker } from './pd-actions.js?v=20260904120124';
-import { COUNTRY_CODES, parseCSV, autoDetectMapping, normalizePhone, splitPhones, buildContacts } from './pd-csv.js?v=20260904120124';
+import { getBestNumberForLead, loadNumberHealth } from './number-health.js?v=20260904120704';
+import { currentUser } from './auth.js?v=20260904120704';
+import { JUSTCALL_USER_MAP } from './config.js?v=20260904120704';
+import { renderList, renderSetup, renderDialer, renderAnalytics, STANDARD_FIELDS, DISPOSITIONS, formatPhone, fmtDuration } from './pd-views.js?v=20260904120704';
+import { initMiniMap, cleanupMaps, showCampaignSettings, showScriptEditor, bookCall, showStrategyPicker, showDemoPicker } from './pd-actions.js?v=20260904120704';
+import { COUNTRY_CODES, parseCSV, autoDetectMapping, normalizePhone, splitPhones, buildContacts } from './pd-csv.js?v=20260904120704';
 
 // ─── Module State ───
 let _campaigns = null;

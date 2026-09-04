@@ -18,8 +18,8 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260904120124';
-import { supabase } from './supabase-client.js?v=20260904120124';
+import { esc, svgIcon } from './utils.js?v=20260904120704';
+import { supabase } from './supabase-client.js?v=20260904120704';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -168,20 +168,22 @@ function levelCard(l) {
  *  a lead we removed leaves the level — but the share is a targeting signal. */
 function removalsBlock(r) {
   const share = r.of ? ` · ${Math.round((r.total / r.of) * 100)}% of ${fmtCount(r.of)} ${esc(r.of_label || '')}` : '';
-  let h = `<div style="margin-top:10px;padding:10px 12px;border:1px solid #fde68a;background:#fffbeb;border-radius:8px">
+  // Deliberately quieter than the rate above it (Lars, 2026-09-04): neutral
+  // ground, small tiles, muted text — supporting data, not the headline.
+  let h = `<div style="margin-top:10px;padding:8px 10px;border:1px solid var(--border);background:#f9fafb;border-radius:8px">
     <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
-      <span style="font-size:11px;font-weight:700;color:#92400e;letter-spacing:.02em">REMOVED BY REPS</span>
-      <span style="font-size:12px;font-weight:600;color:#92400e;font-variant-numeric:tabular-nums">${fmtCount(r.total)}${share}</span>
+      <span style="font-size:10px;font-weight:700;color:#6b7280;letter-spacing:.03em">REMOVED BY REPS</span>
+      <span style="font-size:11px;color:#6b7280;font-variant-numeric:tabular-nums">${fmtCount(r.total)}${share} · not losses</span>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">`;
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">`;
   r.items.forEach(it => {
-    h += `<div style="min-width:130px;padding:8px 12px;background:#fff;border:1px solid #fde68a;border-radius:7px">
-      <div style="font-size:22px;font-weight:800;color:#92400e;font-variant-numeric:tabular-nums;line-height:1.1">${fmtCount(it.value)}</div>
-      <div style="font-size:11px;color:#78350f;margin-top:3px;line-height:1.3">${esc(String(it.label))}</div>
+    h += `<div style="min-width:110px;padding:5px 10px;background:var(--card);border:1px solid var(--border);border-radius:6px">
+      <div style="font-size:15px;font-weight:700;color:#92400e;font-variant-numeric:tabular-nums;line-height:1.1">${fmtCount(it.value)}</div>
+      <div style="font-size:10px;color:#6b7280;margin-top:2px;line-height:1.3">${esc(String(it.label))}</div>
     </div>`;
   });
   h += `</div>`;
-  if (r.note) h += `<div style="font-size:11px;color:#92400e;margin-top:8px;line-height:1.4">${esc(String(r.note))}</div>`;
+  if (r.note) h += `<div style="font-size:10px;color:#9ca3af;margin-top:6px;line-height:1.4">${esc(String(r.note))}</div>`;
   return h + `</div>`;
 }
 
@@ -241,5 +243,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260904120124').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260904120704').then(m => reloadFunnel(m.render));
 };
