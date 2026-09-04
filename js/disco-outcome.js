@@ -20,15 +20,17 @@
 // The answer is stored as a normal CRM interaction, which means no new table and
 // no schema change: the same anon insert the call touchpoints already use.
 
-import { state } from './app.js?v=20260905021730';
-import { esc, svgIcon } from './utils.js?v=20260905021730';
-import { sbCreateInteraction, showToast } from './api.js?v=20260905021730';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260905021730';
+import { state } from './app.js?v=20260904143815';
+import { esc, svgIcon } from './utils.js?v=20260904143815';
+import { sbCreateInteraction, showToast } from './api.js?v=20260904143815';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260904143815';
 
 // pipeline-level03 runs on the CRM's own Supabase project (moved 2026-09-03). It
 // is deployed with JWT verification, so the anon key goes along as the bearer.
 const PENDING_URL =
   SUPABASE_URL + '/functions/v1/pipeline-level03?action=pending';
+const DEMO_PENDING_URL =
+  SUPABASE_URL + '/functions/v1/pipeline-level04?action=pending';
 
 // The rep picks one of four after the meeting. Each counts differently in
 // level 03, which is why a plain "did it happen?" was not enough:
@@ -46,7 +48,10 @@ export const OUTCOME_PREFIX = 'Discovery call — ';
 // made this level need archaeology. Marked here for demos Aidan runs, which
 // demo_tracker structurally never sees because it is Ioannis's payout ledger.
 export const DEMO_OUTCOME_PREFIX = 'Demo — ';
-export const DEMO_OUTCOMES = ['Won', 'Lost', 'Not qualified'];
+// Level 04 added No-show (the demo did not happen) and Not right now (it did,
+// and they are a warm follow-up — moves the deal to Nurture like the Demo
+// Tracker's outcome does). 2026-09-04.
+export const DEMO_OUTCOMES = ['Won', 'Lost', 'Not qualified', 'Not right now', 'No-show'];
 export const DISCO_OUTCOMES = ['No-show', 'Demo booked', 'Not interested', 'Disqualified'];
 
 // Written before the four-way dropdown replaced them (2026-08-28). Still read
@@ -55,35 +60,44 @@ export const HELD = 'Discovery call — held';
 export const NO_SHOW = 'Discovery call — no-show';
 
 let _pending = null;      // null = not loaded yet, [] = loaded and empty
+let _pendingDemos = null; // level 04's queue: due demos with nothing recorded
 let _loading = false;
 
 /** Load the queue once per session; the banner re-renders when it lands. */
 export function loadDiscoOutcomes(rerender) {
   if (_pending !== null || _loading) return;
   _loading = true;
-  fetch(PENDING_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY } })
-    .then(r => r.json())
-    .then(j => {
-      // Only rows we can actually attach an answer to. A pending disco whose
-      // lead has no CRM deal cannot be marked, and showing it would be a
-      // button that does nothing.
-      _pending = (j.pending || []).filter(p => p.deal_id);
-      _loading = false;
-      if (rerender) rerender();
-    })
-    .catch(e => { console.warn('[disco-outcome] load failed:', e); _pending = []; _loading = false; });
+  const headers = { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY };
+  const get = (url) => fetch(url, { method: 'POST', headers }).then(r => r.json()).catch(e => { console.warn('[disco-outcome] load failed:', e); return {}; });
+  Promise.all([get(PENDING_URL), get(DEMO_PENDING_URL)]).then(([d, m]) => {
+    // Only rows we can actually attach an answer to. A pending call whose lead
+    // has no CRM deal cannot be marked, and showing it would be a button that
+    // does nothing.
+    _pending = (d.pending || []).filter(p => p.deal_id);
+    _pendingDemos = (m.pending || []).filter(p => p.deal_id);
+    _loading = false;
+    if (rerender) rerender();
+  });
 }
 
 export function pendingDiscoCount() {
   return _pending ? _pending.length : 0;
 }
 
+export function pendingDemoCount() {
+  return _pendingDemos ? _pendingDemos.length : 0;
+}
+
 export function renderDiscoOutcomeBanner() {
-  if (!_pending || !_pending.length) return '';
+  const nd = pendingDiscoCount(), nm = pendingDemoCount();
+  if (!nd && !nm) return '';
+  const parts = [];
+  if (nd) parts.push(`${nd} discovery call${nd === 1 ? '' : 's'}`);
+  if (nm) parts.push(`${nm} demo${nm === 1 ? '' : 's'}`);
   return `<span style="display:inline-flex;align-items:center;gap:6px">
     ${svgIcon('help-circle', 12, '#7c3aed')}
-    <span style="color:#5b21b6;font-weight:600">${_pending.length} discovery call${_pending.length === 1 ? '' : 's'} need an outcome</span>
-    <button onclick="openDiscoOutcomeQueue()" style="padding:2px 8px;border:1px solid #7c3aed;border-radius:5px;background:#f5f3ff;color:#7c3aed;font-size:11px;font-weight:600;cursor:pointer">Mark them</button>
+    <span style="color:#5b21b6;font-weight:600">${parts.join(' and ')} need an outcome</span>
+    <button onclick="openDiscoOutcomeQueue()" style="padding:2px 8px;border:1px solid #7c3aed;border-radius:5px;background:#f5f3ff;color:#7c3aed;font-size:11px;font-weight:600;cursor:pointer">Answer</button>
   </span>`;
 }
 
@@ -110,13 +124,31 @@ export function demoOutcomeSelect(dealId) {
 
 export async function markDemo(dealId, outcome) {
   if (!outcome || !DEMO_OUTCOMES.includes(outcome)) return;
+  const row = document.getElementById('demo-row-' + dealId);
+  if (row) row.style.opacity = '.4';
   try {
     await sbCreateInteraction({
       deal_id: dealId, type: 'Meeting',
       content: DEMO_OUTCOME_PREFIX + outcome + ' · marked in the CRM',
     });
+    if (_pendingDemos) {
+      _pendingDemos = _pendingDemos.filter(p => p.deal_id !== dealId);
+      if (row) row.remove();
+      if (!_pendingDemos.length && !(_pending && _pending.length)) closeDiscoOutcomeQueue();
+    }
     showToast('Marked: ' + outcome, 'success');
+    // "Not right now" is a warm follow-up, not a loss: same path as the Demo
+    // Tracker's outcome — the deal goes to Nurture with a date on it.
+    if (outcome === 'Not right now') {
+      closeDiscoOutcomeQueue();
+      state.selectedDeal = null;
+      state._nurtureEntryDealId = dealId;
+      state._nurtureEntryBucket = 'not_now';
+      state._nurtureEntryFromDemo = true;
+      import('./render.js?v=20260904143815').then(m => m.render());
+    }
   } catch (e) {
+    if (row) row.style.opacity = '1';
     showToast('Could not save: ' + e.message, 'error');
     throw e;
   }
@@ -130,16 +162,37 @@ export function outcomeSelect(dealId) {
   </select>`;
 }
 
+function demoRowFor(p) {
+  const deal = state.deals.find(d => d.id === p.deal_id);
+  const who = deal ? (deal.company || deal.contact || p.email) : p.email;
+  const when = p.demo_for ? String(p.demo_for).slice(0, 16).replace('T', ' ') : '';
+  return `<div id="demo-row-${esc(p.deal_id)}" style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f3f4f6">
+    <div style="flex:1;min-width:0">
+      <div style="font-size:13px;font-weight:600;color:#1f2937;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(who)}</div>
+      <div style="font-size:11px;color:#9ca3af">${esc(p.email)}${when ? ' · demo ' + esc(when) : ''}</div>
+    </div>
+    ${demoOutcomeSelect(p.deal_id)}
+  </div>`;
+}
+
 export function openDiscoOutcomeQueue() {
-  if (!_pending) return;
+  if (!_pending && !_pendingDemos) return;
+  const discos = _pending || [], demos = _pendingDemos || [];
+  const section = (title, sub, rows) => rows.length ? `
+      <div style="padding:12px 20px 4px">
+        <div style="font-size:13px;font-weight:700;color:#1e1b4b">${title}</div>
+        <div style="font-size:11px;color:#6b7280;margin-top:2px">${sub}</div>
+      </div>
+      <div style="padding:0 20px 8px">${rows.join('')}</div>` : '';
   const html = `<div id="disco-queue-overlay" style="position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45)" onclick="if(event.target===this)closeDiscoOutcomeQueue()">
     <div style="background:#fff;border-radius:12px;width:92%;max-width:520px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.18)">
       <div style="padding:16px 20px;border-bottom:1px solid #e5e7eb">
-        <div style="font-size:16px;font-weight:700;color:#1e1b4b">Did these discovery calls happen?</div>
-        <div style="font-size:12px;color:#6b7280;margin-top:2px">Booked, the time has passed, and no demo was booked afterwards. Ones that led to a demo are counted automatically.</div>
+        <div style="font-size:16px;font-weight:700;color:#1e1b4b">What happened on these?</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:2px">Only meetings whose time has passed with nothing recorded. Ones that led somewhere are counted automatically.</div>
       </div>
-      <div id="disco-queue-body" style="flex:1;overflow-y:auto;padding:4px 20px 12px">
-        ${_pending.map(rowFor).join('')}
+      <div id="disco-queue-body" style="flex:1;overflow-y:auto">
+        ${section('Discovery calls', 'Booked, the time has passed, and no demo was booked afterwards.', discos.map(rowFor))}
+        ${section('Demos', 'Booked, the time has passed, and no outcome is recorded anywhere.', demos.map(demoRowFor))}
       </div>
       <div style="padding:12px 20px;border-top:1px solid #e5e7eb;display:flex;justify-content:flex-end">
         <button onclick="closeDiscoOutcomeQueue()" style="padding:6px 14px;border:1px solid #d1d5db;border-radius:6px;background:#fff;font-size:12px;cursor:pointer">Done</button>

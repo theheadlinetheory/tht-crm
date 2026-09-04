@@ -1,9 +1,9 @@
 // ═══════════════════════════════════════════════════════════
 // TRENDS — Client lead trends summary grid + chart (weekly, Mon–Sun)
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260905021730';
-import { esc, str } from './utils.js?v=20260905021730';
-import { currentWeekKey, shiftWeeks, trackerWeekKey, weekLabel, weekLabelShort } from './dashboard.js?v=20260905021730';
+import { state } from './app.js?v=20260904143815';
+import { esc, str } from './utils.js?v=20260904143815';
+import { currentWeekKey, shiftWeeks, trackerWeekKey, weekLabel, weekLabelShort } from './dashboard.js?v=20260904143815';
 
 // How many weeks the grid and chart cover.
 const WEEKS_SHOWN = 13;
