@@ -1,19 +1,19 @@
 // ═══════════════════════════════════════════════════════════
 // WON-MODAL — Closed-Won drop (Acquisition): route retainer/PPL,
-// create client + lead sheet + SmartLead tags + SmartLead client
-// portal. Blocking, ordered, stop-on-failure with Retry.
+// create client, pull the deal out of the pipeline, then lead sheet +
+// SmartLead tags + SmartLead client portal. Ordered, with Retry.
 // Body-level overlay (survives render()).
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260904143815';
-import { str, esc, getToday } from './utils.js?v=20260904143815';
-import { createClientRecord, deriveTimezone } from './client-info.js?v=20260904143815';
-import { ensureLeadTrackerSheet } from './lead-tracker-sheet.js?v=20260904143815';
-import { invokeEdgeFunction, showToast } from './api.js?v=20260904143815';
-import { isAdmin } from './auth.js?v=20260904143815';
-import { prepaidNote } from './retainer-billing.js?v=20260904143815';
-import { createSmartleadPortal } from './smartlead-portal.js?v=20260904143815';
+import { state } from './app.js?v=20260904160806';
+import { str, esc, getToday } from './utils.js?v=20260904160806';
+import { createClientRecord, deriveTimezone } from './client-info.js?v=20260904160806';
+import { ensureLeadTrackerSheet } from './lead-tracker-sheet.js?v=20260904160806';
+import { invokeEdgeFunction, showToast } from './api.js?v=20260904160806';
+import { isAdmin } from './auth.js?v=20260904160806';
+import { prepaidNote } from './retainer-billing.js?v=20260904160806';
+import { createSmartleadPortal } from './smartlead-portal.js?v=20260904160806';
 
-let _w = null; // { deal, clientId, sheetId, tagsDone, portal }
+let _w = null; // { deal, clientId, archived, sheetId, tagsDone, portal }
 const CURRENCIES = ['USD', 'AUD', 'CAD'];
 const TERMS_PPL = ['Net 7', 'Net 15', 'Net 30'];
 
@@ -35,7 +35,7 @@ const val = (id) => (document.getElementById(id)?.value || '').trim();
 export function openWonModal(deal) {
   if (!isAdmin()) return; // admin-only
   const name = str(deal.company || deal.contact || '').trim();
-  _w = { deal, clientId: '', sheetId: '', tagsDone: false, portal: null };
+  _w = { deal, clientId: '', archived: false, sheetId: '', tagsDone: false, portal: null };
   const tz = deriveTimezone(str(deal.location || deal.address || ''));
   const dup = findDuplicate(name);
   const dupBanner = dup
@@ -189,11 +189,17 @@ function buildFields() {
   return f;
 }
 
-const STEPS = ['Create client record', 'Create Lead Tracker sheet', 'Create SmartLead tags', 'Create SmartLead client portal', 'Move deal to Won'];
+// The client record is the commit point: once it exists this company IS a
+// client, so the card comes out of the pipeline immediately — second in the
+// list, not last. Everything after it is setup work that can fail and be
+// finished later from Settings; before, a failed sheet or portal left the deal
+// sitting in Acquisition forever, and re-dragging it hit the duplicate block
+// against the client the first attempt had already made.
+const STEPS = ['Create client record', 'Remove deal from pipeline', 'Create Lead Tracker sheet', 'Create SmartLead tags', 'Create SmartLead client portal'];
 
 // Which step to resume from — the first one that hasn't completed. Every step is
 // idempotent, so re-running the failed one is always safe.
-const nextStep = () => !_w.clientId ? 0 : !_w.sheetId ? 1 : !_w.tagsDone ? 2 : 3;
+const nextStep = () => !_w.clientId ? 0 : !_w.archived ? 1 : !_w.sheetId ? 2 : !_w.tagsDone ? 3 : 4;
 
 function setFooterProgress(activeIdx, failedIdx) {
   const f = document.getElementById('won-footer');
@@ -239,7 +245,17 @@ async function runSteps(f, startIdx) {
       _w.client = c; // kept so the portal step can mirror onto the live row
     }
     setFooterProgress(1, null);
-    if (startIdx <= 1) {
+    if (startIdx <= 1 && !_w.archived) {
+      // Archives the deal to the `archive` table as Closed Won against this
+      // client, then removes it from `deals` — that is what clears the card.
+      // The overlay lives on document.body, so it survives the render() this
+      // triggers and the remaining steps keep reporting into it.
+      const { deleteDeal } = await import('./deals.js?v=20260904160806');
+      await deleteDeal(_w.deal.id, 'Closed Won', f.name);
+      _w.archived = true;
+    }
+    setFooterProgress(2, null);
+    if (startIdx <= 2) {
       // Layout must follow has_inbox_mgmt (what push-to-client-sheet writes), not
       // the billing model — mismatching the two is what caused the purple-column
       // bleed. A client being onboarded here has no inbox management configured
@@ -247,14 +263,14 @@ async function runSteps(f, startIdx) {
       // value from the DB via clientId anyway.
       _w.sheetId = await ensureLeadTrackerSheet(_w.clientId, f.name, false);
     }
-    setFooterProgress(2, null);
-    if (startIdx <= 2 && !_w.tagsDone) {
+    setFooterProgress(3, null);
+    if (startIdx <= 3 && !_w.tagsDone) {
       const r = await invokeEdgeFunction('create-smartlead-tags', { clientName: f.name });
       if (r?.error) throw new Error('SmartLead tags: ' + r.error);
       _w.tagsDone = true;
     }
-    setFooterProgress(3, null);
-    if (startIdx <= 3 && !_w.portal) {
+    setFooterProgress(4, null);
+    if (startIdx <= 4 && !_w.portal) {
       // Their own Smartlead login, so they can read and reply to their leads.
       // Idempotent server-side, so a Retry re-attaches rather than duplicating —
       // which matters, because Smartlead has no way to delete a client portal.
@@ -264,13 +280,10 @@ async function runSteps(f, startIdx) {
         || { id: _w.clientId, name: f.name, notifyEmail: f.notifyEmail };
       _w.portal = await createSmartleadPortal(row);
     }
-    setFooterProgress(4, null);
-    const dealId = _w.deal.id;
+    setFooterProgress(5, null);
     const clientName = f.name;
     const portal = _w.portal;
     wonModalDismiss();
-    const { deleteDeal } = await import('./deals.js?v=20260904143815');
-    deleteDeal(dealId, 'Closed Won', clientName);
     // Shown to whoever closed the deal so they can pass it on straight away.
     // This is a transient display only — the password is never written to the
     // clients row, which is readable with this repo's public anon key. Slack is
@@ -280,7 +293,11 @@ async function runSteps(f, startIdx) {
   } catch (e) {
     const failedIdx = nextStep();
     setFooterProgress(failedIdx, failedIdx);
-    showToast('Step failed: ' + (e?.message || e), 'error');
+    // Past the archive step the deal is already out of the pipeline, so closing
+    // the modal strands nothing — Settings → the client card has a button for
+    // each remaining piece.
+    const tail = _w.archived ? ' — deal is already out of the pipeline; Retry, or finish it from Settings.' : '';
+    showToast('Step failed: ' + (e?.message || e) + tail, 'error');
   }
 }
 
@@ -318,7 +335,7 @@ export function wonPortalCopy() {
 export async function wonModalLink(existingName) {
   const dealId = _w.deal.id;
   wonModalDismiss();
-  const { deleteDeal } = await import('./deals.js?v=20260904143815');
+  const { deleteDeal } = await import('./deals.js?v=20260904160806');
   deleteDeal(dealId, 'Closed Won', existingName);
   showToast(`Deal linked to existing client "${existingName}"`, 'success');
 }
