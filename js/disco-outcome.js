@@ -20,10 +20,10 @@
 // The answer is stored as a normal CRM interaction, which means no new table and
 // no schema change: the same anon insert the call touchpoints already use.
 
-import { state } from './app.js?v=20260904165257';
-import { esc, svgIcon } from './utils.js?v=20260904165257';
-import { sbCreateInteraction, showToast } from './api.js?v=20260904165257';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260904165257';
+import { state } from './app.js?v=20260904170905';
+import { esc, svgIcon } from './utils.js?v=20260904170905';
+import { sbCreateInteraction, showToast } from './api.js?v=20260904170905';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260904170905';
 
 // pipeline-level03 runs on the CRM's own Supabase project (moved 2026-09-03). It
 // is deployed with JWT verification, so the anon key goes along as the bearer.
@@ -52,7 +52,11 @@ export const DEMO_OUTCOME_PREFIX = 'Demo — ';
 // and they are a warm follow-up — moves the deal to Nurture like the Demo
 // Tracker's outcome does). 2026-09-04.
 export const DEMO_OUTCOMES = ['Won', 'Lost', 'Not qualified', 'Not right now', 'No-show'];
-export const DISCO_OUTCOMES = ['No-show', 'Demo booked', 'Not interested', 'Disqualified'];
+// Not right now (2026-09-04): the call happened, they are a warm follow-up —
+// moves the deal to Nurture, the same click as after a demo. These two lists
+// are THE options for a lost meeting: the timeline dropdown, the outcome
+// queue and the removal picker all read them, so they can never diverge.
+export const DISCO_OUTCOMES = ['No-show', 'Demo booked', 'Not interested', 'Disqualified', 'Not right now'];
 
 // Written before the four-way dropdown replaced them (2026-08-28). Still read
 // so entries already on a timeline keep counting.
@@ -78,6 +82,17 @@ export function loadDiscoOutcomes(rerender) {
     _loading = false;
     if (rerender) rerender();
   });
+}
+
+/** "Not right now" is a warm follow-up, not a loss: the deal goes to Nurture
+ *  with a date on it — the same path the Demo Tracker's outcome takes. */
+function openNurture(dealId, fromDemo) {
+  closeDiscoOutcomeQueue();
+  state.selectedDeal = null;
+  state._nurtureEntryDealId = dealId;
+  state._nurtureEntryBucket = 'not_now';
+  state._nurtureEntryFromDemo = !!fromDemo;
+  import('./render.js?v=20260904170905').then(m => m.render());
 }
 
 export function pendingDiscoCount() {
@@ -139,14 +154,7 @@ export async function markDemo(dealId, outcome) {
     showToast('Marked: ' + outcome, 'success');
     // "Not right now" is a warm follow-up, not a loss: same path as the Demo
     // Tracker's outcome — the deal goes to Nurture with a date on it.
-    if (outcome === 'Not right now') {
-      closeDiscoOutcomeQueue();
-      state.selectedDeal = null;
-      state._nurtureEntryDealId = dealId;
-      state._nurtureEntryBucket = 'not_now';
-      state._nurtureEntryFromDemo = true;
-      import('./render.js?v=20260904165257').then(m => m.render());
-    }
+    if (outcome === 'Not right now') openNurture(dealId, true);
   } catch (e) {
     if (row) row.style.opacity = '1';
     showToast('Could not save: ' + e.message, 'error');
@@ -229,10 +237,11 @@ export async function markDisco(dealId, outcome) {
     if (_pending) {
       _pending = _pending.filter(p => p.deal_id !== dealId);
       if (row) row.remove();
-      if (!_pending.length) { closeDiscoOutcomeQueue(); showToast('All discovery calls marked', 'success'); }
+      if (!_pending.length && !(_pendingDemos && _pendingDemos.length)) { closeDiscoOutcomeQueue(); showToast('All marked', 'success'); }
     } else {
       showToast('Marked: ' + outcome, 'success');
     }
+    if (outcome === 'Not right now') openNurture(dealId, false);
   } catch (e) {
     if (row) row.style.opacity = '1';
     showToast('Could not save: ' + e.message, 'error');

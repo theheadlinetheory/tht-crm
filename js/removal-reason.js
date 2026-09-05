@@ -9,34 +9,29 @@
 //                               and Duplicate mean WE removed them and they leave
 //                               the level; Lost means THEY dropped and stays in.
 //                               Written as a Timeline Note: "Removed — Desk DQ".
-//   after a discovery call      level 03 owns this. The picker asks level 03's
-//                               own question (Not interested / Disqualified, plus
-//                               No-show for a booked disco with no outcome yet)
-//                               and writes the same "Discovery call — …" mark
-//                               the outcome dropdown writes.
-//   after a demo                level 05 owns this: Lost / Not qualified, the
-//                               same "Demo — …" mark as the demo dropdown, or
-//                               Not Right Now, which moves the deal to Nurture
-//                               the way the Demo Tracker does.
+//   after a discovery call      level 03 owns this, through the outcome dropdown
+//   after a demo                on the meeting touchpoint (levels 03 and 05).
 //
-// One picker, one click, and every fact is recorded exactly once, in the place
-// the level that needs it reads. Before 2026-09-03 every removal landed as the
-// generic "Deleted/Lost" — 283 of 283 in the previous 30 days — and a rep who
-// archived after a disco was still asked about it in the outcome queue.
+// ONE source of truth for a lost meeting (Lars, 2026-09-04): the touchpoint
+// dropdown. If the rep already answered it, archiving asks NOTHING and records
+// that answer. If not, archiving shows the dropdown's own list — the same
+// DISCO_OUTCOMES / DEMO_OUTCOMES the timeline and the outcome queue use — and
+// writes the same mark through the same function. Nothing is ever asked twice
+// and no second vocabulary exists.
 //
 // The archive button, the drag-to-delete zone and bulk archive all route
-// acquisition deals here (deal-modal.js, deals.js). The stage is read from the
+// acquisition deals here (deal-modal.js, deals.js). Everything is read from the
 // deal's Timeline at click time — nothing new is stored.
 
-import { state } from './app.js?v=20260904165257';
-import { esc } from './utils.js?v=20260904165257';
-import { sbCreateInteraction, sbGetInteractions } from './api.js?v=20260904165257';
-import { markDisco, markDemo, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD } from './disco-outcome.js?v=20260904165257';
+import { state } from './app.js?v=20260904170905';
+import { esc } from './utils.js?v=20260904170905';
+import { sbCreateInteraction, sbGetInteractions } from './api.js?v=20260904170905';
+import { markDisco, markDemo, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260904170905';
 
 export const REMOVAL_PREFIX = 'Removed — ';
 
 // Pre-disco reasons. label = the archive status · note = what follows the prefix
-// on the Timeline (pipeline-level02 reads it) · hint = examples under the label.
+// on the Timeline (pipeline-leads reads it) · hint = examples under the label.
 export const ACQ_REMOVAL_REASONS = [
   { label: 'Desk DQ',        note: 'Desk DQ',        tone: 'dq',   hint: 'remote / small town · out of ICP · too small · no website' },
   { label: 'Miscategorized', note: 'Miscategorized', tone: 'dq',   hint: 'the AI tagged a non-positive reply as positive — fix it in Smartlead too' },
@@ -46,7 +41,14 @@ export const ACQ_REMOVAL_REASONS = [
 
 // Stages a deal cannot reach without a demo having been booked.
 const DEMO_STAGES = new Set(['Demo Scheduled', 'Under Review', 'No Show', 'Waiting for Payment/Contract', 'Closed Won']);
-const HELD_MARKS = new Set(['demo booked', 'not interested', 'disqualified']);
+const HELD_MARKS = new Set(['demo booked', 'not interested', 'disqualified', 'not right now']);
+
+// What the archive status becomes for each answer.
+const DISCO_STATUS = (o) => 'Discovery — ' + o;
+const DEMO_STATUS = (o) => o === 'Won' ? 'Closed Won' : 'Demo — ' + o;
+// Which answers WE gave (leave the level) vs THEY gave — only for the colour.
+const DQ_ANSWERS = new Set(['Disqualified', 'Not qualified']);
+const KEEP_ANSWERS = new Set(['Not right now', 'Demo booked', 'Won']);
 
 const TONE = {
   dq:    'background:#fef9c3;color:#a16207;border:1px solid #fde68a',
@@ -66,8 +68,9 @@ export async function writeRemovalNote(dealId, note) {
   }
 }
 
-/** Where the lead is, read off its Timeline: 'demo' | 'disco' | 'disco_pending' | 'pre'.
- *  Mirrors the classification in pipeline-level02. */
+/** Where the lead is, read off its Timeline, and any outcome already recorded:
+ *  { stage: 'demo' | 'disco' | 'disco_pending' | 'pre', when, discoMark, demoMark }.
+ *  Mirrors the classification in pipeline-leads. */
 export async function leadStage(dealId) {
   const deal = state.deals.find(d => String(d.id) === String(dealId));
   let rows = [];
@@ -75,51 +78,75 @@ export async function leadStage(dealId) {
   const head = (r) => String(r.content || '').split('\n')[0];
   const now = new Date().toISOString();
   let demo = !!(deal && DEMO_STAGES.has(deal.stage));
-  let disco = false;
+  let disco = false, discoMark = null, demoMark = null;
   const bookings = new Map(); // meeting time → cancelled?
   let pendingFor = null;
+  // rows arrive newest first; the first mark seen is the latest answer.
   for (const r of rows) {
     const h = head(r);
     if (r.type === 'Call' && h.includes('Disco Conducted:')) disco = true;
     if (r.type !== 'Meeting') continue;
-    if (h.startsWith('Demo scheduled') || h.startsWith(DEMO_OUTCOME_PREFIX)) demo = true;
+    if (h.startsWith(DEMO_OUTCOME_PREFIX)) {
+      demo = true;
+      if (!demoMark) demoMark = h.slice(DEMO_OUTCOME_PREFIX.length).split(' · ')[0].trim();
+    } else if (h.startsWith('Demo scheduled')) demo = true;
     else if (h.startsWith('Discovery call scheduled — for ')) {
       const when = h.slice('Discovery call scheduled — for '.length, 'Discovery call scheduled — for '.length + 16);
       if (!bookings.has(when)) bookings.set(when, false);
     } else if (h.startsWith('Discovery call cancelled — was for ')) {
       bookings.set(h.slice('Discovery call cancelled — was for '.length, 'Discovery call cancelled — was for '.length + 16), true);
-    } else if (h.startsWith(OUTCOME_PREFIX)) {
-      const v = h.slice(OUTCOME_PREFIX.length).split(' · ')[0].trim().toLowerCase();
-      if (HELD_MARKS.has(v) || h.startsWith(HELD)) disco = true;
+    } else if (h.startsWith(OUTCOME_PREFIX) || h.startsWith(HELD)) {
+      const v = h.startsWith(HELD) ? 'held' : h.slice(OUTCOME_PREFIX.length).split(' · ')[0].trim();
+      if (!discoMark) discoMark = v;
+      if (HELD_MARKS.has(v.toLowerCase()) || v === 'held') disco = true;
     }
   }
   for (const [when, cancelled] of bookings) {
     if (!cancelled && when.replace(' ', 'T') + ':00Z' < now) pendingFor = pendingFor || when;
   }
-  if (demo) return { stage: 'demo' };
-  if (disco) return { stage: 'disco' };
-  if (pendingFor) return { stage: 'disco_pending', when: pendingFor };
-  return { stage: 'pre' };
+  const stage = demo ? 'demo' : disco ? 'disco' : pendingFor ? 'disco_pending' : 'pre';
+  return { stage, when: pendingFor, discoMark, demoMark };
+}
+
+/** The archive status a recorded answer maps to, or null when nothing is recorded. */
+function recordedStatus(info) {
+  if (info.stage === 'demo' && info.demoMark && DEMO_OUTCOMES.includes(info.demoMark)) return DEMO_STATUS(info.demoMark);
+  if ((info.stage === 'disco' || info.stage === 'disco_pending') && info.discoMark) {
+    if (info.discoMark === 'held') return DISCO_STATUS('held');
+    if (DISCO_OUTCOMES.includes(info.discoMark)) return DISCO_STATUS(info.discoMark);
+  }
+  return null;
 }
 
 /**
  * The picker, for one or many acquisition deals.
  *   onPick(label)  runs after the reason is recorded — the caller archives.
- *   onNurture()    "Move to Nurture" instead of archiving (optional).
+ *   onNurture()    "Move to Nurture" instead of archiving (pre-disco only).
  */
 export async function showAcquisitionRemovalPicker(dealIds, { onPick, onNurture }) {
   const existing = document.getElementById('archive-reason-picker');
   if (existing) existing.remove();
 
-  // Bulk: only leads that never got a call can share one answer. Anything that
-  // had a disco or a demo has to be archived on its own so its outcome lands.
-  const stages = await Promise.all(dealIds.map(id => leadStage(id)));
-  const advanced = dealIds.filter((_, i) => stages[i].stage !== 'pre');
-  if (dealIds.length > 1 && advanced.length) {
-    alert(advanced.length + ' of these leads had a discovery call or a demo. Archive those one at a time so the outcome gets recorded; the rest can be bulk-archived.');
-    return;
+  const infos = await Promise.all(dealIds.map(id => leadStage(id)));
+
+  // Already answered on the touchpoint: record that, ask nothing.
+  if (dealIds.length === 1) {
+    const done = recordedStatus(infos[0]);
+    if (done) { onPick(done); return; }
+  } else {
+    // Bulk: leads whose outcome is already recorded go through with it; leads
+    // that never had a call share one answer; anything else must be done alone.
+    const unanswered = dealIds.filter((_, i) => infos[i].stage !== 'pre' && !recordedStatus(infos[i]));
+    if (unanswered.length) {
+      alert(unanswered.length + ' of these leads had a discovery call or a demo with no outcome recorded yet. Archive those one at a time (or answer the dropdown on the timeline first); the rest can be bulk-archived.');
+      return;
+    }
+    const answered = dealIds.filter((_, i) => infos[i].stage !== 'pre');
+    if (answered.length === dealIds.length) { onPick('Outcome on timeline'); return; }
+    // Mixed: fall through with the pre-disco list for the rest; the answered
+    // ones archive under the same status label (their mark is on the timeline).
   }
-  const { stage, when } = stages[0];
+  const { stage, when } = infos[0];
   const dealId = dealIds[0];
 
   const div = document.createElement('div');
@@ -147,37 +174,30 @@ export async function showAcquisitionRemovalPicker(dealIds, { onPick, onNurture 
   const finish = async (label, work) => {
     div.remove();
     try { await work(); } catch (e) { console.warn('[removal-reason]', e && e.message); }
-    onPick(label);
+    if (label !== null) onPick(label);
   };
-  const other = () => button('Other…', 'other', () => {
-    const r = prompt('Reason:');
-    if (r && r.trim()) finish(r.trim(), () => Promise.all(dealIds.map(id => writeRemovalNote(id, 'Other: ' + r.trim()))));
-  });
-  const nurture = (fromDemo) => onNurture && button(fromDemo ? 'Not Right Now — move to Nurture' : 'Move to Nurture', 'keep', () => {
-    div.remove();
-    if (fromDemo) { state._nurtureEntryBucket = 'not_now'; state._nurtureEntryFromDemo = true; }
-    onNurture();
-  });
+  const toneFor = (o) => DQ_ANSWERS.has(o) ? 'dq' : KEEP_ANSWERS.has(o) ? 'keep' : 'lost';
 
-  const n = dealIds.length;
   if (stage === 'demo') {
-    heading('This lead had a demo. How did it end?', 'Feeds level 05 of the sales pipeline — the same mark as the demo dropdown on the Timeline.');
-    button('Lost', 'lost', () => finish('Demo — Lost', () => markDemo(dealId, 'Lost')), 'they said no after the demo');
-    button('Not qualified', 'dq', () => finish('Demo — Not qualified', () => markDemo(dealId, 'Not qualified')), 'we ended it on the demo — leaves the level');
-    nurture(true);
+    heading('This lead had a demo. How did it end?', 'The same answers as the demo dropdown on the Timeline — recorded once, there.');
+    // Exactly DEMO_OUTCOMES. markDemo writes the mark; "Not right now" opens the
+    // Move to Nurture modal itself, so no archive follows it.
+    DEMO_OUTCOMES.forEach(o => button(o, toneFor(o), () => finish(o === 'Not right now' ? null : DEMO_STATUS(o), () => markDemo(dealId, o))));
   } else if (stage === 'disco' || stage === 'disco_pending') {
     heading(stage === 'disco' ? 'This lead had a discovery call. How did it end?' : `A discovery call was booked for ${when}. What happened?`,
-            'Feeds level 03 of the sales pipeline — the same mark as the outcome dropdown on the Timeline.');
-    if (stage === 'disco_pending') button('No-show', 'lost', () => finish('Discovery — No-show', () => markDisco(dealId, 'No-show')), 'the call never happened');
-    button('Not interested', 'lost', () => finish('Discovery — Not interested', () => markDisco(dealId, 'Not interested')), 'the call happened, they said no');
-    button('Disqualified', 'dq', () => finish('Discovery — Disqualified', () => markDisco(dealId, 'Disqualified')), 'the call happened, we ended it — leaves the level');
-    nurture(false);
-    other();
+            'The same answers as the outcome dropdown on the Timeline — recorded once, there.');
+    // Exactly DISCO_OUTCOMES, same rule for "Not right now".
+    DISCO_OUTCOMES.forEach(o => button(o, toneFor(o), () => finish(o === 'Not right now' ? null : DISCO_STATUS(o), () => markDisco(dealId, o))));
   } else {
+    const n = dealIds.length;
     heading(`Why is ${n === 1 ? 'this lead' : n + ' leads'} being removed?`, 'Feeds level 02 of the sales pipeline. Desk DQ / Miscategorized / Duplicate = we removed them. Lost = they dropped.');
-    ACQ_REMOVAL_REASONS.forEach(r => button(r.label, r.tone, () => finish(r.label, () => Promise.all(dealIds.map(id => writeRemovalNote(id, r.note)))), r.hint));
-    nurture(false);
-    other();
+    const preIds = dealIds.filter((_, i) => infos[i].stage === 'pre');
+    ACQ_REMOVAL_REASONS.forEach(r => button(r.label, r.tone, () => finish(r.label, () => Promise.all(preIds.map(id => writeRemovalNote(id, r.note)))), r.hint));
+    if (onNurture) button('Move to Nurture', 'keep', () => { div.remove(); onNurture(); });
+    button('Other…', 'other', () => {
+      const r = prompt('Reason:');
+      if (r && r.trim()) finish(r.trim(), () => Promise.all(preIds.map(id => writeRemovalNote(id, 'Other: ' + r.trim()))));
+    });
   }
 
   box.appendChild(list);
