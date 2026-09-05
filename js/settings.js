@@ -2,19 +2,20 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260904175438';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260904175438';
-import { render } from './render.js?v=20260904175438';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20260904175438';
-import { renderRoutingRules } from './routing-rules.js?v=20260904175438';
-import { esc, str, svgIcon } from './utils.js?v=20260904175438';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20260904175438';
-import { lookupClientInfo } from './client-info.js?v=20260904175438';
-import { findPolygonForClient, invalidateServiceAreaCache } from './maps.js?v=20260904175438';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260904175438';
-import { DEFAULT_BOOKING_SMS_TEMPLATE } from './booking-sms.js?v=20260904175438';
-import { renderRetainerBilling } from './retainer-billing.js?v=20260904175438';
-import { setupBadge, setupBanner } from './client-setup-status.js?v=20260904175438';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260904185541';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260904185541';
+import { render } from './render.js?v=20260904185541';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20260904185541';
+import { renderRoutingRules } from './routing-rules.js?v=20260904185541';
+import { esc, str, svgIcon } from './utils.js?v=20260904185541';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20260904185541';
+import { lookupClientInfo } from './client-info.js?v=20260904185541';
+import { findPolygonForClient, invalidateServiceAreaCache } from './maps.js?v=20260904185541';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260904185541';
+import { DEFAULT_BOOKING_SMS_TEMPLATE } from './booking-sms.js?v=20260904185541';
+import { renderRetainerBilling } from './retainer-billing.js?v=20260904185541';
+import { showClientEndPicker, clearClientEnd } from './client-end.js?v=20260904185541';
+import { setupBadge, setupBanner } from './client-setup-status.js?v=20260904185541';
 
 export function getDefaultSettings(){
   return {
@@ -302,7 +303,7 @@ export function refreshSettingsBody(){
       window._dialerFieldsLoaded = true;
       supabase.from('crm_settings').select('value').eq('key','dialer_default_fields').single()
         .then(({ data }) => { window._dialerDefaultFields = data?.value ? JSON.parse(data.value) : []; refreshSettingsBody(); });
-      import('./number-health.js?v=20260904175438').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
+      import('./number-health.js?v=20260904185541').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
     }
     h=renderDialerSettings();
   }
@@ -1647,7 +1648,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260904175438');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260904185541');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);
@@ -1885,7 +1886,7 @@ window.restoreClient = async function(clientId) {
   render();
   const { error } = await supabase.from('clients').update({ status: 'active' }).eq('id', clientId);
   if (error) { showToast('Restore failed: ' + error.message, 'error'); c.status = 'inactive'; render(); }
-  else showToast(`${c.name} restored`, 'success');
+  else { clearClientEnd(clientId); c.endedOn = null; c.endReason = null; showToast(`${c.name} restored`, 'success'); }
 };
 
 // Manual portal creation, for clients signed before the Won modal did it. The
@@ -1894,7 +1895,7 @@ window.restoreClient = async function(clientId) {
 window.createClientPortal = async function(clientId) {
   const c = state.clients.find(x => str(x.id) === str(clientId));
   if (!c) return;
-  const { portalEmail, createSmartleadPortal } = await import('./smartlead-portal.js?v=20260904175438');
+  const { portalEmail, createSmartleadPortal } = await import('./smartlead-portal.js?v=20260904185541');
   const email = portalEmail(c);
   if (!email) { showToast('Add a contact email for this client first', 'error'); return; }
   if (!confirm(`Create a Smartlead portal for ${c.name}?\n\nLogin: ${email}\n\nSmartlead has no way to delete a client portal, so this cannot be undone.`)) return;
@@ -1910,10 +1911,8 @@ window.createClientPortal = async function(clientId) {
 
 window.deactivateClient = async function(clientId) {
   const c = state.clients.find(x => str(x.id) === str(clientId));
-  if (!c || !confirm(`Deactivate ${c.name}? They will move to Past Clients.`)) return;
-  c.status = 'inactive';
-  render();
-  const { error } = await supabase.from('clients').update({ status: 'inactive' }).eq('id', clientId);
-  if (error) { showToast('Deactivate failed: ' + error.message, 'error'); c.status = 'active'; render(); }
-  else showToast(`${c.name} deactivated`, 'success');
+  if (!c) return;
+  // Level 06 needs the last day of service and why — asked here, the one
+  // moment they are known (client-end.js). The picker writes the row.
+  showClientEndPicker(clientId, { onDone: () => render() });
 };

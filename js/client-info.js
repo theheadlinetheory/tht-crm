@@ -1,12 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // CLIENT-INFO — Client data, thread IDs, lookup functions
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, deletedClientIds } from './app.js?v=20260904175438';
-import { CLIENT_PALETTE } from './config.js?v=20260904175438';
-import { render } from './render.js?v=20260904175438';
-import { str, uid, esc, isValidDate, getToday, svgIcon } from './utils.js?v=20260904175438';
-import { sbCreateClient, sbDeleteClient, camelToSnake, supabase } from './api.js?v=20260904175438';
-import { isAdmin } from './auth.js?v=20260904175438';
+import { state, store, pendingWrites, deletedClientIds } from './app.js?v=20260904185541';
+import { CLIENT_PALETTE } from './config.js?v=20260904185541';
+import { render } from './render.js?v=20260904185541';
+import { str, uid, esc, isValidDate, getToday, svgIcon } from './utils.js?v=20260904185541';
+import { sbCreateClient, sbDeleteClient, camelToSnake, supabase } from './api.js?v=20260904185541';
+import { showClientEndPicker } from './client-end.js?v=20260904185541';
+import { isAdmin } from './auth.js?v=20260904185541';
 
 // ─── Derive campaign keyword from client name ───
 const SKIP_PREFIXES = /^(the|a|an)\s+/i;
@@ -151,11 +152,9 @@ export async function addClient(name, extra={}){
 export function removeClient(name){
   const client = state.clients.find(c => c.name === name);
   if(client && client.id){
-    client.status = 'inactive';
-    pendingWrites.value++;
-    supabase.from('clients').update({ status: 'inactive' }).eq('id', client.id)
-      .then(({ error }) => { if(error) console.error('Deactivate client failed:', error); })
-      .finally(() => { pendingWrites.value--; });
+    // Level 06: ask when and why (client-end.js); the picker writes the row.
+    showClientEndPicker(client.id, { onDone: () => render() });
+    return;
   }
   render();
 }
