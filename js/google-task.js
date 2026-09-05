@@ -1,10 +1,10 @@
 // Push a CRM activity to the logged-in user's Google Tasks as an all-day task.
-import { state } from './app.js?v=20260905112009';
-import { showToast } from './api.js?v=20260905112009';
-import { currentUser } from './auth.js?v=20260905112009';
-import { supabase } from './supabase-client.js?v=20260905112009';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260905112009';
-import { str } from './utils.js?v=20260905112009';
+import { state } from './app.js?v=20260905113600';
+import { showToast } from './api.js?v=20260905113600';
+import { currentUser } from './auth.js?v=20260905113600';
+import { supabase } from './supabase-client.js?v=20260905113600';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260905113600';
+import { str } from './utils.js?v=20260905113600';
 
 // Sends the signed-in user's session token rather than the shared anon key: the
 // edge function reads whose task list to write to off that token, so the anon
