@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // DEMO TRACKER — SDR commission tracking for acquisition calls
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites, pendingDealFields } from './app.js?v=20260905075300';
-import { sbCreateDemoEntry, sbUpdateDemoEntry, sbDeleteDemoEntry, sbUpdateDeal, camelToSnake, normalizeRow, showToast } from './api.js?v=20260905075300';
-import { render, refreshModal } from './render.js?v=20260905075300';
-import { isAdmin, isEmployee } from './auth.js?v=20260905075300';
-import { esc, str, svgIcon } from './utils.js?v=20260905075300';
+import { state, pendingWrites, pendingDealFields } from './app.js?v=20260905075900';
+import { sbCreateDemoEntry, sbUpdateDemoEntry, sbDeleteDemoEntry, sbUpdateDeal, camelToSnake, normalizeRow, showToast } from './api.js?v=20260905075900';
+import { render, refreshModal } from './render.js?v=20260905075900';
+import { isAdmin, isEmployee } from './auth.js?v=20260905075900';
+import { esc, str, svgIcon } from './utils.js?v=20260905075900';
 
 const DEMO_BASE_PAYOUT = 100;
 const DEMO_CLOSE_BONUS = 50;
@@ -38,7 +38,14 @@ const COLUMNS = [
   { key: 'notes',       label: 'Notes',       width: '',      editable: true,  editType: 'text' },
 ];
 
-function calcPayout(showStatus, outcome) {
+// Who a demo payout is actually owed to. Ioannis is the appointment setter and
+// is paid per booking; Aidan and Lars book their own demos as owners and earn
+// nothing for them. Kept as a list so adding a second setter is a one-line
+// change rather than a rewrite of the payout rules.
+const PAID_REPS = ['Ioannis'];
+
+function calcPayout(showStatus, outcome, bookedBy) {
+  if (!PAID_REPS.includes(str(bookedBy))) return 0;
   if (showStatus !== 'Showed') return 0;
   if (!outcome || outcome === 'Not Qualified') return 0;
   if (outcome === 'Qualified — Closed Won') return DEMO_BASE_PAYOUT + DEMO_CLOSE_BONUS;
@@ -219,11 +226,11 @@ async function saveDemoCell(entryId, field, value) {
 
   entry[field] = value;
 
-  if (field === 'showStatus' || field === 'outcome') {
+  if (field === 'showStatus' || field === 'outcome' || field === 'bookedBy') {
     if (field === 'showStatus' && value === 'No-Show') {
       entry.outcome = '';
     }
-    entry.payout = calcPayout(str(entry.showStatus), str(entry.outcome));
+    entry.payout = calcPayout(str(entry.showStatus), str(entry.outcome), str(entry.bookedBy));
   }
 
   state.demoEditingCell = null;
@@ -235,12 +242,12 @@ async function saveDemoCell(entryId, field, value) {
   try {
     const updates = { [field]: value };
     if (field === 'showStatus' && value === 'No-Show') { updates.outcome = ''; updates.payout = 0; }
-    else if (field === 'showStatus' || field === 'outcome') { updates.payout = entry.payout; }
+    else if (field === 'showStatus' || field === 'outcome' || field === 'bookedBy') { updates.payout = entry.payout; }
     await sbUpdateDemoEntry(entryId, camelToSnake(updates));
     flashSaveStatus(true);
   } catch (e) {
     entry[field] = oldValue;
-    entry.payout = calcPayout(str(entry.showStatus), str(entry.outcome));
+    entry.payout = calcPayout(str(entry.showStatus), str(entry.outcome), str(entry.bookedBy));
     render();
     flashSaveStatus(false);
     console.error('Demo tracker update failed:', e);
@@ -406,7 +413,12 @@ function renderDemoPayoutModal() {
   const monthNames = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
 
   const monthLabel = `${monthNames[m]}/${String(y).slice(-2)}`;
-  const entries = state.demoEntries.filter(e => str(e.month) === monthLabel);
+  // Payable reps only. This report is what a payout is actually run off, and it
+  // derives its totals by counting rows (qualified * base + closedWon * bonus)
+  // rather than summing the payout column — so without this filter an owner's
+  // own booking silently added to what Ioannis was owed.
+  const entries = state.demoEntries.filter(e =>
+    str(e.month) === monthLabel && PAID_REPS.includes(str(e.bookedBy)));
 
   const total = entries.length;
   const noShows = entries.filter(e => str(e.showStatus) === 'No-Show').length;
