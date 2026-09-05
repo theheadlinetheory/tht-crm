@@ -9,8 +9,8 @@
 // request came from a signed-in @theheadlinetheory.com user. Same reasoning as
 // weekly-updates.js and followup-reminders.js: this repo is public, so the
 // function's URL is published, and without the header anyone could POST it.
-import { supabase } from './supabase-client.js?v=20260905073617';
-import { str } from './utils.js?v=20260905073617';
+import { supabase } from './supabase-client.js?v=20260905075112';
+import { str } from './utils.js?v=20260905075112';
 
 // Lives on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const FN_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/crm-smartlead-client';
