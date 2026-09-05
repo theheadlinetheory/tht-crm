@@ -183,29 +183,106 @@ export const DEFAULT_CLIENT_STAGES = [
   { id: "Quote Given", label: "Quote Given / Waiting for Signature", color: "#d97706" },
 ];
 
-// ─── Country Detection from Campaign Name / Location ───
+// ─── Country Detection from Campaign Name / Location / Website / Phone ───
+// Signals are ranked by how far they can be trusted, NOT by country, because
+// the weakest evidence there is is a bare city name: Birmingham, London,
+// Manchester, Melbourne, Vancouver and Wellington are all US cities too.
+// Testing those first is what filed "Wonderly Lights of Birmingham" — of
+// Birmingham, ALABAMA, on a 205 number at wonderlylights.com — under the UK
+// flag, and then had maps.js geocode it as "Birmingham, Alabama USA, UK".
+//
+//   strong  a national domain, a spelled-out country, a national postal
+//           format. Decisive on its own.
+//   weak    city names, and bare "uk"/"nz". Believed only when nothing above
+//           contradicts them.
+//
+// The US signals sit between the two passes. A spelled-out state, "USA", or a
+// state code anchored to a ZIP settles it outright. A valid North American
+// phone number — the second signal, and the one that needs no address at all —
+// rules out the overseas rules but NOT Canada, which shares the +1 plan and is
+// decided on its own rules.
 const COUNTRY_RULES = [
-  { patterns: [/\baustralia\b/,/\.com\.au\b/,/\.au$/,/\b(nsw|qld|vic|tas|act|wa|nt)\s+\d{4}\b/,/\bsa\s+5\d{3}\b/,/\bnew south wales\b/,/\bqueensland\b/,/\bsydney\b/,/\bmelbourne\b/,/\bbrisbane\b/,/\bperth\b/,/\badelaide\b/,/\bcanberra\b/,/\bgold coast\b/,/\bhobart\b/,/\bdarwin\b/,/\bnewcastle nsw\b/,/\bwollongong\b/,/\bgeelong\b/,/\bcairns\b/,/\btownsville\b/,/\btoowoomba\b/], code: 'AU', flag: '\u{1F1E6}\u{1F1FA}', label: 'Australia' },
+  {
+    code: 'AU', flag: '\u{1F1E6}\u{1F1FA}', label: 'Australia',
+    strong: [/\baustralia\b/,/\.com\.au\b(?!\.)/,/\.au\b(?!\.)/,/\bnew south wales\b/,/\bqueensland\b/,
+             /\b(nsw|qld|vic|tas|act|wa|nt)\s+\d{4}\b/,/\bsa\s+5\d{3}\b/],
+    weak: [/\bsydney\b/,/\bmelbourne\b/,/\bbrisbane\b/,/\bperth\b/,/\badelaide\b/,/\bcanberra\b/,
+           /\bgold coast\b/,/\bhobart\b/,/\bdarwin\b/,/\bnewcastle nsw\b/,/\bwollongong\b/,
+           /\bgeelong\b/,/\bcairns\b/,/\btownsville\b/,/\btoowoomba\b/],
+  },
   // The postal code (A1A 1A1) and a comma-anchored province code are the two
   // unambiguous Canadian signals — bare province codes are not usable here
   // because this text is lowercased, and "on"/"ab"/"sk" match ordinary prose.
-  { patterns: [/\btoronto\b/,/\bmontreal\b/,/\bvancouver\b/,/\bcalgary\b/,/\bottawa\b/,/\bedmonton\b/,/\bwinnipeg\b/,/\bcanada\b/,/\b[a-z]\d[a-z]\s?\d[a-z]\d\b/,/,\s*(ab|bc|mb|nb|nl|ns|nt|nu|on|pe|qc|sk|yt)\b/], code: 'CA', flag: '\u{1F1E8}\u{1F1E6}', label: 'Canada' },
-  { patterns: [/\blondon\b/,/\bmanchester\b/,/\bbirmingham\b/,/\bleeds\b/,/\bglasgow\b/,/\bunited kingdom\b/,/\bbristol\b/,/\bliverpool\b/,/\buk\b/,/\.co\.uk\b/], code: 'GB', flag: '\u{1F1EC}\u{1F1E7}', label: 'UK' },
-  { patterns: [/\bauckland\b/,/\bwellington\b/,/\bchristchurch\b/,/\bnew zealand\b/,/\bnz\b/,/\.co\.nz\b/], code: 'NZ', flag: '\u{1F1F3}\u{1F1FF}', label: 'New Zealand' },
+  {
+    code: 'CA', flag: '\u{1F1E8}\u{1F1E6}', label: 'Canada',
+    // The lookahead keeps a national domain from matching mid-host: US
+    // municipalities sit on ".ca.us" ("marysville.ca.us"), which is California.
+    strong: [/\bcanada\b/,/\.ca\b(?!\.)/,/\b[a-z]\d[a-z]\s?\d[a-z]\d\b/,
+             /,\s*(ab|bc|mb|nb|nl|ns|nt|nu|on|pe|qc|sk|yt)\b/],
+    weak: [/\btoronto\b/,/\bmontreal\b/,/\bvancouver\b/,/\bcalgary\b/,/\bottawa\b/,
+           /\bedmonton\b/,/\bwinnipeg\b/],
+  },
+  {
+    code: 'GB', flag: '\u{1F1EC}\u{1F1E7}', label: 'UK',
+    strong: [/\.co\.uk\b(?!\.)/,/\.uk\b(?!\.)/,/\bunited kingdom\b/],
+    weak: [/\blondon\b/,/\bmanchester\b/,/\bbirmingham\b/,/\bleeds\b/,/\bglasgow\b/,
+           /\bbristol\b/,/\bliverpool\b/,/\buk\b/],
+  },
+  {
+    code: 'NZ', flag: '\u{1F1F3}\u{1F1FF}', label: 'New Zealand',
+    strong: [/\.co\.nz\b(?!\.)/,/\.nz\b(?!\.)/,/\bnew zealand\b/],
+    weak: [/\bauckland\b/,/\bwellington\b/,/\bchristchurch\b/,/\bnz\b/],
+  },
 ];
 const US_DEFAULT = { code: 'US', flag: '\u{1F1FA}\u{1F1F8}', label: 'United States' };
 
+const US_STATE = /\b(alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming)\b/;
+// A state code is only usable anchored to a 5-digit ZIP. This text is
+// lowercased, so bare "al", "in", "or", "ok", "me" and "hi" are ordinary words.
+const US_STATE_ZIP = /,\s*(a[klrz]|c[aot]|d[ce]|fl|ga|hi|i[adln]|k[sy]|la|m[adeinost]|n[cdehjmvy]|o[hkr]|pa|ri|s[cd]|t[nx]|ut|v[at]|w[aivy])\s+\d{5}\b/;
+const USA_WORD = /\b(usa|u\.s\.a|united states)\b/;
+
+// A North American number: area code AND exchange code both start 2-9. Both
+// halves matter — a UK mobile written without its leading zero (7761209166)
+// is ten digits, but its exchange code starts with a 1, so it is not NANP.
+const NANP = /^1?[2-9]\d{2}[2-9]\d{6}$/;
+const isNanpPhone = (...nums) => nums.some(n => NANP.test(String(n || '').replace(/\D/g, '')));
+
+// The path is not a location. "https://wonderlylights.com/birmingham/" is a US
+// company whose URL happens to name a UK city, and reading that path as a
+// signal is half of why this deal flew a Union Jack. Only the host votes.
+const hostOf = (url) => String(url || '')
+  .replace(/^https?:\/\//i, '').replace(/^www\./i, '').split(/[/?#]/)[0];
+
+// The email's DOMAIN, never its local part, for the same reason — "london@" and
+// "manchester@" are names, not countries.
+const countryText = (deal) => [
+  deal.campaignName, deal.location, deal.address,
+  String(deal.email || '').split('@')[1] || '', hostOf(deal.website),
+].filter(Boolean).join(' ').toLowerCase();
+
 export function detectCountry(deal) {
-  const text = [deal.campaignName, deal.location, deal.address, deal.email, deal.website].filter(Boolean).join(' ').toLowerCase();
+  const text = countryText(deal);
   for (const rule of COUNTRY_RULES) {
-    if (rule.patterns.some(p => p.test(text))) return rule;
+    if (rule.strong.some(p => p.test(text))) return rule;
+  }
+  if (US_STATE.test(text) || US_STATE_ZIP.test(text) || USA_WORD.test(text)) return US_DEFAULT;
+  // +1 rules out the overseas rules. It does not rule out Canada.
+  const nanp = isNanpPhone(deal.phone, deal.mobilePhone);
+  for (const rule of COUNTRY_RULES) {
+    if (nanp && rule.code !== 'CA') continue;
+    if (rule.weak.some(p => p.test(text))) return rule;
   }
   return US_DEFAULT;
 }
 
+// Which geocoder an address goes to. Same ladder, so an address the board flags
+// US is never sent to the international provider — "Wellington, FL 33449" used
+// to be, on the strength of the word "Wellington" alone. Canada is excluded
+// because batchGeocode has already routed Canadian addresses by this point.
 export function isInternationalAddress(addr) {
-  const text = addr.toLowerCase();
-  return COUNTRY_RULES.some(r => r.code !== 'CA' && r.patterns.some(p => p.test(text)));
+  const code = detectCountry({ address: addr }).code;
+  return code !== 'US' && code !== 'CA';
 }
 
 // ─── Acquisition Pipeline Calendly URLs ───
