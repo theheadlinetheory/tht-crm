@@ -196,6 +196,11 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .act-subject { flex: 1; font-size: 11.5px; color: #374151; }
 .act-day-label { font-size: 10px; color: var(--text-muted); background: #f3f4f6; padding: 1px 6px; border-radius: 8px; }
 .act-delete { background: none; border: none; color: #d1d5db; cursor: pointer; font-size: 14px; }
+/* Chrome draws its own calendar glyph inside a date input, which sat right next
+   to the Google Tasks bell and read as two of the same button. Hide it and open
+   the picker from a click on the date text instead — same control, one icon. */
+.act-date::-webkit-calendar-picker-indicator { display: none; -webkit-appearance: none; }
+.act-date { appearance: none; -webkit-appearance: none; }
 .completed-toggle { font-size: 11px; color: var(--text-muted); cursor: pointer; margin-top: 8px; margin-bottom: 4px; }
 .completed-item { display: flex; align-items: center; gap: 8px; padding: 4px 8px; margin-bottom: 2px; opacity: .5; border-left: 3px solid transparent; border-radius: 6px; }
 .completed-item.act-call { border-left-color: #f97316; }
