@@ -23,10 +23,10 @@
 // acquisition deals here (deal-modal.js, deals.js). Everything is read from the
 // deal's Timeline at click time — nothing new is stored.
 
-import { state } from './app.js?v=20260904172901';
-import { esc } from './utils.js?v=20260904172901';
-import { sbCreateInteraction, sbGetInteractions } from './api.js?v=20260904172901';
-import { markDisco, markDemo, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260904172901';
+import { state } from './app.js?v=20260904175438';
+import { esc } from './utils.js?v=20260904175438';
+import { sbCreateInteraction, sbGetInteractions } from './api.js?v=20260904175438';
+import { markDisco, markDemo, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260904175438';
 
 export const REMOVAL_PREFIX = 'Removed — ';
 
@@ -66,6 +66,21 @@ export async function writeRemovalNote(dealId, note) {
     await sbCreateInteraction({ deal_id: dealId, type: 'Note', content: REMOVAL_PREFIX + note + ' · marked in the CRM' });
   } catch (e) {
     console.warn('[removal-reason] note not saved for', dealId, e && e.message);
+  }
+}
+
+/** A deal closed Won through the pipeline (drag to Won, the Won modal) had a
+ *  demo; record "Qualified — Closed Won" on that demo touchpoint if no final
+ *  answer is there yet, so the Timeline stays the one record and the ledger
+ *  writes it into the Demo Tracker. Fire-and-forget: never blocks the close. */
+export async function recordWonOnTimeline(dealId) {
+  try {
+    const info = await leadStage(dealId);
+    if (info.stage !== 'demo') return;
+    if (info.demoMark && !/Pending/i.test(info.demoMark)) return;
+    await sbCreateInteraction({ deal_id: dealId, type: 'Meeting', content: DEMO_OUTCOME_PREFIX + 'Qualified — Closed Won · marked in the CRM' });
+  } catch (e) {
+    console.warn('[removal-reason] won mark not written for', dealId, e && e.message);
   }
 }
 
