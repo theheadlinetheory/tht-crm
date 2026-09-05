@@ -15,9 +15,9 @@
 // Written to clients.ended_on / end_reason / end_notes. Reactivating clears
 // them. Level 06 reads the clients table directly.
 
-import { state } from './app.js?v=20260905075112';
-import { esc, str } from './utils.js?v=20260905075112';
-import { supabase, showToast } from './api.js?v=20260905075112';
+import { state } from './app.js?v=20260905075300';
+import { esc, str } from './utils.js?v=20260905075300';
+import { supabase, showToast } from './api.js?v=20260905075300';
 
 // kind: 'churn' stays in the level as a loss · 'excluded' leaves it
 export const END_REASONS = [

@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // DEMO TRACKER — SDR commission tracking for acquisition calls
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites, pendingDealFields } from './app.js?v=20260905075112';
-import { sbCreateDemoEntry, sbUpdateDemoEntry, sbDeleteDemoEntry, sbUpdateDeal, camelToSnake, normalizeRow, showToast } from './api.js?v=20260905075112';
-import { render, refreshModal } from './render.js?v=20260905075112';
-import { isAdmin, isEmployee } from './auth.js?v=20260905075112';
-import { esc, str, svgIcon } from './utils.js?v=20260905075112';
+import { state, pendingWrites, pendingDealFields } from './app.js?v=20260905075300';
+import { sbCreateDemoEntry, sbUpdateDemoEntry, sbDeleteDemoEntry, sbUpdateDeal, camelToSnake, normalizeRow, showToast } from './api.js?v=20260905075300';
+import { render, refreshModal } from './render.js?v=20260905075300';
+import { isAdmin, isEmployee } from './auth.js?v=20260905075300';
+import { esc, str, svgIcon } from './utils.js?v=20260905075300';
 
 const DEMO_BASE_PAYOUT = 100;
 const DEMO_CLOSE_BONUS = 50;
@@ -293,7 +293,12 @@ async function addDemoRow() {
   const dateBooked = `${today.getMonth() + 1}/${today.getDate()}/${String(today.getFullYear()).slice(-2)}`;
   const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   const month = `${monthNames[today.getMonth()]}/${String(today.getFullYear()).slice(-2)}`;
-  const fields = { dealId: '', leadName: '', leadEmail: '', dateBooked, callDate: '', callTime: '', callType: 'Discovery', showStatus: '', outcome: '', payout: 0, paidStatus: '', datePaid: '', month, notes: '', bookedBy: 'Ioannis' };
+  // deal_id carries UNIQUE, to stop a deal being pushed to the tracker twice.
+  // A manually added row has no deal, and '' is a real value under that
+  // constraint — so the first blank row claimed '' and every one after it failed
+  // with demo_tracker_deal_id_key. NULL is exempt from UNIQUE in Postgres, so
+  // manual rows can be added freely while real deals stay one-to-one.
+  const fields = { dealId: null, leadName: '', leadEmail: '', dateBooked, callDate: '', callTime: '', callType: 'Discovery', showStatus: '', outcome: '', payout: 0, paidStatus: '', datePaid: '', month, notes: '', bookedBy: 'Ioannis' };
   pendingWrites.value++;
   try {
     const created = await sbCreateDemoEntry(camelToSnake(fields));
