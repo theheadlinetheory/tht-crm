@@ -15,9 +15,9 @@
 // Written to clients.ended_on / end_reason / end_notes. Reactivating clears
 // them. Level 06 reads the clients table directly.
 
-import { state } from './app.js?v=20260905075900';
-import { esc, str } from './utils.js?v=20260905075900';
-import { supabase, showToast } from './api.js?v=20260905075900';
+import { state } from './app.js?v=20260905104727';
+import { esc, str } from './utils.js?v=20260905104727';
+import { supabase, showToast } from './api.js?v=20260905104727';
 
 // kind: 'churn' stays in the level as a loss · 'excluded' leaves it
 export const END_REASONS = [
@@ -52,8 +52,8 @@ export function showClientEndPicker(clientId, { onDone, onCancel } = {}) {
   div.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:center';
   const box = document.createElement('div');
   box.style.cssText = 'background:#fff;border-radius:12px;padding:24px;width:380px;box-shadow:0 8px 30px rgba(0,0,0,.2)';
-  box.innerHTML = `<h3 style="margin:0 0 4px;font-size:16px">Deactivate ${esc(c.name)}</h3>
-    <div style="font-size:11px;color:#6b7280;margin-bottom:14px">Feeds level 06 of the sales pipeline. Last day of service, and why.</div>
+  box.innerHTML = `<h3 style="margin:0 0 4px;font-size:16px">Offboard ${esc(c.name)}</h3>
+    <div style="font-size:11px;color:#6b7280;margin-bottom:14px">They move to Past Clients. Feeds level 06 of the sales pipeline: last day of service, and why.</div>
     <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Last day of service</label>
     <input type="date" id="client-end-date" value="${today}" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);margin-bottom:12px">
     <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Notes (optional)</label>
@@ -70,7 +70,7 @@ export function showClientEndPicker(clientId, { onDone, onCancel } = {}) {
     const { error } = await supabase.from('clients').update(fields).eq('id', c.id);
     if (error) { showToast('Deactivate failed: ' + error.message, 'error'); if (onCancel) onCancel(); return; }
     c.status = 'inactive'; c.endedOn = endedOn; c.endReason = reason; c.endNotes = notes;
-    showToast(`${c.name} deactivated — ${reason}`, 'success');
+    showToast(`${c.name} offboarded — ${reason}`, 'success');
     if (onDone) onDone(fields);
   };
   const button = (text, tone, handler, hint) => {
