@@ -20,17 +20,19 @@
 // The answer is stored as a normal CRM interaction, which means no new table and
 // no schema change: the same anon insert the call touchpoints already use.
 
-import { state } from './app.js?v=20260905053949';
-import { esc, svgIcon } from './utils.js?v=20260905053949';
-import { sbCreateInteraction, showToast } from './api.js?v=20260905053949';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260905053949';
+import { state } from './app.js?v=20260904172901';
+import { esc, svgIcon } from './utils.js?v=20260904172901';
+import { sbCreateInteraction, showToast } from './api.js?v=20260904172901';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260904172901';
 
 // pipeline-level03 runs on the CRM's own Supabase project (moved 2026-09-03). It
 // is deployed with JWT verification, so the anon key goes along as the bearer.
 const PENDING_URL =
   SUPABASE_URL + '/functions/v1/pipeline-level03?action=pending';
+// Level 05's queue is the superset: every due demo without a FINAL answer —
+// nothing recorded, or still Qualified — Pending.
 const DEMO_PENDING_URL =
-  SUPABASE_URL + '/functions/v1/pipeline-level04?action=pending';
+  SUPABASE_URL + '/functions/v1/pipeline-level05?action=pending';
 
 // The rep picks one of four after the meeting. Each counts differently in
 // level 03, which is why a plain "did it happen?" was not enough:
@@ -51,7 +53,18 @@ export const DEMO_OUTCOME_PREFIX = 'Demo — ';
 // Level 04 added No-show (the demo did not happen) and Not right now (it did,
 // and they are a warm follow-up — moves the deal to Nurture like the Demo
 // Tracker's outcome does). 2026-09-04.
-export const DEMO_OUTCOMES = ['Won', 'Lost', 'Not qualified', 'Not right now', 'No-show'];
+// The demo dropdown speaks the Demo Tracker's language, verbatim, plus No-Show
+// for attendance (Lars, 2026-09-04: "this is what gets used now"). The ledger
+// writes the answer INTO the Tracker row, so the Tracker fills itself.
+// "Qualified — Pending" = showed, no decision yet; the timeline keeps asking
+// until a final answer lands. "Closed Lost" asks for a reason.
+export const DEMO_OUTCOMES = ['No-Show', 'Qualified — Pending', 'Qualified — Closed Won', 'Qualified — Not Right Now', 'Qualified — Closed Lost', 'Not Qualified'];
+export const DEMO_LOST = 'Qualified — Closed Lost';
+export const DEMO_PENDING = 'Qualified — Pending';
+// Why we lost — the four values Aidan used across every historical loss
+// (specs/04), plus Other as a safety valve. Watch Other: if it dominates, the
+// list is wrong.
+export const LOST_REASONS = ['Went dark after the demo', 'Price', 'Timing', 'Not convinced it works'];
 // Not right now (2026-09-04): the call happened, they are a warm follow-up —
 // moves the deal to Nurture, the same click as after a demo. These two lists
 // are THE options for a lost meeting: the timeline dropdown, the outcome
@@ -92,7 +105,7 @@ function openNurture(dealId, fromDemo) {
   state._nurtureEntryDealId = dealId;
   state._nurtureEntryBucket = 'not_now';
   state._nurtureEntryFromDemo = !!fromDemo;
-  import('./render.js?v=20260905053949').then(m => m.render());
+  import('./render.js?v=20260904172901').then(m => m.render());
 }
 
 export function pendingDiscoCount() {
@@ -137,24 +150,58 @@ export function demoOutcomeSelect(dealId) {
   </select>`;
 }
 
+/** Why did we lose it? Resolves to the reason, or null if the rep cancels. */
+export function askLostReason() {
+  return new Promise((resolve) => {
+    const div = document.createElement('div');
+    div.id = 'lost-reason-picker';
+    div.style.cssText = 'position:fixed;inset:0;z-index:100002;background:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:center';
+    const box = document.createElement('div');
+    box.style.cssText = 'background:#fff;border-radius:12px;padding:24px;width:340px;box-shadow:0 8px 30px rgba(0,0,0,.2)';
+    box.innerHTML = `<h3 style="margin:0 0 4px;font-size:16px">Why did we lose it?</h3>
+      <div style="font-size:11px;color:#6b7280;margin-bottom:14px">One reason. Goes on the Timeline and into the Demo Tracker's notes.</div>`;
+    const list = document.createElement('div');
+    list.style.cssText = 'display:flex;flex-direction:column;gap:8px';
+    const done = (v) => { div.remove(); resolve(v); };
+    const button = (text, style, handler) => {
+      const b = document.createElement('button'); b.className = 'btn'; b.textContent = text;
+      b.style.cssText = 'width:100%;justify-content:start;padding:10px 14px;' + style; b.onclick = handler; list.appendChild(b);
+    };
+    LOST_REASONS.forEach(r => button(r, 'background:#fef2f2;color:#dc2626;border:1px solid #fecaca', () => done(r)));
+    button('Other…', 'background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe', () => { const r = prompt('Reason:'); if (r && r.trim()) done('Other: ' + r.trim()); });
+    box.appendChild(list);
+    const cancel = document.createElement('button');
+    cancel.className = 'btn btn-ghost'; cancel.style.cssText = 'width:100%;margin-top:12px;font-size:12px'; cancel.textContent = 'Cancel';
+    cancel.onclick = () => done(null);
+    box.appendChild(cancel); div.appendChild(box); document.body.appendChild(div);
+  });
+}
+
+/** Record a demo's outcome on the Timeline. Returns false if the rep cancelled
+ *  (a lost demo needs its reason), so callers do not archive on a non-answer. */
 export async function markDemo(dealId, outcome) {
-  if (!outcome || !DEMO_OUTCOMES.includes(outcome)) return;
+  if (!outcome || !DEMO_OUTCOMES.includes(outcome)) return false;
+  let value = outcome;
+  if (outcome === DEMO_LOST) {
+    const reason = await askLostReason();
+    if (reason === null) return false;
+    value = outcome + ': ' + reason;
+  }
   const row = document.getElementById('demo-row-' + dealId);
   if (row) row.style.opacity = '.4';
   try {
     await sbCreateInteraction({
       deal_id: dealId, type: 'Meeting',
-      content: DEMO_OUTCOME_PREFIX + outcome + ' · marked in the CRM',
+      content: DEMO_OUTCOME_PREFIX + value + ' · marked in the CRM',
     });
     if (_pendingDemos) {
       _pendingDemos = _pendingDemos.filter(p => p.deal_id !== dealId);
       if (row) row.remove();
       if (!_pendingDemos.length && !(_pending && _pending.length)) closeDiscoOutcomeQueue();
     }
-    showToast('Marked: ' + outcome, 'success');
-    // "Not right now" is a warm follow-up, not a loss: same path as the Demo
-    // Tracker's outcome — the deal goes to Nurture with a date on it.
-    if (outcome === 'Not right now') openNurture(dealId, true);
+    showToast('Marked: ' + value, 'success');
+    if (outcome === 'Qualified — Not Right Now') openNurture(dealId, true);
+    return true;
   } catch (e) {
     if (row) row.style.opacity = '1';
     showToast('Could not save: ' + e.message, 'error');

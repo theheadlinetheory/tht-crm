@@ -23,10 +23,10 @@
 // acquisition deals here (deal-modal.js, deals.js). Everything is read from the
 // deal's Timeline at click time — nothing new is stored.
 
-import { state } from './app.js?v=20260905053949';
-import { esc } from './utils.js?v=20260905053949';
-import { sbCreateInteraction, sbGetInteractions } from './api.js?v=20260905053949';
-import { markDisco, markDemo, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260905053949';
+import { state } from './app.js?v=20260904172901';
+import { esc } from './utils.js?v=20260904172901';
+import { sbCreateInteraction, sbGetInteractions } from './api.js?v=20260904172901';
+import { markDisco, markDemo, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260904172901';
 
 export const REMOVAL_PREFIX = 'Removed — ';
 
@@ -45,10 +45,11 @@ const HELD_MARKS = new Set(['demo booked', 'not interested', 'disqualified', 'no
 
 // What the archive status becomes for each answer.
 const DISCO_STATUS = (o) => 'Discovery — ' + o;
-const DEMO_STATUS = (o) => o === 'Won' ? 'Closed Won' : 'Demo — ' + o;
+const DEMO_STATUS = (o) => /Closed Won|^Won$/.test(o) ? 'Closed Won' : 'Demo — ' + o;
 // Which answers WE gave (leave the level) vs THEY gave — only for the colour.
-const DQ_ANSWERS = new Set(['Disqualified', 'Not qualified']);
-const KEEP_ANSWERS = new Set(['Not right now', 'Demo booked', 'Won']);
+const DQ_ANSWERS = new Set(['Disqualified', 'Not qualified', 'Not Qualified']);
+const KEEP_ANSWERS = new Set(['Not right now', 'Demo booked', 'Won', 'Qualified — Not Right Now', 'Qualified — Pending', 'Qualified — Closed Won']);
+const NURTURE_ANSWERS = new Set(['Not right now', 'Qualified — Not Right Now']);
 
 const TONE = {
   dq:    'background:#fef9c3;color:#a16207;border:1px solid #fde68a',
@@ -110,7 +111,9 @@ export async function leadStage(dealId) {
 
 /** The archive status a recorded answer maps to, or null when nothing is recorded. */
 function recordedStatus(info) {
-  if (info.stage === 'demo' && info.demoMark && DEMO_OUTCOMES.includes(info.demoMark)) return DEMO_STATUS(info.demoMark);
+  // Any final demo answer counts as recorded (older words included); a
+  // "Qualified — Pending" mark is not final, so the rep is asked.
+  if (info.stage === 'demo' && info.demoMark && !/Pending/i.test(info.demoMark)) return DEMO_STATUS(info.demoMark.split(': ')[0]);
   if ((info.stage === 'disco' || info.stage === 'disco_pending') && info.discoMark) {
     if (info.discoMark === 'held') return DISCO_STATUS('held');
     if (DISCO_OUTCOMES.includes(info.discoMark)) return DISCO_STATUS(info.discoMark);
@@ -173,8 +176,9 @@ export async function showAcquisitionRemovalPicker(dealIds, { onPick, onNurture 
   };
   const finish = async (label, work) => {
     div.remove();
-    try { await work(); } catch (e) { console.warn('[removal-reason]', e && e.message); }
-    if (label !== null) onPick(label);
+    let ok = true;
+    try { ok = (await work()) !== false; } catch (e) { console.warn('[removal-reason]', e && e.message); }
+    if (ok && label !== null) onPick(label);
   };
   const toneFor = (o) => DQ_ANSWERS.has(o) ? 'dq' : KEEP_ANSWERS.has(o) ? 'keep' : 'lost';
 
@@ -182,12 +186,12 @@ export async function showAcquisitionRemovalPicker(dealIds, { onPick, onNurture 
     heading('This lead had a demo. How did it end?', 'The same answers as the demo dropdown on the Timeline — recorded once, there.');
     // Exactly DEMO_OUTCOMES. markDemo writes the mark; "Not right now" opens the
     // Move to Nurture modal itself, so no archive follows it.
-    DEMO_OUTCOMES.forEach(o => button(o, toneFor(o), () => finish(o === 'Not right now' ? null : DEMO_STATUS(o), () => markDemo(dealId, o))));
+    DEMO_OUTCOMES.forEach(o => button(o, toneFor(o), () => finish(NURTURE_ANSWERS.has(o) ? null : DEMO_STATUS(o), () => markDemo(dealId, o))));
   } else if (stage === 'disco' || stage === 'disco_pending') {
     heading(stage === 'disco' ? 'This lead had a discovery call. How did it end?' : `A discovery call was booked for ${when}. What happened?`,
             'The same answers as the outcome dropdown on the Timeline — recorded once, there.');
     // Exactly DISCO_OUTCOMES, same rule for "Not right now".
-    DISCO_OUTCOMES.forEach(o => button(o, toneFor(o), () => finish(o === 'Not right now' ? null : DISCO_STATUS(o), () => markDisco(dealId, o))));
+    DISCO_OUTCOMES.forEach(o => button(o, toneFor(o), () => finish(NURTURE_ANSWERS.has(o) ? null : DISCO_STATUS(o), () => markDisco(dealId, o))));
   } else {
     const n = dealIds.length;
     heading(`Why is ${n === 1 ? 'this lead' : n + ' leads'} being removed?`, 'Feeds level 02 of the sales pipeline. Desk DQ / Miscategorized / Duplicate = we removed them. Lost = they dropped.');
