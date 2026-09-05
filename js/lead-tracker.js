@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // LEAD TRACKER — Editable grid view for lead billing & status
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20260905105303';
-import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20260905105303';
-import { isAdmin, isEmployee } from './auth.js?v=20260905105303';
-import { esc, svgIcon, str } from './utils.js?v=20260905105303';
-import { render } from './render.js?v=20260905105303';
+import { state, store, pendingWrites } from './app.js?v=20260905112009';
+import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20260905112009';
+import { isAdmin, isEmployee } from './auth.js?v=20260905112009';
+import { esc, svgIcon, str } from './utils.js?v=20260905112009';
+import { render } from './render.js?v=20260905112009';
 
 // ─── Column Definitions ───
 // The billing "Month" ('July/26') is deliberately not a column — the sheet shows
@@ -15,7 +15,8 @@ const COLUMNS = [
   { key: 'clientName',      label: 'Client',         editable: true,      adminOnly: false },
   { key: 'leadName',        label: 'Lead Name',      editable: true,      adminOnly: false },
   { key: 'leadEmail',       label: 'Email',           editable: true,      adminOnly: false },
-  { key: 'dateAdded',       label: 'Date',            editable: true,      adminOnly: false },
+  { key: 'dateAdded',       label: 'Booked',          editable: true,      adminOnly: false },
+  { key: 'apptDate',        label: 'Appt Date',       editable: true,      adminOnly: false },
   { key: 'apptTime',        label: 'Appt Time',       editable: true,      adminOnly: false },
   { key: 'leadCost',        label: 'Lead Cost',       editable: true,      adminOnly: true },
   { key: 'invoice',         label: 'Invoice',         editable: true,      adminOnly: true },
@@ -40,7 +41,7 @@ function getVisibleColumns() {
 
 // Dates are stored as 'M/D/YY'; show them in full so "7/26" can't be read as a
 // bare month/day.
-const DATE_COLUMNS = new Set(['dateAdded', 'datePaid']);
+const DATE_COLUMNS = new Set(['dateAdded', 'apptDate', 'datePaid']);
 function fmtExactDate(mdy) {
   const parts = String(mdy || '').split('/');
   if (parts.length !== 3) return String(mdy || '');
@@ -114,17 +115,33 @@ function getFilteredEntries() {
   } else if (f.leadQuality === 'callback') {
     entries = entries.filter(e => str(e.callbackStatus).toLowerCase() === 'called back');
   }
+  // Which date the range applies to. 'appt' is the billing rule — a meeting
+  // booked on 31 Aug for 4 Sep is a September lead — and falls back to the
+  // booked date for the ~half of rows that have no appointment date.
+  // 'booked' filters on the day the lead came in. Both are wanted, so both stay.
+  const basisDate = (e) => f.dateBasis === 'booked'
+    ? parseDateMDY(str(e.dateAdded))
+    : (parseDateMDY(str(e.apptDate)) || parseDateMDY(str(e.dateAdded)));
   if (f.dateFrom) {
     const from = parseDateMDY(f.dateFrom);
-    entries = entries.filter(e => parseDateMDY(str(e.dateAdded)) >= from);
+    entries = entries.filter(e => basisDate(e) >= from);
   }
   if (f.dateTo) {
     const to = parseDateMDY(f.dateTo);
-    entries = entries.filter(e => parseDateMDY(str(e.dateAdded)) <= to);
+    entries = entries.filter(e => basisDate(e) <= to);
+  }
+  // Set by clicking a bar in the Monthly view, on whichever basis that view is
+  // currently counting — so the bar and the rows below it always agree.
+  if (f.month) {
+    entries = entries.filter(e => {
+      const d = basisDate(e);
+      if (!d) return false;
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === f.month;
+    });
   }
 
   const { field, dir } = state.trackerSort;
-  const isDateField = field === 'dateAdded' || field === 'datePaid';
+  const isDateField = field === 'dateAdded' || field === 'apptDate' || field === 'datePaid';
   entries.sort((a, b) => {
     let cmp;
     if (isDateField) {
@@ -320,6 +337,12 @@ export function renderLeadTracker() {
       <option value="good" ${f.leadQuality === 'good' ? 'selected' : ''}>Good Leads</option>
       <option value="callback" ${f.leadQuality === 'callback' ? 'selected' : ''}>Called Back</option>
     </select>
+    <span style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden" title="Which date the From/To range and the month filter measure">
+      ${['appt','booked'].map(v => `<button type="button" onclick="trackerSetDateBasis('${v}')"
+        style="padding:4px 9px;border:none;cursor:pointer;font-family:var(--font);font-size:11px;font-weight:600;
+               background:${(f.dateBasis === 'booked' ? 'booked' : 'appt') === v ? '#4f46e5' : 'transparent'};
+               color:${(f.dateBasis === 'booked' ? 'booked' : 'appt') === v ? '#fff' : 'var(--text-muted)'}">${v === 'appt' ? 'Appt date' : 'Booked date'}</button>`).join('')}
+    </span>
     <span style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-muted)">
       <label>From</label>
       <input type="date" value="${mdyToISO(f.dateFrom)}" onchange="trackerFilterDateFrom(this.value)" style="padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
@@ -327,6 +350,10 @@ export function renderLeadTracker() {
       <input type="date" value="${mdyToISO(f.dateTo)}" onchange="trackerFilterDateTo(this.value)" style="padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
       ${(f.dateFrom || f.dateTo) ? '<button onclick="trackerClearDates()" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;padding:0 4px" title="Clear dates">&times;</button>' : ''}
     </span>
+    ${f.month ? `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;font-size:11px;font-weight:600;color:#4f46e5">
+      ${esc(f.month)}
+      <button onclick="trackerMonthlyClear()" style="background:none;border:none;color:#4f46e5;cursor:pointer;font-size:13px;padding:0;line-height:1" title="Clear month filter">&times;</button>
+    </span>` : ''}
     <span style="flex:1"></span>
     <span id="tracker-save-status" style="font-size:11px;font-weight:600;opacity:0;transition:opacity 0.3s"></span>
     <span style="font-size:12px;color:var(--text-muted)">${entries.length} PPM meetings booked</span>
@@ -457,6 +484,21 @@ window.trackerFilterQuality = (v) => { state.trackerFilters.leadQuality = v; ren
 window.trackerFilterDateFrom = (v) => { state.trackerFilters.dateFrom = isoToMDY(v); render(); };
 window.trackerFilterDateTo = (v) => { state.trackerFilters.dateTo = isoToMDY(v); render(); };
 window.trackerClearDates = () => { state.trackerFilters.dateFrom = ''; state.trackerFilters.dateTo = ''; render(); };
+
+// Which date every count in this tab is measured on. Shared by the Monthly
+// chart and the From/To range so the two can never disagree.
+window.trackerSetDateBasis = (v) => {
+  state.trackerFilters.dateBasis = v === 'booked' ? 'booked' : 'appt';
+  render();
+};
+// Clicking a bar in the Monthly view filters the table to that month.
+window.trackerMonthlyPick = (key) => {
+  const f = state.trackerFilters;
+  f.month = f.month === key ? '' : key;   // clicking the selected bar clears it
+  state.trackerView = 'entries';          // drop straight into the rows
+  render();
+};
+window.trackerMonthlyClear = () => { state.trackerFilters.month = ''; render(); };
 window.trackerSort = (field) => {
   if (state.trackerSort.field === field) {
     state.trackerSort.dir = state.trackerSort.dir === 'asc' ? 'desc' : 'asc';

@@ -4,7 +4,7 @@
 // All mutations go through store.* methods to prevent direct
 // state tampering and ensure consistent re-renders.
 
-import { render, refreshModal } from './render.js?v=20260905105303';
+import { render, refreshModal } from './render.js?v=20260905112009';
 
 // ─── Raw State (private — modules should use store.*) ───
 export const state = {
@@ -66,7 +66,7 @@ export const state = {
   myDealsFilter: false,
   trackerEntries: [],
   trackerLoaded: false,
-  trackerFilters: { client: '', paidStatus: '', leadQuality: '', dateFrom: '', dateTo: '' },
+  trackerFilters: { client: '', paidStatus: '', leadQuality: '', dateFrom: '', dateTo: '', month: '', dateBasis: 'appt' },
   trackerSort: { field: 'dateAdded', dir: 'asc' },
   trackerEditingCell: null,
   trackerView: 'entries',
