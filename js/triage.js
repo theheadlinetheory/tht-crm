@@ -19,9 +19,9 @@
 // Underperforming week uses the SAME bar as the Weekly KPI:
 // RETAINER_WEEKLY_TARGET = 5 positive replies, PPM_WEEKLY_TARGET = 1 meeting.
 // ═══════════════════════════════════════════════════════════
-import { esc, str } from './utils.js?v=20260906235521';
-import { isAdmin } from './auth.js?v=20260906235521';
-import { TRIAGE_META, TRIAGE_ROWS } from './triage-data.js?v=20260906235521';
+import { esc, str } from './utils.js?v=20260907005203';
+import { isAdmin } from './auth.js?v=20260907005203';
+import { TRIAGE_META, TRIAGE_ROWS } from './triage-data.js?v=20260907005203';
 
 const BAND_COLOR = { green: '#16a34a', yellow: '#ca8a04', red: '#dc2626' };
 const BAND_BG    = { green: '#dcfce7', yellow: '#fef9c3', red: '#fee2e2' };
@@ -134,7 +134,7 @@ function sectionFor(vertical) {
     <div class="tracker-table-wrap" style="overflow-x:auto;margin-top:6px"><table class="tracker-table" style="min-width:1080px;font-size:11px">
     <thead><tr>
       <th style="text-align:left">Client</th><th>Campaigns</th><th>Sent 8w</th><th>Positives 8w</th>
-      <th>Rate 8w</th><th>Worst wk</th><th>Median worst</th>
+      <th>Rate 8w</th><th>Floor (P20)</th><th>Worst single wk</th><th>Median floor</th>
       <th>Untouched T1/T2</th><th>T3</th><th>T4</th>
       <th>Negatives (90d)</th><th>Largest bucket</th>
       <th>Industry set</th><th>Next renewal</th>
@@ -146,8 +146,9 @@ function sectionFor(vertical) {
       <td style="text-align:center">${num(r.sent8)}</td>
       <td style="text-align:center">${r.pos8}</td>
       <td style="text-align:center">${pct(r.rate8)}</td>
-      <td style="text-align:center">${pct(r.worst8)}</td>
-      <td style="text-align:center">${pct(r.medWorst)}</td>
+      <td style="text-align:center">${pct(r.floor)}</td>
+      <td style="text-align:center;color:var(--text-muted)">${pct(r.worstSingle)}</td>
+      <td style="text-align:center">${pct(r.medFloor)}</td>
       <td style="text-align:center" title="${esc((r.untT12names || []).join(', '))}">${r.untT12}</td>
       <td style="text-align:center">${r.untT3}</td>
       <td style="text-align:center">${r.untT4}</td>
@@ -224,6 +225,7 @@ export function renderTriage() {
   </div>`;
 
   h += `<div style="margin-top:12px;font-size:10px;color:var(--text-muted);line-height:1.5">
+    ${esc(TRIAGE_META.floorNote)}<br>
     ${esc(TRIAGE_META.objSource)}
     Positive replies are logged CRM pass-offs, so a reply that was never logged reads as underperformance.
     Hover a "largest bucket" cell for that client's full bucket breakdown.
