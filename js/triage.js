@@ -19,9 +19,9 @@
 // Underperforming week uses the SAME bar as the Weekly KPI:
 // RETAINER_WEEKLY_TARGET = 5 positive replies, PPM_WEEKLY_TARGET = 1 meeting.
 // ═══════════════════════════════════════════════════════════
-import { esc, str } from './utils.js?v=20260907005203';
-import { isAdmin } from './auth.js?v=20260907005203';
-import { TRIAGE_META, TRIAGE_ROWS } from './triage-data.js?v=20260907005203';
+import { esc, str } from './utils.js?v=20260907024838';
+import { isAdmin } from './auth.js?v=20260907024838';
+import { TRIAGE_META, TRIAGE_ROWS } from './triage-data.js?v=20260907024838';
 
 const BAND_COLOR = { green: '#16a34a', yellow: '#ca8a04', red: '#dc2626' };
 const BAND_BG    = { green: '#dcfce7', yellow: '#fef9c3', red: '#fee2e2' };
@@ -191,6 +191,30 @@ export function renderTriage() {
   h += `<div style="margin-bottom:10px;padding:10px 14px;background:#f8fafc;border-left:3px solid var(--purple);border-radius:4px;font-size:11px;line-height:1.55">
     <b>Underperforming week:</b> ${esc(TRIAGE_META.underperfDef)}
   </div>`;
+
+  // The five dimension cells read as "9 x2 (14 changes)", which is genuinely
+  // ambiguous until you know 9 is the score and x2 is the weighting. Spelled out
+  // here rather than left to be guessed.
+  h += `<details style="margin-bottom:12px">
+    <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--purple);padding:4px 0">
+      How to read these scores &mdash; what the numbers mean</summary>
+    <div style="padding:10px 14px;background:#fff;border:1px solid var(--border);border-radius:5px;font-size:11px;line-height:1.65;margin-top:4px">
+      <div style="margin-bottom:7px"><b>Every number in the five dimension columns is a SCORE out of 10 &mdash; never a count of replies or meetings.</b>
+      Higher always means <i>more urgent</i>. The small grey text under each score is the raw fact behind it.</div>
+      <div style="margin-bottom:7px"><b>&ldquo;x2&rdquo; means that dimension counts double.</b> Fix recurrence and List runway are weighted x2,
+      the other three count once &mdash; which is why the maximum is 70, not 50:
+      <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px">(1 x2) + 2 + (3 x2) + 4 + 5 = 20+10+20+10+10 = 70</code></div>
+      <div style="margin-bottom:7px"><b>The two scores run in opposite directions.</b>
+      <b>Triage 0&ndash;70, higher = more urgent</b> (risk and runway).
+      <b>Health 0&ndash;100, higher = healthier</b> (green 70+, yellow 40&ndash;69, red under 40).
+      A client can be urgent <i>and</i> healthy &mdash; that means it is performing but out of list.</div>
+      <div style="margin-bottom:7px"><b>Positive reply rate</b> = positive replies &divide; <i>emails sent</i>, as a %. It looks small (0.1&ndash;0.7%)
+      because the denominator is every email sent. 0.30% is about 3 positives per 1,000 emails.</div>
+      <div style="margin-bottom:7px"><b>Floor</b> = the client&rsquo;s 20th-percentile weekly rate over its last 8 sending weeks &mdash;
+      <i>on a bad week, how bad does it get?</i> Not the single worst week, so one dead week does not max it out.
+      <b>Median floor</b> = the median of those floors across the vertical, i.e. <i>how bad a typical client in this category gets</i>. That is the yardstick each client is measured against.</div>
+      <div><b>Underperf 4/8</b> means 4 of the last 8 sending weeks missed the weekly KPI bar.</div>
+    </div></details>`;
 
   // Scores that are true but misleading if read at face value. Worth the space:
   // the Holiday Lighting 100 and the Lightning 4.3 both look like findings and are not.
