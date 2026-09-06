@@ -19,9 +19,9 @@
 // Written to clients.ended_on / ended_by / end_reason (comma-joined) /
 // end_notes. Reactivating clears them. Level 06 reads the clients table.
 
-import { state } from './app.js?v=20260905113600';
-import { esc, str } from './utils.js?v=20260905113600';
-import { supabase, showToast } from './api.js?v=20260905113600';
+import { state } from './app.js?v=20260906235521';
+import { esc, str } from './utils.js?v=20260906235521';
+import { supabase, showToast } from './api.js?v=20260906235521';
 
 export const ENDED_BY = ['They left', 'We dropped them'];
 export const END_REASONS = ['Lead volume', 'Lead quality', "They couldn't close the leads", 'Cashflow on their end', 'Seasonality', 'Other'];
