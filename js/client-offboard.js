@@ -11,11 +11,11 @@
 // What this does NOT do, by decision: pause campaigns, detach inboxes (Tim and
 // Lars finish those), touch Stripe (the retainer cron already skips inactive
 // clients), or delete Smartlead tags (they cannot be deleted).
-import { state, pendingWrites } from './app.js?v=20260907130428';
-import { esc, str, getToday } from './utils.js?v=20260907130428';
-import { supabase, showToast, sbArchiveDeal, sbDeleteDeal, sbUpdateClient, invokeEdgeFunction } from './api.js?v=20260907130428';
-import { SUPABASE_ANON_KEY } from './config.js?v=20260907130428';
-import { render } from './render.js?v=20260907130428';
+import { state, pendingWrites } from './app.js?v=20260907131448';
+import { esc, str, getToday } from './utils.js?v=20260907131448';
+import { supabase, showToast, sbArchiveDeal, sbDeleteDeal, sbUpdateClient, invokeEdgeFunction, apiPost } from './api.js?v=20260907131448';
+import { SUPABASE_ANON_KEY } from './config.js?v=20260907131448';
+import { render } from './render.js?v=20260907131448';
 
 const FULFILLMENT_FN = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/crm-client-offboard-record';
 
@@ -68,18 +68,13 @@ async function callFulfillment(body) {
 
 // The jobs no API of ours can finish. Stored on the record and shown on screen,
 // so they are handed over rather than quietly dropped.
+// Only what genuinely still needs a person. Everything else the flow now does
+// itself — the sheet's public link, the dropdowns and the GHL sub-account used
+// to live here and no longer do.
 function manualFollowups(client, systems) {
   const out = [
-    'Smartlead campaigns and inboxes — pause the campaigns and return the inboxes to the reserve pool (Tim / Lars).',
-    'Lead Tracker + Lead Entry dropdowns — remove the client name (added at activation by addClientToDropdowns in Code.gs).',
+    'Smartlead campaigns and inboxes — pause the campaigns and return the inboxes to the reserve pool. Left to a person on purpose: which inboxes go back, and when, is a judgement call.',
   ];
-  if (str(client.clientSheetId)) {
-    out.push(`Lead Tracker sheet — stop sharing it with the client: https://docs.google.com/spreadsheets/d/${str(client.clientSheetId)}/edit`);
-  }
-  if (str(client.ghlLocationId)) {
-    out.push(`GoHighLevel sub-account ${str(client.ghlLocationId)} — delete or pause it in the GHL agency dashboard.`);
-  }
-  out.push('Revenue total — not captured automatically (Stripe is out of scope); add it to the record by hand if you want it.');
   for (const r of systems || []) {
     if (r.status === 'skipped' || r.status === 'failed') {
       out.push(`${r.step}: ${r.reason || 'needs a look'}`);
@@ -162,9 +157,21 @@ async function runSteps(startIdx) {
         clientName: str(c.name),
         sheetId: str(c.clientSheetId) || null,
         portalId: str(c.smartleadClientId) || null,
+        ghlLocationId: str(c.ghlLocationId) || null,
       });
       if (r?.error) throw new Error('Disconnect: ' + r.error);
       _o.systems = r.results || [];
+
+      // Take the client out of the Lead Entry / Lead Tracker dropdowns. Apps
+      // Script owns those sheets, and this is the mirror of the call activation
+      // makes. Never fatal: the dropdown is a convenience, and the rows already
+      // in the sheet keep their value either way.
+      try {
+        const d = await apiPost('remove_client_from_dropdowns', { clientName: str(c.name) });
+        _o.systems.push({ step: 'dropdowns', status: d?.ok ? 'done' : 'failed', reason: d?.error });
+      } catch (e) {
+        _o.systems.push({ step: 'dropdowns', status: 'failed', reason: e.message });
+      }
       if (r.results?.some(x => x.step === 'smartlead_portal' && x.status === 'done')) {
         await sbUpdateClient(c.id, { smartlead_client_id: null });
         c.smartleadClientId = '';
@@ -273,6 +280,7 @@ export async function openOffboard(clientId, { reason, notes, endedOn, category 
         <li>Keep all <strong>${snap.leadTrackerRows}</strong> Lead Tracker rows — history is never touched</li>
         <li>Mark them inactive, turn off forwarding, and stop future invoicing</li>
         ${plan.map(p => `<li>${esc(str(p.action))}</li>`).join('')}
+        <li>Take them out of the Lead Entry and Lead Tracker dropdowns</li>
         <li>Write the permanent record to the fulfillment database</li>
       </ul>
       <div style="padding:8px 10px;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;font-size:11px;color:#92400e">
