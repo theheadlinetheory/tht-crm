@@ -2,7 +2,8 @@
 // DISCO OUTCOME — did the discovery call actually happen?
 // ═══════════════════════════════════════════════════════════
 //
-// Level 03 needs to know whether a booked Google Meet discovery call was HELD.
+// Level 03 (discovery scheduled → conducted; level 02 until 2026-09-07) needs
+// to know whether a booked Google Meet discovery call was HELD.
 // Nothing records it: Calendly's no_show flag is null on all 284 events and its
 // meeting-notes fields are empty, so Calendly only knows "booked" and
 // "cancelled". Phone discos are fine — JustCall carries a disposition.
@@ -20,19 +21,20 @@
 // The answer is stored as a normal CRM interaction, which means no new table and
 // no schema change: the same anon insert the call touchpoints already use.
 
-import { state } from './app.js?v=20260907124528';
-import { esc, svgIcon } from './utils.js?v=20260907124528';
-import { sbCreateInteraction, showToast } from './api.js?v=20260907124528';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260907124528';
+import { state } from './app.js?v=20260907130428';
+import { esc, svgIcon } from './utils.js?v=20260907130428';
+import { sbCreateInteraction, showToast } from './api.js?v=20260907130428';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260907130428';
 
 // pipeline-level03 runs on the CRM's own Supabase project (moved 2026-09-03). It
 // is deployed with JWT verification, so the anon key goes along as the bearer.
 const PENDING_URL =
   SUPABASE_URL + '/functions/v1/pipeline-level03?action=pending';
-// Level 05's queue is the superset: every due demo without a FINAL answer —
+// Level 06's queue (demo → closed; level 05 until 2026-09-07) is the superset:
+// every due demo without a FINAL answer —
 // nothing recorded, or still Qualified — Pending.
 const DEMO_PENDING_URL =
-  SUPABASE_URL + '/functions/v1/pipeline-level05?action=pending';
+  SUPABASE_URL + '/functions/v1/pipeline-level06?action=pending';
 
 // The rep picks one of four after the meeting. Each counts differently in
 // level 03, which is why a plain "did it happen?" was not enough:
@@ -45,12 +47,12 @@ const DEMO_PENDING_URL =
 //                   (see counting-rules.md)
 export const OUTCOME_PREFIX = 'Discovery call — ';
 
-// Level 05, same shape. A win needs no reporting — a client row in the CRM is
+// Level 06, same shape. A win needs no reporting — a client row in the CRM is
 // the signal — but a LOSS produces nothing anywhere, which is the asymmetry that
 // made this level need archaeology. Marked here for demos Aidan runs, which
 // demo_tracker structurally never sees because it is Ioannis's payout ledger.
 export const DEMO_OUTCOME_PREFIX = 'Demo — ';
-// Level 04 added No-show (the demo did not happen) and Not right now (it did,
+// Level 05 added No-show (the demo did not happen) and Not right now (it did,
 // and they are a warm follow-up — moves the deal to Nurture like the Demo
 // Tracker's outcome does). 2026-09-04.
 // The demo dropdown speaks the Demo Tracker's language, verbatim, plus No-Show
@@ -77,7 +79,7 @@ export const HELD = 'Discovery call — held';
 export const NO_SHOW = 'Discovery call — no-show';
 
 let _pending = null;      // null = not loaded yet, [] = loaded and empty
-let _pendingDemos = null; // level 04's queue: due demos with nothing recorded
+let _pendingDemos = null; // level 05's queue: due demos with nothing recorded
 let _loading = false;
 
 /** Load the queue once per session; the banner re-renders when it lands. */
@@ -105,7 +107,7 @@ function openNurture(dealId, fromDemo) {
   state._nurtureEntryDealId = dealId;
   state._nurtureEntryBucket = 'not_now';
   state._nurtureEntryFromDemo = !!fromDemo;
-  import('./render.js?v=20260907124528').then(m => m.render());
+  import('./render.js?v=20260907130428').then(m => m.render());
 }
 
 export function pendingDiscoCount() {

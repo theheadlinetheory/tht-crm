@@ -9,7 +9,7 @@
 //                               and Duplicate mean WE removed them and they leave
 //                               the level; Lost means THEY dropped and stays in.
 //                               Written as a Timeline Note: "Removed — Desk DQ".
-//   after a discovery call      level 03 owns this, through the outcome dropdown
+//   after a discovery call      level 03 (scheduled → conducted) owns this, through the outcome dropdown
 //   after a demo                on the meeting touchpoint (levels 03 and 05).
 //
 // ONE source of truth for a lost meeting (Lars, 2026-09-04): the touchpoint
@@ -23,10 +23,10 @@
 // acquisition deals here (deal-modal.js, deals.js). Everything is read from the
 // deal's Timeline at click time — nothing new is stored.
 
-import { state } from './app.js?v=20260907124528';
-import { esc } from './utils.js?v=20260907124528';
-import { sbCreateInteraction, sbGetInteractions } from './api.js?v=20260907124528';
-import { markDisco, markDemo, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260907124528';
+import { state } from './app.js?v=20260907130428';
+import { esc } from './utils.js?v=20260907130428';
+import { sbCreateInteraction, sbGetInteractions } from './api.js?v=20260907130428';
+import { markDisco, markDemo, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260907130428';
 
 export const REMOVAL_PREFIX = 'Removed — ';
 

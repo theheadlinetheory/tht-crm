@@ -1,10 +1,11 @@
 // ═══════════════════════════════════════════════════════════
-// FUNNEL — the six sales-pipeline levels, live
+// FUNNEL — the seven sales-pipeline levels, live (six until 2026-09-07, when
+// discovery split into scheduled and conducted)
 // ═══════════════════════════════════════════════════════════
 //
 // One page for the whole acquisition funnel: emails sent through to retained
 // clients. Reads `pipeline_latest` in this CRM's own database, which joins the
-// six level definitions to the most recent figure recorded for each.
+// seven level definitions to the most recent figure recorded for each.
 //
 // Every level is rendered, including the ones with no tracking yet. A row that
 // says "not tracked" is information; a level silently missing from the page
@@ -13,13 +14,13 @@
 //
 // Two things travel with every figure and must not be dropped:
 //   source  'verified' means a hand-audited number that must NOT be recomputed
-//           from thinner evidence — level 03's 61 discos were settled by
+//           from thinner evidence — the baseline's 61 discos were settled by
 //           reading 364 call recordings, and a live count cannot reproduce it.
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260907124528';
-import { supabase } from './supabase-client.js?v=20260907124528';
+import { esc, svgIcon } from './utils.js?v=20260907130428';
+import { supabase } from './supabase-client.js?v=20260907130428';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -236,12 +237,12 @@ export function renderFunnel() {
   h += _levels.map(levelCard).join('');
   h += `</div>`;
   h += `<div style="margin-top:16px;font-size:11px;color:#9ca3af;line-height:1.5">
-          A <strong>verified baseline</strong> was settled by hand against source evidence and is never recomputed from a live count — level 03's discovery calls were established by reading the call recordings one by one, which no automated count can reproduce. Live tracking adds to that baseline rather than replacing it.
+          A <strong>verified baseline</strong> was settled by hand against source evidence and is never recomputed from a live count — the baseline's discovery calls were established by reading the call recordings one by one, which no automated count can reproduce. Live tracking adds to that baseline rather than replacing it.
         </div>`;
   h += `</div>`;
   return h;
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260907124528').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260907130428').then(m => reloadFunnel(m.render));
 };

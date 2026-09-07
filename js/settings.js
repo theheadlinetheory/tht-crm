@@ -2,20 +2,20 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260907124528';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260907124528';
-import { render } from './render.js?v=20260907124528';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20260907124528';
-import { renderRoutingRules } from './routing-rules.js?v=20260907124528';
-import { esc, str, svgIcon } from './utils.js?v=20260907124528';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20260907124528';
-import { lookupClientInfo } from './client-info.js?v=20260907124528';
-import { findPolygonForClient, invalidateServiceAreaCache } from './maps.js?v=20260907124528';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260907124528';
-import { DEFAULT_BOOKING_SMS_TEMPLATE } from './booking-sms.js?v=20260907124528';
-import { renderRetainerBilling } from './retainer-billing.js?v=20260907124528';
-import { showClientEndPicker, clearClientEnd } from './client-end.js?v=20260907124528';
-import { setupBadge, setupBanner } from './client-setup-status.js?v=20260907124528';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260907130428';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260907130428';
+import { render } from './render.js?v=20260907130428';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20260907130428';
+import { renderRoutingRules } from './routing-rules.js?v=20260907130428';
+import { esc, str, svgIcon } from './utils.js?v=20260907130428';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20260907130428';
+import { lookupClientInfo } from './client-info.js?v=20260907130428';
+import { findPolygonForClient, invalidateServiceAreaCache } from './maps.js?v=20260907130428';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260907130428';
+import { DEFAULT_BOOKING_SMS_TEMPLATE } from './booking-sms.js?v=20260907130428';
+import { renderRetainerBilling } from './retainer-billing.js?v=20260907130428';
+import { showClientEndPicker, clearClientEnd } from './client-end.js?v=20260907130428';
+import { setupBadge, setupBanner } from './client-setup-status.js?v=20260907130428';
 
 export function getDefaultSettings(){
   return {
@@ -303,7 +303,7 @@ export function refreshSettingsBody(){
       window._dialerFieldsLoaded = true;
       supabase.from('crm_settings').select('value').eq('key','dialer_default_fields').single()
         .then(({ data }) => { window._dialerDefaultFields = data?.value ? JSON.parse(data.value) : []; refreshSettingsBody(); });
-      import('./number-health.js?v=20260907124528').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
+      import('./number-health.js?v=20260907130428').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
     }
     h=renderDialerSettings();
   }
@@ -822,7 +822,7 @@ function renderClientsSettings(){
 
       <!-- Offboarding (2026-09-05). Red and at the very bottom so it is never
            hit by accident; the picker it opens asks for the last day of service
-           and why (client-end.js), which is what level 06 runs on. -->
+           and why (client-end.js), which is what level 07 runs on. -->
       <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:flex-end">
         <button onclick="deactivateClient('${esc(c.id)}')" title="Offboard this client — asks for the last day of service and the reason"
           style="padding:8px 14px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">Offboard client</button>
@@ -1656,7 +1656,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260907124528');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260907130428');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);
@@ -1903,7 +1903,7 @@ window.restoreClient = async function(clientId) {
 window.createClientPortal = async function(clientId) {
   const c = state.clients.find(x => str(x.id) === str(clientId));
   if (!c) return;
-  const { portalEmail, createSmartleadPortal } = await import('./smartlead-portal.js?v=20260907124528');
+  const { portalEmail, createSmartleadPortal } = await import('./smartlead-portal.js?v=20260907130428');
   const email = portalEmail(c);
   if (!email) { showToast('Add a contact email for this client first', 'error'); return; }
   if (!confirm(`Create a Smartlead portal for ${c.name}?\n\nLogin: ${email}\n\nSmartlead has no way to delete a client portal, so this cannot be undone.`)) return;
@@ -1920,7 +1920,7 @@ window.createClientPortal = async function(clientId) {
 window.deactivateClient = async function(clientId) {
   const c = state.clients.find(x => str(x.id) === str(clientId));
   if (!c) return;
-  // Level 06 needs the last day of service and why — asked here, the one
+  // Level 07 needs the last day of service and why — asked here, the one
   // moment they are known (client-end.js). The picker writes the row.
   showClientEndPicker(clientId, { onDone: () => render() });
 };

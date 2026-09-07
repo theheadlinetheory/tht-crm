@@ -2,7 +2,8 @@
 // CLIENT END — when a client leaves, record when and why
 // ═══════════════════════════════════════════════════════════
 //
-// Level 06 of the sales pipeline (onboarded → retained past 90 days) needs two
+// Level 07 of the sales pipeline (onboarded → retained past 90 days; level 06
+// until 2026-09-07) needs two
 // facts nothing recorded before 2026-09-05: the last day of service and the
 // reason. Only Lars can supply them — he owns the client relationships — so
 // they are asked at the one moment they are known: when a client is
@@ -13,11 +14,11 @@
 // the rest are churn (counting-rules.md).
 //
 // Written to clients.ended_on / end_reason / end_notes. Reactivating clears
-// them. Level 06 reads the clients table directly.
+// them. Level 07 reads the clients table directly.
 
-import { state } from './app.js?v=20260907124528';
-import { esc, str } from './utils.js?v=20260907124528';
-import { supabase } from './api.js?v=20260907124528';
+import { state } from './app.js?v=20260907130428';
+import { esc, str } from './utils.js?v=20260907130428';
+import { supabase } from './api.js?v=20260907130428';
 
 // kind: 'churn' stays in the level as a loss · 'excluded' leaves it
 export const END_REASONS = [
@@ -53,7 +54,7 @@ export function showClientEndPicker(clientId, { onDone, onCancel } = {}) {
   const box = document.createElement('div');
   box.style.cssText = 'background:#fff;border-radius:12px;padding:24px;width:380px;box-shadow:0 8px 30px rgba(0,0,0,.2)';
   box.innerHTML = `<h3 style="margin:0 0 4px;font-size:16px">Offboard ${esc(c.name)}</h3>
-    <div style="font-size:11px;color:#6b7280;margin-bottom:14px">They move to Past Clients. Feeds level 06 of the sales pipeline: last day of service, and why.</div>
+    <div style="font-size:11px;color:#6b7280;margin-bottom:14px">They move to Past Clients. Feeds level 07 of the sales pipeline: last day of service, and why.</div>
     <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Last day of service</label>
     <input type="date" id="client-end-date" value="${today}" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);margin-bottom:12px">
     <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Notes (optional)</label>
@@ -70,7 +71,7 @@ export function showClientEndPicker(clientId, { onDone, onCancel } = {}) {
     const endedOn = (document.getElementById('client-end-date') || {}).value || today;
     const notes = str((document.getElementById('client-end-notes') || {}).value);
     div.remove();
-    const { openOffboard } = await import('./client-offboard.js?v=20260907124528');
+    const { openOffboard } = await import('./client-offboard.js?v=20260907130428');
     await openOffboard(c.id, { reason, notes, endedOn, category: kind === 'excluded' ? 'excluded' : 'churn' });
     if (onDone) onDone({ status: 'inactive', ended_on: endedOn, end_reason: reason, end_notes: notes || null });
   };
