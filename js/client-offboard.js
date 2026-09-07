@@ -11,11 +11,11 @@
 // What this does NOT do, by decision: pause campaigns, detach inboxes (Tim and
 // Lars finish those), touch Stripe (the retainer cron already skips inactive
 // clients), or delete Smartlead tags (they cannot be deleted).
-import { state, pendingWrites } from './app.js?v=20260907131448';
-import { esc, str, getToday } from './utils.js?v=20260907131448';
-import { supabase, showToast, sbArchiveDeal, sbDeleteDeal, sbUpdateClient, invokeEdgeFunction, apiPost } from './api.js?v=20260907131448';
-import { SUPABASE_ANON_KEY } from './config.js?v=20260907131448';
-import { render } from './render.js?v=20260907131448';
+import { state, pendingWrites } from './app.js?v=20260907164254';
+import { esc, str, getToday } from './utils.js?v=20260907164254';
+import { supabase, showToast, sbArchiveDeal, sbDeleteDeal, sbUpdateClient, invokeEdgeFunction, apiPost } from './api.js?v=20260907164254';
+import { SUPABASE_ANON_KEY } from './config.js?v=20260907164254';
+import { render } from './render.js?v=20260907164254';
 
 const FULFILLMENT_FN = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/crm-client-offboard-record';
 
@@ -24,7 +24,7 @@ const STEPS = [
   'Write the offboarding record',
   'Mark inactive in the CRM',
   'Archive their leads',
-  'Move Drive folders, delete portal',
+  'Disconnect Drive, Smartlead, GHL, dropdowns',
 ];
 
 let _o = null; // { client, reason, notes, endedOn, captured, recorded, crmDone, leadsDone, systems }
