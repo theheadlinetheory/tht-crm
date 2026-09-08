@@ -12,8 +12,12 @@
 //   2. INVENTORY   — a curated list of critical UI features still exists.
 //                    Deleting a feature now REQUIRES editing this list too,
 //                    which makes the removal a visible, intentional diff.
-//   3. CACHE-TOKENS — every module ?v= cache token is identical, so a stale
-//                     token can't spawn a duplicate module instance.
+//   3. CACHE-TOKENS — every local module import carries a ?v= token AND they are
+//                     all identical, so a stale or missing token can't spawn a
+//                     duplicate module instance. A MISSING token is the worse of
+//                     the two: that URL is cached forever and drags its whole
+//                     stale dependency tree in behind it (deal-modal.js shipped
+//                     two such imports and ran a second copy of the app).
 //
 // To intentionally remove a feature: delete its line from REQUIRED_FEATURES.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -140,6 +144,29 @@ console.log(`   checked ${REQUIRED_FEATURES.length} feature anchors`);
 // drift via bump-tokens.mjs before this runs, so anything still mismatched here
 // was hand-edited and genuinely wants blocking.
 console.log('3. Cache-token consistency …');
+// An import that carries NO ?v= at all is invisible to the token comparison
+// below, and far worse than a mismatched one: the browser serves that URL from
+// cache indefinitely, and the stale copy pulls in ITS whole dependency tree at
+// whatever token was current when it was cached. On 2026-09-08 two such imports
+// in deal-modal.js (blooio.js, demo-tracker.js) had a complete second copy of
+// the app running alongside the real one — a second state object, a second
+// delegate registry, duplicate realtime subscriptions.
+// Covers all three forms: `from './x.js'`, `import('./x.js')` and the bare
+// side-effect `import './x.js'` — which is the one that actually shipped.
+const UNTOKENIZED_RE = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)['"](\.[\w./-]*\.js)['"]/g;
+const untokenized = [];
+for (const rel of ['index.html', ...jsFiles.map(f => join('js', f))]) {
+  let src;
+  try { src = readFileSync(join(ROOT, rel), 'utf8'); } catch { continue; }
+  for (const m of src.matchAll(UNTOKENIZED_RE)) untokenized.push(`${rel} → ${m[1]}`);
+}
+if (untokenized.length) {
+  fail('cache-tokens', 'local module imports with no ?v= cache token — these are served stale from cache forever:');
+  for (const u of untokenized) console.error(`      ${u}`);
+} else {
+  console.log('   every local module import carries a cache token');
+}
+
 const TOKEN_RE = /([\w./-]+)\?v=([0-9A-Za-z]+)/g;
 const tokens = new Map(); // token -> [ "file: importedThing", ... ]
 const scan = ['index.html', ...jsFiles.map(f => join('js', f))];

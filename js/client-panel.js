@@ -17,13 +17,13 @@
 // mid-edit. Edits save straight to Supabase (debounced) and patch the affected
 // DOM nodes in place — the panel is never wholesale re-rendered while open.
 
-import { state } from './app.js?v=20260908130712';
-import { esc, str, getToday, isValidDate, svgIcon } from './utils.js?v=20260908130712';
-import { isAdmin } from './auth.js?v=20260908130712';
-import { lookupClientInfo } from './client-info.js?v=20260908130712';
-import { sbUpdateClient, sbGetWonAcquisitionCards } from './api.js?v=20260908130712';
-import { registerActions } from './delegate.js?v=20260908130712';
-import { buildAcquisitionCard, indexWonCards, matchCardForClient, answeredQuestions } from './client-acquisition.js?v=20260908130712';
+import { state } from './app.js?v=20260908131450';
+import { esc, str, getToday, isValidDate, svgIcon } from './utils.js?v=20260908131450';
+import { isAdmin } from './auth.js?v=20260908131450';
+import { lookupClientInfo } from './client-info.js?v=20260908131450';
+import { sbUpdateClient, sbGetWonAcquisitionCards } from './api.js?v=20260908131450';
+import { registerActions } from './delegate.js?v=20260908131450';
+import { buildAcquisitionCard, indexWonCards, matchCardForClient, answeredQuestions } from './client-acquisition.js?v=20260908131450';
 
 const OVERLAY_ID = 'client-info-overlay';
 
@@ -155,8 +155,8 @@ function fillAcquisitionSection(clientName) {
     if (cl && !str(cl.location).trim() && card.location) {
       const hint = document.getElementById('cp-loc-hint');
       if (hint) {
-        hint.innerHTML = ` · <button data-action="cpUseAcqLocation" data-value="${esc(card.location)}"
-          style="background:none;border:none;padding:0;font-size:11px;color:#2563eb;cursor:pointer;font-weight:600">Use "${esc(card.location)}" from acquisition</button>`;
+        hint.innerHTML = `<button data-action="cpUseAcqLocation" data-value="${esc(card.location)}"
+          style="background:none;border:none;padding:0;font-size:11px;color:#2563eb;cursor:pointer;font-weight:600;text-align:left">Use "${esc(card.location)}" from the acquisition card</button>`;
       }
     }
   }).catch(() => {
@@ -257,12 +257,17 @@ export function openClientInfoPanel(clientName) {
   const appts = (state.appointments || []).filter(a => a.clientName === clientName && a.apptDate >= todayStr)
     .sort((a, b) => (a.apptDate + (a.apptTime || '')).localeCompare(b.apptDate + (b.apptTime || '')));
 
+  // NOTE: the card deliberately has NO onclick="event.stopPropagation()". The old
+  // panel used inline handlers so it never mattered, but delegate.js listens on
+  // document.body — stopping propagation here silently kills every data-action
+  // inside the panel. The overlay's own `event.target === this` guard is what
+  // keeps an inside click from dismissing it; stopPropagation was never needed.
   let h = `<div id="${OVERLAY_ID}" style="position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.45);display:flex;justify-content:center;align-items:start;padding:40px 20px;overflow-y:auto" onclick="if(event.target===this)closeClientInfoPanel()">
-    <div style="background:#fff;border-radius:12px;max-width:640px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.2);animation:fadeIn .15s ease" onclick="event.stopPropagation()">
+    <div style="background:#fff;border-radius:12px;max-width:640px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.2);animation:fadeIn .15s ease">
       <div style="padding:20px 24px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
         <div>
           <h2 style="margin:0;font-size:18px;color:#1e293b">${esc(clientName)}</h2>
-          <div style="font-size:12px;color:#64748b;margin-top:2px"><span id="cp-subtitle">${info.location ? esc(info.location) : ''}${info.timeZone ? ' (' + esc(info.timeZone) + ')' : ''}</span><span id="cp-loc-hint"></span></div>
+          <div style="font-size:12px;color:#64748b;margin-top:2px"><span id="cp-subtitle">${info.location ? esc(info.location) : ''}${info.timeZone ? ' (' + esc(info.timeZone) + ')' : ''}</span></div>
         </div>
         <button data-action="cpClose" style="background:none;border:none;font-size:20px;color:#94a3b8;cursor:pointer">&times;</button>
       </div>
@@ -288,7 +293,7 @@ export function openClientInfoPanel(clientName) {
   if (str(cl.serviceAreaUrl).trim()) {
     h += `<div style="margin:-8px 0 16px"><a href="${esc(str(cl.serviceAreaUrl))}" target="_blank" rel="noopener" style="font-size:12px;color:#2563eb;text-decoration:none;font-weight:600">Open Service Area Map ↗</a></div>`;
   }
-  h += editableBlock('location', cl);
+  h += editableBlock('location', cl) + `<div id="cp-loc-hint" style="margin:-12px 0 16px"></div>`;
   h += editableBlock('warmCallNotesText', cl, { tone: { wrap: 'padding:12px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0', label: '#166534' } });
 
   h += `<div style="margin-bottom:16px">
