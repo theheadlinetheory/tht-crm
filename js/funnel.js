@@ -19,13 +19,19 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260908100821';
-import { supabase } from './supabase-client.js?v=20260908100821';
+import { esc, svgIcon } from './utils.js?v=20260908123148';
+import { supabase } from './supabase-client.js?v=20260908123148';
+import { PERIODS, periodRange, fetchPeriod } from './funnel-period.js?v=20260908123148';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
 let _loading = false;
 let _error = null;
+// Day / week views (funnel-period.js): 'all' reads pipeline_latest; anything
+// else asks the level functions for the period and caches the answer here.
+let _period = 'all';
+const _periodData = {};   // key → rows shaped like pipeline_latest
+let _periodLoading = null; // key being fetched
 
 export function loadFunnel(rerender) {
   if (_levels !== null || _loading) return;
@@ -42,8 +48,25 @@ export function loadFunnel(rerender) {
 /** Force a refetch — used by the Refresh button. */
 export function reloadFunnel(rerender) {
   _levels = null; _error = null;
+  for (const k of Object.keys(_periodData)) delete _periodData[k];
   loadFunnel(rerender);
+  if (_period !== 'all') loadPeriod(_period, rerender);
 }
+
+function loadPeriod(key, rerender) {
+  if (_periodData[key] || _periodLoading === key) return;
+  _periodLoading = key;
+  fetchPeriod(periodRange(key), _levels || []).then(rows => {
+    _periodData[key] = rows;
+  }).catch(e => {
+    _periodData[key] = { error: String(e && e.message || e) };
+  }).finally(() => { _periodLoading = null; if (rerender) rerender(); });
+}
+
+window.setFunnelPeriod = (key) => {
+  _period = key;
+  import('./render.js?v=20260908123148').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+};
 
 const STATUS_STYLE = {
   live:          { bg: '#dcfce7', fg: '#166534', label: 'Live' },
@@ -133,10 +156,15 @@ function levelCard(l) {
     });
     if (l.snapshot_date) {
       h += `<div style="font-size:10px;color:#9ca3af;margin-top:2px">as of ${esc(String(l.snapshot_date))}</div>`;
+    } else if (l.fetched_at) {
+      h += `<div style="font-size:10px;color:#9ca3af;margin-top:2px">as of ${esc(ago(l.fetched_at))}</div>`;
     }
     const d = l.detail || {};
     // One short line stays with the number: the window and the counting rule.
     if (d.note) h += `<div style="font-size:11px;color:#6b7280;margin-top:4px">${esc(String(d.note))}</div>`;
+    // In a day / week view: what actually happened in the period, whatever
+    // cohort the lead belongs to — the line a rep checks against their day.
+    if (d.activity && d.activity.length) h += activityLine(d.activity);
     // Rep removals are the most common reason a level shrinks and a signal in
     // their own right (a high desk-DQ share = list targeting), so they get their
     // own always-visible block with one tile per reason (Lars, 2026-09-04).
@@ -163,6 +191,12 @@ function levelCard(l) {
   }
   h += `</div></div>`;
   return h;
+}
+
+/** The events of the period, for the reps to check against what they did. */
+function activityLine(items) {
+  const bits = items.map(a => `<span style="white-space:nowrap"><strong style="color:#1e1b4b;font-variant-numeric:tabular-nums">${fmtCount(a.value)}</strong> ${esc(String(a.label))}</span>`).join('<span style="color:#d1d5db"> · </span>');
+  return `<div style="margin-top:8px;padding:6px 10px;border:1px solid #c7d2fe;background:#eef2ff;border-radius:8px;font-size:12px;color:#374151;display:flex;gap:6px;flex-wrap:wrap;align-items:baseline"><span style="font-size:10px;font-weight:700;color:#4338ca;letter-spacing:.03em">IN THIS PERIOD</span>${bits}</div>`;
 }
 
 /** What the reps removed from a level, per reason, shown big. Not losses —
@@ -209,6 +243,31 @@ function breakdownTable(rows) {
   return h + `</table></div>`;
 }
 
+function periodLabel(key) {
+  const r = periodRange(key);
+  const p = PERIODS.find(x => x.key === key);
+  if (!r) return 'all time';
+  return `${p ? p.label.toLowerCase() : key} (${r.from === r.to ? r.from : r.from + ' → ' + r.to})`;
+}
+
+/** Today · Yesterday · This week · Last week · All — days in Los Angeles time. */
+function periodBar() {
+  let h = `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:12px">`;
+  PERIODS.forEach(p => {
+    const on = _period === p.key;
+    h += `<button onclick="setFunnelPeriod('${p.key}')" style="padding:5px 12px;border:1px solid ${on ? '#1e1b4b' : 'var(--border)'};border-radius:999px;background:${on ? '#1e1b4b' : 'var(--card)'};color:${on ? '#fff' : '#374151'};font-size:12px;font-weight:600;cursor:pointer">${esc(p.label)}</button>`;
+  });
+  const r = periodRange(_period);
+  h += `<span style="font-size:11px;color:#9ca3af;margin-left:4px">${r ? esc(r.from === r.to ? r.from : r.from + ' → ' + r.to) + ' · Los Angeles days · each level shows the leads that entered it in the period, and what happened in the period' : 'everything since the window opened, refreshed hourly'}</span>`;
+  return h + `</div>`;
+}
+
+function levelError(l) {
+  return `<div style="border:1px solid var(--border);border-radius:10px;padding:14px 16px;background:var(--card);display:flex;gap:16px;align-items:center">
+    <div style="flex-shrink:0;width:34px;height:34px;border-radius:8px;background:#1e1b4b;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">${esc(l.level)}</div>
+    <div><div style="font-size:14px;font-weight:700;color:#1e1b4b">${esc(l.label)}</div><div style="font-size:12px;color:#b91c1c">No answer for this period: ${esc(String(l.error))}</div></div></div>`;
+}
+
 window.toggleFunnelDetails = (level) => {
   if (_open.has(level)) _open.delete(level); else _open.add(level);
   const el = document.getElementById('funnel-details-' + level);
@@ -233,8 +292,16 @@ export function renderFunnel() {
           </div>
           <button onclick="refreshFunnel()" style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border:1px solid var(--border);border-radius:7px;background:var(--card);font-size:12px;cursor:pointer">${svgIcon('refresh-cw', 12)} Refresh</button>
         </div>`;
-  h += `<div style="display:flex;flex-direction:column;gap:10px;margin-top:14px">`;
-  h += _levels.map(levelCard).join('');
+  h += periodBar();
+  h += `<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">`;
+  if (_period === 'all') {
+    h += _levels.map(levelCard).join('');
+  } else {
+    const rows = _periodData[_period];
+    if (!rows) h += `<div style="padding:16px;color:#9ca3af;font-size:13px">Asking every level for ${esc(periodLabel(_period))}…</div>`;
+    else if (rows.error) h += `<div style="padding:16px;color:#b91c1c;font-size:13px">Could not load ${esc(periodLabel(_period))}: ${esc(rows.error)}</div>`;
+    else h += rows.map(r => r.error ? levelError(r) : levelCard(r)).join('');
+  }
   h += `</div>`;
   h += `<div style="margin-top:16px;font-size:11px;color:#9ca3af;line-height:1.5">
           A <strong>verified baseline</strong> was settled by hand against source evidence and is never recomputed from a live count — the baseline's discovery calls were established by reading the call recordings one by one, which no automated count can reproduce. Live tracking adds to that baseline rather than replacing it.
@@ -244,5 +311,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260908100821').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260908123148').then(m => reloadFunnel(m.render));
 };
