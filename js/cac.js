@@ -104,7 +104,6 @@ export function renderCacTab(){
   }
 
   const months = (state.cacReport.months||[]).slice().reverse(); // newest first
-  const current = months.find(m => m.to_date);
   const allTime = state.cacReport.all_time;
   const sinceLabel = months.length ? months[months.length-1].label : 'Aug 2026';
 
@@ -113,16 +112,6 @@ export function renderCacTab(){
     html += `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">
       ${renderStatCard('Cash CAC — All-time · since '+sinceLabel, fmtCac(allTime.cash_cac), fmtUsd(allTime.cash_spend)+' spend / '+allTime.signed+' signed')}
       ${renderStatCard('Loaded CAC — All-time · since '+sinceLabel, fmtCac(allTime.loaded_cac), fmtUsd(allTime.loaded_spend)+' spend / '+allTime.signed+' signed')}
-    </div>`;
-  }
-
-  // Secondary: the current month to date, compact.
-  if(current){
-    html += `<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px 16px;margin-bottom:18px;display:flex;gap:18px;flex-wrap:wrap;align-items:baseline;font-size:12px">
-      <span style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">${esc(current.label)} (to date)</span>
-      <span>Cash CAC <b>${fmtCac(current.cash_cac)}</b></span>
-      <span>Loaded CAC <b>${fmtCac(current.loaded_cac)}</b></span>
-      <span style="color:var(--text-muted)">${fmtUsd(current.cash_spend)} cash / ${fmtUsd(current.loaded_spend)} loaded spend · ${current.signed} signed</span>
     </div>`;
   }
 
