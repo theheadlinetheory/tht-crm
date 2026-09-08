@@ -50,7 +50,7 @@ const fmtCac = n => (n === null || n === undefined) ? '—' : fmtUsd(n);
 
 // vendor slugs -> readable component names (fall back to the raw slug)
 const COMPONENT_LABELS = {
-  'ioannis demo_qualified':'Ioannis — qualified demo', 'ioannis demo_close_bonus':'Ioannis — close bonus',
+  'ioannis demo_qualified':'SDR commission — qualified demo', 'ioannis demo_close_bonus':'SDR commission — close bonus',
   'zapmail mailbox':'Zapmail mailboxes', 'spaceship domain':'Spaceship domains',
   'outscraper gmaps_data':'Outscraper scraping', 'outscraper emails_contacts':'Outscraper enrichment',
   'localpipe owner_name':'LocalPipe owner names', 'localpipe owner_email':'LocalPipe owner emails',
@@ -150,7 +150,7 @@ export function renderCacTab(){
 
   html += `<div style="font-size:11px;color:var(--text-muted);margin-top:8px;line-height:1.6">
     Loaded = every acquisition cost (tools, data, mailboxes, selling labor). Cash = loaded minus selling labor
-    (Ioannis's demo payouts). Signed = clients created in the CRM that month, any status. Numbers refresh from
+    (SDR commissions). Signed = clients created in the CRM that month, any status. Numbers refresh from
     the daily cost jobs — tracked from Aug 2026. Click a month for the component breakdown.
   </div></div>`;
   return html;
