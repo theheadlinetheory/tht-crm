@@ -11,12 +11,12 @@
 // Mirrors the SmartLead thread viewer in threads.js — on-demand button, latest
 // message expanded, older ones behind a toggle — so the two read the same way.
 
-import { state } from './app.js?v=20260908133932';
-import { esc, str, svgIcon } from './utils.js?v=20260908133932';
-import { isAdmin, currentUser } from './auth.js?v=20260908133932';
-import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20260908133932';
-import { refreshModal } from './render.js?v=20260908133932';
-import { sbUpdateDeal } from './api.js?v=20260908133932';
+import { state } from './app.js?v=20260908134223';
+import { esc, str, svgIcon } from './utils.js?v=20260908134223';
+import { isAdmin, currentUser } from './auth.js?v=20260908134223';
+import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20260908134223';
+import { refreshModal } from './render.js?v=20260908134223';
+import { sbUpdateDeal } from './api.js?v=20260908134223';
 
 const _cache = {};   // `${dealId}|${mailbox}` -> { threads, participants }
 const _state = {};   // dealId -> { mailbox, loading, error }
