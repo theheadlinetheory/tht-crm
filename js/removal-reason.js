@@ -23,10 +23,10 @@
 // acquisition deals here (deal-modal.js, deals.js). Everything is read from the
 // deal's Timeline at click time — nothing new is stored.
 
-import { state } from './app.js?v=20260908143358';
-import { esc } from './utils.js?v=20260908143358';
-import { sbCreateInteraction, sbGetInteractions } from './api.js?v=20260908143358';
-import { markDisco, markDemo, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260908143358';
+import { state } from './app.js?v=20260908143625';
+import { esc } from './utils.js?v=20260908143625';
+import { sbCreateInteraction, sbGetInteractions } from './api.js?v=20260908143625';
+import { markDisco, markDemo, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260908143625';
 
 export const REMOVAL_PREFIX = 'Removed — ';
 
@@ -45,6 +45,7 @@ const HELD_MARKS = new Set(['demo booked', 'not interested', 'disqualified', 'no
 
 // What the archive status becomes for each answer.
 const PHONE_DQ_STATUS = 'Disqualified on a phone call'; // pipeline-leads reads this status as removed-by-us
+const PHONE_NO_STATUS = 'Not interested on a phone call'; // …and this one as a loss (they dropped)
 const DISCO_STATUS = (o) => 'Discovery — ' + o;
 const DEMO_STATUS = (o) => /Closed Won|^Won$/.test(o) ? 'Closed Won' : 'Demo — ' + o;
 // Which answers WE gave (leave the level) vs THEY gave — only for the colour.
@@ -96,18 +97,23 @@ export async function leadStage(dealId) {
   const now = new Date().toISOString();
   let demo = !!(deal && DEMO_STAGES.has(deal.stage));
   let disco = false, discoMark = null, demoMark = null;
-  // The latest JustCall disposition that disqualified the lead on a call that
-  // never became a disco ("Disco NOT Conducted: DQ — out of ICP"). That IS the
-  // removal reason — the setter logged it in JustCall already, so archiving
-  // must not ask again (Lars, 2026-09-08). Level 01 reads the disposition.
-  let phoneDq = null;
+  // The latest JustCall disposition that settled the lead on a call that never
+  // became a disco — "Disco NOT Conducted: DQ - Out of ICP" (we removed them)
+  // or "… Not Interested" (they dropped). That IS the archive reason: the
+  // setter logged it in JustCall already, so archiving must not ask again
+  // (Lars, 2026-09-08). Busy / No Answer / Gatekeeper / Disco Scheduled are
+  // not answers, so the list still comes up for those.
+  let phoneDq = null, phoneNo = false;
   const bookings = new Map(); // meeting time → cancelled?
   let pendingFor = null;
   // rows arrive newest first; the first mark seen is the latest answer.
   for (const r of rows) {
     const h = head(r);
     if (r.type === 'Call' && h.includes('Disco Conducted:')) disco = true;
-    if (r.type === 'Call' && !phoneDq && /NOT Conducted: DQ/i.test(h)) phoneDq = h.split(' — ')[1]?.split(' · ')[0]?.trim() || 'DQ';
+    if (r.type === 'Call' && !phoneDq && !phoneNo) {
+      if (/NOT Conducted: DQ/i.test(h)) phoneDq = h.split(' — ')[1]?.split(' · ')[0]?.trim() || 'DQ';
+      else if (/NOT Conducted: Not Interested/i.test(h)) phoneNo = true;
+    }
     if (r.type !== 'Meeting') continue;
     if (h.startsWith(DEMO_OUTCOME_PREFIX)) {
       demo = true;
@@ -128,7 +134,7 @@ export async function leadStage(dealId) {
     if (!cancelled && when.replace(' ', 'T') + ':00Z' < now) pendingFor = pendingFor || when;
   }
   const stage = demo ? 'demo' : disco ? 'disco' : pendingFor ? 'disco_pending' : 'pre';
-  return { stage, when: pendingFor, discoMark, demoMark, phoneDq };
+  return { stage, when: pendingFor, discoMark, demoMark, phoneDq, phoneNo };
 }
 
 /** The archive status a recorded answer maps to, or null when nothing is recorded. */
@@ -140,9 +146,10 @@ function recordedStatus(info) {
     if (info.discoMark === 'held') return DISCO_STATUS('held');
     if (DISCO_OUTCOMES.includes(info.discoMark)) return DISCO_STATUS(info.discoMark);
   }
-  // Disqualified on a phone call before any disco: the JustCall disposition on
-  // the timeline is the reason. No note is written — the ledger reads the call.
+  // Settled on a phone call before any disco: the JustCall disposition on the
+  // timeline is the reason. No note is written — the ledger reads the call.
   if (info.stage === 'pre' && info.phoneDq) return PHONE_DQ_STATUS;
+  if (info.stage === 'pre' && info.phoneNo) return PHONE_NO_STATUS;
   return null;
 }
 
