@@ -2,20 +2,20 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260908143625';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260908143625';
-import { render } from './render.js?v=20260908143625';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20260908143625';
-import { renderRoutingRules } from './routing-rules.js?v=20260908143625';
-import { esc, str, svgIcon } from './utils.js?v=20260908143625';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20260908143625';
-import { lookupClientInfo } from './client-info.js?v=20260908143625';
-import { findPolygonForClient, invalidateServiceAreaCache } from './maps.js?v=20260908143625';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260908143625';
-import { DEFAULT_BOOKING_SMS_TEMPLATE } from './booking-sms.js?v=20260908143625';
-import { renderRetainerBilling } from './retainer-billing.js?v=20260908143625';
-import { showClientEndPicker, clearClientEnd } from './client-end.js?v=20260908143625';
-import { setupBadge, setupBanner } from './client-setup-status.js?v=20260908143625';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20260908144128';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20260908144128';
+import { render } from './render.js?v=20260908144128';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20260908144128';
+import { renderRoutingRules } from './routing-rules.js?v=20260908144128';
+import { esc, str, svgIcon } from './utils.js?v=20260908144128';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20260908144128';
+import { lookupClientInfo } from './client-info.js?v=20260908144128';
+import { findPolygonForClient, invalidateServiceAreaCache } from './maps.js?v=20260908144128';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20260908144128';
+import { DEFAULT_BOOKING_SMS_TEMPLATE } from './booking-sms.js?v=20260908144128';
+import { renderRetainerBilling } from './retainer-billing.js?v=20260908144128';
+import { showClientEndPicker, clearClientEnd } from './client-end.js?v=20260908144128';
+import { setupBadge, setupBanner } from './client-setup-status.js?v=20260908144128';
 
 export function getDefaultSettings(){
   return {
@@ -303,7 +303,7 @@ export function refreshSettingsBody(){
       window._dialerFieldsLoaded = true;
       supabase.from('crm_settings').select('value').eq('key','dialer_default_fields').single()
         .then(({ data }) => { window._dialerDefaultFields = data?.value ? JSON.parse(data.value) : []; refreshSettingsBody(); });
-      import('./number-health.js?v=20260908143625').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
+      import('./number-health.js?v=20260908144128').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
     }
     h=renderDialerSettings();
   }
@@ -1656,7 +1656,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260908143625');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20260908144128');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);
@@ -1887,14 +1887,67 @@ window.parseOnboardingDoc = parseOnboardingDoc;
 window.renderOnboardingModal = renderOnboardingModal;
 window.saveOnboardingData = saveOnboardingData;
 
+// Restoring undoes what offboarding did to the CRM record AND rebuilds the
+// Smartlead portal, which offboarding deletes outright.
+//
+// The portal comes back with the same login: crm-smartlead-client uses one
+// shared password for every client portal by design, so there is nothing to
+// store at offboard time and nothing to look up here.
+//
+// Campaigns and inboxes are deliberately NOT handled — offboarding leaves those
+// to a person (which inboxes return to the reserve pool, and when, is a
+// judgement call), so the confirm says so rather than implying a full undo.
 window.restoreClient = async function(clientId) {
   const c = state.clients.find(x => str(x.id) === str(clientId));
-  if (!c || !confirm(`Restore ${c.name} to active clients?`)) return;
+  if (!c) return;
+  if (!confirm(
+    `Restore ${c.name} to active clients?\n\n` +
+    `This brings back their board column, billing and Smartlead portal (same login as before).\n\n` +
+    `Smartlead campaigns and inboxes are not restored — those were paused by hand and need a person.`
+  )) return;
+
   c.status = 'active';
   render();
   const { error } = await supabase.from('clients').update({ status: 'active' }).eq('id', clientId);
-  if (error) { showToast('Restore failed: ' + error.message, 'error'); c.status = 'inactive'; render(); }
-  else { clearClientEnd(clientId); c.endedOn = null; c.endReason = null; showToast(`${c.name} restored`, 'success'); }
+  if (error) {
+    showToast('Restore failed: ' + error.message, 'error');
+    c.status = 'inactive';
+    render();
+    return;
+  }
+  clearClientEnd(clientId);
+  c.endedOn = null;
+  c.endReason = null;
+
+  // The client is already restored by this point. A Smartlead outage must not
+  // undo that — report the portal separately and leave the Settings "Create
+  // Portal" button as the retry.
+  if (str(c.smartleadClientId)) {
+    showToast(`${c.name} restored`, 'success');
+    return;
+  }
+  showToast(`${c.name} restored — rebuilding their Smartlead portal…`, 'success');
+  try {
+    const { createSmartleadPortal } = await import('./smartlead-portal.js?v=20260908144128');
+    const r = await createSmartleadPortal(c);
+    render();
+    // crm-smartlead-client writes the id onto the clients row itself, with a
+    // service key — no second write from here. But that write-back is designed
+    // never to fail the request, so it reports whether it landed, and a silent
+    // miss would leave the portal orphaned from the CRM.
+    if (r.storedOnCrm === false) {
+      showToast(`${c.name}: portal is back (id ${r.clientId}) but did not save to their row — ${r.storeNote || 'unknown reason'}`, 'error');
+    } else {
+      showToast(
+        r.existed
+          ? `${c.name}: portal already existed — relinked it (id ${r.clientId})`
+          : `${c.name}: portal rebuilt — login ${r.email}, password in Slack`,
+        'success',
+      );
+    }
+  } catch (e) {
+    showToast(`${c.name} is restored, but the Smartlead portal failed: ${e?.message || e}. Use Create Portal on their row to retry.`, 'error');
+  }
 };
 
 // Manual portal creation, for clients signed before the Won modal did it. The
@@ -1903,7 +1956,7 @@ window.restoreClient = async function(clientId) {
 window.createClientPortal = async function(clientId) {
   const c = state.clients.find(x => str(x.id) === str(clientId));
   if (!c) return;
-  const { portalEmail, createSmartleadPortal } = await import('./smartlead-portal.js?v=20260908143625');
+  const { portalEmail, createSmartleadPortal } = await import('./smartlead-portal.js?v=20260908144128');
   const email = portalEmail(c);
   if (!email) { showToast('Add a contact email for this client first', 'error'); return; }
   if (!confirm(`Create a Smartlead portal for ${c.name}?\n\nLogin: ${email}\n\nSmartlead has no way to delete a client portal, so this cannot be undone.`)) return;
