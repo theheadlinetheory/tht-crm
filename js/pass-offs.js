@@ -1,9 +1,9 @@
-import { state, pendingWrites } from './app.js?v=20260909034836';
-import { sbUpdatePassOff, sbDeletePassOff, camelToSnake, normalizeRow, showToast } from './api.js?v=20260909034836';
-import { isAdmin, isEmployee } from './auth.js?v=20260909034836';
-import { esc, str } from './utils.js?v=20260909034836';
-import { render } from './render.js?v=20260909034836';
-import { weekStartOf, ymd, weekLabel, currentWeekKey } from './dashboard.js?v=20260909034836';
+import { state, pendingWrites } from './app.js?v=20260909035149';
+import { sbUpdatePassOff, sbDeletePassOff, camelToSnake, normalizeRow, showToast } from './api.js?v=20260909035149';
+import { isAdmin, isEmployee } from './auth.js?v=20260909035149';
+import { esc, str } from './utils.js?v=20260909035149';
+import { render } from './render.js?v=20260909035149';
+import { weekStartOf, ymd, weekLabel } from './dashboard.js?v=20260909035149';
 
 // The billing month ('July/26') is deliberately not a column — the sheet shows
 // the exact date the lead was passed off instead.
@@ -44,7 +44,12 @@ function getFilteredPassOffs() {
 
   if (f.client) entries = entries.filter(e => e.clientName === f.client);
   if (f.dateFrom) {
-    const from = new Date(f.dateFrom).getTime();
+    // 'T00:00:00' forces a LOCAL midnight. A bare 'YYYY-MM-DD' is parsed as UTC,
+    // which west of UTC put the start of the range 7 hours early — filtering to
+    // September began at 5pm on Aug 31 and pulled that evening's pass-offs in,
+    // so a summary card and its own filtered table could disagree by a lead.
+    // dateTo below has always been local; this makes the two ends match.
+    const from = new Date(f.dateFrom + 'T00:00:00').getTime();
     entries = entries.filter(e => parseDate(e.datePassed) >= from);
   }
   if (f.dateTo) {
@@ -91,18 +96,79 @@ async function savePassOffNote(id, value) {
   }
 }
 
-// Weekly (Mon–Sun) buckets, keyed by the Monday that starts the week.
-function getWeeklySummary(entries) {
-  const byWeek = {};
-  for (const e of entries) {
-    const ws = e.datePassed ? weekStartOf(new Date(e.datePassed)) : null;
-    const key = ws ? ymd(ws) : '';
-    if (!key) continue;
-    if (!byWeek[key]) byWeek[key] = {};
-    const client = e.clientName || 'Unknown';
-    byWeek[key][client] = (byWeek[key][client] || 0) + 1;
+const PERIODS_SHOWN = 6;
+const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+const pad2 = n => String(n).padStart(2, '0');
+const monthKeyOf = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+
+// The period a pass-off counts in — its LOCAL calendar date, matching both
+// formatDate() in the table below and localDay() in weekly-context.js. A UTC
+// slice would file a late-evening pass-off under a different month than the
+// date printed on its own row.
+function periodKeyOf(datePassed, period) {
+  if (!datePassed) return '';
+  const d = new Date(datePassed);
+  if (isNaN(d.getTime())) return '';
+  if (period === 'week') {
+    const ws = weekStartOf(d);
+    return ws ? ymd(ws) : '';
   }
-  return byWeek;
+  return monthKeyOf(d);
+}
+
+/**
+ * Summary buckets for the cards, OLDEST FIRST — the order they are read in.
+ *
+ * The run is CONTINUOUS and ends at the current period, rather than being the
+ * keys that happen to have data. A period with no pass-offs used to vanish
+ * from the row entirely, so six cards could silently span nine weeks and put
+ * two non-adjacent numbers side by side: the row jumped Aug 3–9 → Jul 20–26
+ * because Jul 27–Aug 2 was empty. An empty period now reads as a real zero.
+ */
+function getPeriodSummary(entries, period, count) {
+  const buckets = new Map();
+  const now = new Date();
+
+  if (period === 'week') {
+    const start = weekStartOf(now);
+    for (let i = count - 1; i >= 0; i--) {
+      const d = new Date(start);
+      d.setDate(d.getDate() - i * 7);
+      const key = ymd(d);
+      buckets.set(key, { key, label: weekLabel(key), current: 'this week', counts: {}, total: 0 });
+    }
+  } else {
+    for (let i = count - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      buckets.set(monthKeyOf(d), {
+        key: monthKeyOf(d),
+        label: `${MONTH_ABBR[d.getMonth()]} ${d.getFullYear()}`,
+        current: 'this month', counts: {}, total: 0,
+      });
+    }
+  }
+
+  for (const e of entries) {
+    const b = buckets.get(periodKeyOf(e.datePassed, period));
+    if (!b) continue;
+    const client = e.clientName || 'Unknown';
+    b.counts[client] = (b.counts[client] || 0) + 1;
+    b.total++;
+  }
+  return [...buckets.values()];
+}
+
+// First and last day of a period key, as 'YYYY-MM-DD' — clicking a card writes
+// these straight into the existing From/To filter.
+function periodRange(key, period) {
+  if (period === 'week') {
+    const [y, m, d] = key.split('-').map(Number);
+    const end = new Date(y, m - 1, d + 6);
+    return { from: key, to: ymd(end) };
+  }
+  const [y, m] = key.split('-').map(Number);
+  return { from: `${key}-01`, to: ymd(new Date(y, m, 0)) };
 }
 
 export function renderPassOffs() {
@@ -116,25 +182,48 @@ export function renderPassOffs() {
 
   let html = `<div class="tracker-container">`;
 
-  // Summary cards — one per week (Mon–Sun), most recent first
-  const summary = getWeeklySummary(entries);
-  const weeks = Object.keys(summary).sort().reverse();
-  const thisWeek = currentWeekKey();
+  // Summary cards — oldest on the LEFT, reading forward in time to the current
+  // period on the right. They used to run newest-first, so the row read
+  // backwards against the way the dates on it are read.
+  const period = state.passOffsPeriod === 'week' ? 'week' : 'month';
+  const periods = getPeriodSummary(entries, period, PERIODS_SHOWN);
+  const currentKey = periods.length ? periods[periods.length - 1].key : '';
+  const ranged = !!(f.dateFrom || f.dateTo);
 
-  if (weeks.length > 0) {
-    html += `<div style="display:flex;gap:12px;flex-wrap:wrap;padding:0 0 12px 0">`;
-    for (const week of weeks.slice(0, 6)) {
-      const clientCounts = summary[week];
-      const total = Object.values(clientCounts).reduce((a, b) => a + b, 0);
-      const isCurrent = week === thisWeek;
-      html += `<div style="background:var(--bg-card);border:1px solid ${isCurrent ? 'var(--purple)' : 'var(--border)'};border-radius:8px;padding:10px 16px;min-width:150px">
-        <div style="font-size:11px;color:var(--text-muted);font-weight:600">${esc(weekLabel(week))}${isCurrent ? ' · this week' : ''}</div>
-        <div style="font-size:22px;font-weight:700;color:var(--text)">${total}</div>
-        <div style="font-size:10px;color:var(--text-muted)">${Object.entries(clientCounts).map(([c, n]) => `${esc(c)}: ${n}`).join(', ')}</div>
-      </div>`;
-    }
-    html += `</div>`;
+  html += `<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:stretch;padding:0 0 12px 0">`;
+
+  // Total, pinned at the left as the anchor the period cards are read against.
+  // Reflects whatever filter is applied, so it says which total it is rather
+  // than claiming "all time" over a date range.
+  const totalClients = new Set(entries.map(e => e.clientName || 'Unknown'));
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-left:3px solid var(--purple);border-radius:8px;padding:10px 16px;min-width:150px">
+    <div style="font-size:11px;color:var(--text-muted);font-weight:600">${ranged ? 'Total in range' : 'Total all time'}</div>
+    <div style="font-size:22px;font-weight:700;color:var(--text)">${entries.length}</div>
+    <div style="font-size:10px;color:var(--text-muted)">${f.client ? esc(f.client) : `across ${totalClients.size} client${totalClients.size === 1 ? '' : 's'}`}</div>
+  </div>`;
+
+  for (const p of periods) {
+    const isCurrent = p.key === currentKey;
+    const r = periodRange(p.key, period);
+    const isPicked = f.dateFrom === r.from && f.dateTo === r.to;
+    const breakdown = Object.entries(p.counts).map(([c, n]) => `${esc(c)}: ${n}`).join(', ');
+    html += `<div onclick="passOffPickPeriod('${r.from}','${r.to}')" title="Filter the table to ${esc(p.label)}"
+      style="background:${isPicked ? 'var(--bg-hover, #f1f5f9)' : 'var(--bg-card)'};border:1px solid ${isCurrent || isPicked ? 'var(--purple)' : 'var(--border)'};border-radius:8px;padding:10px 16px;min-width:150px;cursor:pointer">
+      <div style="font-size:11px;color:var(--text-muted);font-weight:600">${esc(p.label)}${isCurrent ? ` · ${p.current}` : ''}</div>
+      <div style="font-size:22px;font-weight:700;color:${p.total ? 'var(--text)' : 'var(--text-muted)'}">${p.total}</div>
+      <div style="font-size:10px;color:var(--text-muted)">${breakdown || '&nbsp;'}</div>
+    </div>`;
   }
+
+  // Month is the default: a month is the unit clients are billed and reviewed
+  // in. Week stays available — it is the unit the Weekly KPI bar counts in.
+  html += `<div style="display:flex;flex-direction:column;justify-content:center;gap:4px">
+    ${['month', 'week'].map(v => `<button type="button" onclick="passOffSetPeriod('${v}')"
+      style="padding:3px 10px;border:1px solid ${period === v ? 'var(--purple)' : 'var(--border)'};border-radius:6px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:600;
+             background:${period === v ? 'var(--purple)' : 'transparent'};color:${period === v ? '#fff' : 'var(--text-muted)'}">${v === 'month' ? 'Monthly' : 'Weekly'}</button>`).join('')}
+  </div>`;
+
+  html += `</div>`;
 
   // Filter bar
   html += `<div class="tracker-filters">
@@ -203,6 +292,17 @@ window.passOffFilterClient = (v) => { state.passOffsFilters.client = v; render()
 window.passOffFilterDateFrom = (v) => { state.passOffsFilters.dateFrom = v; render(); };
 window.passOffFilterDateTo = (v) => { state.passOffsFilters.dateTo = v; render(); };
 window.passOffClearDates = () => { state.passOffsFilters.dateFrom = ''; state.passOffsFilters.dateTo = ''; render(); };
+window.passOffSetPeriod = (v) => { state.passOffsPeriod = v === 'week' ? 'week' : 'month'; render(); };
+// Clicking a summary card drives the SAME From/To filter the range inputs use,
+// so the cards and the rows under them can never be counting different days.
+// Clicking the card that is already applied clears it.
+window.passOffPickPeriod = (from, to) => {
+  const f = state.passOffsFilters;
+  const on = f.dateFrom === from && f.dateTo === to;
+  f.dateFrom = on ? '' : from;
+  f.dateTo = on ? '' : to;
+  render();
+};
 window.passOffSort = (field) => {
   if (state.passOffsSort.field === field) {
     state.passOffsSort.dir = state.passOffsSort.dir === 'asc' ? 'desc' : 'asc';
