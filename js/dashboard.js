@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // DASHBOARD — Dashboard rendering (client fulfillment + acquisition)
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260907164254';
-import { ACQUISITION_STAGES, NURTURE_STAGES, DEFAULT_CLIENT_STAGES, ALL_PIPELINES } from './config.js?v=20260907164254';
-import { render } from './render.js?v=20260907164254';
-import { esc, fmt$ } from './utils.js?v=20260907164254';
-import { isAdmin, isEmployee } from './auth.js?v=20260907164254';
-import { getOverdueActivities } from './activities.js?v=20260907164254';
-import { sbGetArchivedDeals } from './api.js?v=20260907164254';
+import { state } from './app.js?v=20260908100821';
+import { ACQUISITION_STAGES, NURTURE_STAGES, DEFAULT_CLIENT_STAGES, ALL_PIPELINES } from './config.js?v=20260908100821';
+import { render } from './render.js?v=20260908100821';
+import { esc, fmt$ } from './utils.js?v=20260908100821';
+import { isAdmin, isEmployee } from './auth.js?v=20260908100821';
+import { getOverdueActivities } from './activities.js?v=20260908100821';
+import { sbGetArchivedDeals } from './api.js?v=20260908100821';
 
 function dateAddedToDate(dateAdded) {
   if (!dateAdded) return null;

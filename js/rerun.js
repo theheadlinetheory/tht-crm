@@ -1,15 +1,15 @@
 // ═══════════════════════════════════════════════════════════
 // NURTURE — Two-bucket nurture pipeline (Not Now + Service Area Taken)
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20260907164254';
-import { render } from './render.js?v=20260907164254';
-import { sbGetRerunQueue, sbAddToRerun, sbUpdateRerunItem, sbUpdateRerunStatus, sbUpdateDeal, sbUpdateActivity, sbArchiveDeal, sbDeleteDeal, camelToSnake, normalizeRow, invokeEdgeFunction } from './api.js?v=20260907164254';
-import { esc, getToday, fmtDate, svgIcon } from './utils.js?v=20260907164254';
-import { registerActions } from './delegate.js?v=20260907164254';
-import { statCard, filterSelect, modalWrap, modalHeader, modalFooter } from './html-helpers.js?v=20260907164254';
-import { NURTURE_NOT_NOW_SEQUENCE, ACQUISITION_STAGES } from './config.js?v=20260907164254';
-import { isAdmin, getOwnerNameForDeal, getOwnerColor, loadAssignableUsers } from './auth.js?v=20260907164254';
-import { dealHadDemo } from './demo-tracker.js?v=20260907164254';
+import { state, store, pendingWrites } from './app.js?v=20260908100821';
+import { render } from './render.js?v=20260908100821';
+import { sbGetRerunQueue, sbAddToRerun, sbUpdateRerunItem, sbUpdateRerunStatus, sbUpdateDeal, sbUpdateActivity, sbArchiveDeal, sbDeleteDeal, camelToSnake, normalizeRow, invokeEdgeFunction } from './api.js?v=20260908100821';
+import { esc, getToday, fmtDate, svgIcon } from './utils.js?v=20260908100821';
+import { registerActions } from './delegate.js?v=20260908100821';
+import { statCard, filterSelect, modalWrap, modalHeader, modalFooter } from './html-helpers.js?v=20260908100821';
+import { NURTURE_NOT_NOW_SEQUENCE, ACQUISITION_STAGES } from './config.js?v=20260908100821';
+import { isAdmin, getOwnerNameForDeal, getOwnerColor, loadAssignableUsers } from './auth.js?v=20260908100821';
+import { dealHadDemo } from './demo-tracker.js?v=20260908100821';
 
 // ─── Data Loading ───
 
@@ -469,7 +469,72 @@ export function renderNurtureTab() {
 
 // ─── Nurture Entry Modal ───
 
+// The modal lives inside #app, so every background re-render (realtime, the
+// 2-min sync, the visibilitychange re-sync) rebuilds its fields from default
+// markup — wiping a typed note and snapping a picked date back to +90d. The
+// three fields are therefore held in state, not in the DOM, and mirrored to
+// localStorage so a reload mid-entry doesn't lose the draft either.
+const NURTURE_DRAFT_KEY = 'tht_nurture_draft';
+const NURTURE_DRAFT_MAX_AGE = 7 * 86400000;
+
+function nurtureDraftId() {
+  return state._nurtureEntryBulk ? 'bulk' : String(state._nurtureEntryDealId || '');
+}
+
+function readNurtureDraft() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(NURTURE_DRAFT_KEY) || 'null');
+    if (!raw || raw.id !== nurtureDraftId()) return null;
+    if (Date.now() - (raw.savedAt || 0) > NURTURE_DRAFT_MAX_AGE) return null;
+    return raw;
+  } catch { return null; }
+}
+
+function writeNurtureDraft() {
+  try {
+    localStorage.setItem(NURTURE_DRAFT_KEY, JSON.stringify({
+      id: nurtureDraftId(),
+      savedAt: Date.now(),
+      bucket: state._nurtureEntryBucket || null,
+      date: state._nurtureEntryDate || null,
+      note: state._nurtureEntryNote || null,
+      blockedBy: state._nurtureEntryBlockedBy || null,
+    }));
+  } catch { /* private mode / quota — the in-memory state still holds */ }
+}
+
+export function clearNurtureDraft() {
+  state._nurtureEntryBucket = null;
+  state._nurtureEntryDate = null;
+  state._nurtureEntryNote = null;
+  state._nurtureEntryBlockedBy = null;
+  try { localStorage.removeItem(NURTURE_DRAFT_KEY); } catch {}
+}
+
+function closeNurtureEntry() {
+  state._nurtureEntryDealId = null;
+  state._nurtureEntryFromDemo = false;
+  state._nurtureEntryBulk = false;
+  state._bulkNurtureIds = null;
+  clearNurtureDraft();
+}
+
+// Called when the modal opens: rehydrate anything a reload left behind.
+function restoreNurtureDraft() {
+  const draft = readNurtureDraft();
+  if (!draft) return;
+  if (state._nurtureEntryBucket == null) state._nurtureEntryBucket = draft.bucket;
+  if (state._nurtureEntryDate == null) state._nurtureEntryDate = draft.date;
+  if (state._nurtureEntryNote == null) state._nurtureEntryNote = draft.note;
+  if (state._nurtureEntryBlockedBy == null) state._nurtureEntryBlockedBy = draft.blockedBy;
+}
+
 export function renderNurtureEntryModal(dealId) {
+  // The modal is opened from five places (deal modal, drag-to-Nurture, demo
+  // tracker, disco outcome, bulk action); this is the one point they all pass
+  // through, so it's where a draft left by a reload gets rehydrated. Idempotent
+  // — it only fills fields the user hasn't already set this session.
+  restoreNurtureDraft();
   const deal = state.deals.find(d => String(d.id) === String(dealId));
   const isBulk = !!state._nurtureEntryBulk;
   const bulkCount = isBulk ? (state._bulkNurtureIds || []).length : 0;
@@ -480,6 +545,10 @@ export function renderNurtureEntryModal(dealId) {
     String(defaultDate.getDate()).padStart(2, '0');
   const selectedBucket = state._nurtureEntryBucket || 'not_now';
   const showDate = selectedBucket === 'not_now';
+  // Values come from state, never from whatever the last render left in the DOM.
+  const dateValue = state._nurtureEntryDate || defaultDateStr;
+  const noteValue = state._nurtureEntryNote || '';
+  const blockedValue = state._nurtureEntryBlockedBy || '';
   // Opened straight off a "Not Right Now" demo outcome, so the answers are known.
   const fromDemo = !!state._nurtureEntryFromDemo;
   // The Reason dropdown was removed 2026-09-04 (Lars): the sales pipeline now
@@ -503,21 +572,21 @@ export function renderNurtureEntryModal(dealId) {
 
     <div id="nurture-blocked-row" style="margin-bottom:12px;${showDate ? 'display:none' : ''}">
       <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Blocked by</label>
-      <select id="nurture-blocked-by" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
-        <option value="">Which client's area? (optional)</option>
-        ${[...state.clients].sort((a,b)=>String(a.name).localeCompare(String(b.name))).map(c=>`<option value="${esc(c.name)}">${esc(c.name)}${String(c.status)==='inactive'?' (churned)':''}</option>`).join('')}
+      <select id="nurture-blocked-by" data-action="nurtureBlockedByChange" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+        <option value="" ${blockedValue === '' ? 'selected' : ''}>Which client's area? (optional)</option>
+        ${[...state.clients].sort((a,b)=>String(a.name).localeCompare(String(b.name))).map(c=>`<option value="${esc(c.name)}" ${blockedValue === c.name ? 'selected' : ''}>${esc(c.name)}${String(c.status)==='inactive'?' (churned)':''}</option>`).join('')}
       </select>
       <div style="font-size:10px;color:var(--text-muted);margin-top:4px">Recording this is what lets the lead resurface when that client leaves.</div>
     </div>
 
     <div id="nurture-date-row" style="margin-bottom:12px;${showDate ? '' : 'display:none'}">
       <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Follow-up Date</label>
-      <input type="date" id="nurture-follow-up-date" value="${defaultDateStr}" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+      <input type="date" id="nurture-follow-up-date" data-action="nurtureDateChange" value="${esc(dateValue)}" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
     </div>
 
     <div style="margin-bottom:12px">
       <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Notes</label>
-      <input type="text" id="nurture-note" placeholder="Additional notes..." style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+      <input type="text" id="nurture-note" data-action="nurtureNoteChange" placeholder="Additional notes..." value="${esc(noteValue)}" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
     </div>
   </div>`;
   body += modalFooter('closeNurtureModal', 'confirmNurtureEntry', 'Move to Nurture');
@@ -587,24 +656,35 @@ registerActions({
   // Bucket change in entry modal
   nurtureBucketChange(el) {
     state._nurtureEntryBucket = el.value;
+    writeNurtureDraft();
     const dateRow = document.getElementById('nurture-date-row');
     if (dateRow) dateRow.style.display = el.value === 'not_now' ? '' : 'none';
     const blockedRow = document.getElementById('nurture-blocked-row');
     if (blockedRow) blockedRow.style.display = el.value === 'service_area_taken' ? '' : 'none';
   },
 
+  // Entry-modal fields — saved on every keystroke, never re-rendered.
+  nurtureDateChange(el) {
+    state._nurtureEntryDate = el.value;
+    writeNurtureDraft();
+  },
+  nurtureNoteChange(el) {
+    state._nurtureEntryNote = el.value;
+    writeNurtureDraft();
+  },
+  nurtureBlockedByChange(el) {
+    state._nurtureEntryBlockedBy = el.value;
+    writeNurtureDraft();
+  },
+
   // Nurture entry modal
   closeNurtureModal() {
-    state._nurtureEntryDealId = null;
-    state._nurtureEntryBucket = null;
-    state._nurtureEntryFromDemo = false;
+    closeNurtureEntry();
     render();
   },
   dismissNurtureModal(el, e) {
     if (e.target === el) {
-      state._nurtureEntryDealId = null;
-      state._nurtureEntryBucket = null;
-      state._nurtureEntryFromDemo = false;
+      closeNurtureEntry();
       render();
     }
   },
@@ -612,15 +692,15 @@ registerActions({
     const dealId = state._nurtureEntryDealId;
     if (!dealId) return;
 
-    const bucketEl = document.querySelector('[data-action="nurtureBucketChange"]');
-    const bucket = bucketEl ? bucketEl.value : (state._nurtureEntryBucket || 'not_now');
+    // State is the source of truth — the DOM may have been rebuilt by a
+    // background render since the user typed. Fall back to the live field only
+    // for the date, whose default is generated at render time.
+    const bucket = state._nurtureEntryBucket || 'not_now';
     const dateEl = document.getElementById('nurture-follow-up-date');
-    const followUpDate = bucket === 'not_now' && dateEl ? dateEl.value : '';
+    const followUpDate = bucket === 'not_now' ? (state._nurtureEntryDate || (dateEl ? dateEl.value : '')) : '';
     const reason = '';
-    const blockedEl = document.getElementById('nurture-blocked-by');
-    const blockedByClient = bucket === 'service_area_taken' && blockedEl ? blockedEl.value : '';
-    const noteEl = document.getElementById('nurture-note');
-    const noteText = noteEl ? noteEl.value : '';
+    const blockedByClient = bucket === 'service_area_taken' ? (state._nurtureEntryBlockedBy || '') : '';
+    const noteText = state._nurtureEntryNote || '';
     // Lead the note with it so the reason is legible in the table's note column
     // and in anything exported out of the queue, not just in the chip.
     const fromDemo = !!state._nurtureEntryFromDemo;
@@ -629,11 +709,7 @@ registerActions({
     // Close modal
     const isBulk = !!state._nurtureEntryBulk;
     const bulkIds = isBulk ? (state._bulkNurtureIds || []) : [dealId];
-    state._nurtureEntryDealId = null;
-    state._nurtureEntryBucket = null;
-    state._nurtureEntryFromDemo = false;
-    state._nurtureEntryBulk = false;
-    state._bulkNurtureIds = null;
+    closeNurtureEntry();
 
     const nurtureStage = bucket === 'not_now' ? 'Not Now' : 'Service Area Taken';
 
