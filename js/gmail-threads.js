@@ -11,15 +11,15 @@
 // Mirrors the SmartLead thread viewer in threads.js — on-demand button, latest
 // message expanded, older ones behind a toggle — so the two read the same way.
 
-import { state } from './app.js?v=20260908140502';
-import { esc, str, svgIcon } from './utils.js?v=20260908140502';
-import { isAdmin, currentUser } from './auth.js?v=20260908140502';
-import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20260908140502';
+import { state } from './app.js?v=20260908140903';
+import { esc, str, svgIcon } from './utils.js?v=20260908140903';
+import { isAdmin, currentUser } from './auth.js?v=20260908140903';
+import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20260908140903';
 // Always refreshModal(TRUE): the no-argument form takes a targeted path that
 // only replaces #activities-container, so this section — which lives
 // elsewhere in the modal — would never repaint after loading.
-import { refreshModal } from './render.js?v=20260908140502';
-import { sbUpdateDeal } from './api.js?v=20260908140502';
+import { refreshModal } from './render.js?v=20260908140903';
+import { sbUpdateDeal } from './api.js?v=20260908140903';
 
 const _cache = {};   // `${dealId}|${mailbox}` -> { threads, participants }
 const _state = {};   // dealId -> { mailbox, loading, error }
@@ -67,6 +67,8 @@ export async function loadGmailThreads(dealId, mailbox) {
 
 // ─── Rendering ───
 
+// overflow-wrap:anywhere — real emails carry long unbreakable URLs (Stripe
+// invoice links), which otherwise make the body scroll sideways.
 function messageHtml(msg, mailbox, isLatest) {
   const outbound = str(msg.from).toLowerCase() === str(mailbox).toLowerCase();
   const who = outbound ? 'You' : (msg.fromName || msg.from || 'Them');
@@ -76,7 +78,7 @@ function messageHtml(msg, mailbox, isLatest) {
       <span style="font-size:10px;font-weight:600;color:${outbound ? '#6b7280' : '#166534'}">${esc(who)}</span>
       <span style="font-size:10px;color:#9ca3af;white-space:nowrap">${esc(when)}</span>
     </div>
-    <div style="font-size:12px;color:#334155;line-height:1.5;white-space:pre-wrap;max-height:${isLatest ? '260px' : '90px'};overflow:auto">${esc(msg.body || msg.snippet || '')}</div>
+    <div style="font-size:12px;color:#334155;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;max-height:${isLatest ? '260px' : '90px'};overflow-y:auto;overflow-x:hidden">${esc(msg.body || msg.snippet || '')}</div>
   </div>`;
 }
 
