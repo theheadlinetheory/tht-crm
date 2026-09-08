@@ -19,9 +19,9 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260908131450';
-import { supabase } from './supabase-client.js?v=20260908131450';
-import { PERIODS, periodRange, fetchPeriod } from './funnel-period.js?v=20260908131450';
+import { esc, svgIcon } from './utils.js?v=20260908132002';
+import { supabase } from './supabase-client.js?v=20260908132002';
+import { PERIODS, periodRange, fetchPeriod } from './funnel-period.js?v=20260908132002';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -29,11 +29,16 @@ let _loading = false;
 let _error = null;
 // Day / week views (funnel-period.js): 'all' reads pipeline_latest; anything
 // else asks the level functions for the period and caches the answer here.
-let _period = 'all';
+// The chosen period survives a reload: index.html reloads the page once per
+// deploy (version.json check on every tab focus), which threw the view back to
+// All each time Lars clicked a period during a deploy (2026-09-08).
+const PERIOD_KEY = 'funnelPeriod';
+let _period = (() => { try { return localStorage.getItem(PERIOD_KEY) || 'all'; } catch (_) { return 'all'; } })();
 const _periodData = {};   // key → rows shaped like pipeline_latest
 let _periodLoading = null; // key being fetched
 
 export function loadFunnel(rerender) {
+  if (_period !== 'all') loadPeriod(_period, rerender);
   if (_levels !== null || _loading) return;
   _loading = true;
   supabase.from('pipeline_latest').select('*')
@@ -65,7 +70,8 @@ function loadPeriod(key, rerender) {
 
 window.setFunnelPeriod = (key) => {
   _period = key;
-  import('./render.js?v=20260908131450').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+  try { localStorage.setItem(PERIOD_KEY, key); } catch (_) { /* private mode */ }
+  import('./render.js?v=20260908132002').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
 };
 
 const STATUS_STYLE = {
@@ -314,5 +320,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260908131450').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260908132002').then(m => reloadFunnel(m.render));
 };
