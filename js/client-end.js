@@ -16,9 +16,9 @@
 // Written to clients.ended_on / end_reason / end_notes. Reactivating clears
 // them. Level 07 reads the clients table directly.
 
-import { state } from './app.js?v=20260908133645';
-import { esc, str } from './utils.js?v=20260908133645';
-import { supabase } from './api.js?v=20260908133645';
+import { state } from './app.js?v=20260908133932';
+import { esc, str } from './utils.js?v=20260908133932';
+import { supabase } from './api.js?v=20260908133932';
 
 // kind: 'churn' stays in the level as a loss · 'excluded' leaves it
 export const END_REASONS = [
@@ -71,7 +71,7 @@ export function showClientEndPicker(clientId, { onDone, onCancel } = {}) {
     const endedOn = (document.getElementById('client-end-date') || {}).value || today;
     const notes = str((document.getElementById('client-end-notes') || {}).value);
     div.remove();
-    const { openOffboard } = await import('./client-offboard.js?v=20260908133645');
+    const { openOffboard } = await import('./client-offboard.js?v=20260908133932');
     await openOffboard(c.id, { reason, notes, endedOn, category: kind === 'excluded' ? 'excluded' : 'churn' });
     if (onDone) onDone({ status: 'inactive', ended_on: endedOn, end_reason: reason, end_notes: notes || null });
   };

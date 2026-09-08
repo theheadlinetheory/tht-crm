@@ -11,13 +11,12 @@
 // Mirrors the SmartLead thread viewer in threads.js — on-demand button, latest
 // message expanded, older ones behind a toggle — so the two read the same way.
 
-import { state } from './app.js?v=20260908133645';
-import { esc, str, svgIcon } from './utils.js?v=20260908133645';
-import { isAdmin, currentUser } from './auth.js?v=20260908133645';
-import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20260908133645';
-import { registerActions } from './delegate.js?v=20260908133645';
-import { refreshModal } from './render.js?v=20260908133645';
-import { sbUpdateDeal } from './api.js?v=20260908133645';
+import { state } from './app.js?v=20260908133932';
+import { esc, str, svgIcon } from './utils.js?v=20260908133932';
+import { isAdmin, currentUser } from './auth.js?v=20260908133932';
+import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20260908133932';
+import { refreshModal } from './render.js?v=20260908133932';
+import { sbUpdateDeal } from './api.js?v=20260908133932';
 
 const _cache = {};   // `${dealId}|${mailbox}` -> { threads, participants }
 const _state = {};   // dealId -> { mailbox, loading, error }
@@ -75,7 +74,7 @@ function threadHtml(thread, mailbox, idx) {
   return `<div style="margin-bottom:10px">
     <div style="font-size:11px;font-weight:600;color:#334155;margin-bottom:4px">${esc(thread.subject)}</div>
     ${older.length ? `<div id="gm-older-${idx}" hidden>${older.map(m => messageHtml(m, mailbox, false)).join('')}</div>
-      <button data-action="gmailToggleOlder" data-idx="${idx}" class="btn btn-ghost" style="font-size:10px;width:100%;margin-bottom:4px">Show ${older.length} older message${older.length > 1 ? 's' : ''}</button>` : ''}
+      <button class="btn btn-ghost" style="font-size:10px;width:100%;margin-bottom:4px" onclick="gmailToggleOlder(${idx},this)">Show ${older.length} older message${older.length > 1 ? 's' : ''}</button>` : ''}
     ${latest ? messageHtml(latest, mailbox, true) : ''}
   </div>`;
 }
@@ -90,10 +89,10 @@ export function renderGmailSection(deal) {
     inner = `<div style="font-size:12px;color:#94a3b8;padding:8px 0">Loading email history…</div>`;
   } else if (st.error) {
     inner = `<div style="font-size:12px;color:#b91c1c;padding:6px 0">${esc(st.error)}</div>
-      <button data-action="gmailLoad" data-deal-id="${esc(deal.id)}" class="btn btn-ghost" style="font-size:10px">Retry</button>`;
+      <button class="btn btn-ghost" style="font-size:10px" onclick="gmailLoad('${esc(deal.id)}')">Retry</button>`;
   } else if (!cached) {
     return `<div style="margin-bottom:12px">
-      <button data-action="gmailLoad" data-deal-id="${esc(deal.id)}" class="sl-thread-btn">
+      <button class="sl-thread-btn" onclick="gmailLoad('${esc(deal.id)}')">
         ${svgIcon('mail', 14)} View Gmail History
       </button>
     </div>`;
@@ -107,13 +106,13 @@ export function renderGmailSection(deal) {
     if (cached.participants.length && slot) {
       inner += `<div style="margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0">
         <div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">Also on these threads</div>
-        ${cached.participants.map(a => `<button data-action="gmailAddParticipant" data-deal-id="${esc(deal.id)}" data-email="${esc(a)}"
+        ${cached.participants.map(a => `<button onclick="gmailAddParticipant('${esc(deal.id)}','${esc(a)}')"
           style="font-size:11px;margin:0 4px 4px 0;padding:3px 8px;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;border-radius:12px;cursor:pointer">+ ${esc(a)}</button>`).join('')}
       </div>`;
     }
   }
 
-  const mailboxPicker = isAdmin() ? `<select data-action="gmailMailbox" data-deal-id="${esc(deal.id)}"
+  const mailboxPicker = isAdmin() ? `<select onchange="gmailLoad('${esc(deal.id)}',this.value)"
       style="font-size:10px;padding:1px 4px;border:1px solid var(--border);border-radius:4px;background:var(--card)">
       ${staffMailboxes().map(m => `<option value="${esc(m)}" ${m === st.mailbox ? 'selected' : ''}>${esc(m.split('@')[0])}</option>`).join('')}
     </select>` : '';
@@ -137,26 +136,30 @@ function staffMailboxes() {
   return [...new Set([me, ...others].filter(Boolean))];
 }
 
-registerActions({
-  gmailLoad(el) { loadGmailThreads(el.dataset.dealId, undefined); },
-  gmailMailbox(el) { loadGmailThreads(el.dataset.dealId, el.value); },
-  gmailToggleOlder(el) {
-    const box = document.getElementById('gm-older-' + el.dataset.idx);
-    if (!box) return;
-    box.hidden = !box.hidden;
-    el.textContent = box.hidden ? el.textContent.replace('Hide', 'Show') : el.textContent.replace('Show', 'Hide');
-  },
-  async gmailAddParticipant(el) {
-    const { dealId, email } = el.dataset;
-    const deal = state.deals.find(d => String(d.id) === String(dealId));
-    if (!deal) return;
-    const slot = ['email2', 'email3', 'email4'].find(f => !str(deal[f]).trim());
-    if (!slot) return;
-    deal[slot] = email;
-    // Next open re-derives the search from the deal, so the new address is
-    // searched too — that half needs no extra machinery.
-    await sbUpdateDeal(dealId, { [slot]: email }).catch(e => console.error('Add participant failed:', e));
-    delete _cache[key(dealId, _state[dealId]?.mailbox)];
-    refreshModal();
-  },
-});
+// Inline onclick, not data-action. This section renders inside the deal modal,
+// and renderDealModal's `.modal` carries onclick="event.stopPropagation()" —
+// which kills the bubble before it reaches delegate.js's listener on
+// document.body, so a delegated action here silently does nothing. Every other
+// deal-modal button is inline for the same reason (see booking-sms.js).
+window.gmailLoad = (dealId, mailbox) => loadGmailThreads(dealId, mailbox || undefined);
+
+window.gmailToggleOlder = (idx, btn) => {
+  const box = document.getElementById('gm-older-' + idx);
+  if (!box) return;
+  box.hidden = !box.hidden;
+  btn.textContent = box.hidden ? btn.textContent.replace('Hide', 'Show') : btn.textContent.replace('Show', 'Hide');
+};
+
+window.gmailAddParticipant = async (dealId, email) => {
+  const deal = state.deals.find(d => String(d.id) === String(dealId));
+  if (!deal) return;
+  const slot = ['email2', 'email3', 'email4'].find(f => !str(deal[f]).trim());
+  if (!slot) return;
+  deal[slot] = email;
+  try { await sbUpdateDeal(dealId, { [slot]: email }); }
+  catch (e) { console.error('Add participant failed:', e); }
+  // Next load re-derives the search from the deal, so the new address is
+  // searched too — that half needs no extra machinery.
+  delete _cache[key(dealId, _state[dealId]?.mailbox)];
+  refreshModal();
+};
