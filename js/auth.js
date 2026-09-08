@@ -1,17 +1,24 @@
 // ═══════════════════════════════════════════════════════════
 // AUTH — Supabase Auth (Google OAuth), roles, campaign assignments
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20260908140903';
-import { state } from './app.js?v=20260908140903';
-import { render } from './render.js?v=20260908140903';
-import { esc, svgIcon } from './utils.js?v=20260908140903';
-import { resolveRoutingOwner } from './routing-rules.js?v=20260908140903';
+import { supabase } from './supabase-client.js?v=20260908142737';
+import { state } from './app.js?v=20260908142737';
+import { render } from './render.js?v=20260908142737';
+import { esc, svgIcon } from './utils.js?v=20260908142737';
+import { resolveRoutingOwner } from './routing-rules.js?v=20260908142737';
 
 const ALLOWED_DOMAIN = 'theheadlinetheory.com';
 export let currentUser = null;
 
 export function isAdmin(){ return currentUser && currentUser.role === 'admin'; }
 export function isEmployee(){ return currentUser && currentUser.role === 'employee'; }
+
+// Founders only (Lars + Aidan) — gates the CAC view (company financials,
+// including selling-labor payouts). The fulfillment cac-report edge fn
+// enforces this same two-address allowlist server-side; this function only
+// decides whether the UI is drawn at all.
+const FOUNDER_EMAILS = ['lars@theheadlinetheory.com', 'aidan@theheadlinetheory.com'];
+export function isFounder(){ return !!(currentUser && currentUser.email && FOUNDER_EMAILS.includes(currentUser.email.toLowerCase())); }
 
 // ─── Google sign-in ───
 export async function handleGoogleSignIn(){

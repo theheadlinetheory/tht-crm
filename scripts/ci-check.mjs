@@ -78,6 +78,8 @@ const REQUIRED_FEATURES = [
   { file: 'render.js',         needle: "switchAcqSubTab('cold_calls')",  feature: 'Acquisition: Cold Calls sub-tab' },
   { file: 'render.js',         needle: "switchAcqSubTab('retargeting')", feature: 'Acquisition: Retargeting sub-tab' },
   { file: 'render.js',         needle: "switchAcqSubTab('demo_tracker')", feature: 'Acquisition: Demo Tracker sub-tab' },
+  { file: 'render.js',         needle: "switchAcqSubTab('cac')",         feature: 'Acquisition: CAC sub-tab (founders only)' },
+  { file: 'cac.js',            needle: 'export function renderCacTab',   feature: 'CAC: founder-only live CAC module entrypoint' },
   // Lead Tracker views
   { file: 'render.js',         needle: "switchTrackerView('trends')",   feature: 'Lead Tracker: Trends view' },
   { file: 'render.js',         needle: "switchTrackerView('passoffs')", feature: 'Lead Tracker: Retainer Leads (pass-offs) view' },
