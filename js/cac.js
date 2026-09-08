@@ -4,15 +4,18 @@
 //   so the function verifies the caller's CRM session AND enforces its own
 //   lars@/aidan@ allowlist server-side — not rendering this tab for anyone
 //   else (see isFounder() gates in render.js) is cosmetic on top of that.
+// The ALL-TIME numbers are the headline (monthly CAC is noisy — closes and
+// onboardings straddle month boundaries); the current month and the monthly
+// table sit beneath them.
 // Definitions (Lars's, fixed): loaded spend = ALL scope='acquisition'
 //   cost_events in the month; cash spend = loaded minus Ioannis's demo
 //   payouts (selling labor); signed = clients created that month (any
 //   status); CAC = spend ÷ signed, shown as an em-dash when 0 signed.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20260908144128';
-import { state } from './app.js?v=20260908144128';
-import { render } from './render.js?v=20260908144128';
-import { esc } from './utils.js?v=20260908144128';
+import { supabase } from './supabase-client.js?v=20260908144222';
+import { state } from './app.js?v=20260908144222';
+import { render } from './render.js?v=20260908144222';
+import { esc } from './utils.js?v=20260908144222';
 
 // Fulfillment-dashboard Supabase project (verify_jwt=false; same
 // session-token contract as weekly-update-send — see js/weekly-updates.js).
@@ -102,12 +105,24 @@ export function renderCacTab(){
 
   const months = (state.cacReport.months||[]).slice().reverse(); // newest first
   const current = months.find(m => m.to_date);
+  const allTime = state.cacReport.all_time;
+  const sinceLabel = months.length ? months[months.length-1].label : 'Aug 2026';
 
-  // Headline cards: current month to date
+  // Headline cards: ALL-TIME is the star — monthly is noisy (see footnote).
+  if(allTime){
+    html += `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      ${renderStatCard('Cash CAC — All-time · since '+sinceLabel, fmtCac(allTime.cash_cac), fmtUsd(allTime.cash_spend)+' spend / '+allTime.signed+' signed')}
+      ${renderStatCard('Loaded CAC — All-time · since '+sinceLabel, fmtCac(allTime.loaded_cac), fmtUsd(allTime.loaded_spend)+' spend / '+allTime.signed+' signed')}
+    </div>`;
+  }
+
+  // Secondary: the current month to date, compact.
   if(current){
-    html += `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px">
-      ${renderStatCard('Cash CAC — '+current.label+' (to date)', fmtCac(current.cash_cac), fmtUsd(current.cash_spend)+' spend / '+current.signed+' signed')}
-      ${renderStatCard('Loaded CAC — '+current.label+' (to date)', fmtCac(current.loaded_cac), fmtUsd(current.loaded_spend)+' spend / '+current.signed+' signed')}
+    html += `<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px 16px;margin-bottom:18px;display:flex;gap:18px;flex-wrap:wrap;align-items:baseline;font-size:12px">
+      <span style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">${esc(current.label)} (to date)</span>
+      <span>Cash CAC <b>${fmtCac(current.cash_cac)}</b></span>
+      <span>Loaded CAC <b>${fmtCac(current.loaded_cac)}</b></span>
+      <span style="color:var(--text-muted)">${fmtUsd(current.cash_spend)} cash / ${fmtUsd(current.loaded_spend)} loaded spend · ${current.signed} signed</span>
     </div>`;
   }
 
@@ -142,7 +157,9 @@ export function renderCacTab(){
   }
   html += `</tbody></table></div>`;
 
-  html += `<div style="font-size:11px;color:var(--text-muted);margin-top:10px;line-height:1.6">
+  html += `<div style="font-size:11px;color:var(--text-muted);margin-top:8px;font-style:italic">Monthly figures are noisy: clients often onboard the month after they close. All-time is the reliable number.</div>`;
+
+  html += `<div style="font-size:11px;color:var(--text-muted);margin-top:8px;line-height:1.6">
     Loaded = every acquisition cost (tools, data, mailboxes, selling labor). Cash = loaded minus selling labor
     (Ioannis's demo payouts). Signed = clients created in the CRM that month, any status. Numbers refresh from
     the daily cost jobs — tracked from Aug 2026. Click a month for the component breakdown.
