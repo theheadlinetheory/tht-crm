@@ -19,9 +19,9 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260908123148';
-import { supabase } from './supabase-client.js?v=20260908123148';
-import { PERIODS, periodRange, fetchPeriod } from './funnel-period.js?v=20260908123148';
+import { esc, svgIcon } from './utils.js?v=20260908124535';
+import { supabase } from './supabase-client.js?v=20260908124535';
+import { PERIODS, periodRange, fetchPeriod } from './funnel-period.js?v=20260908124535';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -65,7 +65,7 @@ function loadPeriod(key, rerender) {
 
 window.setFunnelPeriod = (key) => {
   _period = key;
-  import('./render.js?v=20260908123148').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+  import('./render.js?v=20260908124535').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
 };
 
 const STATUS_STYLE = {
@@ -162,8 +162,11 @@ function levelCard(l) {
     const d = l.detail || {};
     // One short line stays with the number: the window and the counting rule.
     if (d.note) h += `<div style="font-size:11px;color:#6b7280;margin-top:4px">${esc(String(d.note))}</div>`;
-    // In a day / week view: what actually happened in the period, whatever
-    // cohort the lead belongs to — the line a rep checks against their day.
+    // In a day / week view: the conversions that happened in the period for
+    // leads from ANY cohort — what the main number (this period's cohort, and
+    // where it stands now) cannot show, and the line a rep checks against
+    // their day. Levels whose main number already counts the period's own
+    // events (01) send none (Lars, 2026-09-08).
     if (d.activity && d.activity.length) h += activityLine(d.activity);
     // Rep removals are the most common reason a level shrinks and a signal in
     // their own right (a high desk-DQ share = list targeting), so they get their
@@ -196,7 +199,7 @@ function levelCard(l) {
 /** The events of the period, for the reps to check against what they did. */
 function activityLine(items) {
   const bits = items.map(a => `<span style="white-space:nowrap"><strong style="color:#1e1b4b;font-variant-numeric:tabular-nums">${fmtCount(a.value)}</strong> ${esc(String(a.label))}</span>`).join('<span style="color:#d1d5db"> · </span>');
-  return `<div style="margin-top:8px;padding:6px 10px;border:1px solid #c7d2fe;background:#eef2ff;border-radius:8px;font-size:12px;color:#374151;display:flex;gap:6px;flex-wrap:wrap;align-items:baseline"><span style="font-size:10px;font-weight:700;color:#4338ca;letter-spacing:.03em">IN THIS PERIOD</span>${bits}</div>`;
+  return `<div style="margin-top:8px;padding:6px 10px;border:1px solid #c7d2fe;background:#eef2ff;border-radius:8px;font-size:12px;color:#374151;display:flex;gap:6px;flex-wrap:wrap;align-items:baseline"><span style="font-size:10px;font-weight:700;color:#4338ca;letter-spacing:.03em" title="Conversions recorded in the period for leads from any cohort — the main number only follows the leads that entered this level in the period">ALSO IN THIS PERIOD</span>${bits}</div>`;
 }
 
 /** What the reps removed from a level, per reason, shown big. Not losses —
@@ -311,5 +314,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260908123148').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260908124535').then(m => reloadFunnel(m.render));
 };
