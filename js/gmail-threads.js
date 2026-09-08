@@ -11,15 +11,15 @@
 // Mirrors the SmartLead thread viewer in threads.js — on-demand button, latest
 // message expanded, older ones behind a toggle — so the two read the same way.
 
-import { state } from './app.js?v=20260908134337';
-import { esc, str, svgIcon } from './utils.js?v=20260908134337';
-import { isAdmin, currentUser } from './auth.js?v=20260908134337';
-import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20260908134337';
+import { state } from './app.js?v=20260908140502';
+import { esc, str, svgIcon } from './utils.js?v=20260908140502';
+import { isAdmin, currentUser } from './auth.js?v=20260908140502';
+import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20260908140502';
 // Always refreshModal(TRUE): the no-argument form takes a targeted path that
 // only replaces #activities-container, so this section — which lives
 // elsewhere in the modal — would never repaint after loading.
-import { refreshModal } from './render.js?v=20260908134337';
-import { sbUpdateDeal } from './api.js?v=20260908134337';
+import { refreshModal } from './render.js?v=20260908140502';
+import { sbUpdateDeal } from './api.js?v=20260908140502';
 
 const _cache = {};   // `${dealId}|${mailbox}` -> { threads, participants }
 const _state = {};   // dealId -> { mailbox, loading, error }
@@ -34,19 +34,29 @@ export function getGmailState(dealId) { return _state[dealId] || {}; }
 export function getGmailCache(dealId) { return _cache[key(dealId, _state[dealId]?.mailbox)]; }
 
 export async function loadGmailThreads(dealId, mailbox) {
-  const k = key(dealId, mailbox);
-  if (_cache[k]) { _state[dealId] = { mailbox, loading: false }; refreshModal(true); return; }
-  _state[dealId] = { mailbox, loading: true, error: null };
+  // The cache has to be keyed by the mailbox the SERVER resolved, not the one
+  // asked for. The first load passes undefined (meaning "my own inbox"), so
+  // keying on the request stored it under "" while every later read looked it
+  // up under "aidan@…" — a successful load then rendered as if nothing had
+  // happened, with no error to show for it.
+  const want = mailbox || _state[dealId]?.mailbox || '';
+  if (want && _cache[key(dealId, want)]) {
+    _state[dealId] = { mailbox: want, loading: false, error: null };
+    refreshModal(true);
+    return;
+  }
+  _state[dealId] = { mailbox: want, loading: true, error: null };
   refreshModal(true);
   try {
     const resp = await invokeEdgeFunctionAsUser('gmail-threads', { dealId, mailbox });
-    _cache[k] = { threads: resp.threads || [], participants: resp.participants || [] };
-    _state[dealId] = { mailbox: resp.mailbox || mailbox, loading: false, error: null };
+    const resolved = resp.mailbox || want || '';
+    _cache[key(dealId, resolved)] = { threads: resp.threads || [], participants: resp.participants || [] };
+    _state[dealId] = { mailbox: resolved, loading: false, error: null };
   } catch (e) {
     // The scope has to be granted in the Workspace admin console — say so
     // plainly rather than showing a raw Google error.
     _state[dealId] = {
-      mailbox, loading: false,
+      mailbox: want, loading: false,
       error: e.code === 'scope-missing'
         ? 'Gmail access is not switched on yet for the CRM. Nothing else on this card is affected.'
         : (e.message || 'Could not load email history'),
