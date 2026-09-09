@@ -19,12 +19,14 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260909035149';
-import { supabase } from './supabase-client.js?v=20260909035149';
-import { PERIODS, periodRange, fetchPeriod } from './funnel-period.js?v=20260909035149';
+import { esc, svgIcon } from './utils.js?v=20260908175510';
+import { supabase } from './supabase-client.js?v=20260908175510';
+import { PERIODS, periodRange, fetchPeriod } from './funnel-period.js?v=20260908175510';
+import { leadsTable } from './funnel-leads.js?v=20260908175510';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
+const _openedForPeriod = new Set(); // periods whose Details were auto-opened once (QC views show the lead lists)
 let _loading = false;
 let _error = null;
 // Day / week views (funnel-period.js): 'all' reads pipeline_latest; anything
@@ -71,7 +73,7 @@ function loadPeriod(key, rerender) {
 window.setFunnelPeriod = (key) => {
   _period = key;
   try { localStorage.setItem(PERIOD_KEY, key); } catch (_) { /* private mode */ }
-  import('./render.js?v=20260909035149').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+  import('./render.js?v=20260908175510').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
 };
 
 const STATUS_STYLE = {
@@ -182,12 +184,15 @@ function levelCard(l) {
     // why, what is left, where the rest went, and which feed each part comes
     // from — sits behind one toggle (Lars, 2026-09-04: "the main number like it
     // is now and then a drop down with the details").
-    const hasDetails = (d.breakdown && d.breakdown.length) || d.denominator_caveat || (d.sources && d.sources.length);
+    const hasDetails = (d.breakdown && d.breakdown.length) || d.denominator_caveat || (d.sources && d.sources.length) || (d.leads && d.leads.length) || (d.activity_leads && d.activity_leads.length);
     if (hasDetails) {
       const open = _open.has(l.level);
       h += `<button id="funnel-toggle-${esc(l.level)}" onclick="toggleFunnelDetails('${esc(l.level)}')" style="margin-top:8px;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);font-size:11px;font-weight:600;color:#374151;cursor:pointer">${open ? '▾' : '▸'} Details</button>`;
       h += `<div id="funnel-details-${esc(l.level)}" ${open ? '' : 'hidden'}>`;
       if (d.breakdown && d.breakdown.length) h += breakdownTable(d.breakdown);
+      // Day / week views: the actual leads, for the setter's QC (funnel-leads.js).
+      if (d.leads) h += leadsTable(d.leads, d.leads_label || 'leads in this period');
+      if (d.activity_leads) h += leadsTable(d.activity_leads, d.activity_leads_label || 'happened in this period');
       if (d.denominator_caveat) {
         const warn = !/^complete/i.test(String(d.denominator_caveat));
         h += `<div style="margin-top:10px;font-size:11px;${warn ? 'color:#92400e;background:#fffbeb;border:1px solid #fde68a;' : 'color:#6b7280;background:#f9fafb;border:1px solid var(--border);'}border-radius:6px;padding:6px 8px">${esc(String(d.denominator_caveat))}</div>`;
@@ -309,7 +314,10 @@ export function renderFunnel() {
     const rows = _periodData[_period];
     if (!rows) h += `<div style="padding:16px;color:#9ca3af;font-size:13px">Asking every level for ${esc(periodLabel(_period))}…</div>`;
     else if (rows.error) h += `<div style="padding:16px;color:#b91c1c;font-size:13px">Could not load ${esc(periodLabel(_period))}: ${esc(rows.error)}</div>`;
-    else h += rows.map(r => r.error ? levelError(r) : levelCard(r)).join('');
+    else {
+      if (!_openedForPeriod.has(_period)) { rows.forEach(r => _open.add(r.level)); _openedForPeriod.add(_period); }
+      h += rows.map(r => r.error ? levelError(r) : levelCard(r)).join('');
+    }
   }
   h += `</div>`;
   h += `<div style="margin-top:16px;font-size:11px;color:#9ca3af;line-height:1.5">
@@ -320,5 +328,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260909035149').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260908175510').then(m => reloadFunnel(m.render));
 };

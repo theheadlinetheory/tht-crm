@@ -20,8 +20,8 @@
 // Admin-only: it shows retainer amounts, and money is admin-gated per the
 // repo's role rule.
 // ═══════════════════════════════════════════════════════════
-import { esc, str } from './utils.js?v=20260909035149';
-import { addMonths, prettyDate, prepaidThrough } from './retainer-billing.js?v=20260909035149';
+import { esc, str } from './utils.js?v=20260908175510';
+import { addMonths, prettyDate, prepaidThrough } from './retainer-billing.js?v=20260908175510';
 
 const CURRENCY_SYMBOLS = { usd: '$', cad: 'CA$', aud: 'A$', gbp: '£', eur: '€' };
 const NOTICE_DAYS = [7, 3, 1];
