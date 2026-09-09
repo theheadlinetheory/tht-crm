@@ -19,14 +19,14 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260909080427';
-import { supabase } from './supabase-client.js?v=20260909080427';
-import { PERIODS, periodRange, fetchPeriod } from './funnel-period.js?v=20260909080427';
-import { leadsTable } from './funnel-leads.js?v=20260909080427';
+import { esc, svgIcon } from './utils.js?v=20260909103806';
+import { supabase } from './supabase-client.js?v=20260909103806';
+import { PERIODS, periodRange, fetchPeriod } from './funnel-period.js?v=20260909103806';
+import { leadsTable } from './funnel-leads.js?v=20260909103806';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
-const _openedForPeriod = new Set(); // periods whose Details were auto-opened once (QC views show the lead lists)
+const _openLeads = new Set(); // lead dropdowns that are expanded ('<level>-cohort' / '<level>-activity')
 let _loading = false;
 let _error = null;
 // Day / week views (funnel-period.js): 'all' reads pipeline_latest; anything
@@ -73,7 +73,7 @@ function loadPeriod(key, rerender) {
 window.setFunnelPeriod = (key) => {
   _period = key;
   try { localStorage.setItem(PERIOD_KEY, key); } catch (_) { /* private mode */ }
-  import('./render.js?v=20260909080427').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+  import('./render.js?v=20260909103806').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
 };
 
 const STATUS_STYLE = {
@@ -176,6 +176,10 @@ function levelCard(l) {
     // their day. Levels whose main number already counts the period's own
     // events (01) send none (Lars, 2026-09-08).
     if (d.activity && d.activity.length) h += activityLine(d.activity);
+    // Day / week views: the actual leads, for the setter's QC (funnel-leads.js) — each list
+    // behind its own dropdown, closed by default (Lars, 2026-09-09: "not such a huge scroll").
+    if (d.leads && d.leads.length) h += leadsDropdown(l.level + '-cohort', d.leads, d.leads_label || 'leads in this period');
+    if (d.activity_leads && d.activity_leads.length) h += leadsDropdown(l.level + '-activity', d.activity_leads, d.activity_leads_label || 'happened in this period');
     // Rep removals are the most common reason a level shrinks and a signal in
     // their own right (a high desk-DQ share = list targeting), so they get their
     // own always-visible block with one tile per reason (Lars, 2026-09-04).
@@ -184,15 +188,12 @@ function levelCard(l) {
     // why, what is left, where the rest went, and which feed each part comes
     // from — sits behind one toggle (Lars, 2026-09-04: "the main number like it
     // is now and then a drop down with the details").
-    const hasDetails = (d.breakdown && d.breakdown.length) || d.denominator_caveat || (d.sources && d.sources.length) || (d.leads && d.leads.length) || (d.activity_leads && d.activity_leads.length);
+    const hasDetails = (d.breakdown && d.breakdown.length) || d.denominator_caveat || (d.sources && d.sources.length);
     if (hasDetails) {
       const open = _open.has(l.level);
       h += `<button id="funnel-toggle-${esc(l.level)}" onclick="toggleFunnelDetails('${esc(l.level)}')" style="margin-top:8px;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);font-size:11px;font-weight:600;color:#374151;cursor:pointer">${open ? '▾' : '▸'} Details</button>`;
       h += `<div id="funnel-details-${esc(l.level)}" ${open ? '' : 'hidden'}>`;
       if (d.breakdown && d.breakdown.length) h += breakdownTable(d.breakdown);
-      // Day / week views: the actual leads, for the setter's QC (funnel-leads.js).
-      if (d.leads) h += leadsTable(d.leads, d.leads_label || 'leads in this period');
-      if (d.activity_leads) h += leadsTable(d.activity_leads, d.activity_leads_label || 'happened in this period');
       if (d.denominator_caveat) {
         const warn = !/^complete/i.test(String(d.denominator_caveat));
         h += `<div style="margin-top:10px;font-size:11px;${warn ? 'color:#92400e;background:#fffbeb;border:1px solid #fde68a;' : 'color:#6b7280;background:#f9fafb;border:1px solid var(--border);'}border-radius:6px;padding:6px 8px">${esc(String(d.denominator_caveat))}</div>`;
@@ -206,6 +207,22 @@ function levelCard(l) {
   h += `</div></div>`;
   return h;
 }
+
+/** A lead list behind its own dropdown. */
+function leadsDropdown(key, rows, label) {
+  const open = _openLeads.has(key);
+  return `<div style="margin-top:6px">
+    <button id="funnel-leads-toggle-${esc(key)}" onclick="toggleFunnelLeads('${esc(key)}')" style="padding:4px 10px;border:1px solid #c7d2fe;border-radius:6px;background:#eef2ff;font-size:11px;font-weight:600;color:#3730a3;cursor:pointer">${open ? '▾' : '▸'} ${esc(label)} · ${rows.length}</button>
+    <div id="funnel-leads-${esc(key)}" ${open ? '' : 'hidden'}>${leadsTable(rows, label)}</div></div>`;
+}
+
+window.toggleFunnelLeads = (key) => {
+  if (_openLeads.has(key)) _openLeads.delete(key); else _openLeads.add(key);
+  const el = document.getElementById('funnel-leads-' + key);
+  if (el) el.hidden = !_openLeads.has(key);
+  const btn = document.getElementById('funnel-leads-toggle-' + key);
+  if (btn) btn.textContent = (_openLeads.has(key) ? '▾' : '▸') + btn.textContent.slice(1);
+};
 
 /** The events of the period, for the reps to check against what they did. */
 function activityLine(items) {
@@ -314,10 +331,7 @@ export function renderFunnel() {
     const rows = _periodData[_period];
     if (!rows) h += `<div style="padding:16px;color:#9ca3af;font-size:13px">Asking every level for ${esc(periodLabel(_period))}…</div>`;
     else if (rows.error) h += `<div style="padding:16px;color:#b91c1c;font-size:13px">Could not load ${esc(periodLabel(_period))}: ${esc(rows.error)}</div>`;
-    else {
-      if (!_openedForPeriod.has(_period)) { rows.forEach(r => _open.add(r.level)); _openedForPeriod.add(_period); }
-      h += rows.map(r => r.error ? levelError(r) : levelCard(r)).join('');
-    }
+    else h += rows.map(r => r.error ? levelError(r) : levelCard(r)).join('');
   }
   h += `</div>`;
   h += `<div style="margin-top:16px;font-size:11px;color:#9ca3af;line-height:1.5">
@@ -328,5 +342,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260909080427').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260909103806').then(m => reloadFunnel(m.render));
 };
