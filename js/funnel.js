@@ -19,10 +19,10 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260909110421';
-import { supabase } from './supabase-client.js?v=20260909110421';
-import { PERIODS, periodRange, fetchPeriod } from './funnel-period.js?v=20260909110421';
-import { leadsTable } from './funnel-leads.js?v=20260909110421';
+import { esc, svgIcon } from './utils.js?v=20260909122843';
+import { supabase } from './supabase-client.js?v=20260909122843';
+import { PERIODS, periodRange, fetchPeriod } from './funnel-period.js?v=20260909122843';
+import { leadsTable } from './funnel-leads.js?v=20260909122843';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -73,7 +73,7 @@ function loadPeriod(key, rerender) {
 window.setFunnelPeriod = (key) => {
   _period = key;
   try { localStorage.setItem(PERIOD_KEY, key); } catch (_) { /* private mode */ }
-  import('./render.js?v=20260909110421').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+  import('./render.js?v=20260909122843').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
 };
 
 const STATUS_STYLE = {
@@ -156,6 +156,14 @@ function levelCard(l) {
       ? l.detail.metrics
       : [{ label: '', numerator: l.numerator, denominator: l.denominator, rate: l.rate }];
     metrics.forEach((m, i) => {
+      // A count-only metric (no denominator): the events of the period, e.g. "closed won in this period" on level 06.
+      if (m.count_only) {
+        h += `<div style="margin-top:${i ? 4 : 10}px;display:flex;align-items:baseline;gap:10px">
+              <span style="font-size:24px;font-weight:800;color:#1e1b4b;font-variant-numeric:tabular-nums">${fmtCount(m.numerator)}</span>
+              <span style="font-size:12px;color:#6b7280">${esc(m.label || '')}</span>
+            </div>`;
+        return;
+      }
       h += `<div style="margin-top:${i ? 4 : 10}px;display:flex;align-items:baseline;gap:10px">
               <span style="font-size:24px;font-weight:800;color:#1e1b4b;font-variant-numeric:tabular-nums">${fmtRate(m.rate)}</span>
               <span style="font-size:12px;color:#6b7280;font-variant-numeric:tabular-nums">${fmtCount(m.numerator)} of ${fmtCount(m.denominator)}${m.label ? ` · ${esc(m.label)}` : ''}</span>
@@ -175,7 +183,7 @@ function levelCard(l) {
     // where it stands now) cannot show, and the line a rep checks against
     // their day. Levels whose main number already counts the period's own
     // events (01) send none (Lars, 2026-09-08).
-    if (d.activity && d.activity.length) h += activityLine(d.activity);
+    if (d.activity && d.activity.some(a => !a.hidden)) h += activityLine(d.activity);
     // Day / week views: the actual leads, for the setter's QC (funnel-leads.js) — each list
     // behind its own dropdown, closed by default (Lars, 2026-09-09: "not such a huge scroll").
     if (d.leads && d.leads.length) h += leadsDropdown(l.level + '-cohort', d.leads, d.leads_label || 'leads in this period');
@@ -226,7 +234,7 @@ window.toggleFunnelLeads = (key) => {
 
 /** The events of the period, for the reps to check against what they did. */
 function activityLine(items) {
-  const bits = items.map(a => `<span style="white-space:nowrap"><strong style="color:#1e1b4b;font-variant-numeric:tabular-nums">${fmtCount(a.value)}</strong> ${esc(String(a.label))}</span>`).join('<span style="color:#d1d5db"> · </span>');
+  const bits = items.filter(a => !a.hidden).map(a => `<span style="white-space:nowrap"><strong style="color:#1e1b4b;font-variant-numeric:tabular-nums">${fmtCount(a.value)}</strong> ${esc(String(a.label))}</span>`).join('<span style="color:#d1d5db"> · </span>');
   return `<div style="margin-top:8px;padding:6px 10px;border:1px solid #c7d2fe;background:#eef2ff;border-radius:8px;font-size:12px;color:#374151;display:flex;gap:6px;flex-wrap:wrap;align-items:baseline"><span style="font-size:10px;font-weight:700;color:#4338ca;letter-spacing:.03em" title="Conversions recorded in the period for leads from any cohort — the main number only follows the leads that entered this level in the period">ALSO IN THIS PERIOD</span>${bits}</div>`;
 }
 
@@ -342,5 +350,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260909110421').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260909122843').then(m => reloadFunnel(m.render));
 };
