@@ -9,9 +9,9 @@
 // the events of the period for leads from any cohort. Temporary by intent —
 // the tables stay small while the window is a week.
 
-import { esc } from './utils.js?v=20260908175510';
-import { state } from './app.js?v=20260908175510';
-import { openDeal } from './deal-modal.js?v=20260908175510';
+import { esc } from './utils.js?v=20260909080427';
+import { state } from './app.js?v=20260909080427';
+import { openDeal } from './deal-modal.js?v=20260909080427';
 
 const STATUS = {
   'moved on': { bg: '#dcfce7', fg: '#166534' },

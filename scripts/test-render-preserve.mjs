@@ -26,7 +26,7 @@ function el(opts) {
     // date/number/email input — the real reason the follow-up date field
     // needs guarding.
     _selectionThrows: !!opts.selectionThrows,
-    focus(o) { this.focusCalls.push(o); this._doc.activeElement = this; },
+    focus(o) { this.focusCalls.push(o); this._doc.activeElement = this; if (this.onfocus) this.onfocus(); },
     setSelectionRange(s, en) {
       if (this._selectionThrows) throw new Error('InvalidStateError');
       this._start = s; this._end = en;
@@ -157,6 +157,38 @@ test('no-ops when the field is gone after the re-render (modal closed)', () => {
 });
 test('no-ops on a null snapshot', () => {
   assert.doesNotThrow(() => restorePreserve(doc([], null), null));
+});
+test('caret survives a focus handler that re-renders (search typed backwards)', () => {
+  // The global search input's onfocus re-runs the search, which re-renders the
+  // page. restore() must put the caret back BEFORE calling focus(): the nested
+  // render's capture otherwise reads the fresh element's caret (0) and its
+  // restore wins, so every keystroke landed at position 0 — text came out
+  // backwards.
+  const before = el({ id: 'search-input', value: 'hell' });
+  before._start = 4; before._end = 4;
+  const els = [before];
+  const d = doc(els, before);
+  const snap = capturePreserve(d);
+
+  // Re-render #1 replaces the input; a parser-fresh input's caret sits at 0.
+  const mid = el({ id: 'search-input', value: 'hell' });
+  mid._start = 0; mid._end = 0;
+  mid._doc = d;
+  els[0] = mid;
+  // Its focus handler re-renders again, exactly like onfocus="globalSearch(...)".
+  mid.onfocus = () => {
+    const nestedSnap = capturePreserve(d);
+    const fresh = el({ id: 'search-input', value: 'hell' });
+    fresh._start = 0; fresh._end = 0;
+    fresh._doc = d;
+    els[0] = fresh;
+    restorePreserve(d, nestedSnap);
+  };
+
+  restorePreserve(d, snap);
+  const live = d.getElementById('search-input');
+  assert.equal(live._start, 4, `caret ended at ${live._start}, not 4 — typing would come out backwards`);
+  assert.equal(live._end, 4);
 });
 
 console.log(`\n${passed} passed`);

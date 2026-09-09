@@ -63,8 +63,13 @@ export function restorePreserve(doc, snap) {
   const el = doc.getElementById(snap.id);
   if (!el) return; // field is gone — modal closed, view switched
   if (snap.value !== null && el.value !== snap.value) el.value = snap.value;
-  el.focus({ preventScroll: true });
+  // Caret BEFORE focus(): focus() fires the field's onfocus synchronously, and
+  // the global search input's onfocus re-renders. Set the caret first so a
+  // nested capture reads the real position — set after, it lands on an element
+  // the nested render already destroyed and the caret stays at 0, which made
+  // typed searches come out backwards.
   if (snap.start !== null) {
     try { el.setSelectionRange(snap.start, snap.end); } catch { /* type has no caret */ }
   }
+  el.focus({ preventScroll: true });
 }

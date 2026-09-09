@@ -1,14 +1,19 @@
 // ═══════════════════════════════════════════════════════════
 // SEARCH — Global search, activity badges, pipeline helpers
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260908175510';
-import { ACQUISITION_STAGES, NURTURE_STAGES, CLIENT_PALETTE, ALL_PIPELINES } from './config.js?v=20260908175510';
-import { render } from './render.js?v=20260908175510';
-import { getToday } from './utils.js?v=20260908175510';
-import { isEmployee, isAdmin, getOwnerNameForDeal } from './auth.js?v=20260908175510';
-import { lookupClientInfo } from './client-info.js?v=20260908175510';
+import { state } from './app.js?v=20260909080427';
+import { ACQUISITION_STAGES, NURTURE_STAGES, CLIENT_PALETTE, ALL_PIPELINES } from './config.js?v=20260909080427';
+import { render } from './render.js?v=20260909080427';
+import { getToday } from './utils.js?v=20260909080427';
+import { isEmployee, isAdmin, getOwnerNameForDeal } from './auth.js?v=20260909080427';
+import { lookupClientInfo } from './client-info.js?v=20260909080427';
 
 export function globalSearch(q){
+  // Re-entrancy guard. restorePreserve() re-focuses the search input after
+  // every render, and its onfocus calls back in here — without this, each
+  // keystroke re-rendered the whole page recursively (lag) and the caret
+  // restore was clobbered. Nothing changed ⇒ nothing to re-render.
+  if(q===state.searchQuery && state.searchResults!==null) return;
   state.searchQuery=q;
   if(!q||q.length<1){state.searchResults=null;render();return;}
   const lq=q.toLowerCase().trim();
