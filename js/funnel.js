@@ -19,10 +19,10 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260909103806';
-import { supabase } from './supabase-client.js?v=20260909103806';
-import { PERIODS, periodRange, fetchPeriod } from './funnel-period.js?v=20260909103806';
-import { leadsTable } from './funnel-leads.js?v=20260909103806';
+import { esc, svgIcon } from './utils.js?v=20260909110421';
+import { supabase } from './supabase-client.js?v=20260909110421';
+import { PERIODS, periodRange, fetchPeriod } from './funnel-period.js?v=20260909110421';
+import { leadsTable } from './funnel-leads.js?v=20260909110421';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -73,7 +73,7 @@ function loadPeriod(key, rerender) {
 window.setFunnelPeriod = (key) => {
   _period = key;
   try { localStorage.setItem(PERIOD_KEY, key); } catch (_) { /* private mode */ }
-  import('./render.js?v=20260909103806').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+  import('./render.js?v=20260909110421').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
 };
 
 const STATUS_STYLE = {
@@ -183,7 +183,7 @@ function levelCard(l) {
     // Rep removals are the most common reason a level shrinks and a signal in
     // their own right (a high desk-DQ share = list targeting), so they get their
     // own always-visible block with one tile per reason (Lars, 2026-09-04).
-    if (d.removals && d.removals.items && d.removals.items.length) h += removalsBlock(d.removals);
+    if (d.removals && d.removals.items && d.removals.items.length && Number(d.removals.total) > 0) h += removalsBlock(d.removals);
     // Everything that explains the number — what came in, what we removed and
     // why, what is left, where the rest went, and which feed each part comes
     // from — sits behind one toggle (Lars, 2026-09-04: "the main number like it
@@ -342,5 +342,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260909103806').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260909110421').then(m => reloadFunnel(m.render));
 };
