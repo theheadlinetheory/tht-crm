@@ -17,13 +17,13 @@
 // mid-edit. Edits save straight to Supabase (debounced) and patch the affected
 // DOM nodes in place — the panel is never wholesale re-rendered while open.
 
-import { state } from './app.js?v=20260909122843';
-import { esc, str, getToday, isValidDate, svgIcon } from './utils.js?v=20260909122843';
-import { isAdmin } from './auth.js?v=20260909122843';
-import { lookupClientInfo } from './client-info.js?v=20260909122843';
-import { sbUpdateClient, sbGetWonAcquisitionCards } from './api.js?v=20260909122843';
-import { registerActions } from './delegate.js?v=20260909122843';
-import { buildAcquisitionCard, indexWonCards, matchCardForClient, answeredQuestions } from './client-acquisition.js?v=20260909122843';
+import { state } from './app.js?v=20260909125754';
+import { esc, str, getToday, isValidDate, svgIcon } from './utils.js?v=20260909125754';
+import { isAdmin } from './auth.js?v=20260909125754';
+import { lookupClientInfo } from './client-info.js?v=20260909125754';
+import { sbUpdateClient, sbGetWonAcquisitionCards } from './api.js?v=20260909125754';
+import { registerActions } from './delegate.js?v=20260909125754';
+import { buildAcquisitionCard, indexWonCards, matchCardForClient, answeredQuestions } from './client-acquisition.js?v=20260909125754';
 
 const OVERLAY_ID = 'client-info-overlay';
 

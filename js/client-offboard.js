@@ -11,11 +11,11 @@
 // What this does NOT do, by decision: pause campaigns, detach inboxes (Tim and
 // Lars finish those), touch Stripe (the retainer cron already skips inactive
 // clients), or delete Smartlead tags (they cannot be deleted).
-import { state, pendingWrites } from './app.js?v=20260909122843';
-import { esc, str, getToday } from './utils.js?v=20260909122843';
-import { supabase, showToast, sbArchiveDeal, sbDeleteDeal, sbUpdateClient, invokeEdgeFunction } from './api.js?v=20260909122843';
-import { SUPABASE_ANON_KEY } from './config.js?v=20260909122843';
-import { render } from './render.js?v=20260909122843';
+import { state, pendingWrites } from './app.js?v=20260909125754';
+import { esc, str, getToday } from './utils.js?v=20260909125754';
+import { supabase, showToast, sbArchiveDeal, sbDeleteDeal, sbUpdateClient, invokeEdgeFunction } from './api.js?v=20260909125754';
+import { SUPABASE_ANON_KEY } from './config.js?v=20260909125754';
+import { render } from './render.js?v=20260909125754';
 
 const FULFILLMENT_FN = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/crm-client-offboard-record';
 
@@ -124,6 +124,7 @@ async function runSteps(startIdx) {
       await sbUpdateClient(c.id, {
         status: 'inactive',
         ended_on: _o.endedOn,
+        ended_by: _o.endedBy || null, // They left / We dropped them — level 07's churn-vs-removed switch
         end_reason: _o.reason,
         end_notes: _o.notes || null,
         enable_auto_forward: false,
@@ -238,10 +239,10 @@ function showDone() {
 }
 
 /** Preview first — the portal delete cannot be undone, so show the plan. */
-export async function openOffboard(clientId, { reason, notes, endedOn, category } = {}) {
+export async function openOffboard(clientId, { reason, notes, endedOn, category, endedBy } = {}) {
   const c = (state.clients || []).find(x => str(x.id) === str(clientId));
   if (!c) return;
-  _o = { client: c, reason: reason || 'Offboarded', notes: notes || '', endedOn: endedOn || getToday(), category };
+  _o = { client: c, reason: reason || 'Offboarded', endedBy: endedBy || null, notes: notes || '', endedOn: endedOn || getToday(), category };
 
   document.getElementById('offboard-overlay')?.remove();
   document.body.insertAdjacentHTML('beforeend', `<div id="offboard-overlay" style="position:fixed;inset:0;z-index:100002;background:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:flex-start;padding:40px 20px;overflow-y:auto">
