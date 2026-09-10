@@ -11,11 +11,11 @@
 // What this does NOT do, by decision: pause campaigns, detach inboxes (Tim and
 // Lars finish those), touch Stripe (the retainer cron already skips inactive
 // clients), or delete Smartlead tags (they cannot be deleted).
-import { state, pendingWrites } from './app.js?v=20260910111105';
-import { esc, str, getToday } from './utils.js?v=20260910111105';
-import { supabase, showToast, sbArchiveDeal, sbDeleteDeal, sbUpdateClient, invokeEdgeFunction } from './api.js?v=20260910111105';
-import { SUPABASE_ANON_KEY } from './config.js?v=20260910111105';
-import { render } from './render.js?v=20260910111105';
+import { state, pendingWrites } from './app.js?v=20260910112031';
+import { esc, str, getToday } from './utils.js?v=20260910112031';
+import { supabase, showToast, sbArchiveDeal, sbDeleteDeal, sbUpdateClient, invokeEdgeFunction } from './api.js?v=20260910112031';
+import { SUPABASE_ANON_KEY } from './config.js?v=20260910112031';
+import { render } from './render.js?v=20260910112031';
 
 const FULFILLMENT_FN = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/crm-client-offboard-record';
 
@@ -24,7 +24,7 @@ const STEPS = [
   'Write the offboarding record',
   'Mark inactive in the CRM',
   'Archive their leads',
-  'Disconnect Drive, Smartlead, GHL',
+  'Disconnect Drive, Smartlead, GHL, check-in call',
 ];
 
 let _o = null; // { client, reason, notes, endedOn, captured, recorded, crmDone, leadsDone, systems }
@@ -159,6 +159,7 @@ async function runSteps(startIdx) {
         sheetId: str(c.clientSheetId) || null,
         portalId: str(c.smartleadClientId) || null,
         ghlLocationId: str(c.ghlLocationId) || null,
+        notifyEmail: str(c.notifyEmail) || null,
       });
       if (r?.error) throw new Error('Disconnect: ' + r.error);
       _o.systems = r.results || [];
@@ -258,7 +259,8 @@ export async function openOffboard(clientId, { reason, notes, endedOn, category,
     const r = await invokeEdgeFunction('client-offboard', {
       clientName: str(c.name), sheetId: str(c.clientSheetId) || null,
       portalId: str(c.smartleadClientId) || null,
-      ghlLocationId: str(c.ghlLocationId) || null, dryRun: true,
+      ghlLocationId: str(c.ghlLocationId) || null,
+      notifyEmail: str(c.notifyEmail) || null, dryRun: true,
     });
     plan = r?.plan || [];
   } catch (e) { plan = [{ step: 'preview', action: 'could not reach Drive/Smartlead — ' + e.message }]; }
