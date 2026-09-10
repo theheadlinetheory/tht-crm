@@ -1,14 +1,14 @@
 // ═══════════════════════════════════════════════════════════
 // ARCHIVE — Admin archive (Deals sheet archive), load/render
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, deletedDealIds } from './app.js?v=20260910163645';
-import { render } from './render.js?v=20260910163645';
-import { sbGetArchive, sbRestoreFromArchive, normalizeRow, supabase } from './api.js?v=20260910163645';
-import { clearDashboardArchiveCache } from './dashboard.js?v=20260910163645';
-import { esc, str, fmtDate } from './utils.js?v=20260910163645';
-import { registerActions } from './delegate.js?v=20260910163645';
-import { openDeal } from './deal-modal.js?v=20260910163645';
-import { filterSelect } from './html-helpers.js?v=20260910163645';
+import { state, store, pendingWrites, deletedDealIds } from './app.js?v=20260910163820';
+import { render } from './render.js?v=20260910163820';
+import { sbGetArchive, sbRestoreFromArchive, normalizeRow, supabase } from './api.js?v=20260910163820';
+import { clearDashboardArchiveCache } from './dashboard.js?v=20260910163820';
+import { esc, str, fmtDate } from './utils.js?v=20260910163820';
+import { registerActions } from './delegate.js?v=20260910163820';
+import { openDeal } from './deal-modal.js?v=20260910163820';
+import { filterSelect } from './html-helpers.js?v=20260910163820';
 
 export async function loadArchive(silent){
   if(!silent){
@@ -89,7 +89,7 @@ export function renderArchiveTab(){
       </tr></thead><tbody>`;
     for(const d of filtered){
       h+=`<tr style="border-top:1px solid #f3f4f6">
-        <td style="padding:8px 10px;font-size:12px;font-weight:600"><a href="#" data-action="openArchivedDeal" data-id="${esc(d.id)}" style="color:#1e1b4b;text-decoration:underline dotted" title="Open the deal card — timeline, notes, everything — without restoring it">${esc(d.company||d.contact||'?')}</a></td>
+        <td style="padding:8px 10px;font-size:12px;font-weight:600"><span data-action="openArchivedDeal" data-id="${esc(d.id)}" style="color:#1e1b4b;text-decoration:underline dotted;cursor:pointer" title="Open the deal card — timeline, notes, everything — without restoring it">${esc(d.company||d.contact||'?')}</span></td>
         <td style="padding:8px 10px;font-size:12px;color:var(--text-muted)">${esc(d.clientName||d.stage||'')}</td>
         <td style="padding:8px 10px;font-size:11px">
           <select data-action="updateArchiveStatus" data-id="${esc(d.id)}" style="padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:var(--font)">
@@ -164,7 +164,7 @@ export async function restoreFromArchive(id){
   } finally { pendingWrites.value--; }
   store.removeArchiveItem(id);
   clearDashboardArchiveCache();
-  const { initialSync } = await import('./api.js?v=20260910163645');
+  const { initialSync } = await import('./api.js?v=20260910163820');
   await initialSync();
 }
 
