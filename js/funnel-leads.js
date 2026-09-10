@@ -9,14 +9,15 @@
 // the events of the period for leads from any cohort. Temporary by intent —
 // the tables stay small while the window is a week.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260910164836';
-import { esc } from './utils.js?v=20260910164836';
-import { state } from './app.js?v=20260910164836';
-import { openDeal } from './deal-modal.js?v=20260910164836';
-import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260910164836';
-import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260910164836';
-import { deleteDeal } from './deals.js?v=20260910164836';
-import { showClientEndPicker } from './client-end.js?v=20260910164836';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260910165154';
+import { esc } from './utils.js?v=20260910165154';
+import { state } from './app.js?v=20260910165154';
+import { openDeal } from './deal-modal.js?v=20260910165154';
+import { openArchivedDeal } from './archive.js?v=20260910165154';
+import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260910165154';
+import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260910165154';
+import { deleteDeal } from './deals.js?v=20260910165154';
+import { showClientEndPicker } from './client-end.js?v=20260910165154';
 
 // ── Record the outcome from the list (Lars, 2026-09-10) ──
 // A flagged row gets the same options the reps use live, and writes through the
@@ -128,10 +129,12 @@ export function leadsTable(rows, label, level) {
       <thead><tr style="color:#9ca3af;font-size:10px;text-align:left"><th style="padding:2px 8px 4px 0;font-weight:600">Company</th><th style="padding:2px 8px 4px;font-weight:600">Contact</th><th style="padding:2px 8px 4px;font-weight:600;white-space:nowrap">Came in</th><th style="padding:2px 8px 4px;font-weight:600">Status</th><th style="padding:2px 0 4px 8px;font-weight:600">Why</th></tr></thead><tbody>`;
   rows.forEach(r => {
     const st = STATUS[r.status] || STATUS.waiting;
+    // Every lead with a deal opens its card from here — on the board or archived — so nobody switches tabs to see
+    // what happened (Lars, 2026-09-10). An archived card opens read-only with its banner (archive.js).
     const onBoard = r.deal_id && state.deals.some(d => String(d.id) === String(r.deal_id));
     const name = esc(r.company || r.contact || '—');
-    const company = onBoard
-      ? `<a href="#" onclick="event.preventDefault();funnelOpenDeal('${esc(r.deal_id)}')" style="color:#1e1b4b;font-weight:600;text-decoration:underline dotted">${name}</a>`
+    const company = r.deal_id
+      ? `<a href="#" onclick="event.preventDefault();funnelOpenDeal('${esc(r.deal_id)}')" title="${onBoard ? 'Open the deal card' : 'Open the archived deal card (read-only)'}" style="color:#1e1b4b;font-weight:600;text-decoration:underline dotted">${name}</a>`
       : `<span style="color:#1f2937;font-weight:600">${name}</span>`;
     // No record of what happened next: highlighted so Aidan and Ioannis can fill it in while they QC (Lars, 2026-09-10).
     const rec = r.needs_info ? recordedFor(level, r.deal_id || r.client_id) : null; // answered from this browser, ledger not yet through
@@ -147,4 +150,4 @@ export function leadsTable(rows, label, level) {
   return h + `</tbody></table></div></div>`;
 }
 
-window.funnelOpenDeal = (id) => openDeal(id);
+window.funnelOpenDeal = (id) => state.deals.some(d => String(d.id) === String(id)) ? openDeal(id) : openArchivedDeal(id);

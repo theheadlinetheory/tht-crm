@@ -11,15 +11,15 @@
 // Mirrors the SmartLead thread viewer in threads.js — on-demand button, latest
 // message expanded, older ones behind a toggle — so the two read the same way.
 
-import { state } from './app.js?v=20260910164836';
-import { esc, str, svgIcon } from './utils.js?v=20260910164836';
-import { isAdmin, currentUser } from './auth.js?v=20260910164836';
-import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20260910164836';
+import { state } from './app.js?v=20260910165154';
+import { esc, str, svgIcon } from './utils.js?v=20260910165154';
+import { isAdmin, currentUser } from './auth.js?v=20260910165154';
+import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20260910165154';
 // Always refreshModal(TRUE): the no-argument form takes a targeted path that
 // only replaces #activities-container, so this section — which lives
 // elsewhere in the modal — would never repaint after loading.
-import { refreshModal } from './render.js?v=20260910164836';
-import { sbUpdateDeal } from './api.js?v=20260910164836';
+import { refreshModal } from './render.js?v=20260910165154';
+import { sbUpdateDeal } from './api.js?v=20260910165154';
 
 const _cache = {};   // `${dealId}|${mailbox}` -> { threads, participants }
 const _state = {};   // dealId -> { mailbox, loading, error }

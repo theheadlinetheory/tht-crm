@@ -8,8 +8,8 @@
 // appointment date). A toggle switches the whole tab to booked month instead,
 // because both questions are worth asking: what gets billed this month, and how
 // much came in this month.
-import { state } from './app.js?v=20260910164836';
-import { esc, str } from './utils.js?v=20260910164836';
+import { state } from './app.js?v=20260910165154';
+import { esc, str } from './utils.js?v=20260910165154';
 
 const MONTHS_SHOWN = 12;
 const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
