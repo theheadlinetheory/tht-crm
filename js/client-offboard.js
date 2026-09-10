@@ -11,23 +11,25 @@
 // What this does NOT do, by decision: pause campaigns, detach inboxes (Tim and
 // Lars finish those), touch Stripe (the retainer cron already skips inactive
 // clients), or delete Smartlead tags (they cannot be deleted).
-import { state, pendingWrites } from './app.js?v=20260910114708';
-import { esc, str, getToday } from './utils.js?v=20260910114708';
-import { supabase, showToast, sbArchiveDeal, sbDeleteDeal, sbUpdateClient, invokeEdgeFunction } from './api.js?v=20260910114708';
-import { SUPABASE_ANON_KEY } from './config.js?v=20260910114708';
-import { render } from './render.js?v=20260910114708';
+import { state, pendingWrites } from './app.js?v=20260910123452';
+import { esc, str, getToday } from './utils.js?v=20260910123452';
+import { supabase, showToast, sbArchiveDeal, sbDeleteDeal, sbUpdateClient, invokeEdgeFunction } from './api.js?v=20260910123452';
+import { SUPABASE_ANON_KEY } from './config.js?v=20260910123452';
+import { render } from './render.js?v=20260910123452';
 
 const FULFILLMENT_FN = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/crm-client-offboard-record';
 
-const STEPS = [
-  'Capture everything worth keeping',
-  'Write the offboarding record',
-  'Mark inactive in the CRM',
-  'Archive their leads',
-  'Disconnect Drive, Smartlead, GHL, check-in call',
-];
+// One list: the preview rows ARE the progress rows. Each turns green as it
+// completes; a row that needs a hand afterwards shows amber, a failure red.
+const TASK_STYLE = {
+  todo: ['○', '#475569'],
+  run: ['⏳', '#4f46e5'],
+  done: ['✓', '#16a34a'],
+  hand: ['⚠', '#b45309'],
+  fail: ['✗', '#dc2626'],
+};
 
-let _o = null; // { client, reason, notes, endedOn, captured, recorded, crmDone, leadsDone, systems }
+let _o = null; // { client, reason, notes, endedOn, tasks, captured, recorded, crmDone, leadsDone, systems }
 
 // ── Capture (read-only) ───────────────────────────────────────────────
 // Everything the CRM knows, gathered before a single thing is taken apart.
@@ -89,16 +91,18 @@ const nextStep = () => !_o.captured ? 0 : !_o.recorded ? 1 : !_o.crmDone ? 2 : !
 async function runSteps(startIdx) {
   const c = _o.client;
   try {
-    setProgress(startIdx, null);
+    for (const t of _o.tasks) if (t.status === 'fail') t.status = 'todo';
+    renderTasks();
+    setFooter('<span></span><span style="font-size:12px;color:#64748b">Working…</span>');
 
     if (startIdx <= 0 && !_o.captured) {
       _o.captured = captureSnapshot(c);
     }
-    setProgress(1, null);
 
     // COMMIT POINT. After this the client's history is safe no matter what
     // fails below, and every later step can simply be retried.
     if (startIdx <= 1 && !_o.recorded) {
+      setTask('record', 'run');
       _o.recorded = await callFulfillment({
         clientName: str(c.name),
         // Sent while it still exists — the portal is not deleted until step 5,
@@ -117,10 +121,12 @@ async function runSteps(startIdx) {
         snapshot: { crm: _o.captured },
         systemsDisconnected: { crm: { pending: true } },
       });
+      setTask('record', 'done');
+      setTask('fulfillment_archive', _o.recorded?.archived ? 'done' : 'hand');
     }
-    setProgress(2, null);
 
     if (startIdx <= 2 && !_o.crmDone) {
+      setTask('crm', 'run');
       await sbUpdateClient(c.id, {
         status: 'inactive',
         ended_on: _o.endedOn,
@@ -134,12 +140,13 @@ async function runSteps(startIdx) {
       });
       Object.assign(c, { status: 'inactive', endedOn: _o.endedOn, endReason: _o.reason, endNotes: _o.notes });
       _o.crmDone = true;
+      setTask('crm', 'done');
     }
-    setProgress(3, null);
 
     // Their leads leave the board the same way a won deal does — archived, not
     // orphaned, and individually restorable. lead_tracker is never touched.
     if (startIdx <= 3 && !_o.leadsDone) {
+      setTask('leads', 'run');
       for (const lead of _o.captured.leadsOnBoard) {
         const deal = (state.deals || []).find(d => str(d.id) === str(lead.id));
         await sbArchiveDeal(lead.id, JSON.stringify({
@@ -150,10 +157,12 @@ async function runSteps(startIdx) {
       state.deals = (state.deals || []).filter(
         d => !_o.captured.leadsOnBoard.some(l => str(l.id) === str(d.id)));
       _o.leadsDone = true;
+      setTask('leads', 'done');
     }
-    setProgress(4, null);
 
     if (startIdx <= 4 && !_o.systems) {
+      for (const t of _o.tasks) if (t.plan && t.status === 'todo') t.status = 'run';
+      renderTasks();
       const r = await invokeEdgeFunction('client-offboard', {
         clientName: str(c.name),
         sheetId: str(c.clientSheetId) || null,
@@ -163,6 +172,15 @@ async function runSteps(startIdx) {
       });
       if (r?.error) throw new Error('Disconnect: ' + r.error);
       _o.systems = r.results || [];
+
+      for (const res of _o.systems) {
+        const t = _o.tasks.find(x => x.key === str(res.step));
+        if (!t) continue;
+        t.status = res.status === 'done' || res.status === 'not_applicable' ? 'done'
+          : res.status === 'failed' ? 'fail' : 'hand';
+      }
+      for (const t of _o.tasks) if (t.plan && t.status === 'run') t.status = 'done';
+      renderTasks();
 
       if (r.results?.some(x => x.step === 'smartlead_portal' && x.status === 'done')) {
         await sbUpdateClient(c.id, { smartlead_client_id: null });
@@ -191,8 +209,12 @@ async function runSteps(startIdx) {
 
     showDone();
   } catch (e) {
-    const failed = nextStep();
-    setProgress(failed, failed);
+    const running = (_o?.tasks || []).find(t => t.status === 'run');
+    if (running) running.status = 'fail';
+    renderTasks();
+    setFooter(`<span></span><div style="display:flex;gap:8px">
+      <button onclick="offboardDismiss()" style="padding:8px 16px;background:#f1f5f9;color:#475569;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Close</button>
+      <button onclick="offboardRetry()" style="padding:8px 18px;background:#4f46e5;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Retry</button></div>`);
     const tail = _o.recorded ? ' — the offboarding record is already saved; Retry picks up where it stopped.' : '';
     showToast('Offboarding step failed: ' + (e?.message || e) + tail, 'error');
   } finally {
@@ -203,39 +225,41 @@ async function runSteps(startIdx) {
 // ── UI ────────────────────────────────────────────────────────────────
 const overlay = () => document.getElementById('offboard-overlay');
 
-function setProgress(activeIdx, failedIdx) {
-  const f = document.getElementById('offboard-footer');
-  if (!f) return;
-  const rows = STEPS.map((s, i) => {
-    let icon = '○', col = '#94a3b8';
-    if (i < activeIdx) { icon = '✓'; col = '#16a34a'; }
-    else if (i === failedIdx) { icon = '✗'; col = '#dc2626'; }
-    else if (i === activeIdx && failedIdx == null) { icon = '⏳'; col = '#4f46e5'; }
-    return `<div style="font-size:12px;color:${col}">${icon} ${s}</div>`;
+function renderTasks() {
+  const el = document.getElementById('offboard-tasks');
+  if (!el || !_o) return;
+  el.innerHTML = (_o.tasks || []).map(t => {
+    const [icon, col] = TASK_STYLE[t.status] || TASK_STYLE.todo;
+    return `<div style="font-size:12.5px;line-height:1.55;color:${col}">${icon} ${esc(t.label)}</div>`;
   }).join('');
-  const btns = failedIdx != null
-    ? `<button onclick="offboardDismiss()" style="padding:8px 16px;background:#f1f5f9;color:#475569;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Close</button>
-       <button onclick="offboardRetry()" style="padding:8px 18px;background:#4f46e5;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Retry</button>`
-    : '<span style="font-size:12px;color:#64748b">Working…</span>';
-  f.innerHTML = `<div style="display:flex;flex-direction:column;gap:3px">${rows}</div><div style="display:flex;gap:8px;align-items:flex-end">${btns}</div>`;
+}
+
+function setTask(key, status) {
+  const t = (_o?.tasks || []).find(x => x.key === key);
+  if (t) t.status = status;
+  renderTasks();
+}
+
+function setFooter(html) {
+  const f = document.getElementById('offboard-footer');
+  if (f) f.innerHTML = html;
 }
 
 function showDone() {
-  const body = document.getElementById('offboard-body');
-  const f = document.getElementById('offboard-footer');
-  if (!body || !f) return;
-  const items = manualFollowups(_o.client, _o.systems).map(t => `<li style="margin-bottom:5px">${esc(t)}</li>`).join('');
-  body.innerHTML = `<div style="padding:4px 0 10px">
+  const done = document.getElementById('offboard-done');
+  if (!done) return;
+  const follow = manualFollowups(_o.client, _o.systems);
+  if (_o.recorded && !_o.recorded.archived) {
+    follow.push('Fulfillment dashboard: the name did not match a fulfillment client — set them to Archived by hand.');
+  }
+  const items = follow.map(t => `<li style="margin-bottom:5px">${esc(t)}</li>`).join('');
+  done.innerHTML = `<div style="padding:12px 0 2px">
     <div style="font-size:13px;color:#16a34a;font-weight:700;margin-bottom:8px">${esc(str(_o.client.name))} offboarded</div>
-    <div style="font-size:12px;color:#475569;margin-bottom:12px">
-      ${_o.captured.leadsOnBoard.length} lead${_o.captured.leadsOnBoard.length === 1 ? '' : 's'} archived ·
-      ${_o.captured.leadTrackerRows} Lead Tracker rows kept · record saved to the fulfillment database.
-    </div>
     <div style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:6px">Still to do by hand</div>
     <ul style="margin:0;padding-left:18px;font-size:11px;color:#92400e;line-height:1.5">${items}</ul>
   </div>`;
-  f.innerHTML = `<span style="font-size:11px;color:#64748b">Saved to client_offboarding</span>
-    <button onclick="offboardDismiss()" style="padding:8px 18px;background:#4f46e5;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Done</button>`;
+  setFooter(`<span style="font-size:11px;color:#64748b">Saved to client_offboarding</span>
+    <button onclick="offboardDismiss()" style="padding:8px 18px;background:#4f46e5;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Done</button>`);
   render();
 }
 
@@ -263,21 +287,25 @@ export async function openOffboard(clientId, { reason, notes, endedOn, category,
       notifyEmail: str(c.notifyEmail) || null, dryRun: true,
     });
     plan = r?.plan || [];
-  } catch (e) { plan = [{ step: 'preview', action: 'could not reach Drive/Smartlead — ' + e.message }]; }
+  } catch (e) { plan = [{ step: 'preview', action: 'Could not reach Drive/Smartlead — ' + e.message }]; }
+
+  _o.tasks = [
+    { key: 'record', label: 'Save the offboarding record to the fulfillment database', status: 'todo' },
+    { key: 'fulfillment_archive', label: 'Mark them Archived in the fulfillment dashboard', status: 'todo' },
+    { key: 'crm', label: 'Mark them inactive in the CRM and turn off forwarding', status: 'todo' },
+    { key: 'leads', label: `Archive ${snap.leadsOnBoard.length} lead${snap.leadsOnBoard.length === 1 ? '' : 's'} off the Client Leads board (restorable from Archive)`, status: 'todo' },
+    ...plan.map(p => ({ key: str(p.step), label: str(p.action), status: 'todo', plan: true })),
+  ];
 
   const body = document.getElementById('offboard-body');
   if (!body) return;
   body.innerHTML = `<div style="font-size:12px;color:#475569;line-height:1.6">
-      <div style="font-weight:700;color:#1e293b;margin-bottom:6px">This will:</div>
-      <ul style="margin:0 0 12px;padding-left:18px">
-        <li>Archive <strong>${snap.leadsOnBoard.length}</strong> lead${snap.leadsOnBoard.length === 1 ? '' : 's'} off the Client Leads board (restorable from Archive)</li>
-        <li>Keep all <strong>${snap.leadTrackerRows}</strong> Lead Tracker rows — still filterable by client, and still billable for the final month</li>
-        <li>Mark them inactive, turn off forwarding, and stop future invoicing</li>
-        <li>Mark them Archived in the fulfillment dashboard</li>
-        ${plan.map(p => `<li>${esc(str(p.action))}</li>`).join('')}
-        <li>Write the permanent record to the fulfillment database</li>
-      </ul>
+      <div style="font-weight:700;color:#1e293b;margin-bottom:8px">This will:</div>
+      <div id="offboard-tasks" style="display:flex;flex-direction:column;gap:4px"></div>
+      <div style="margin-top:10px;font-size:11px;color:#94a3b8">All ${snap.leadTrackerRows} Lead Tracker row${snap.leadTrackerRows === 1 ? '' : 's'} stay — still filterable by client, and still billable for the final month.</div>
+      <div id="offboard-done"></div>
     </div>`;
+  renderTasks();
   document.getElementById('offboard-footer').innerHTML =
     `<button onclick="offboardDismiss()" style="padding:8px 16px;background:#f1f5f9;color:#475569;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Cancel</button>
      <button onclick="offboardStart()" style="padding:8px 18px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Offboard ${esc(str(c.name))}</button>`;

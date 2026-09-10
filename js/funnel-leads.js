@@ -9,13 +9,13 @@
 // the events of the period for leads from any cohort. Temporary by intent —
 // the tables stay small while the window is a week.
 
-import { esc } from './utils.js?v=20260910114708';
-import { state } from './app.js?v=20260910114708';
-import { openDeal } from './deal-modal.js?v=20260910114708';
-import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260910114708';
-import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260910114708';
-import { deleteDeal } from './deals.js?v=20260910114708';
-import { showClientEndPicker } from './client-end.js?v=20260910114708';
+import { esc } from './utils.js?v=20260910123452';
+import { state } from './app.js?v=20260910123452';
+import { openDeal } from './deal-modal.js?v=20260910123452';
+import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260910123452';
+import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260910123452';
+import { deleteDeal } from './deals.js?v=20260910123452';
+import { showClientEndPicker } from './client-end.js?v=20260910123452';
 
 // ── Record the outcome from the list (Lars, 2026-09-10) ──
 // A flagged row gets the same options the reps use live, and writes through the
