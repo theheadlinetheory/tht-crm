@@ -19,10 +19,10 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260910103638';
-import { supabase } from './supabase-client.js?v=20260910103638';
-import { PERIODS, periodRange, fetchPeriod } from './funnel-period.js?v=20260910103638';
-import { leadsTable } from './funnel-leads.js?v=20260910103638';
+import { esc, svgIcon } from './utils.js?v=20260910111105';
+import { supabase } from './supabase-client.js?v=20260910111105';
+import { PERIODS, periodRange, fetchPeriod } from './funnel-period.js?v=20260910111105';
+import { leadsTable } from './funnel-leads.js?v=20260910111105';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -73,7 +73,7 @@ function loadPeriod(key, rerender) {
 window.setFunnelPeriod = (key) => {
   _period = key;
   try { localStorage.setItem(PERIOD_KEY, key); } catch (_) { /* private mode */ }
-  import('./render.js?v=20260910103638').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+  import('./render.js?v=20260910111105').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
 };
 
 const STATUS_STYLE = {
@@ -219,8 +219,9 @@ function levelCard(l) {
 /** A lead list behind its own dropdown. */
 function leadsDropdown(key, rows, label) {
   const open = _openLeads.has(key);
+  const missing = rows.filter(r => r.needs_info).length;
   return `<div style="margin-top:6px">
-    <button id="funnel-leads-toggle-${esc(key)}" onclick="toggleFunnelLeads('${esc(key)}')" style="padding:4px 10px;border:1px solid #c7d2fe;border-radius:6px;background:#eef2ff;font-size:11px;font-weight:600;color:#3730a3;cursor:pointer">${open ? '▾' : '▸'} ${esc(label)} · ${rows.length}</button>
+    <button id="funnel-leads-toggle-${esc(key)}" onclick="toggleFunnelLeads('${esc(key)}')" style="padding:4px 10px;border:1px solid #c7d2fe;border-radius:6px;background:#eef2ff;font-size:11px;font-weight:600;color:#3730a3;cursor:pointer">${open ? '▾' : '▸'} ${esc(label)} · ${rows.length}${missing ? ` <span style="margin-left:4px;padding:0 6px;border-radius:4px;background:#fde68a;color:#92400e">${missing} no record</span>` : ''}</button>
     <div id="funnel-leads-${esc(key)}" ${open ? '' : 'hidden'}>${leadsTable(rows, label)}</div></div>`;
 }
 
@@ -229,7 +230,7 @@ window.toggleFunnelLeads = (key) => {
   const el = document.getElementById('funnel-leads-' + key);
   if (el) el.hidden = !_openLeads.has(key);
   const btn = document.getElementById('funnel-leads-toggle-' + key);
-  if (btn) btn.textContent = (_openLeads.has(key) ? '▾' : '▸') + btn.textContent.slice(1);
+  if (btn) btn.innerHTML = (_openLeads.has(key) ? '▾' : '▸') + btn.innerHTML.slice(1);
 };
 
 /** The events of the period, for the reps to check against what they did. */
@@ -351,5 +352,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260910103638').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260910111105').then(m => reloadFunnel(m.render));
 };

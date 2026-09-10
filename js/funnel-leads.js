@@ -9,9 +9,9 @@
 // the events of the period for leads from any cohort. Temporary by intent —
 // the tables stay small while the window is a week.
 
-import { esc } from './utils.js?v=20260910103638';
-import { state } from './app.js?v=20260910103638';
-import { openDeal } from './deal-modal.js?v=20260910103638';
+import { esc } from './utils.js?v=20260910111105';
+import { state } from './app.js?v=20260910111105';
+import { openDeal } from './deal-modal.js?v=20260910111105';
 
 const STATUS = {
   'moved on': { bg: '#dcfce7', fg: '#166534' },
@@ -31,8 +31,9 @@ function day(iso) {
  *  when its deal is on the board (archived deals have no card to open). */
 export function leadsTable(rows, label) {
   if (!rows || !rows.length) return '';
+  const missing = rows.filter(r => r.needs_info).length;
   let h = `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
-    <div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:6px">${esc(String(label || 'LEADS').toUpperCase())} · ${rows.length}</div>
+    <div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:6px">${esc(String(label || 'LEADS').toUpperCase())} · ${rows.length}${missing ? ` <span style="font-weight:700;color:#92400e">· ${missing} with no record of what happened next</span>` : ''}</div>
     <div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:12px">
       <thead><tr style="color:#9ca3af;font-size:10px;text-align:left"><th style="padding:2px 8px 4px 0;font-weight:600">Company</th><th style="padding:2px 8px 4px;font-weight:600">Contact</th><th style="padding:2px 8px 4px;font-weight:600;white-space:nowrap">Came in</th><th style="padding:2px 8px 4px;font-weight:600">Status</th><th style="padding:2px 0 4px 8px;font-weight:600">Why</th></tr></thead><tbody>`;
   rows.forEach(r => {
@@ -42,8 +43,10 @@ export function leadsTable(rows, label) {
     const company = onBoard
       ? `<a href="#" onclick="event.preventDefault();funnelOpenDeal('${esc(r.deal_id)}')" style="color:#1e1b4b;font-weight:600;text-decoration:underline dotted">${name}</a>`
       : `<span style="color:#1f2937;font-weight:600">${name}</span>`;
-    h += `<tr style="border-top:1px solid #f3f4f6;vertical-align:top">
-      <td style="padding:5px 8px 5px 0;white-space:nowrap">${company}</td>
+    // No record of what happened next: highlighted so Aidan and Ioannis can fill it in while they QC (Lars, 2026-09-10).
+    const flag = r.needs_info;
+    h += `<tr style="border-top:1px solid #f3f4f6;vertical-align:top${flag ? ';background:#fffbeb' : ''}">
+      <td style="padding:5px 8px 5px 0;white-space:nowrap">${company}${flag ? ' <span style="margin-left:6px;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:#fde68a;color:#92400e">no record</span>' : ''}</td>
       <td style="padding:5px 8px;color:#6b7280;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.contact || '')}</td>
       <td style="padding:5px 8px;color:#6b7280;white-space:nowrap;font-variant-numeric:tabular-nums">${esc(day(r.came_in))}</td>
       <td style="padding:5px 8px;white-space:nowrap"><span style="padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;background:${st.bg};color:${st.fg}">${esc(r.status)}</span></td>
