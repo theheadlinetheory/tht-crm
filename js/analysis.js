@@ -11,16 +11,16 @@
 // /sequence-analytics endpoint the Weekly Updates tab uses, so the two tabs
 // can never report different numbers for the same week.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260910144819';
-import { render } from './render.js?v=20260910144819';
-import { esc, str } from './utils.js?v=20260910144819';
-import { isAdmin } from './auth.js?v=20260910144819';
-import { showToast } from './api.js?v=20260910144819';
+import { state } from './app.js?v=20260910153952';
+import { render } from './render.js?v=20260910153952';
+import { esc, str } from './utils.js?v=20260910153952';
+import { isAdmin } from './auth.js?v=20260910153952';
+import { showToast } from './api.js?v=20260910153952';
 import {
   currentWeekKey, weekLabel, shiftWeeks, ymd, weekStartOf,
   getWeeklyKpiStatus, getPpmClients, getRetainerClients,
   PPM_WEEKLY_TARGET, RETAINER_WEEKLY_TARGET,
-} from './dashboard.js?v=20260910144819';
+} from './dashboard.js?v=20260910153952';
 
 // Lives on the fulfillment-dashboard Supabase project (verify_jwt=false),
 // same as the Weekly Updates stats proxy.

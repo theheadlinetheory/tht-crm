@@ -9,13 +9,14 @@
 // the events of the period for leads from any cohort. Temporary by intent —
 // the tables stay small while the window is a week.
 
-import { esc } from './utils.js?v=20260910144819';
-import { state } from './app.js?v=20260910144819';
-import { openDeal } from './deal-modal.js?v=20260910144819';
-import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260910144819';
-import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260910144819';
-import { deleteDeal } from './deals.js?v=20260910144819';
-import { showClientEndPicker } from './client-end.js?v=20260910144819';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260910153952';
+import { esc } from './utils.js?v=20260910153952';
+import { state } from './app.js?v=20260910153952';
+import { openDeal } from './deal-modal.js?v=20260910153952';
+import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260910153952';
+import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260910153952';
+import { deleteDeal } from './deals.js?v=20260910153952';
+import { showClientEndPicker } from './client-end.js?v=20260910153952';
 
 // ── Record the outcome from the list (Lars, 2026-09-10) ──
 // A flagged row gets the same options the reps use live, and writes through the
@@ -54,6 +55,18 @@ function remember(level, id, text) {
   try { localStorage.setItem(RECORDED_KEY, JSON.stringify(m)); } catch { /* private mode: the row still turns green for this render */ }
 }
 function recordedFor(level, id) { const e = id ? recordedMap()[`${level}:${id}`] : null; return e && Date.now() - e.at < RECORDED_TTL ? e : null; }
+// The ledger reads answers on its own clock (hourly). Run it now and refresh the tab, so the row and the day/week
+// numbers agree for everyone within seconds — not only in the browser that answered (Lars, 2026-09-10). The
+// all-time cards keep their hourly rhythm so level 01's removals and the later levels' intake stay one generation.
+async function syncLedger(delayMs = 0) {
+  if (delayMs) await new Promise(r => setTimeout(r, delayMs));
+  try {
+    const headers = { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY };
+    const r = await fetch(`${SUPABASE_URL}/functions/v1/pipeline-leads`, { method: 'POST', headers, body: '{}' });
+    if (!r.ok) throw new Error('pipeline-leads answered ' + r.status);
+    if (typeof window.refreshFunnel === 'function') window.refreshFunnel();
+  } catch (e) { console.warn('[funnel-leads] ledger refresh — the hourly run will catch up:', e && e.message); }
+}
 const recordedMark = (text) => `<span style="font-size:11px;font-weight:600;color:#166534">✓ ${esc(text)} · shows in the numbers within the hour</span>`;
 function markRecorded(rowId, text) {
   const row = document.getElementById(rowId);
@@ -71,21 +84,21 @@ window.funnelSetOutcome = async (level, dealId, value, rowId) => {
       const onBoard = state.deals.some(d => String(d.id) === String(dealId));
       if (onBoard) {
         // Still on the board: the normal archive flow, which asks the reason and archives.
-        showAcquisitionRemovalPicker([dealId], { onPick: (label) => { deleteDeal(dealId, label); remember(level, dealId, label); markRecorded(rowId, label); } });
+        showAcquisitionRemovalPicker([dealId], { onPick: (label) => { deleteDeal(dealId, label); remember(level, dealId, label); markRecorded(rowId, label); syncLedger(2000); } });
         return;
       }
       let note = value;
       if (value === 'Other…') { const r = prompt('Reason:'); if (!r || !r.trim()) return; note = 'Other: ' + r.trim(); }
       await writeRemovalNote(dealId, note);
-      remember(level, dealId, note); markRecorded(rowId, note);
+      remember(level, dealId, note); markRecorded(rowId, note); syncLedger();
     } else if (level === '03') {
-      await markDisco(dealId, value); remember(level, dealId, value); markRecorded(rowId, value);
+      await markDisco(dealId, value); remember(level, dealId, value); markRecorded(rowId, value); syncLedger();
     } else {
-      const ok = await markDemo(dealId, value); if (ok !== false) { remember(level, dealId, value); markRecorded(rowId, value); }
+      const ok = await markDemo(dealId, value); if (ok !== false) { remember(level, dealId, value); markRecorded(rowId, value); syncLedger(); }
     }
   } catch (e) { console.warn('[funnel-leads] could not record', e && e.message); }
 };
-window.funnelRecordEnd = (clientId, rowId) => showClientEndPicker(clientId, { onDone: () => { remember('07', clientId, 'end recorded'); markRecorded(rowId, 'end recorded'); } });
+window.funnelRecordEnd = (clientId, rowId) => showClientEndPicker(clientId, { onDone: () => { remember('07', clientId, 'end recorded'); markRecorded(rowId, 'end recorded'); syncLedger(2000); } });
 
 const STATUS = {
   'moved on': { bg: '#dcfce7', fg: '#166534' },
