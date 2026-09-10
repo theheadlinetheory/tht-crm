@@ -12,7 +12,7 @@
 // Nothing is written: the functions answer from the per-lead ledger and the
 // daily send snapshots. The "All" view keeps reading pipeline_latest.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260910095921';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260910103239';
 
 export const TZ = 'America/Los_Angeles';
 
@@ -30,6 +30,8 @@ export const PERIODS = [
   { key: 'yesterday', label: 'Yesterday' },
   { key: 'week',      label: 'This week' },
   { key: 'lastweek',  label: 'Last week' },
+  // Temporary, for reviewing the backfill one week at a time (Lars, 2026-09-10) — not a permanent history UI.
+  { key: 'week2',     label: '2 weeks ago' },
 ];
 
 /** { from, to } for a period key, weeks running Monday → Sunday in LA.
@@ -44,6 +46,7 @@ export function periodRange(key) {
     case 'yesterday': return { from: addDays(ymd, -1), to: addDays(ymd, -1) };
     case 'week':      return { from: monday, to: ymd };
     case 'lastweek':  return { from: addDays(monday, -7), to: addDays(monday, -1) };
+    case 'week2':     return { from: addDays(monday, -14), to: addDays(monday, -8) };
     default:          return null;
   }
 }
