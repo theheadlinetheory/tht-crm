@@ -12,7 +12,7 @@
 // Nothing is written: the functions answer from the per-lead ledger and the
 // daily send snapshots. The "All" view keeps reading pipeline_latest.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260910112417';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260910114335';
 
 export const TZ = 'America/Los_Angeles';
 
@@ -31,8 +31,18 @@ export const PERIODS = [
   { key: 'week',      label: 'This week' },
   { key: 'lastweek',  label: 'Last week' },
   // Temporary, for reviewing the backfill one week at a time (Lars, 2026-09-10) — not a permanent history UI.
-  { key: 'week2',     label: '2 weeks ago' },
+  // Older weeks are labelled by their dates; only last week and forward keep names (Lars).
+  { key: 'week2',     label: null },
+  { key: 'week3',     label: null },
 ];
+
+/** 'Aug 24–30' for a range (LA dates). */
+export function rangeLabel(r) {
+  if (!r) return '';
+  const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const [fy, fm, fd] = r.from.split('-').map(Number), [ty, tm, td] = r.to.split('-').map(Number);
+  return fm === tm ? `${M[fm - 1]} ${fd}–${td}` : `${M[fm - 1]} ${fd}–${M[tm - 1]} ${td}`;
+}
 
 /** { from, to } for a period key, weeks running Monday → Sunday in LA.
  *  'week:YYYY-MM-DD' is any past week by its Monday — the backfill is reviewed a
@@ -47,6 +57,7 @@ export function periodRange(key) {
     case 'week':      return { from: monday, to: ymd };
     case 'lastweek':  return { from: addDays(monday, -7), to: addDays(monday, -1) };
     case 'week2':     return { from: addDays(monday, -14), to: addDays(monday, -8) };
+    case 'week3':     return { from: addDays(monday, -21), to: addDays(monday, -15) };
     default:          return null;
   }
 }
