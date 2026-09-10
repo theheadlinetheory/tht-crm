@@ -9,13 +9,13 @@
 // the events of the period for leads from any cohort. Temporary by intent —
 // the tables stay small while the window is a week.
 
-import { esc } from './utils.js?v=20260910123452';
-import { state } from './app.js?v=20260910123452';
-import { openDeal } from './deal-modal.js?v=20260910123452';
-import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260910123452';
-import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260910123452';
-import { deleteDeal } from './deals.js?v=20260910123452';
-import { showClientEndPicker } from './client-end.js?v=20260910123452';
+import { esc } from './utils.js?v=20260910144819';
+import { state } from './app.js?v=20260910144819';
+import { openDeal } from './deal-modal.js?v=20260910144819';
+import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260910144819';
+import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260910144819';
+import { deleteDeal } from './deals.js?v=20260910144819';
+import { showClientEndPicker } from './client-end.js?v=20260910144819';
 
 // ── Record the outcome from the list (Lars, 2026-09-10) ──
 // A flagged row gets the same options the reps use live, and writes through the
@@ -40,12 +40,29 @@ function outcomeControl(level, r, rowId) {
   return `<select onchange="funnelSetOutcome('${level}','${esc(r.deal_id)}',this.value,'${rowId}')" style="margin-left:8px;padding:2px 6px;border:1px solid #fde68a;border-radius:5px;background:#fff;font-size:11px;color:#92400e">
     <option value="">record what happened…</option>${opts.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>`;
 }
+// An outcome recorded from the list is remembered (per browser) until the ledger has read it — hourly — so a
+// re-render in between (a realtime deal update, a chip change) does not put the yellow back on a row the rep
+// already answered (Aidan, 2026-09-10: "when I change the designation via dropdown it seems to not update").
+const RECORDED_KEY = 'funnelRecorded';
+const RECORDED_TTL = 3 * 3600e3;
+function recordedMap() { try { return JSON.parse(localStorage.getItem(RECORDED_KEY) || '{}'); } catch { return {}; } }
+function remember(level, id, text) {
+  if (!id) return;
+  const m = recordedMap(); const now = Date.now();
+  for (const k of Object.keys(m)) if (now - (m[k].at || 0) > RECORDED_TTL) delete m[k];
+  m[`${level}:${id}`] = { text, at: now };
+  try { localStorage.setItem(RECORDED_KEY, JSON.stringify(m)); } catch { /* private mode: the row still turns green for this render */ }
+}
+function recordedFor(level, id) { const e = id ? recordedMap()[`${level}:${id}`] : null; return e && Date.now() - e.at < RECORDED_TTL ? e : null; }
+const recordedMark = (text) => `<span style="font-size:11px;font-weight:600;color:#166534">✓ ${esc(text)} · shows in the numbers within the hour</span>`;
 function markRecorded(rowId, text) {
   const row = document.getElementById(rowId);
   if (!row) return;
   row.style.background = '#f0fdf4';
+  const badge = row.querySelector('[data-badge]');
+  if (badge) { badge.textContent = 'recorded'; badge.style.background = '#bbf7d0'; badge.style.color = '#166534'; }
   const cell = row.querySelector('[data-outcome]');
-  if (cell) cell.innerHTML = `<span style="font-size:11px;font-weight:600;color:#166534">✓ ${esc(text)} · shows in the numbers within the hour</span>`;
+  if (cell) cell.innerHTML = recordedMark(text);
 }
 window.funnelSetOutcome = async (level, dealId, value, rowId) => {
   if (!value) return;
@@ -54,21 +71,21 @@ window.funnelSetOutcome = async (level, dealId, value, rowId) => {
       const onBoard = state.deals.some(d => String(d.id) === String(dealId));
       if (onBoard) {
         // Still on the board: the normal archive flow, which asks the reason and archives.
-        showAcquisitionRemovalPicker([dealId], { onPick: (label) => { deleteDeal(dealId, label); markRecorded(rowId, label); } });
+        showAcquisitionRemovalPicker([dealId], { onPick: (label) => { deleteDeal(dealId, label); remember(level, dealId, label); markRecorded(rowId, label); } });
         return;
       }
       let note = value;
       if (value === 'Other…') { const r = prompt('Reason:'); if (!r || !r.trim()) return; note = 'Other: ' + r.trim(); }
       await writeRemovalNote(dealId, note);
-      markRecorded(rowId, note);
+      remember(level, dealId, note); markRecorded(rowId, note);
     } else if (level === '03') {
-      await markDisco(dealId, value); markRecorded(rowId, value);
+      await markDisco(dealId, value); remember(level, dealId, value); markRecorded(rowId, value);
     } else {
-      const ok = await markDemo(dealId, value); if (ok !== false) markRecorded(rowId, value);
+      const ok = await markDemo(dealId, value); if (ok !== false) { remember(level, dealId, value); markRecorded(rowId, value); }
     }
   } catch (e) { console.warn('[funnel-leads] could not record', e && e.message); }
 };
-window.funnelRecordEnd = (clientId, rowId) => showClientEndPicker(clientId, { onDone: () => markRecorded(rowId, 'end recorded') });
+window.funnelRecordEnd = (clientId, rowId) => showClientEndPicker(clientId, { onDone: () => { remember('07', clientId, 'end recorded'); markRecorded(rowId, 'end recorded'); } });
 
 const STATUS = {
   'moved on': { bg: '#dcfce7', fg: '#166534' },
@@ -88,7 +105,7 @@ function day(iso) {
  *  when its deal is on the board (archived deals have no card to open). */
 export function leadsTable(rows, label, level) {
   if (!rows || !rows.length) return '';
-  const missing = rows.filter(r => r.needs_info).length;
+  const missing = rows.filter(r => r.needs_info && !recordedFor(level, r.deal_id || r.client_id)).length;
   let h = `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
     <div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:6px">${esc(String(label || 'LEADS').toUpperCase())} · ${rows.length}${missing ? ` <span style="font-weight:700;color:#92400e">· ${missing} with no record of what happened next</span>` : ''}</div>
     <div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:12px">
@@ -101,14 +118,15 @@ export function leadsTable(rows, label, level) {
       ? `<a href="#" onclick="event.preventDefault();funnelOpenDeal('${esc(r.deal_id)}')" style="color:#1e1b4b;font-weight:600;text-decoration:underline dotted">${name}</a>`
       : `<span style="color:#1f2937;font-weight:600">${name}</span>`;
     // No record of what happened next: highlighted so Aidan and Ioannis can fill it in while they QC (Lars, 2026-09-10).
-    const flag = r.needs_info;
+    const rec = r.needs_info ? recordedFor(level, r.deal_id || r.client_id) : null; // answered from this browser, ledger not yet through
+    const flag = r.needs_info && !rec;
     const rowId = 'lead-' + Math.random().toString(36).slice(2, 9);
-    h += `<tr id="${rowId}" style="border-top:1px solid #f3f4f6;vertical-align:top${flag ? ';background:#fffbeb' : ''}">
-      <td style="padding:5px 8px 5px 0;white-space:nowrap">${company}${flag ? ' <span style="margin-left:6px;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:#fde68a;color:#92400e">no record</span>' : ''}</td>
+    h += `<tr id="${rowId}" style="border-top:1px solid #f3f4f6;vertical-align:top${flag ? ';background:#fffbeb' : rec ? ';background:#f0fdf4' : ''}">
+      <td style="padding:5px 8px 5px 0;white-space:nowrap">${company}${flag ? ' <span data-badge style="margin-left:6px;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:#fde68a;color:#92400e">no record</span>' : rec ? ' <span data-badge style="margin-left:6px;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:#bbf7d0;color:#166534">recorded</span>' : ''}</td>
       <td style="padding:5px 8px;color:#6b7280;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.contact || '')}</td>
       <td style="padding:5px 8px;color:#6b7280;white-space:nowrap;font-variant-numeric:tabular-nums">${esc(day(r.came_in))}</td>
       <td style="padding:5px 8px;white-space:nowrap"><span style="padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;background:${st.bg};color:${st.fg}">${esc(r.status)}</span></td>
-      <td style="padding:5px 0 5px 8px;color:#374151;line-height:1.35" data-outcome>${esc(r.note || '')}${flag ? outcomeControl(level, r, rowId) : ''}</td></tr>`;
+      <td style="padding:5px 0 5px 8px;color:#374151;line-height:1.35" data-outcome>${flag ? esc(r.note || '') + outcomeControl(level, r, rowId) : rec ? recordedMark(rec.text) : esc(r.note || '')}</td></tr>`;
   });
   return h + `</tbody></table></div></div>`;
 }
