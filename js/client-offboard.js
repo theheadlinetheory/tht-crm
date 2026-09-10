@@ -11,11 +11,11 @@
 // What this does NOT do, by decision: pause campaigns, detach inboxes (Tim and
 // Lars finish those), touch Stripe (the retainer cron already skips inactive
 // clients), or delete Smartlead tags (they cannot be deleted).
-import { state, pendingWrites } from './app.js?v=20260910114335';
-import { esc, str, getToday } from './utils.js?v=20260910114335';
-import { supabase, showToast, sbArchiveDeal, sbDeleteDeal, sbUpdateClient, invokeEdgeFunction } from './api.js?v=20260910114335';
-import { SUPABASE_ANON_KEY } from './config.js?v=20260910114335';
-import { render } from './render.js?v=20260910114335';
+import { state, pendingWrites } from './app.js?v=20260910114708';
+import { esc, str, getToday } from './utils.js?v=20260910114708';
+import { supabase, showToast, sbArchiveDeal, sbDeleteDeal, sbUpdateClient, invokeEdgeFunction } from './api.js?v=20260910114708';
+import { SUPABASE_ANON_KEY } from './config.js?v=20260910114708';
+import { render } from './render.js?v=20260910114708';
 
 const FULFILLMENT_FN = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/crm-client-offboard-record';
 
@@ -273,12 +273,10 @@ export async function openOffboard(clientId, { reason, notes, endedOn, category,
         <li>Archive <strong>${snap.leadsOnBoard.length}</strong> lead${snap.leadsOnBoard.length === 1 ? '' : 's'} off the Client Leads board (restorable from Archive)</li>
         <li>Keep all <strong>${snap.leadTrackerRows}</strong> Lead Tracker rows — still filterable by client, and still billable for the final month</li>
         <li>Mark them inactive, turn off forwarding, and stop future invoicing</li>
+        <li>Mark them Archived in the fulfillment dashboard</li>
         ${plan.map(p => `<li>${esc(str(p.action))}</li>`).join('')}
         <li>Write the permanent record to the fulfillment database</li>
       </ul>
-      <div style="padding:8px 10px;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;font-size:11px;color:#92400e">
-        Deleting the Smartlead portal is permanent. Bringing them back means creating a new one.
-      </div>
     </div>`;
   document.getElementById('offboard-footer').innerHTML =
     `<button onclick="offboardDismiss()" style="padding:8px 16px;background:#f1f5f9;color:#475569;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Cancel</button>
