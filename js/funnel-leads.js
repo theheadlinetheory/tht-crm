@@ -9,9 +9,66 @@
 // the events of the period for leads from any cohort. Temporary by intent —
 // the tables stay small while the window is a week.
 
-import { esc } from './utils.js?v=20260910112031';
-import { state } from './app.js?v=20260910112031';
-import { openDeal } from './deal-modal.js?v=20260910112031';
+import { esc } from './utils.js?v=20260910112417';
+import { state } from './app.js?v=20260910112417';
+import { openDeal } from './deal-modal.js?v=20260910112417';
+import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260910112417';
+import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260910112417';
+import { deleteDeal } from './deals.js?v=20260910112417';
+import { showClientEndPicker } from './client-end.js?v=20260910112417';
+
+// ── Record the outcome from the list (Lars, 2026-09-10) ──
+// A flagged row gets the same options the reps use live, and writes through the
+// same functions, so the ledger reads it exactly as if it had been answered on
+// the card: the pre-disco removal reasons at level 02, the discovery outcome at
+// 03, the demo outcome at 05 and 06, the offboard picker at 07.
+const PRE_DISCO_REASONS = ['Desk DQ', 'Miscategorized', 'Duplicate', 'Lost', 'Other…'];
+const FINAL_DEMO = DEMO_OUTCOMES.filter(o => o !== 'No-Show' && o !== 'Qualified — Pending');
+function optionsFor(level) {
+  if (level === '02') return PRE_DISCO_REASONS;
+  if (level === '03') return DISCO_OUTCOMES;
+  if (level === '05') return DEMO_OUTCOMES;
+  if (level === '06') return FINAL_DEMO;
+  return null;
+}
+function outcomeControl(level, r, rowId) {
+  if (level === '07') {
+    return r.client_id ? `<button onclick="funnelRecordEnd('${esc(r.client_id)}','${rowId}')" style="margin-left:8px;padding:2px 8px;border:1px solid #fde68a;border-radius:5px;background:#fff;font-size:11px;color:#92400e;cursor:pointer">Record the end…</button>` : '';
+  }
+  const opts = optionsFor(level);
+  if (!opts || !r.deal_id) return '';
+  return `<select onchange="funnelSetOutcome('${level}','${esc(r.deal_id)}',this.value,'${rowId}')" style="margin-left:8px;padding:2px 6px;border:1px solid #fde68a;border-radius:5px;background:#fff;font-size:11px;color:#92400e">
+    <option value="">record what happened…</option>${opts.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>`;
+}
+function markRecorded(rowId, text) {
+  const row = document.getElementById(rowId);
+  if (!row) return;
+  row.style.background = '#f0fdf4';
+  const cell = row.querySelector('[data-outcome]');
+  if (cell) cell.innerHTML = `<span style="font-size:11px;font-weight:600;color:#166534">✓ ${esc(text)} · shows in the numbers within the hour</span>`;
+}
+window.funnelSetOutcome = async (level, dealId, value, rowId) => {
+  if (!value) return;
+  try {
+    if (level === '02') {
+      const onBoard = state.deals.some(d => String(d.id) === String(dealId));
+      if (onBoard) {
+        // Still on the board: the normal archive flow, which asks the reason and archives.
+        showAcquisitionRemovalPicker([dealId], { onPick: (label) => { deleteDeal(dealId, label); markRecorded(rowId, label); } });
+        return;
+      }
+      let note = value;
+      if (value === 'Other…') { const r = prompt('Reason:'); if (!r || !r.trim()) return; note = 'Other: ' + r.trim(); }
+      await writeRemovalNote(dealId, note);
+      markRecorded(rowId, note);
+    } else if (level === '03') {
+      await markDisco(dealId, value); markRecorded(rowId, value);
+    } else {
+      const ok = await markDemo(dealId, value); if (ok !== false) markRecorded(rowId, value);
+    }
+  } catch (e) { console.warn('[funnel-leads] could not record', e && e.message); }
+};
+window.funnelRecordEnd = (clientId, rowId) => showClientEndPicker(clientId, { onDone: () => markRecorded(rowId, 'end recorded') });
 
 const STATUS = {
   'moved on': { bg: '#dcfce7', fg: '#166534' },
@@ -29,7 +86,7 @@ function day(iso) {
 
 /** One table: Company · Contact · Came in · Status · Why. A company is a link
  *  when its deal is on the board (archived deals have no card to open). */
-export function leadsTable(rows, label) {
+export function leadsTable(rows, label, level) {
   if (!rows || !rows.length) return '';
   const missing = rows.filter(r => r.needs_info).length;
   let h = `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
@@ -45,12 +102,13 @@ export function leadsTable(rows, label) {
       : `<span style="color:#1f2937;font-weight:600">${name}</span>`;
     // No record of what happened next: highlighted so Aidan and Ioannis can fill it in while they QC (Lars, 2026-09-10).
     const flag = r.needs_info;
-    h += `<tr style="border-top:1px solid #f3f4f6;vertical-align:top${flag ? ';background:#fffbeb' : ''}">
+    const rowId = 'lead-' + Math.random().toString(36).slice(2, 9);
+    h += `<tr id="${rowId}" style="border-top:1px solid #f3f4f6;vertical-align:top${flag ? ';background:#fffbeb' : ''}">
       <td style="padding:5px 8px 5px 0;white-space:nowrap">${company}${flag ? ' <span style="margin-left:6px;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:#fde68a;color:#92400e">no record</span>' : ''}</td>
       <td style="padding:5px 8px;color:#6b7280;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.contact || '')}</td>
       <td style="padding:5px 8px;color:#6b7280;white-space:nowrap;font-variant-numeric:tabular-nums">${esc(day(r.came_in))}</td>
       <td style="padding:5px 8px;white-space:nowrap"><span style="padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;background:${st.bg};color:${st.fg}">${esc(r.status)}</span></td>
-      <td style="padding:5px 0 5px 8px;color:#374151;line-height:1.35">${esc(r.note || '')}</td></tr>`;
+      <td style="padding:5px 0 5px 8px;color:#374151;line-height:1.35" data-outcome>${esc(r.note || '')}${flag ? outcomeControl(level, r, rowId) : ''}</td></tr>`;
   });
   return h + `</tbody></table></div></div>`;
 }

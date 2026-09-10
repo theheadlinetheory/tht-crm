@@ -13,11 +13,11 @@
 //   thread (separate from the weekly thread). Recipients + Lars's signature
 //   resolve exactly as they do for the weekly update.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20260910112031';
-import { state } from './app.js?v=20260910112031';
-import { render } from './render.js?v=20260910112031';
-import { showToast, sbSaveSettings } from './api.js?v=20260910112031';
-import { esc, str, svgIcon } from './utils.js?v=20260910112031';
+import { supabase } from './supabase-client.js?v=20260910112417';
+import { state } from './app.js?v=20260910112417';
+import { render } from './render.js?v=20260910112417';
+import { showToast, sbSaveSettings } from './api.js?v=20260910112417';
+import { esc, str, svgIcon } from './utils.js?v=20260910112417';
 
 const SEND_FN_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/monthly-update-send';
 
