@@ -19,10 +19,10 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260910163134';
-import { supabase } from './supabase-client.js?v=20260910163134';
-import { PERIODS, periodRange, fetchPeriod, rangeLabel } from './funnel-period.js?v=20260910163134';
-import { leadsTable } from './funnel-leads.js?v=20260910163134';
+import { esc, svgIcon } from './utils.js?v=20260910163645';
+import { supabase } from './supabase-client.js?v=20260910163645';
+import { PERIODS, periodRange, fetchPeriod, rangeLabel } from './funnel-period.js?v=20260910163645';
+import { leadsTable } from './funnel-leads.js?v=20260910163645';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -73,7 +73,7 @@ function loadPeriod(key, rerender) {
 window.setFunnelPeriod = (key) => {
   _period = key;
   try { localStorage.setItem(PERIOD_KEY, key); } catch (_) { /* private mode */ }
-  import('./render.js?v=20260910163134').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+  import('./render.js?v=20260910163645').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
 };
 
 const STATUS_STYLE = {
@@ -353,5 +353,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260910163134').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260910163645').then(m => reloadFunnel(m.render));
 };
