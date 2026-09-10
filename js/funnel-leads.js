@@ -9,14 +9,14 @@
 // the events of the period for leads from any cohort. Temporary by intent —
 // the tables stay small while the window is a week.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260910153952';
-import { esc } from './utils.js?v=20260910153952';
-import { state } from './app.js?v=20260910153952';
-import { openDeal } from './deal-modal.js?v=20260910153952';
-import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260910153952';
-import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260910153952';
-import { deleteDeal } from './deals.js?v=20260910153952';
-import { showClientEndPicker } from './client-end.js?v=20260910153952';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260910163134';
+import { esc } from './utils.js?v=20260910163134';
+import { state } from './app.js?v=20260910163134';
+import { openDeal } from './deal-modal.js?v=20260910163134';
+import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260910163134';
+import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260910163134';
+import { deleteDeal } from './deals.js?v=20260910163134';
+import { showClientEndPicker } from './client-end.js?v=20260910163134';
 
 // ── Record the outcome from the list (Lars, 2026-09-10) ──
 // A flagged row gets the same options the reps use live, and writes through the
@@ -38,7 +38,7 @@ function outcomeControl(level, r, rowId) {
   }
   const opts = optionsFor(level);
   if (!opts || !r.deal_id) return '';
-  return `<select onchange="funnelSetOutcome('${level}','${esc(r.deal_id)}',this.value,'${rowId}')" style="margin-left:8px;padding:2px 6px;border:1px solid #fde68a;border-radius:5px;background:#fff;font-size:11px;color:#92400e">
+  return `<select onchange="funnelSetOutcome('${level}','${esc(r.deal_id)}',this.value,'${rowId}','${esc(r.as_of || '')}')" style="margin-left:8px;padding:2px 6px;border:1px solid #fde68a;border-radius:5px;background:#fff;font-size:11px;color:#92400e">
     <option value="">record what happened…</option>${opts.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>`;
 }
 // An outcome recorded from the list is remembered (per browser) until the ledger has read it — hourly — so a
@@ -67,7 +67,7 @@ async function syncLedger(delayMs = 0) {
     if (typeof window.refreshFunnel === 'function') window.refreshFunnel();
   } catch (e) { console.warn('[funnel-leads] ledger refresh — the hourly run will catch up:', e && e.message); }
 }
-const recordedMark = (text) => `<span style="font-size:11px;font-weight:600;color:#166534">✓ ${esc(text)} · shows in the numbers within the hour</span>`;
+const recordedMark = (text) => `<span style="font-size:11px;font-weight:600;color:#166534">✓ ${esc(text)} · in the numbers in a moment</span>`;
 function markRecorded(rowId, text) {
   const row = document.getElementById(rowId);
   if (!row) return;
@@ -77,8 +77,11 @@ function markRecorded(rowId, text) {
   const cell = row.querySelector('[data-outcome]');
   if (cell) cell.innerHTML = recordedMark(text);
 }
-window.funnelSetOutcome = async (level, dealId, value, rowId) => {
+window.funnelSetOutcome = async (level, dealId, value, rowId, asOf) => {
   if (!value) return;
+  // asOf: the row's own day (the call, the demo) — the answer is dated there, not today (Ioannis, 2026-09-10).
+  const opts = asOf ? { asOf } : {};
+  const dated = (text) => asOf ? `${text} · as of ${asOf}` : text;
   try {
     if (level === '02') {
       const onBoard = state.deals.some(d => String(d.id) === String(dealId));
@@ -89,12 +92,12 @@ window.funnelSetOutcome = async (level, dealId, value, rowId) => {
       }
       let note = value;
       if (value === 'Other…') { const r = prompt('Reason:'); if (!r || !r.trim()) return; note = 'Other: ' + r.trim(); }
-      await writeRemovalNote(dealId, note);
-      remember(level, dealId, note); markRecorded(rowId, note); syncLedger();
+      await writeRemovalNote(dealId, note, opts);
+      remember(level, dealId, dated(note)); markRecorded(rowId, dated(note)); syncLedger();
     } else if (level === '03') {
-      await markDisco(dealId, value); remember(level, dealId, value); markRecorded(rowId, value); syncLedger();
+      await markDisco(dealId, value, opts); remember(level, dealId, dated(value)); markRecorded(rowId, dated(value)); syncLedger();
     } else {
-      const ok = await markDemo(dealId, value); if (ok !== false) { remember(level, dealId, value); markRecorded(rowId, value); syncLedger(); }
+      const ok = await markDemo(dealId, value, opts); if (ok !== false) { remember(level, dealId, dated(value)); markRecorded(rowId, dated(value)); syncLedger(); }
     }
   } catch (e) { console.warn('[funnel-leads] could not record', e && e.message); }
 };

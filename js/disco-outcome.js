@@ -21,10 +21,10 @@
 // The answer is stored as a normal CRM interaction, which means no new table and
 // no schema change: the same anon insert the call touchpoints already use.
 
-import { state } from './app.js?v=20260910153952';
-import { esc, svgIcon } from './utils.js?v=20260910153952';
-import { sbCreateInteraction, showToast } from './api.js?v=20260910153952';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260910153952';
+import { state } from './app.js?v=20260910163134';
+import { esc, svgIcon } from './utils.js?v=20260910163134';
+import { sbCreateInteraction, showToast } from './api.js?v=20260910163134';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260910163134';
 
 // pipeline-level03 runs on the CRM's own Supabase project (moved 2026-09-03). It
 // is deployed with JWT verification, so the anon key goes along as the bearer.
@@ -107,7 +107,7 @@ function openNurture(dealId, fromDemo) {
   state._nurtureEntryDealId = dealId;
   state._nurtureEntryBucket = 'not_now';
   state._nurtureEntryFromDemo = !!fromDemo;
-  import('./render.js?v=20260910153952').then(m => m.render());
+  import('./render.js?v=20260910163134').then(m => m.render());
 }
 
 export function pendingDiscoCount() {
@@ -181,7 +181,7 @@ export function askLostReason() {
 
 /** Record a demo's outcome on the Timeline. Returns false if the rep cancelled
  *  (a lost demo needs its reason), so callers do not archive on a non-answer. */
-export async function markDemo(dealId, outcome) {
+export async function markDemo(dealId, outcome, opts) {
   if (!outcome || !DEMO_OUTCOMES.includes(outcome)) return false;
   let value = outcome;
   if (outcome === DEMO_LOST) {
@@ -194,7 +194,7 @@ export async function markDemo(dealId, outcome) {
   try {
     await sbCreateInteraction({
       deal_id: dealId, type: 'Meeting',
-      content: DEMO_OUTCOME_PREFIX + value + ' · marked in the CRM',
+      content: DEMO_OUTCOME_PREFIX + value + ' · marked in the CRM' + asOfSuffix(opts),
     });
     if (_pendingDemos) {
       _pendingDemos = _pendingDemos.filter(p => p.deal_id !== dealId);
@@ -266,7 +266,10 @@ export function closeDiscoOutcomeQueue() {
   if (el) el.remove();
 }
 
-export async function markDisco(dealId, outcome) {
+// opts.asOf (YYYY-MM-DD): the day the answer belongs to when it is recorded later from a Funnel list row — the
+// ledger dates the event there instead of today (see pipeline-leads asOfIso).
+const asOfSuffix = (opts) => opts && opts.asOf ? ' · as of ' + opts.asOf : '';
+export async function markDisco(dealId, outcome, opts) {
   if (!outcome) return;
   // Tolerate the old boolean call sites while any remain.
   if (outcome === true) outcome = 'Demo booked';
@@ -279,7 +282,7 @@ export async function markDisco(dealId, outcome) {
     await sbCreateInteraction({
       deal_id: dealId,
       type: 'Meeting',
-      content: OUTCOME_PREFIX + outcome + ' · marked in the CRM',
+      content: OUTCOME_PREFIX + outcome + ' · marked in the CRM' + asOfSuffix(opts),
     });
     // Callable from the deal timeline as well as the queue, where the queue may
     // never have loaded — guard rather than assume.

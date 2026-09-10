@@ -1,13 +1,14 @@
 // ═══════════════════════════════════════════════════════════
 // ARCHIVE — Admin archive (Deals sheet archive), load/render
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, deletedDealIds } from './app.js?v=20260910153952';
-import { render } from './render.js?v=20260910153952';
-import { sbGetArchive, sbRestoreFromArchive, normalizeRow, supabase } from './api.js?v=20260910153952';
-import { clearDashboardArchiveCache } from './dashboard.js?v=20260910153952';
-import { esc, str, fmtDate } from './utils.js?v=20260910153952';
-import { registerActions } from './delegate.js?v=20260910153952';
-import { filterSelect } from './html-helpers.js?v=20260910153952';
+import { state, store, pendingWrites, deletedDealIds } from './app.js?v=20260910163134';
+import { render } from './render.js?v=20260910163134';
+import { sbGetArchive, sbRestoreFromArchive, normalizeRow, supabase } from './api.js?v=20260910163134';
+import { clearDashboardArchiveCache } from './dashboard.js?v=20260910163134';
+import { esc, str, fmtDate } from './utils.js?v=20260910163134';
+import { registerActions } from './delegate.js?v=20260910163134';
+import { openDeal } from './deal-modal.js?v=20260910163134';
+import { filterSelect } from './html-helpers.js?v=20260910163134';
 
 export async function loadArchive(silent){
   if(!silent){
@@ -88,7 +89,7 @@ export function renderArchiveTab(){
       </tr></thead><tbody>`;
     for(const d of filtered){
       h+=`<tr style="border-top:1px solid #f3f4f6">
-        <td style="padding:8px 10px;font-size:12px;font-weight:600">${esc(d.company||d.contact||'?')}</td>
+        <td style="padding:8px 10px;font-size:12px;font-weight:600"><a href="#" data-action="openArchivedDeal" data-id="${esc(d.id)}" style="color:#1e1b4b;text-decoration:underline dotted" title="Open the deal card — timeline, notes, everything — without restoring it">${esc(d.company||d.contact||'?')}</a></td>
         <td style="padding:8px 10px;font-size:12px;color:var(--text-muted)">${esc(d.clientName||d.stage||'')}</td>
         <td style="padding:8px 10px;font-size:11px">
           <select data-action="updateArchiveStatus" data-id="${esc(d.id)}" style="padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:var(--font)">
@@ -107,6 +108,28 @@ export function renderArchiveTab(){
   }
   h+=`</div>`;
   return h;
+}
+
+// Open an archived deal's card to LOOK — timeline, notes, fields — without restoring it (Lars, 2026-09-10: Ioannis
+// was unarchiving leads to see what happened). The deals row usually survives archiving (lead_status cancelled);
+// older archives only have original_data. The card is parked in state.deals while open and dropped on close.
+export async function openArchivedDeal(id){
+  const a = state.archiveData.find(x => String(x.id) === String(id));
+  try {
+    let deal = null;
+    const { data: rows } = await supabase.from('deals').select('*').eq('id', id).limit(1);
+    if (rows && rows[0]) deal = normalizeRow(rows[0]);
+    else {
+      const { data: arch } = await supabase.from('archive').select('original_data').eq('id', id).limit(1);
+      const od = arch && arch[0] && arch[0].original_data;
+      deal = typeof od === 'string' ? JSON.parse(od) : (od || null);
+    }
+    if (!deal) { alert('This archived deal has no card data left to show.'); return; }
+    deal.id = id; deal.hasNewReply = false; deal.hasNewText = false;
+    deal._archived = { at: a ? a.archivedAt : null, status: a ? a.archiveStatus : null };
+    if (!state.deals.some(d => String(d.id) === String(id))) state.deals.push(deal);
+    openDeal(id);
+  } catch (e) { console.warn('[archive] could not open the card', e && e.message); }
 }
 
 export function archiveToggleAll(ids){
@@ -141,7 +164,7 @@ export async function restoreFromArchive(id){
   } finally { pendingWrites.value--; }
   store.removeArchiveItem(id);
   clearDashboardArchiveCache();
-  const { initialSync } = await import('./api.js?v=20260910153952');
+  const { initialSync } = await import('./api.js?v=20260910163134');
   await initialSync();
 }
 
@@ -158,6 +181,7 @@ registerActions({
   archiveToggleSort() { state.archiveSortDir = state.archiveSortDir === 'newest' ? 'oldest' : 'newest'; render(); },
   updateArchiveStatus(el) { updateArchiveStatus(el.dataset.id, el.value); },
   restoreFromArchive(el) { restoreFromArchive(el.dataset.id); },
+  openArchivedDeal(el) { openArchivedDeal(el.dataset.id); },
   toggleViewMode() { toggleViewMode(); },
   archiveBackToBoard() { state.showEmployeeArchive=false; state.archiveSearch=''; state.archiveFilterClient=''; state.archiveFilterStatus=''; render(); },
   archiveRefresh() { state.archiveLoaded=false; loadArchive(); },

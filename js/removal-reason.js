@@ -23,10 +23,10 @@
 // acquisition deals here (deal-modal.js, deals.js). Everything is read from the
 // deal's Timeline at click time — nothing new is stored.
 
-import { state } from './app.js?v=20260910153952';
-import { esc } from './utils.js?v=20260910153952';
-import { sbCreateInteraction, sbGetInteractions } from './api.js?v=20260910153952';
-import { markDisco, markDemo, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260910153952';
+import { state } from './app.js?v=20260910163134';
+import { esc } from './utils.js?v=20260910163134';
+import { sbCreateInteraction, sbGetInteractions } from './api.js?v=20260910163134';
+import { markDisco, markDemo, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260910163134';
 
 export const REMOVAL_PREFIX = 'Removed — ';
 
@@ -63,9 +63,10 @@ const TONE = {
 /** The Timeline note for a pre-disco removal. Written BEFORE the deal is archived
  *  so the reason and the removal can never be separated. Failure is logged,
  *  never fatal — losing a note must not block the rep from archiving. */
-export async function writeRemovalNote(dealId, note) {
+export async function writeRemovalNote(dealId, note, opts) {
   try {
-    await sbCreateInteraction({ deal_id: dealId, type: 'Note', content: REMOVAL_PREFIX + note + ' · marked in the CRM' });
+    // opts.asOf (YYYY-MM-DD): recorded later from a Funnel list row — the ledger dates the removal to that day.
+    await sbCreateInteraction({ deal_id: dealId, type: 'Note', content: REMOVAL_PREFIX + note + ' · marked in the CRM' + (opts && opts.asOf ? ' · as of ' + opts.asOf : '') });
   } catch (e) {
     console.warn('[removal-reason] note not saved for', dealId, e && e.message);
   }
