@@ -11,11 +11,11 @@
 // What this does NOT do, by decision: pause campaigns, detach inboxes (Tim and
 // Lars finish those), touch Stripe (the retainer cron already skips inactive
 // clients), or delete Smartlead tags (they cannot be deleted).
-import { state, pendingWrites } from './app.js?v=20260910103239';
-import { esc, str, getToday } from './utils.js?v=20260910103239';
-import { supabase, showToast, sbArchiveDeal, sbDeleteDeal, sbUpdateClient, invokeEdgeFunction } from './api.js?v=20260910103239';
-import { SUPABASE_ANON_KEY } from './config.js?v=20260910103239';
-import { render } from './render.js?v=20260910103239';
+import { state, pendingWrites } from './app.js?v=20260910103638';
+import { esc, str, getToday } from './utils.js?v=20260910103638';
+import { supabase, showToast, sbArchiveDeal, sbDeleteDeal, sbUpdateClient, invokeEdgeFunction } from './api.js?v=20260910103638';
+import { SUPABASE_ANON_KEY } from './config.js?v=20260910103638';
+import { render } from './render.js?v=20260910103638';
 
 const FULFILLMENT_FN = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/crm-client-offboard-record';
 
@@ -257,7 +257,8 @@ export async function openOffboard(clientId, { reason, notes, endedOn, category,
   try {
     const r = await invokeEdgeFunction('client-offboard', {
       clientName: str(c.name), sheetId: str(c.clientSheetId) || null,
-      portalId: str(c.smartleadClientId) || null, dryRun: true,
+      portalId: str(c.smartleadClientId) || null,
+      ghlLocationId: str(c.ghlLocationId) || null, dryRun: true,
     });
     plan = r?.plan || [];
   } catch (e) { plan = [{ step: 'preview', action: 'could not reach Drive/Smartlead — ' + e.message }]; }
