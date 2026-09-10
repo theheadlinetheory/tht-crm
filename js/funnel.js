@@ -19,10 +19,10 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260909125754';
-import { supabase } from './supabase-client.js?v=20260909125754';
-import { PERIODS, periodRange, fetchPeriod } from './funnel-period.js?v=20260909125754';
-import { leadsTable } from './funnel-leads.js?v=20260909125754';
+import { esc, svgIcon } from './utils.js?v=20260910095921';
+import { supabase } from './supabase-client.js?v=20260910095921';
+import { PERIODS, periodRange, fetchPeriod, mondayOf, addDays } from './funnel-period.js?v=20260910095921';
+import { leadsTable } from './funnel-leads.js?v=20260910095921';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -73,7 +73,7 @@ function loadPeriod(key, rerender) {
 window.setFunnelPeriod = (key) => {
   _period = key;
   try { localStorage.setItem(PERIOD_KEY, key); } catch (_) { /* private mode */ }
-  import('./render.js?v=20260909125754').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+  import('./render.js?v=20260910095921').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
 };
 
 const STATUS_STYLE = {
@@ -286,7 +286,8 @@ function periodLabel(key) {
   const r = periodRange(key);
   const p = PERIODS.find(x => x.key === key);
   if (!r) return 'all time';
-  return `${p ? p.label.toLowerCase() : key} (${r.from === r.to ? r.from : r.from + ' → ' + r.to})`;
+  const name = p ? p.label.toLowerCase() : key.startsWith('week:') ? 'the week of ' + key.slice(5) : key;
+  return `${name} (${r.from === r.to ? r.from : r.from + ' → ' + r.to})`;
 }
 
 /** Today · Yesterday · This week · Last week · All — days in Los Angeles time. */
@@ -296,6 +297,14 @@ function periodBar() {
     const on = _period === p.key;
     h += `<button onclick="setFunnelPeriod('${p.key}')" style="padding:5px 12px;border:1px solid ${on ? '#1e1b4b' : 'var(--border)'};border-radius:999px;background:${on ? '#1e1b4b' : 'var(--card)'};color:${on ? '#fff' : '#374151'};font-size:12px;font-weight:600;cursor:pointer">${esc(p.label)}</button>`;
   });
+  // Step back a week at a time: the backfill is reviewed week by week.
+  const mon = mondayOf(_period);
+  const prev = addDays(mon, -7), next = addDays(mon, 7);
+  const { ymd: today } = (() => { const r0 = periodRange('today'); return { ymd: r0.from }; })();
+  h += `<span style="display:inline-flex;gap:4px;margin-left:6px">
+    <button onclick="setFunnelPeriod('week:${prev}')" title="the week before" style="padding:5px 9px;border:1px solid var(--border);border-radius:999px;background:var(--card);color:#374151;font-size:12px;cursor:pointer">◀ week of ${esc(prev.slice(5))}</button>
+    ${next <= today ? `<button onclick="setFunnelPeriod('${next >= addDays(today, -((new Date(today + 'T12:00:00Z').getUTCDay() + 6) % 7)) ? 'week' : 'week:' + next}')" title="the week after" style="padding:5px 9px;border:1px solid var(--border);border-radius:999px;background:var(--card);color:#374151;font-size:12px;cursor:pointer">week of ${esc(next.slice(5))} ▶</button>` : ''}
+  </span>`;
   const r = periodRange(_period);
   h += `<span style="font-size:11px;color:#9ca3af;margin-left:4px">${r ? esc(r.from === r.to ? r.from : r.from + ' → ' + r.to) + ' · Los Angeles days · each level shows the leads that entered it in the period, and what happened in the period' : 'everything since the window opened, refreshed hourly'}</span>`;
   return h + `</div>`;
@@ -350,5 +359,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260909125754').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260910095921').then(m => reloadFunnel(m.render));
 };

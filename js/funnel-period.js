@@ -12,7 +12,7 @@
 // Nothing is written: the functions answer from the per-lead ledger and the
 // daily send snapshots. The "All" view keeps reading pipeline_latest.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260909125754';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260910095921';
 
 export const TZ = 'America/Los_Angeles';
 
@@ -32,10 +32,13 @@ export const PERIODS = [
   { key: 'lastweek',  label: 'Last week' },
 ];
 
-/** { from, to } for a period key, weeks running Monday → Sunday in LA. */
+/** { from, to } for a period key, weeks running Monday → Sunday in LA.
+ *  'week:YYYY-MM-DD' is any past week by its Monday — the backfill is reviewed a
+ *  week at a time (Lars, 2026-09-10), so the bar can step back week by week. */
 export function periodRange(key) {
   const { ymd, dow } = laToday();
   const monday = addDays(ymd, -((dow + 6) % 7));
+  if (key && key.startsWith('week:')) { const m = key.slice(5); const end = addDays(m, 6); return { from: m, to: end < ymd ? end : ymd }; }
   switch (key) {
     case 'today':     return { from: ymd, to: ymd };
     case 'yesterday': return { from: addDays(ymd, -1), to: addDays(ymd, -1) };
@@ -44,6 +47,16 @@ export function periodRange(key) {
     default:          return null;
   }
 }
+
+/** The Monday of the week a period key refers to (or this week's), for stepping. */
+export function mondayOf(key) {
+  const { ymd, dow } = laToday();
+  const thisMonday = addDays(ymd, -((dow + 6) % 7));
+  if (key && key.startsWith('week:')) return key.slice(5);
+  if (key === 'lastweek') return addDays(thisMonday, -7);
+  return thisMonday;
+}
+export { addDays };
 
 /** Ask every level for the period; returns rows shaped like pipeline_latest. */
 export async function fetchPeriod(range, levelDefs) {
