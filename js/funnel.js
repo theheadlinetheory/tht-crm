@@ -19,10 +19,10 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260911104918';
-import { supabase } from './supabase-client.js?v=20260911104918';
-import { PERIODS, periodRange, fetchPeriod, rangeLabel } from './funnel-period.js?v=20260911104918';
-import { leadsTable } from './funnel-leads.js?v=20260911104918';
+import { esc, svgIcon } from './utils.js?v=20260911105951';
+import { supabase } from './supabase-client.js?v=20260911105951';
+import { PERIODS, periodRange, fetchPeriod, rangeLabel } from './funnel-period.js?v=20260911105951';
+import { leadsTable } from './funnel-leads.js?v=20260911105951';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -83,7 +83,7 @@ function loadPeriod(key, rerender) {
 window.setFunnelPeriod = (key) => {
   _period = key;
   try { localStorage.setItem(PERIOD_KEY, key); } catch (_) { /* private mode */ }
-  import('./render.js?v=20260911104918').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+  import('./render.js?v=20260911105951').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
 };
 
 const STATUS_STYLE = {
@@ -337,7 +337,7 @@ export function renderFunnel() {
     return `<div style="padding:24px;color:#9ca3af;font-size:13px">Loading the funnel…</div>`;
   }
 
-  let h = `<div style="padding:16px;max-width:900px;margin:0 auto">`;
+  let h = `<div style="padding:16px 28px;max-width:1700px;margin:0 auto">`; // full width: the lead lists need the room (Lars, 2026-09-11: "there's a ton of blank space")
   h += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
           <div>
             <div style="font-size:18px;font-weight:800;color:#1e1b4b">Sales pipeline</div>
@@ -364,5 +364,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260911104918').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260911105951').then(m => reloadFunnel(m.render));
 };

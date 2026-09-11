@@ -9,15 +9,15 @@
 // the events of the period for leads from any cohort. Temporary by intent —
 // the tables stay small while the window is a week.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260911104918';
-import { esc } from './utils.js?v=20260911104918';
-import { state } from './app.js?v=20260911104918';
-import { openDeal } from './deal-modal.js?v=20260911104918';
-import { openArchivedDeal } from './archive.js?v=20260911104918';
-import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260911104918';
-import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260911104918';
-import { deleteDeal } from './deals.js?v=20260911104918';
-import { showClientEndPicker } from './client-end.js?v=20260911104918';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260911105951';
+import { esc } from './utils.js?v=20260911105951';
+import { state } from './app.js?v=20260911105951';
+import { openDeal } from './deal-modal.js?v=20260911105951';
+import { openArchivedDeal } from './archive.js?v=20260911105951';
+import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260911105951';
+import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260911105951';
+import { deleteDeal } from './deals.js?v=20260911105951';
+import { showClientEndPicker } from './client-end.js?v=20260911105951';
 
 // ── Record the outcome from the list (Lars, 2026-09-10) ──
 // A flagged row gets the same options the reps use live, and writes through the
@@ -127,7 +127,7 @@ export function leadsTable(rows, label, level) {
   let h = `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
     <div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:6px">${esc(String(label || 'LEADS').toUpperCase())} · ${rows.length}${missing ? ` <span style="font-weight:700;color:#92400e">· ${missing} with no record of what happened next</span>` : ''}${staleN ? ` <span style="font-weight:700;color:#9a3412">· ${staleN} stale — still in the pipeline, untouched for a week</span>` : ''}</div>
     <div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:12px">
-      <thead><tr style="color:#9ca3af;font-size:10px;text-align:left"><th style="padding:2px 8px 4px 0;font-weight:600">Company</th><th style="padding:2px 8px 4px;font-weight:600">Contact</th><th style="padding:2px 8px 4px;font-weight:600;white-space:nowrap">Came in</th><th style="padding:2px 8px 4px;font-weight:600">Status</th><th style="padding:2px 0 4px 8px;font-weight:600">Why</th></tr></thead><tbody>`;
+      <thead><tr style="color:#9ca3af;font-size:10px;text-align:left"><th style="padding:2px 8px 4px 0;font-weight:600">Company</th><th style="padding:2px 8px 4px;font-weight:600">Contact</th><th style="padding:2px 8px 4px;font-weight:600;white-space:nowrap">Came in</th><th style="padding:2px 8px 4px;font-weight:600">Status</th><th style="padding:2px 0 4px 8px;font-weight:600;min-width:360px">Why</th></tr></thead><tbody>`;
   rows.forEach(r => {
     const st = STATUS[r.status] || STATUS.waiting;
     // Every lead with a deal opens its card from here — on the board or archived — so nobody switches tabs to see
