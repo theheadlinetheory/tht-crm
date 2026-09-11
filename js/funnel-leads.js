@@ -9,15 +9,15 @@
 // the events of the period for leads from any cohort. Temporary by intent —
 // the tables stay small while the window is a week.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260911102702';
-import { esc } from './utils.js?v=20260911102702';
-import { state } from './app.js?v=20260911102702';
-import { openDeal } from './deal-modal.js?v=20260911102702';
-import { openArchivedDeal } from './archive.js?v=20260911102702';
-import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260911102702';
-import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260911102702';
-import { deleteDeal } from './deals.js?v=20260911102702';
-import { showClientEndPicker } from './client-end.js?v=20260911102702';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260911104918';
+import { esc } from './utils.js?v=20260911104918';
+import { state } from './app.js?v=20260911104918';
+import { openDeal } from './deal-modal.js?v=20260911104918';
+import { openArchivedDeal } from './archive.js?v=20260911104918';
+import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260911104918';
+import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260911104918';
+import { deleteDeal } from './deals.js?v=20260911104918';
+import { showClientEndPicker } from './client-end.js?v=20260911104918';
 
 // ── Record the outcome from the list (Lars, 2026-09-10) ──
 // A flagged row gets the same options the reps use live, and writes through the
@@ -123,8 +123,9 @@ function day(iso) {
 export function leadsTable(rows, label, level) {
   if (!rows || !rows.length) return '';
   const missing = rows.filter(r => r.needs_info && !recordedFor(level, r.deal_id || r.client_id)).length;
+  const staleN = rows.filter(r => !r.needs_info && r.stale && !recordedFor(level, r.deal_id || r.client_id)).length;
   let h = `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
-    <div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:6px">${esc(String(label || 'LEADS').toUpperCase())} · ${rows.length}${missing ? ` <span style="font-weight:700;color:#92400e">· ${missing} with no record of what happened next</span>` : ''}</div>
+    <div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:6px">${esc(String(label || 'LEADS').toUpperCase())} · ${rows.length}${missing ? ` <span style="font-weight:700;color:#92400e">· ${missing} with no record of what happened next</span>` : ''}${staleN ? ` <span style="font-weight:700;color:#9a3412">· ${staleN} stale — still in the pipeline, untouched for a week</span>` : ''}</div>
     <div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:12px">
       <thead><tr style="color:#9ca3af;font-size:10px;text-align:left"><th style="padding:2px 8px 4px 0;font-weight:600">Company</th><th style="padding:2px 8px 4px;font-weight:600">Contact</th><th style="padding:2px 8px 4px;font-weight:600;white-space:nowrap">Came in</th><th style="padding:2px 8px 4px;font-weight:600">Status</th><th style="padding:2px 0 4px 8px;font-weight:600">Why</th></tr></thead><tbody>`;
   rows.forEach(r => {
@@ -137,15 +138,18 @@ export function leadsTable(rows, label, level) {
       ? `<a href="#" onclick="event.preventDefault();funnelOpenDeal('${esc(r.deal_id)}')" title="${onBoard ? 'Open the deal card' : 'Open the archived deal card (read-only)'}" style="color:#1e1b4b;font-weight:600;text-decoration:underline dotted">${name}</a>`
       : `<span style="color:#1f2937;font-weight:600">${name}</span>`;
     // No record of what happened next: highlighted so Aidan and Ioannis can fill it in while they QC (Lars, 2026-09-10).
-    const rec = r.needs_info ? recordedFor(level, r.deal_id || r.client_id) : null; // answered from this browser, ledger not yet through
+    // Two flags (Lars, 2026-09-11): yellow = no record of what happened (left without a reason, a slot passed, moved on
+    // unrecorded) — answer it; orange = still in the pipeline but untouched for a week — is it alive? Both get the dropdown.
+    const rec = (r.needs_info || r.stale) ? recordedFor(level, r.deal_id || r.client_id) : null; // answered from this browser, ledger not yet through
     const flag = r.needs_info && !rec;
+    const stale = !r.needs_info && !!r.stale && !rec;
     const rowId = 'lead-' + Math.random().toString(36).slice(2, 9);
-    h += `<tr id="${rowId}" style="border-top:1px solid #f3f4f6;vertical-align:top${flag ? ';background:#fffbeb' : rec ? ';background:#f0fdf4' : ''}">
-      <td style="padding:5px 8px 5px 0;white-space:nowrap">${company}${flag ? ' <span data-badge style="margin-left:6px;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:#fde68a;color:#92400e">no record</span>' : rec ? ' <span data-badge style="margin-left:6px;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:#bbf7d0;color:#166534">recorded</span>' : ''}</td>
+    h += `<tr id="${rowId}" style="border-top:1px solid #f3f4f6;vertical-align:top${flag ? ';background:#fffbeb' : stale ? ';background:#fff7ed' : rec ? ';background:#f0fdf4' : ''}">
+      <td style="padding:5px 8px 5px 0;white-space:nowrap">${company}${flag ? ' <span data-badge style="margin-left:6px;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:#fde68a;color:#92400e">no record</span>' : stale ? ` <span data-badge style="margin-left:6px;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:#fed7aa;color:#9a3412">stale since ${esc(day(r.stale))}</span>` : rec ? ' <span data-badge style="margin-left:6px;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:#bbf7d0;color:#166534">recorded</span>' : ''}</td>
       <td style="padding:5px 8px;color:#6b7280;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.contact || '')}</td>
       <td style="padding:5px 8px;color:#6b7280;white-space:nowrap;font-variant-numeric:tabular-nums">${esc(day(r.came_in))}</td>
       <td style="padding:5px 8px;white-space:nowrap"><span style="padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;background:${st.bg};color:${st.fg}">${esc(r.status)}</span></td>
-      <td style="padding:5px 0 5px 8px;color:#374151;line-height:1.35" data-outcome>${flag ? esc(r.note || '') + outcomeControl(level, r, rowId) : rec ? recordedMark(rec.text) : esc(r.note || '')}</td></tr>`;
+      <td style="padding:5px 0 5px 8px;color:#374151;line-height:1.35" data-outcome>${(flag || stale) ? esc(r.note || '') + outcomeControl(level, r, rowId) : rec ? recordedMark(rec.text) : esc(r.note || '')}</td></tr>`;
   });
   return h + `</tbody></table></div></div>`;
 }

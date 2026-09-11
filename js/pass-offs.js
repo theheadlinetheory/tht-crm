@@ -1,9 +1,9 @@
-import { state, pendingWrites } from './app.js?v=20260911102702';
-import { sbUpdatePassOff, sbDeletePassOff, camelToSnake, normalizeRow, showToast } from './api.js?v=20260911102702';
-import { isAdmin, isEmployee } from './auth.js?v=20260911102702';
-import { esc, str } from './utils.js?v=20260911102702';
-import { render } from './render.js?v=20260911102702';
-import { weekStartOf, ymd, weekLabel } from './dashboard.js?v=20260911102702';
+import { state, pendingWrites } from './app.js?v=20260911104918';
+import { sbUpdatePassOff, sbDeletePassOff, camelToSnake, normalizeRow, showToast } from './api.js?v=20260911104918';
+import { isAdmin, isEmployee } from './auth.js?v=20260911104918';
+import { esc, str } from './utils.js?v=20260911104918';
+import { render } from './render.js?v=20260911104918';
+import { weekStartOf, ymd, weekLabel } from './dashboard.js?v=20260911104918';
 
 // The billing month ('July/26') is deliberately not a column — the sheet shows
 // the exact date the lead was passed off instead.
