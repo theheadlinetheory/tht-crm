@@ -22,9 +22,9 @@
 // Smartlead. Reactivating clears the four fields. Level 07 reads the clients
 // table directly, hourly.
 
-import { state } from './app.js?v=20260911111229';
-import { esc, str } from './utils.js?v=20260911111229';
-import { supabase } from './api.js?v=20260911111229';
+import { state } from './app.js?v=20260911120539';
+import { esc, str } from './utils.js?v=20260911120539';
+import { supabase } from './api.js?v=20260911120539';
 
 export const ENDED_BY = ['They left', 'We dropped them'];
 export const END_REASONS = ['Lead volume', 'Lead quality', "They couldn't close the leads", 'Cashflow on their end', 'Seasonality', 'Other'];
@@ -91,7 +91,7 @@ export function showClientEndPicker(clientId, { onDone, onCancel } = {}) {
     div.remove();
     // The offboarding flow writes the row at its "Mark inactive" step (ended_on / ended_by / end_reason / end_notes), then
     // takes the client out of the CRM, Drive and Smartlead — so nothing is saved twice.
-    const { openOffboard } = await import('./client-offboard.js?v=20260911111229');
+    const { openOffboard } = await import('./client-offboard.js?v=20260911120539');
     await openOffboard(c.id, { reason: reasons.join(', '), endedBy, notes, endedOn, category: endedBy === 'We dropped them' ? 'excluded' : 'churn' });
     if (onDone) onDone({ status: 'inactive', ended_on: endedOn, ended_by: endedBy, end_reason: reasons.join(', '), end_notes: notes || null });
   };

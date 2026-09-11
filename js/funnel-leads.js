@@ -9,15 +9,15 @@
 // the events of the period for leads from any cohort. Temporary by intent —
 // the tables stay small while the window is a week.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260911111229';
-import { esc } from './utils.js?v=20260911111229';
-import { state } from './app.js?v=20260911111229';
-import { openDeal } from './deal-modal.js?v=20260911111229';
-import { openArchivedDeal } from './archive.js?v=20260911111229';
-import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260911111229';
-import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260911111229';
-import { deleteDeal } from './deals.js?v=20260911111229';
-import { showClientEndPicker } from './client-end.js?v=20260911111229';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260911120539';
+import { esc } from './utils.js?v=20260911120539';
+import { state } from './app.js?v=20260911120539';
+import { openDeal } from './deal-modal.js?v=20260911120539';
+import { openArchivedDeal } from './archive.js?v=20260911120539';
+import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260911120539';
+import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260911120539';
+import { deleteDeal } from './deals.js?v=20260911120539';
+import { showClientEndPicker } from './client-end.js?v=20260911120539';
 
 // ── Record the outcome from the list (Lars, 2026-09-10) ──
 // A flagged row gets the same options the reps use live, and writes through the
