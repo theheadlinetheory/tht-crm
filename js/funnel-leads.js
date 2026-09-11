@@ -9,15 +9,15 @@
 // the events of the period for leads from any cohort. Temporary by intent —
 // the tables stay small while the window is a week.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260911110145';
-import { esc } from './utils.js?v=20260911110145';
-import { state } from './app.js?v=20260911110145';
-import { openDeal } from './deal-modal.js?v=20260911110145';
-import { openArchivedDeal } from './archive.js?v=20260911110145';
-import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260911110145';
-import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260911110145';
-import { deleteDeal } from './deals.js?v=20260911110145';
-import { showClientEndPicker } from './client-end.js?v=20260911110145';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260911111229';
+import { esc } from './utils.js?v=20260911111229';
+import { state } from './app.js?v=20260911111229';
+import { openDeal } from './deal-modal.js?v=20260911111229';
+import { openArchivedDeal } from './archive.js?v=20260911111229';
+import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260911111229';
+import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260911111229';
+import { deleteDeal } from './deals.js?v=20260911111229';
+import { showClientEndPicker } from './client-end.js?v=20260911111229';
 
 // ── Record the outcome from the list (Lars, 2026-09-10) ──
 // A flagged row gets the same options the reps use live, and writes through the
@@ -114,6 +114,8 @@ const STATUS = {
 
 function day(iso) {
   if (!iso) return '';
+  // A bare YYYY-MM-DD is already an LA day: print it as is — new Date() would read it as midnight UTC and show the day before (Lars, 2026-09-11: "stale since 08/31" for a 09/01 touch).
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(iso))) return String(iso).slice(5, 7) + '/' + String(iso).slice(8, 10);
   const d = new Date(iso); if (isNaN(d)) return String(iso).slice(5, 10);
   return new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', month: '2-digit', day: '2-digit' }).format(d);
 }
