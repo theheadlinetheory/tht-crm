@@ -9,15 +9,15 @@
 // the events of the period for leads from any cohort. Temporary by intent —
 // the tables stay small while the window is a week.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260911105951';
-import { esc } from './utils.js?v=20260911105951';
-import { state } from './app.js?v=20260911105951';
-import { openDeal } from './deal-modal.js?v=20260911105951';
-import { openArchivedDeal } from './archive.js?v=20260911105951';
-import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260911105951';
-import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260911105951';
-import { deleteDeal } from './deals.js?v=20260911105951';
-import { showClientEndPicker } from './client-end.js?v=20260911105951';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260911110145';
+import { esc } from './utils.js?v=20260911110145';
+import { state } from './app.js?v=20260911110145';
+import { openDeal } from './deal-modal.js?v=20260911110145';
+import { openArchivedDeal } from './archive.js?v=20260911110145';
+import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260911110145';
+import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260911110145';
+import { deleteDeal } from './deals.js?v=20260911110145';
+import { showClientEndPicker } from './client-end.js?v=20260911110145';
 
 // ── Record the outcome from the list (Lars, 2026-09-10) ──
 // A flagged row gets the same options the reps use live, and writes through the
@@ -145,7 +145,7 @@ export function leadsTable(rows, label, level) {
     const stale = !r.needs_info && !!r.stale && !rec;
     const rowId = 'lead-' + Math.random().toString(36).slice(2, 9);
     h += `<tr id="${rowId}" style="border-top:1px solid #f3f4f6;vertical-align:top${flag ? ';background:#fffbeb' : stale ? ';background:#fff7ed' : rec ? ';background:#f0fdf4' : ''}">
-      <td style="padding:5px 8px 5px 0;white-space:nowrap">${company}${flag ? ' <span data-badge style="margin-left:6px;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:#fde68a;color:#92400e">no record</span>' : stale ? ` <span data-badge style="margin-left:6px;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:#fed7aa;color:#9a3412">stale since ${esc(day(r.stale))}</span>` : rec ? ' <span data-badge style="margin-left:6px;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:#bbf7d0;color:#166534">recorded</span>' : ''}</td>
+      <td style="padding:5px 8px 5px 0;white-space:nowrap">${company}${flag ? ' <span data-badge style="margin-left:6px;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:#fde68a;color:#92400e">no record</span>' : stale ? ` <span data-badge style="margin-left:6px;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:#fed7aa;color:#9a3412">${r.stale_label ? esc(r.stale_label) : 'stale since ' + esc(day(r.stale))}</span>` : rec ? ' <span data-badge style="margin-left:6px;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:#bbf7d0;color:#166534">recorded</span>' : ''}</td>
       <td style="padding:5px 8px;color:#6b7280;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.contact || '')}</td>
       <td style="padding:5px 8px;color:#6b7280;white-space:nowrap;font-variant-numeric:tabular-nums">${esc(day(r.came_in))}</td>
       <td style="padding:5px 8px;white-space:nowrap"><span style="padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;background:${st.bg};color:${st.fg}">${esc(r.status)}</span></td>

@@ -2,11 +2,11 @@
 // DEAL-INVOICE — one-off Stripe invoice on an Acquisition deal.
 // Admin-only, ONE invoice per deal, body-level overlay (survives render()).
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260911105951';
-import { str, esc } from './utils.js?v=20260911105951';
-import { invokeEdgeFunction, showToast, sbUpdateDeal, camelToSnake } from './api.js?v=20260911105951';
-import { isAdmin } from './auth.js?v=20260911105951';
-import { render } from './render.js?v=20260911105951';
+import { state } from './app.js?v=20260911110145';
+import { str, esc } from './utils.js?v=20260911110145';
+import { invokeEdgeFunction, showToast, sbUpdateDeal, camelToSnake } from './api.js?v=20260911110145';
+import { isAdmin } from './auth.js?v=20260911110145';
+import { render } from './render.js?v=20260911110145';
 
 const INVOICE_STAGES = ['Under Review', 'Waiting for Payment/Contract'];
 const CURRENCIES = ['USD', 'AUD', 'CAD', 'GBP'];
