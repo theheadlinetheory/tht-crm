@@ -9,15 +9,15 @@
 // the events of the period for leads from any cohort. Temporary by intent —
 // the tables stay small while the window is a week.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260911120539';
-import { esc } from './utils.js?v=20260911120539';
-import { state } from './app.js?v=20260911120539';
-import { openDeal } from './deal-modal.js?v=20260911120539';
-import { openArchivedDeal } from './archive.js?v=20260911120539';
-import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260911120539';
-import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260911120539';
-import { deleteDeal } from './deals.js?v=20260911120539';
-import { showClientEndPicker } from './client-end.js?v=20260911120539';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260911131352';
+import { esc } from './utils.js?v=20260911131352';
+import { state } from './app.js?v=20260911131352';
+import { openDeal } from './deal-modal.js?v=20260911131352';
+import { openArchivedDeal } from './archive.js?v=20260911131352';
+import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260911131352';
+import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260911131352';
+import { deleteDeal } from './deals.js?v=20260911131352';
+import { showClientEndPicker } from './client-end.js?v=20260911131352';
 
 // ── Record the outcome from the list (Lars, 2026-09-10) ──
 // A flagged row gets the same options the reps use live, and writes through the
@@ -126,10 +126,16 @@ export function leadsTable(rows, label, level) {
   if (!rows || !rows.length) return '';
   const missing = rows.filter(r => r.needs_info && !recordedFor(level, r.deal_id || r.client_id)).length;
   const staleN = rows.filter(r => !r.needs_info && r.stale && !recordedFor(level, r.deal_id || r.client_id)).length;
+  // A list may carry structured columns (row.cells = [{h, v}, …], e.g. level 07's churn
+  // record — Lars, 2026-09-11: real columns, not everything crammed into Why). Columns come
+  // from the first row; Contact and Why only render when some row actually uses them.
+  const cellCols = (rows[0] && rows[0].cells) ? rows[0].cells.map(c => c.h) : [];
+  const hasContact = rows.some(r => r.contact);
+  const hasWhy = rows.some(r => r.note || r.needs_info || r.stale);
   let h = `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
     <div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:6px">${esc(String(label || 'LEADS').toUpperCase())} · ${rows.length}${missing ? ` <span style="font-weight:700;color:#92400e">· ${missing} with no record of what happened next</span>` : ''}${staleN ? ` <span style="font-weight:700;color:#9a3412">· ${staleN} stale — still in the pipeline, untouched for a week</span>` : ''}</div>
     <div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:12px">
-      <thead><tr style="color:#9ca3af;font-size:10px;text-align:left"><th style="padding:2px 8px 4px 0;font-weight:600">Company</th><th style="padding:2px 8px 4px;font-weight:600">Contact</th><th style="padding:2px 8px 4px;font-weight:600;white-space:nowrap">Came in</th><th style="padding:2px 8px 4px;font-weight:600">Status</th><th style="padding:2px 0 4px 8px;font-weight:600;min-width:360px">Why</th></tr></thead><tbody>`;
+      <thead><tr style="color:#9ca3af;font-size:10px;text-align:left"><th style="padding:2px 8px 4px 0;font-weight:600">Company</th>${hasContact ? '<th style="padding:2px 8px 4px;font-weight:600">Contact</th>' : ''}<th style="padding:2px 8px 4px;font-weight:600;white-space:nowrap">Came in</th><th style="padding:2px 8px 4px;font-weight:600">Status</th>${cellCols.map(c => `<th style="padding:2px 8px 4px;font-weight:600;white-space:nowrap">${esc(c)}</th>`).join('')}${hasWhy ? '<th style="padding:2px 0 4px 8px;font-weight:600;min-width:360px">Why</th>' : ''}</tr></thead><tbody>`;
   rows.forEach(r => {
     const st = STATUS[r.status] || STATUS.waiting;
     // Every lead with a deal opens its card from here — on the board or archived — so nobody switches tabs to see
@@ -146,12 +152,19 @@ export function leadsTable(rows, label, level) {
     const flag = r.needs_info && !rec;
     const stale = !r.needs_info && !!r.stale && !rec;
     const rowId = 'lead-' + Math.random().toString(36).slice(2, 9);
+    // Structured cells render as their own columns; the Churn verdict gets its color.
+    const cellTds = cellCols.map((_, i) => {
+      const v = (r.cells && r.cells[i]) ? String(r.cells[i].v) : '';
+      const tone = v === 'churn' ? 'color:#b91c1c;font-weight:700' : v === 'not churn' ? 'color:#166534;font-weight:700' : v === 'review' ? 'color:#92400e;font-weight:700' : 'color:#374151';
+      return `<td style="padding:5px 8px;${tone};white-space:nowrap">${esc(v)}</td>`;
+    }).join('');
     h += `<tr id="${rowId}" style="border-top:1px solid #f3f4f6;vertical-align:top${flag ? ';background:#fffbeb' : stale ? ';background:#fff7ed' : rec ? ';background:#f0fdf4' : ''}">
       <td style="padding:5px 8px 5px 0;white-space:nowrap">${company}${flag ? ' <span data-badge style="margin-left:6px;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:#fde68a;color:#92400e">no record</span>' : stale ? ` <span data-badge style="margin-left:6px;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:#fed7aa;color:#9a3412">${r.stale_label ? esc(r.stale_label) : 'stale since ' + esc(day(r.stale))}</span>` : rec ? ' <span data-badge style="margin-left:6px;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:#bbf7d0;color:#166534">recorded</span>' : ''}</td>
-      <td style="padding:5px 8px;color:#6b7280;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.contact || '')}</td>
+      ${hasContact ? `<td style="padding:5px 8px;color:#6b7280;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.contact || '')}</td>` : ''}
       <td style="padding:5px 8px;color:#6b7280;white-space:nowrap;font-variant-numeric:tabular-nums">${esc(day(r.came_in))}</td>
       <td style="padding:5px 8px;white-space:nowrap"><span style="padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;background:${st.bg};color:${st.fg}">${esc(r.status)}</span></td>
-      <td style="padding:5px 0 5px 8px;color:#374151;line-height:1.35" data-outcome>${(flag || stale) ? esc(r.note || '') + outcomeControl(level, r, rowId) : rec ? recordedMark(rec.text) : esc(r.note || '')}</td></tr>`;
+      ${cellTds}
+      ${hasWhy ? `<td style="padding:5px 0 5px 8px;color:#374151;line-height:1.35" data-outcome>${(flag || stale) ? esc(r.note || '') + outcomeControl(level, r, rowId) : rec ? recordedMark(rec.text) : esc(r.note || '')}</td>` : ''}</tr>`;
   });
   return h + `</tbody></table></div></div>`;
 }
