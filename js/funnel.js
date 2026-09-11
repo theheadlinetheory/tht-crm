@@ -19,10 +19,10 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260911102002';
-import { supabase } from './supabase-client.js?v=20260911102002';
-import { PERIODS, periodRange, fetchPeriod, rangeLabel } from './funnel-period.js?v=20260911102002';
-import { leadsTable } from './funnel-leads.js?v=20260911102002';
+import { esc, svgIcon } from './utils.js?v=20260911102702';
+import { supabase } from './supabase-client.js?v=20260911102702';
+import { PERIODS, periodRange, fetchPeriod, rangeLabel } from './funnel-period.js?v=20260911102702';
+import { leadsTable } from './funnel-leads.js?v=20260911102702';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -52,12 +52,22 @@ export function loadFunnel(rerender) {
     });
 }
 
-/** Force a refetch — used by the Refresh button. */
+/** Refetch everything WITHOUT blanking the page: the cards and lists on screen stay until the fresh ones arrive,
+ *  then one re-render at the same scroll position, open lists still open. Used by the Refresh button and after a
+ *  rep records an answer from a list (Ioannis, 2026-09-11: "every time I update the outcome the whole page
+ *  refreshes and it closes the dropdown menu" — the old version showed "Loading the funnel…" in between, which
+ *  threw the scroll to the top and the list out of view). */
 export function reloadFunnel(rerender) {
-  _levels = null; _error = null;
-  for (const k of Object.keys(_periodData)) delete _periodData[k];
-  loadFunnel(rerender);
-  if (_period !== 'all') loadPeriod(_period, rerender);
+  const y = window.scrollY, key = _period;
+  const cards = supabase.from('pipeline_latest').select('*')
+    .then(({ data, error }) => { if (error) _error = error.message; else { _levels = data || []; _error = null; } });
+  const period = key !== 'all'
+    ? fetchPeriod(periodRange(key), _levels || []).then(rows => { _periodData[key] = rows; }).catch(() => {})
+    : Promise.resolve();
+  Promise.all([cards, period]).finally(() => {
+    if (rerender) rerender();
+    requestAnimationFrame(() => window.scrollTo(0, y));
+  });
 }
 
 function loadPeriod(key, rerender) {
@@ -73,7 +83,7 @@ function loadPeriod(key, rerender) {
 window.setFunnelPeriod = (key) => {
   _period = key;
   try { localStorage.setItem(PERIOD_KEY, key); } catch (_) { /* private mode */ }
-  import('./render.js?v=20260911102002').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+  import('./render.js?v=20260911102702').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
 };
 
 const STATUS_STYLE = {
@@ -353,5 +363,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260911102002').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260911102702').then(m => reloadFunnel(m.render));
 };
