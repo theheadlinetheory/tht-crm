@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // SEARCH — Global search, activity badges, pipeline helpers
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260911095917';
-import { ACQUISITION_STAGES, NURTURE_STAGES, CLIENT_PALETTE, ALL_PIPELINES } from './config.js?v=20260911095917';
-import { render } from './render.js?v=20260911095917';
-import { getToday } from './utils.js?v=20260911095917';
-import { isEmployee, isAdmin, getOwnerNameForDeal } from './auth.js?v=20260911095917';
-import { lookupClientInfo } from './client-info.js?v=20260911095917';
+import { state } from './app.js?v=20260911102002';
+import { ACQUISITION_STAGES, NURTURE_STAGES, CLIENT_PALETTE, ALL_PIPELINES } from './config.js?v=20260911102002';
+import { render } from './render.js?v=20260911102002';
+import { getToday } from './utils.js?v=20260911102002';
+import { isEmployee, isAdmin, getOwnerNameForDeal } from './auth.js?v=20260911102002';
+import { lookupClientInfo } from './client-info.js?v=20260911102002';
 
 export function globalSearch(q){
   // Re-entrancy guard. restorePreserve() re-focuses the search input after

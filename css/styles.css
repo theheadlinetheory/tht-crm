@@ -164,6 +164,12 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .gm-snip { color:var(--text-muted) }
 .gm-count { flex:none;font-size:10px;color:#64748b;background:var(--card);border:1px solid var(--border);border-radius:9px;padding:0 5px }
 .gm-date { flex:none;font-size:10px;color:var(--text-muted);white-space:nowrap }
+/* The link opens Gmail; the rest of the row still expands the thread. The gap
+   keeps dates aligned on rows that have no link (an admin in someone else's
+   inbox, or a thread with no usable id). */
+.gm-link { flex:none;width:16px;text-align:center;color:#94a3b8;text-decoration:none;font-size:12px;line-height:1;border-radius:3px }
+.gm-link:hover { color:#2563eb;background:var(--card) }
+.gm-link-gap { flex:none;width:16px }
 .gm-open { padding:6px 2px 10px 23px;border-bottom:1px solid var(--border) }
 .gm-more { font-size:10px;color:#2563eb;background:none;border:0;padding:2px 0;cursor:pointer }
 .gm-more:hover { text-decoration:underline }

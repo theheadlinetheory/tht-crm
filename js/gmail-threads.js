@@ -13,16 +13,16 @@
 // whole problem: you scrolled past signatures and quoted chains looking for the
 // one line that mattered.
 
-import { state } from './app.js?v=20260911095917';
-import { esc, str, svgIcon } from './utils.js?v=20260911095917';
-import { isAdmin, currentUser } from './auth.js?v=20260911095917';
-import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20260911095917';
+import { state } from './app.js?v=20260911102002';
+import { esc, str, svgIcon } from './utils.js?v=20260911102002';
+import { isAdmin, currentUser } from './auth.js?v=20260911102002';
+import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20260911102002';
 // Always refreshModal(TRUE): the no-argument form takes a targeted path that
 // only replaces #activities-container, so this section — which lives
 // elsewhere in the modal — would never repaint after loading.
-import { refreshModal } from './render.js?v=20260911095917';
-import { sbUpdateDeal } from './api.js?v=20260911095917';
-import { trimBody, formatThreadDate } from './gmail-body.js?v=20260911095917';
+import { refreshModal } from './render.js?v=20260911102002';
+import { sbUpdateDeal } from './api.js?v=20260911102002';
+import { trimBody, formatThreadDate, gmailThreadUrl } from './gmail-body.js?v=20260911102002';
 
 const _cache = {};   // `${dealId}|${mailbox}` -> { threads, participants }
 const _state = {};   // dealId -> { mailbox, loading, error }
@@ -106,6 +106,11 @@ function threadRowHtml(thread, mailbox, dealId, isOpen) {
   const who = outbound ? 'You' : (latest.fromName || latest.from || 'Them');
   const snippet = str(latest.snippet || trimBody(latest.body).text).replace(/\s+/g, ' ').slice(0, 180);
   const tid = esc(str(thread.threadId));
+  // Only link a mailbox that is actually yours. An admin reading a colleague's
+  // inbox through the picker would otherwise get a link into their OWN Gmail,
+  // where this thread id does not exist.
+  const own = !str(mailbox) || str(mailbox).toLowerCase() === str(currentUser?.email).toLowerCase();
+  const url = own ? gmailThreadUrl(thread.threadId, mailbox || currentUser?.email) : null;
   return `<div>
     <div class="gm-row${isOpen ? ' open' : ''}" onclick="gmailToggleThread('${esc(dealId)}','${tid}')">
       <span class="gm-caret">▶</span>
@@ -113,6 +118,8 @@ function threadRowHtml(thread, mailbox, dealId, isOpen) {
       <span class="gm-line">${esc(thread.subject)}${snippet ? ` <span class="gm-snip">— ${esc(snippet)}</span>` : ''}</span>
       ${msgs.length > 1 ? `<span class="gm-count">${msgs.length}</span>` : ''}
       <span class="gm-date">${esc(formatThreadDate(latest.ts))}</span>
+      ${url ? `<a class="gm-link" href="${esc(url)}" target="_blank" rel="noopener" title="Open this thread in Gmail"
+        onclick="event.stopPropagation()">↗</a>` : '<span class="gm-link-gap"></span>'}
     </div>
     ${isOpen ? `<div class="gm-open">
       ${older.length ? `<div id="gm-older-${tid}" hidden>${older.map(m => messageHtml(m, mailbox, false)).join('')}</div>
@@ -142,7 +149,7 @@ export function renderGmailSection(deal) {
   } else if (!cached.threads.length) {
     inner = `<div style="font-size:12px;color:#94a3b8;padding:6px 0">No email history in ${esc(st.mailbox || 'this mailbox')} for this deal's addresses.</div>`;
   } else {
-    inner = `<div class="gm-list">${cached.threads.map(t => threadRowHtml(t, st.mailbox, deal.id, str(t.threadId) === str(st.openThread))).join('')}</div>`;
+    inner = `<div class="gm-list">${cached.threads.map(t => threadRowHtml(t, st.mailbox, deal.id, !!st.openThread && str(t.threadId) === str(st.openThread))).join('')}</div>`;
     // People on the thread the deal doesn't know about. Suggestions only — the
     // deal has four email slots and auto-filling would overwrite real contacts.
     const slot = ['email2', 'email3', 'email4'].find(f => !str(deal[f]).trim());

@@ -74,3 +74,31 @@ export function formatThreadDate(ts, now) {
   }
   return d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: '2-digit' });
 }
+
+// A real Gmail thread id is hex. The id lands in an href, so anything else is
+// refused outright rather than escaped — the caller then renders no link.
+const THREAD_ID = /^[A-Za-z0-9_-]+$/;
+// Deliberately narrower than "looks like an email": no &, #, ? or whitespace,
+// so the address can go into the query string raw without escaping the URL.
+const PLAIN_EMAIL = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+
+/**
+ * Deep link to a thread in the Gmail web UI, or null if it can't be built.
+ *
+ * Verified against a live thread 2026-09-11. Two things that do NOT work and
+ * cost a 404 each if you "fix" this later:
+ *   - the address in the path (/mail/u/someone@domain/) — Gmail's u/ segment
+ *     takes an account INDEX, not an address;
+ *   - bare u/0 on a browser signed into several Google accounts — it opens
+ *     whichever signed in first, where this thread id doesn't exist.
+ * ?authuser= is what actually pins the mailbox. Gmail then resolves the API's
+ * hex id to its own internal id via dispatcher_command=master_lookup.
+ * #all rather than #inbox so an archived thread still opens.
+ */
+export function gmailThreadUrl(threadId, mailbox) {
+  const id = String(threadId ?? '');
+  if (!id || !THREAD_ID.test(id)) return null;
+  const who = String(mailbox ?? '');
+  const auth = PLAIN_EMAIL.test(who) ? `?authuser=${who}` : '';
+  return `https://mail.google.com/mail/u/0/${auth}#all/${id}`;
+}

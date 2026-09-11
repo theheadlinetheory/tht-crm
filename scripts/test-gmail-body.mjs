@@ -4,7 +4,7 @@
 // (render-preserve.js), so node can load it without the browser's ?v= imports.
 // Run: node scripts/test-gmail-body.mjs
 import assert from 'node:assert/strict';
-import { trimBody, formatThreadDate } from '../js/gmail-body.js';
+import { trimBody, formatThreadDate, gmailThreadUrl } from '../js/gmail-body.js';
 
 let passed = 0;
 const test = (name, fn) => {
@@ -120,6 +120,46 @@ test('shows a numeric date for a different year', () => {
 test('returns an empty string for a missing timestamp', () => {
   assert.equal(formatThreadDate(0, NOW), '');
   assert.equal(formatThreadDate(null, NOW), '');
+});
+
+// ── gmailThreadUrl ────────────────────────────────────────
+test('builds a Gmail deep link pinned to the viewer\'s own mailbox', () => {
+  // ?authuser= is the form verified against a live thread. The address in the
+  // path (/mail/u/someone@domain/) returns a Gmail 404 — don't "fix" it back.
+  assert.equal(
+    gmailThreadUrl('18f2a4c9b0d1e2f3', 'aidan@theheadlinetheory.com'),
+    'https://mail.google.com/mail/u/0/?authuser=aidan@theheadlinetheory.com#all/18f2a4c9b0d1e2f3',
+  );
+});
+
+test('uses #all so an archived thread still opens', () => {
+  assert.ok(gmailThreadUrl('abc123', 'a@b.com').includes('#all/'));
+});
+
+test('falls back to u/0 when the mailbox is unknown', () => {
+  assert.equal(gmailThreadUrl('abc123', ''), 'https://mail.google.com/mail/u/0/#all/abc123');
+  assert.equal(gmailThreadUrl('abc123', null), 'https://mail.google.com/mail/u/0/#all/abc123');
+});
+
+test('falls back to bare u/0 when the mailbox is not a plain address', () => {
+  // An address carrying &, # or ? would escape the query string, so it is
+  // dropped rather than encoded.
+  assert.equal(gmailThreadUrl('abc123', 'not an email'), 'https://mail.google.com/mail/u/0/#all/abc123');
+  assert.equal(gmailThreadUrl('abc123', 'a&x=1@b.com'), 'https://mail.google.com/mail/u/0/#all/abc123');
+  assert.equal(gmailThreadUrl('abc123', 'a#b@c.com'), 'https://mail.google.com/mail/u/0/#all/abc123');
+});
+
+test('returns null when there is no thread id', () => {
+  // The caller renders no icon rather than a dead link.
+  assert.equal(gmailThreadUrl('', 'a@b.com'), null);
+  assert.equal(gmailThreadUrl(null, 'a@b.com'), null);
+});
+
+test('returns null for a thread id that is not a plain gmail id', () => {
+  // The id lands in an href — anything but [A-Za-z0-9_-] is refused rather
+  // than escaped, since a real Gmail id never contains anything else.
+  assert.equal(gmailThreadUrl('abc/../evil', 'a@b.com'), null);
+  assert.equal(gmailThreadUrl('javascript:alert(1)', 'a@b.com'), null);
 });
 
 console.log(`\n${passed} passed`);
