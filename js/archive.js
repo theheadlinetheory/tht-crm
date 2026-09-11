@@ -1,14 +1,14 @@
 // ═══════════════════════════════════════════════════════════
 // ARCHIVE — Admin archive (Deals sheet archive), load/render
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, deletedDealIds } from './app.js?v=20260910165154';
-import { render } from './render.js?v=20260910165154';
-import { sbGetArchive, sbRestoreFromArchive, normalizeRow, supabase } from './api.js?v=20260910165154';
-import { clearDashboardArchiveCache } from './dashboard.js?v=20260910165154';
-import { esc, str, fmtDate } from './utils.js?v=20260910165154';
-import { registerActions } from './delegate.js?v=20260910165154';
-import { openDeal } from './deal-modal.js?v=20260910165154';
-import { filterSelect } from './html-helpers.js?v=20260910165154';
+import { state, store, pendingWrites, deletedDealIds } from './app.js?v=20260911095917';
+import { render } from './render.js?v=20260911095917';
+import { sbGetArchive, sbRestoreFromArchive, normalizeRow, supabase } from './api.js?v=20260911095917';
+import { clearDashboardArchiveCache } from './dashboard.js?v=20260911095917';
+import { esc, str, fmtDate } from './utils.js?v=20260911095917';
+import { registerActions } from './delegate.js?v=20260911095917';
+import { openDeal } from './deal-modal.js?v=20260911095917';
+import { filterSelect } from './html-helpers.js?v=20260911095917';
 
 export async function loadArchive(silent){
   if(!silent){
@@ -164,7 +164,7 @@ export async function restoreFromArchive(id){
   } finally { pendingWrites.value--; }
   store.removeArchiveItem(id);
   clearDashboardArchiveCache();
-  const { initialSync } = await import('./api.js?v=20260910165154');
+  const { initialSync } = await import('./api.js?v=20260911095917');
   await initialSync();
 }
 

@@ -8,18 +8,21 @@
 // Nothing is stored: the edge function reads Gmail live and returns it. The
 // cache below is per-session and in-memory only, so closing the tab forgets it.
 //
-// Mirrors the SmartLead thread viewer in threads.js — on-demand button, latest
-// message expanded, older ones behind a toggle — so the two read the same way.
+// Threads render as collapsed Gmail-style rows — sender, subject, snippet,
+// date — and only the one you click renders a body. Ten open bodies was the
+// whole problem: you scrolled past signatures and quoted chains looking for the
+// one line that mattered.
 
-import { state } from './app.js?v=20260910165154';
-import { esc, str, svgIcon } from './utils.js?v=20260910165154';
-import { isAdmin, currentUser } from './auth.js?v=20260910165154';
-import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20260910165154';
+import { state } from './app.js?v=20260911095917';
+import { esc, str, svgIcon } from './utils.js?v=20260911095917';
+import { isAdmin, currentUser } from './auth.js?v=20260911095917';
+import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20260911095917';
 // Always refreshModal(TRUE): the no-argument form takes a targeted path that
 // only replaces #activities-container, so this section — which lives
 // elsewhere in the modal — would never repaint after loading.
-import { refreshModal } from './render.js?v=20260910165154';
-import { sbUpdateDeal } from './api.js?v=20260910165154';
+import { refreshModal } from './render.js?v=20260911095917';
+import { sbUpdateDeal } from './api.js?v=20260911095917';
+import { trimBody, formatThreadDate } from './gmail-body.js?v=20260911095917';
 
 const _cache = {};   // `${dealId}|${mailbox}` -> { threads, participants }
 const _state = {};   // dealId -> { mailbox, loading, error }
@@ -69,28 +72,53 @@ export async function loadGmailThreads(dealId, mailbox) {
 
 // overflow-wrap:anywhere — real emails carry long unbreakable URLs (Stripe
 // invoice links), which otherwise make the body scroll sideways.
+//
+// The body shown is trimBody()'s — signature and quoted chain cut off. The raw
+// text is still rendered, just hidden behind "show full message": the trim is a
+// display choice, so nothing is ever actually withheld.
 function messageHtml(msg, mailbox, isLatest) {
   const outbound = str(msg.from).toLowerCase() === str(mailbox).toLowerCase();
   const who = outbound ? 'You' : (msg.fromName || msg.from || 'Them');
   const when = msg.ts ? new Date(msg.ts).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+  const raw = msg.body || msg.snippet || '';
+  const { text, cutLines } = trimBody(raw);
+  const id = esc(str(msg.id));
+  const bodyCss = `font-size:12px;color:#334155;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;max-height:${isLatest ? '320px' : '120px'};overflow-y:auto;overflow-x:hidden`;
+  const moreLabel = `Show full message · ${cutLines} more line${cutLines > 1 ? 's' : ''}`;
   return `<div style="padding:8px 10px;margin-bottom:4px;background:${outbound ? '#f8fafc' : '#f0fdf4'};border:1px solid ${outbound ? '#e2e8f0' : '#bbf7d0'};border-radius:6px;${outbound ? '' : 'border-left:3px solid #22c55e'}">
     <div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:4px">
       <span style="font-size:10px;font-weight:600;color:${outbound ? '#6b7280' : '#166534'}">${esc(who)}</span>
       <span style="font-size:10px;color:#9ca3af;white-space:nowrap">${esc(when)}</span>
     </div>
-    <div style="font-size:12px;color:#334155;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;max-height:${isLatest ? '260px' : '90px'};overflow-y:auto;overflow-x:hidden">${esc(msg.body || msg.snippet || '')}</div>
+    <div id="gm-short-${id}" style="${bodyCss}">${esc(text)}</div>
+    ${cutLines ? `<div id="gm-full-${id}" hidden style="${bodyCss}">${esc(raw)}</div>
+      <button class="gm-more" data-more="${esc(moreLabel)}" onclick="gmailToggleFull('${id}',this)">${esc(moreLabel)}</button>` : ''}
   </div>`;
 }
 
-function threadHtml(thread, mailbox, idx) {
+// The collapsed row. Everything here comes off the newest message, which is
+// what you are looking for when you scan the list.
+function threadRowHtml(thread, mailbox, dealId, isOpen) {
   const msgs = thread.messages || [];
-  const latest = msgs[msgs.length - 1];
+  const latest = msgs[msgs.length - 1] || {};
   const older = msgs.slice(0, -1);
-  return `<div style="margin-bottom:10px">
-    <div style="font-size:11px;font-weight:600;color:#334155;margin-bottom:4px">${esc(thread.subject)}</div>
-    ${older.length ? `<div id="gm-older-${idx}" hidden>${older.map(m => messageHtml(m, mailbox, false)).join('')}</div>
-      <button class="btn btn-ghost" style="font-size:10px;width:100%;margin-bottom:4px" onclick="gmailToggleOlder(${idx},this)">Show ${older.length} older message${older.length > 1 ? 's' : ''}</button>` : ''}
-    ${latest ? messageHtml(latest, mailbox, true) : ''}
+  const outbound = str(latest.from).toLowerCase() === str(mailbox).toLowerCase();
+  const who = outbound ? 'You' : (latest.fromName || latest.from || 'Them');
+  const snippet = str(latest.snippet || trimBody(latest.body).text).replace(/\s+/g, ' ').slice(0, 180);
+  const tid = esc(str(thread.threadId));
+  return `<div>
+    <div class="gm-row${isOpen ? ' open' : ''}" onclick="gmailToggleThread('${esc(dealId)}','${tid}')">
+      <span class="gm-caret">▶</span>
+      <span class="gm-who">${esc(who)}</span>
+      <span class="gm-line">${esc(thread.subject)}${snippet ? ` <span class="gm-snip">— ${esc(snippet)}</span>` : ''}</span>
+      ${msgs.length > 1 ? `<span class="gm-count">${msgs.length}</span>` : ''}
+      <span class="gm-date">${esc(formatThreadDate(latest.ts))}</span>
+    </div>
+    ${isOpen ? `<div class="gm-open">
+      ${older.length ? `<div id="gm-older-${tid}" hidden>${older.map(m => messageHtml(m, mailbox, false)).join('')}</div>
+        <button class="btn btn-ghost" style="font-size:10px;width:100%;margin-bottom:4px" onclick="gmailToggleOlder('${tid}',this)">Show ${older.length} older message${older.length > 1 ? 's' : ''}</button>` : ''}
+      ${msgs.length ? messageHtml(latest, mailbox, true) : ''}
+    </div>` : ''}
   </div>`;
 }
 
@@ -114,7 +142,7 @@ export function renderGmailSection(deal) {
   } else if (!cached.threads.length) {
     inner = `<div style="font-size:12px;color:#94a3b8;padding:6px 0">No email history in ${esc(st.mailbox || 'this mailbox')} for this deal's addresses.</div>`;
   } else {
-    inner = cached.threads.map((t, i) => threadHtml(t, st.mailbox, i)).join('');
+    inner = `<div class="gm-list">${cached.threads.map(t => threadRowHtml(t, st.mailbox, deal.id, str(t.threadId) === str(st.openThread))).join('')}</div>`;
     // People on the thread the deal doesn't know about. Suggestions only — the
     // deal has four email slots and auto-filling would overwrite real contacts.
     const slot = ['email2', 'email3', 'email4'].find(f => !str(deal[f]).trim());
@@ -158,11 +186,31 @@ function staffMailboxes() {
 // deal-modal button is inline for the same reason (see booking-sms.js).
 window.gmailLoad = (dealId, mailbox) => loadGmailThreads(dealId, mailbox || undefined);
 
-window.gmailToggleOlder = (idx, btn) => {
-  const box = document.getElementById('gm-older-' + idx);
+// Which thread is open lives in module state, not in the DOM: render() rebuilds
+// the whole modal, so a realtime update would otherwise snap the thread shut
+// mid-read.
+window.gmailToggleThread = (dealId, threadId) => {
+  const st = _state[dealId];
+  if (!st) return;
+  st.openThread = str(st.openThread) === str(threadId) ? null : threadId;
+  refreshModal(true);
+};
+
+window.gmailToggleOlder = (tid, btn) => {
+  const box = document.getElementById('gm-older-' + tid);
   if (!box) return;
   box.hidden = !box.hidden;
   btn.textContent = box.hidden ? btn.textContent.replace('Hide', 'Show') : btn.textContent.replace('Show', 'Hide');
+};
+
+window.gmailToggleFull = (id, btn) => {
+  const short = document.getElementById('gm-short-' + id);
+  const full = document.getElementById('gm-full-' + id);
+  if (!short || !full) return;
+  const showingFull = !full.hidden;
+  full.hidden = showingFull;
+  short.hidden = !showingFull;
+  btn.textContent = showingFull ? btn.dataset.more : 'Show less';
 };
 
 window.gmailAddParticipant = async (dealId, email) => {

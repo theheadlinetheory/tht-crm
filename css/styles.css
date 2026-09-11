@@ -147,6 +147,26 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .sl-thread-btn:hover { background:#d1fae5 }
 .sl-thread-btn:disabled { opacity:0.6;cursor:default }
 .sl-thread-container { margin-bottom:16px }
+
+/* ── Gmail history ──────────────────────────────────────────────────────────
+   One collapsed row per thread, read like a Gmail inbox: sender, subject,
+   snippet, date. Only the open thread renders a body, so ten threads stay ten
+   rows instead of ten scrolling boxes. */
+.gm-list { border-top:1px solid var(--border);margin-bottom:4px }
+.gm-row { display:flex;align-items:center;gap:8px;padding:7px 6px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border);transition:background .12s }
+.gm-row:hover, .gm-row.open { background:var(--bg) }
+.gm-caret { flex:none;width:9px;font-size:9px;color:#9ca3af;transition:transform .12s }
+.gm-row.open .gm-caret { transform:rotate(90deg) }
+.gm-who { flex:none;max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;color:var(--text) }
+/* min-width:0 is what actually lets the flex child ellipsis instead of pushing
+   the date off the row. */
+.gm-line { flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#334155 }
+.gm-snip { color:var(--text-muted) }
+.gm-count { flex:none;font-size:10px;color:#64748b;background:var(--card);border:1px solid var(--border);border-radius:9px;padding:0 5px }
+.gm-date { flex:none;font-size:10px;color:var(--text-muted);white-space:nowrap }
+.gm-open { padding:6px 2px 10px 23px;border-bottom:1px solid var(--border) }
+.gm-more { font-size:10px;color:#2563eb;background:none;border:0;padding:2px 0;cursor:pointer }
+.gm-more:hover { text-decoration:underline }
 .sl-thread-loading { text-align:center;padding:16px;font-size:12px;color:#6b7280 }
 .sl-thread-error { background:#fef2f2;border:1px solid #fecaca;border-radius:var(--radius);padding:10px 12px;font-size:12px;color:#991b1b;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between }
 .sl-thread-error button { background:#fee2e2;border:1px solid #fecaca;border-radius:4px;padding:3px 10px;font-size:11px;color:#991b1b;cursor:pointer;font-weight:600 }
