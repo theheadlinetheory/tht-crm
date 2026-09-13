@@ -23,11 +23,12 @@
 // Underperforming week uses the SAME bar as the Weekly KPI:
 // RETAINER_WEEKLY_TARGET = 5 positive replies, PPM_WEEKLY_TARGET = 1 meeting.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260913212736';
-import { render } from './render.js?v=20260913212736';
-import { esc, str } from './utils.js?v=20260913212736';
-import { isAdmin } from './auth.js?v=20260913212736';
-import { WEEKS, LATEST } from './triage-index.js?v=20260913212736';
+import { state } from './app.js?v=20260913215731';
+import { render } from './render.js?v=20260913215731';
+import { esc, str } from './utils.js?v=20260913215731';
+import { isAdmin } from './auth.js?v=20260913215731';
+import { WEEKS, LATEST } from './triage-index.js?v=20260913215731';
+import { runTriage, listSavedWeeks, getSavedWeek } from './triage-run.js?v=20260913215731';
 
 const BAND_COLOR = { green: '#16a34a', yellow: '#ca8a04', red: '#dc2626' };
 const BAND_BG    = { green: '#dcfce7', yellow: '#fef9c3', red: '#fee2e2' };
@@ -41,16 +42,40 @@ const CACHE = {};          // week -> {META, ROWS} | {error}
 const PENDING = {};        // week -> true while its import is in flight
 
 function weekState() {
-  if (!state.triage) state.triage = { week: LATEST, compare: true };
+  if (!state.triage) {
+    state.triage = { week: LATEST, compare: true, saved: null, running: false, progress: '', error: null };
+  }
   if (!state.triage.week) state.triage.week = LATEST;
   return state.triage;
+}
+
+// Weeks bundled with the deploy, plus any saved server-side since. A run writes
+// to the server, so a new week appears here WITHOUT a deploy — that is the whole
+// point of the button.
+function allWeeks() {
+  const ws = weekState();
+  const merged = new Set([...(WEEKS || []), ...(ws.saved || [])]);
+  return [...merged].sort().reverse();
+}
+
+// Fetch the saved-week list once per screen visit.
+function ensureSavedList() {
+  const ws = weekState();
+  if (ws.saved !== null || ws._listing) return;
+  ws._listing = true;
+  listSavedWeeks()
+    .then(list => { ws.saved = list; ws._listing = false; render(); })
+    .catch(() => { ws.saved = []; ws._listing = false; });   // bundled weeks still work
 }
 
 function loadWeek(week) {
   if (!week || CACHE[week] || PENDING[week]) return;
   PENDING[week] = true;
-  import(`./triage/${week}.js?v=20260913212736`)
-    .then(m => { CACHE[week] = { META: m.META, ROWS: m.ROWS }; delete PENDING[week]; render(); })
+  import(`./triage/${week}.js?v=20260913215731`)
+    .then(m => ({ META: m.META, ROWS: m.ROWS }))
+    // Not bundled — it was produced by a Run and lives server-side only.
+    .catch(() => getSavedWeek(week))
+    .then(snap => { CACHE[week] = snap; delete PENDING[week]; render(); })
     .catch(err => {
       console.error('Client Triage: failed to load week', week, err);
       CACHE[week] = { error: String((err && err.message) || err) };
@@ -60,8 +85,9 @@ function loadWeek(week) {
 }
 
 function priorWeek(week) {
-  const i = WEEKS.indexOf(week);
-  return (i >= 0 && i + 1 < WEEKS.length) ? WEEKS[i + 1] : null;
+  const w = allWeeks();
+  const i = w.indexOf(week);
+  return (i >= 0 && i + 1 < w.length) ? w[i + 1] : null;
 }
 
 // Δ vs the prior snapshot. Returns null when there is nothing to compare against
@@ -84,6 +110,27 @@ function deltaCell(d) {
 }
 
 window.triageSetWeek = w => { weekState().week = w; render(); };
+
+window.triageRun = () => {
+  const ws = weekState();
+  if (ws.running) return;
+  const today = new Date().toISOString().slice(0, 10);
+  ws.running = true; ws.error = null; ws.progress = 'Starting…'; render();
+  const prior = CACHE[ws.week] && CACHE[ws.week].ROWS ? CACHE[ws.week] : null;
+  runTriage({ today, prior, onProgress: m => { ws.progress = m; render(); } })
+    .then(({ snap }) => {
+      CACHE[today] = snap;                       // show it immediately
+      ws.saved = [...new Set([...(ws.saved || []), today])].sort().reverse();
+      ws.week = today; ws.running = false; ws.progress = '';
+      render();
+    })
+    .catch(err => {
+      console.error('Client Triage run failed:', err);
+      ws.running = false; ws.progress = '';
+      ws.error = String((err && err.message) || err);
+      render();
+    });
+};
 window.triageToggleCompare = () => { const s = weekState(); s.compare = !s.compare; render(); };
 
 const pct = v => (v === null || v === undefined) ? '—' : v.toFixed(3) + '%';
@@ -232,11 +279,15 @@ export function renderTriage() {
     return `<div class="tracker-container"><div style="padding:32px;text-align:center;font-size:13px;color:var(--text-muted)">
       Client Triage is admin-only — it shows retainer amounts and renewal dates.</div></div>`;
   }
-  if (!WEEKS.length) {
-    return `<div class="tracker-container"><div style="padding:32px;text-align:center;font-size:13px;color:var(--text-muted)">
-      No triage snapshots yet. Run <code>fulfillment-dashboard/client-triage/run_triage.py</code>.</div></div>`;
-  }
+  ensureSavedList();
   const ws = weekState();
+  const WKS = allWeeks();
+  if (!WKS.length) {
+    return `<div class="tracker-container"><div style="padding:32px;text-align:center;font-size:13px;color:var(--text-muted)">
+      No triage snapshots yet. Press <b>Run this week</b> to build the first one.
+      <div style="margin-top:12px"><button class="btn btn-primary" onclick="triageRun()" ${ws && ws.running ? 'disabled' : ''}>Run this week</button></div>
+      </div></div>`;
+  }
   const week = ws.week;
   const prev = priorWeek(week);
   loadWeek(week);
@@ -247,15 +298,24 @@ export function renderTriage() {
 
   // Week picker renders even while the data is still in flight, so switching
   // weeks never leaves an empty screen.
-  const picker = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+  const newest = WKS[0];
+  const picker = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
       <label style="font-size:11px;color:var(--text-muted)">Week</label>
       <select onchange="triageSetWeek(this.value)" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-family:var(--font)">
-        ${WEEKS.map(w => `<option value="${w}"${w === week ? ' selected' : ''}>${w}${w === LATEST ? ' (latest)' : ''}</option>`).join('')}
+        ${WKS.map(w => `<option value="${w}"${w === week ? ' selected' : ''}>${w}${w === newest ? ' (latest)' : ''}</option>`).join('')}
       </select>
       ${prev ? `<label style="font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:4px;cursor:pointer">
         <input type="checkbox" ${ws.compare ? 'checked' : ''} onchange="triageToggleCompare()"> vs ${prev}</label>` : ''}
       <button class="btn" style="font-size:11px;padding:4px 10px" onclick="triageExportCsv()">Export CSV</button>
-    </div>`;
+      <button class="btn btn-primary" style="font-size:11px;padding:4px 12px" onclick="triageRun()" ${ws.running ? 'disabled' : ''}>
+        ${ws.running ? 'Running…' : 'Run this week'}</button>
+    </div>
+    ${ws.running ? `<div style="margin-top:6px;font-size:11px;color:var(--purple);text-align:right">
+        ${esc(ws.progress || 'Working…')}
+        <div style="font-size:10px;color:var(--text-muted);margin-top:2px">Pulls the CRM, the dashboard, the client sheets and live Smartlead volume — usually 2–5 minutes. Leave this tab open.</div>
+      </div>` : ''}
+    ${ws.error ? `<div style="margin-top:6px;font-size:11px;color:#b91c1c;text-align:right;max-width:520px">
+        Run failed: ${esc(ws.error)}</div>` : ''}`;
 
   if (!SNAP) {
     return `<div class="tracker-container"><div style="padding:20px 18px">${picker}
@@ -299,6 +359,45 @@ export function renderTriage() {
       </div>`;
     }
   }
+
+  // What the two scores actually MEAN, in plain language and always visible.
+  // The mechanics live in the collapsible below; this answers "what am I
+  // looking at", which is the question people actually arrive with.
+  h += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+    <div style="padding:11px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px">
+      <div style="font-size:12px;font-weight:800;color:#b91c1c;margin-bottom:4px">TRIAGE &nbsp;0&ndash;70 &nbsp;&middot;&nbsp; higher = more urgent</div>
+      <div style="font-size:11px;line-height:1.6">
+        <b>&ldquo;How badly does this client need a decision from us right now?&rdquo;</b><br>
+        It measures <b>risk and runway</b>, not output: how many times we have already rebuilt their
+        campaigns, how far their bad weeks fall below their peers&rsquo;, whether they have run out of
+        list to send to, whether their rejections point at one systematic cause, and how much
+        contract revenue is exposed.<br>
+        <span style="color:var(--text-muted)">A high triage score does <b>not</b> mean a client is
+        performing badly. It means something about their situation needs attention &mdash; most often
+        that we are out of road with them.</span>
+      </div>
+    </div>
+    <div style="padding:11px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px">
+      <div style="font-size:12px;font-weight:800;color:#15803d;margin-bottom:4px">HEALTH &nbsp;0&ndash;100 &nbsp;&middot;&nbsp; higher = healthier</div>
+      <div style="font-size:11px;line-height:1.6">
+        <b>&ldquo;How well is this client actually doing right now?&rdquo;</b><br>
+        It measures <b>output</b>: their positive-reply rate over the last 4 weeks against the typical
+        client in their category, how many of their recent weeks missed the weekly KPI, and how much
+        untouched list they still have.
+        <span style="white-space:nowrap"><b style="color:#15803d">green 70+</b>,
+        <b style="color:#ca8a04">yellow 40&ndash;69</b>, <b style="color:#dc2626">red under 40</b>.</span><br>
+        <span style="color:var(--text-muted)">This is the number to quote when someone asks how a
+        client is doing.</span>
+      </div>
+    </div>
+  </div>
+  <div style="margin-bottom:10px;padding:9px 14px;background:#fffbeb;border-left:3px solid #f59e0b;border-radius:4px;font-size:11px;line-height:1.6">
+    <b>They are allowed to disagree, and the disagreement is the useful part.</b>
+    <b>High triage + healthy</b> = performing well but out of list; the work is finding new people to
+    contact, not fixing the campaign.
+    <b>High triage + red</b> = failing now, and we have already spent the obvious fixes.
+    <b>Low triage + red</b> = a bad patch, but there is still list and runway to work with.
+  </div>`;
 
   h += `<div style="margin-bottom:10px;padding:10px 14px;background:#f8fafc;border-left:3px solid var(--purple);border-radius:4px;font-size:11px;line-height:1.55">
     <b>Underperforming week:</b> ${esc(META.underperfDef)}
