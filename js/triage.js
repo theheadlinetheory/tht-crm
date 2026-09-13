@@ -10,21 +10,81 @@
 // landscaping client running a snow angle is a different funnel with a
 // different list, so averaging them together hides both.
 //
-// The numbers are a SNAPSHOT (see TRIAGE_META.generated), not live. Computing
-// them needs the fulfillment-dashboard database and the Smartlead campaign
-// API, neither of which this frontend repo may reach directly — backend work
-// lives in the edge-function repo. Regenerate the snapshot alongside the
-// research write-up rather than hand-editing js/triage-data.js.
+// The numbers are weekly SNAPSHOTS, not live. Computing them needs the CRM and
+// fulfillment-dashboard databases, the Smartlead API and the client sheets —
+// none of which this frontend may reach. They are produced by
+// `fulfillment-dashboard/client-triage/run_triage.py`, which writes one file per
+// week into js/triage/ and refreshes js/triage-index.js. Never hand-edit those.
+//
+// Each week is lazy-loaded only when selected, so history costs nothing on first
+// paint, and a churned client simply stops appearing in new snapshots while the
+// weeks it was present keep it unchanged.
 //
 // Underperforming week uses the SAME bar as the Weekly KPI:
 // RETAINER_WEEKLY_TARGET = 5 positive replies, PPM_WEEKLY_TARGET = 1 meeting.
 // ═══════════════════════════════════════════════════════════
-import { esc, str } from './utils.js?v=20260911131352';
-import { isAdmin } from './auth.js?v=20260911131352';
-import { TRIAGE_META, TRIAGE_ROWS } from './triage-data.js?v=20260911131352';
+import { state } from './app.js?v=20260913212736';
+import { render } from './render.js?v=20260913212736';
+import { esc, str } from './utils.js?v=20260913212736';
+import { isAdmin } from './auth.js?v=20260913212736';
+import { WEEKS, LATEST } from './triage-index.js?v=20260913212736';
 
 const BAND_COLOR = { green: '#16a34a', yellow: '#ca8a04', red: '#dc2626' };
 const BAND_BG    = { green: '#dcfce7', yellow: '#fef9c3', red: '#fee2e2' };
+
+// ── week selection ──────────────────────────────────────────────────────────
+// Each week is a separate module under js/triage/ and is fetched only when it is
+// selected, so history can grow indefinitely without slowing first paint.
+// Churn falls out of this for free: a client that has left stops appearing in
+// new snapshots, while older ones keep it exactly as it was that week.
+const CACHE = {};          // week -> {META, ROWS} | {error}
+const PENDING = {};        // week -> true while its import is in flight
+
+function weekState() {
+  if (!state.triage) state.triage = { week: LATEST, compare: true };
+  if (!state.triage.week) state.triage.week = LATEST;
+  return state.triage;
+}
+
+function loadWeek(week) {
+  if (!week || CACHE[week] || PENDING[week]) return;
+  PENDING[week] = true;
+  import(`./triage/${week}.js?v=20260913212736`)
+    .then(m => { CACHE[week] = { META: m.META, ROWS: m.ROWS }; delete PENDING[week]; render(); })
+    .catch(err => {
+      console.error('Client Triage: failed to load week', week, err);
+      CACHE[week] = { error: String((err && err.message) || err) };
+      delete PENDING[week];
+      render();
+    });
+}
+
+function priorWeek(week) {
+  const i = WEEKS.indexOf(week);
+  return (i >= 0 && i + 1 < WEEKS.length) ? WEEKS[i + 1] : null;
+}
+
+// Δ vs the prior snapshot. Returns null when there is nothing to compare against
+// — a brand-new client, or the oldest week we hold.
+function deltaFor(row, prevSnap) {
+  if (!prevSnap || !prevSnap.ROWS) return null;
+  const was = prevSnap.ROWS.find(p => p.client === row.client && p.vertical === row.vertical);
+  if (!was) return { isNew: true };
+  return { triage: row.triage - was.triage,
+           health: (row.health != null && was.health != null) ? +(row.health - was.health).toFixed(1) : null };
+}
+
+function deltaCell(d) {
+  if (!d) return '';
+  if (d.isNew) return `<span style="font-size:9px;font-weight:700;color:#2563eb">NEW</span>`;
+  if (!d.triage) return `<span style="font-size:10px;color:var(--text-muted)">—</span>`;
+  // triage UP = more urgent = worse, so red for a rise
+  const up = d.triage > 0;
+  return `<span style="font-size:10px;font-weight:700;color:${up ? '#dc2626' : '#16a34a'}">${up ? '+' : ''}${d.triage}</span>`;
+}
+
+window.triageSetWeek = w => { weekState().week = w; render(); };
+window.triageToggleCompare = () => { const s = weekState(); s.compare = !s.compare; render(); };
 
 const pct = v => (v === null || v === undefined) ? '—' : v.toFixed(3) + '%';
 const num = v => (v === null || v === undefined) ? '—' : Number(v).toLocaleString();
@@ -46,8 +106,8 @@ function dim(score, raw, weighted) {
   </td>`;
 }
 
-function sectionFor(vertical) {
-  const rows = TRIAGE_ROWS.filter(r => r.vertical === vertical);
+function sectionFor(vertical, SNAP, PREV) {
+  const rows = SNAP.ROWS.filter(r => r.vertical === vertical);
   const scored = rows.filter(r => r.launch);
   const counts = { green: 0, yellow: 0, red: 0, none: 0 };
   rows.forEach(r => { counts[r.band || 'none']++; });
@@ -82,6 +142,7 @@ function sectionFor(vertical) {
     <thead><tr>
       <th style="text-align:left">Client</th>
       <th style="text-align:center">Triage<br><span style="font-weight:400;opacity:.6">/70</span></th>
+      <th style="text-align:center">&Delta;<br><span style="font-weight:400;opacity:.6">vs prior</span></th>
       <th style="text-align:center">Health</th>
       <th style="text-align:center">1 Fix<br>recurrence</th>
       <th style="text-align:center">2 Floor<br>gap</th>
@@ -108,6 +169,7 @@ function sectionFor(vertical) {
         </div>
       </td>
       <td style="text-align:center;font-weight:800;font-size:14px">${r.triage}</td>
+      <td style="text-align:center">${deltaCell(deltaFor(r, PREV))}</td>
       <td style="text-align:center">${bandPill(r.band, r.health)}
         ${r.health !== null && r.health !== undefined ? `<div style="font-size:10px;color:var(--text-muted);margin-top:2px">${r.hp}+${r.hh}+${r.hr}</div>` : ''}</td>
       ${dim(r.d1, `${r.d1raw} change${r.d1raw === 1 ? '' : 's'}${r.d1cap ? ' (capped, <6w)' : ''}`, true)}
@@ -170,7 +232,45 @@ export function renderTriage() {
     return `<div class="tracker-container"><div style="padding:32px;text-align:center;font-size:13px;color:var(--text-muted)">
       Client Triage is admin-only — it shows retainer amounts and renewal dates.</div></div>`;
   }
-  const t34 = TRIAGE_META.tier34;
+  if (!WEEKS.length) {
+    return `<div class="tracker-container"><div style="padding:32px;text-align:center;font-size:13px;color:var(--text-muted)">
+      No triage snapshots yet. Run <code>fulfillment-dashboard/client-triage/run_triage.py</code>.</div></div>`;
+  }
+  const ws = weekState();
+  const week = ws.week;
+  const prev = priorWeek(week);
+  loadWeek(week);
+  if (ws.compare && prev) loadWeek(prev);
+
+  const SNAP = CACHE[week];
+  const PREV = (ws.compare && prev) ? CACHE[prev] : null;
+
+  // Week picker renders even while the data is still in flight, so switching
+  // weeks never leaves an empty screen.
+  const picker = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <label style="font-size:11px;color:var(--text-muted)">Week</label>
+      <select onchange="triageSetWeek(this.value)" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-family:var(--font)">
+        ${WEEKS.map(w => `<option value="${w}"${w === week ? ' selected' : ''}>${w}${w === LATEST ? ' (latest)' : ''}</option>`).join('')}
+      </select>
+      ${prev ? `<label style="font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:4px;cursor:pointer">
+        <input type="checkbox" ${ws.compare ? 'checked' : ''} onchange="triageToggleCompare()"> vs ${prev}</label>` : ''}
+      <button class="btn" style="font-size:11px;padding:4px 10px" onclick="triageExportCsv()">Export CSV</button>
+    </div>`;
+
+  if (!SNAP) {
+    return `<div class="tracker-container"><div style="padding:20px 18px">${picker}
+      <div style="padding:40px;text-align:center;color:var(--text-muted);font-size:12px">Loading week ${esc(week)}…</div></div></div>`;
+  }
+  if (SNAP.error) {
+    return `<div class="tracker-container"><div style="padding:20px 18px">${picker}
+      <div style="padding:30px;text-align:center">
+        <div style="font-size:14px;font-weight:700;color:#b91c1c;margin-bottom:6px">Could not load the ${esc(week)} snapshot</div>
+        <div style="font-size:12px;color:var(--text-muted)">${esc(SNAP.error)}</div>
+      </div></div></div>`;
+  }
+
+  const META = SNAP.META;
+  const t34 = META.tier34;
   let h = `<div class="tracker-container" style="overflow-y:auto"><div style="padding:14px 18px 26px">`;
 
   h += `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:14px">
@@ -178,18 +278,30 @@ export function renderTriage() {
       <div style="font-size:16px;font-weight:800">Client Triage &amp; Health Scores</div>
       <div style="font-size:11px;color:var(--text-muted);margin-top:3px;max-width:760px;line-height:1.5">
         Triage 0–70, higher = more urgent. Health 0–100, higher = healthier (green 70+, yellow 40–69, red under 40).
-        ${esc(TRIAGE_META.tierNote)}
+        ${esc(META.tierNote)}
       </div>
     </div>
-    <div style="text-align:right;white-space:nowrap">
-      <div style="font-size:11px;color:var(--text-muted)">Snapshot</div>
-      <div style="font-size:13px;font-weight:700">${esc(TRIAGE_META.generated)}</div>
-      <button class="btn" style="font-size:11px;padding:5px 12px;margin-top:6px" onclick="triageExportCsv()">Export CSV</button>
+    <div style="text-align:right">${picker}
+      <div style="font-size:10px;color:var(--text-muted);margin-top:5px">
+        objections ${esc(META.replyMiningDate || 'n/a')} · sheets ${esc(META.sheetMeetingsAsOf || 'never')}
+      </div>
     </div>
   </div>`;
 
+  if (PREV && PREV.ROWS) {
+    const gone = PREV.ROWS.filter(p => !SNAP.ROWS.some(r => r.client === p.client && r.vertical === p.vertical));
+    const added = SNAP.ROWS.filter(r => !PREV.ROWS.some(p => p.client === r.client && p.vertical === r.vertical));
+    if (gone.length || added.length) {
+      h += `<div style="margin-bottom:10px;padding:8px 14px;background:#eff6ff;border-left:3px solid #2563eb;border-radius:4px;font-size:11px;line-height:1.6">
+        <b>Roster change since ${esc(prev)}:</b>
+        ${added.length ? ` added ${added.map(r => esc(r.client) + ' (' + esc(r.vertical) + ')').join(', ')}.` : ''}
+        ${gone.length ? ` no longer scored ${gone.map(r => esc(r.client) + ' (' + esc(r.vertical) + ')').join(', ')} — churned or offer stopped. Their ${esc(prev)} rows remain under that week.` : ''}
+      </div>`;
+    }
+  }
+
   h += `<div style="margin-bottom:10px;padding:10px 14px;background:#f8fafc;border-left:3px solid var(--purple);border-radius:4px;font-size:11px;line-height:1.55">
-    <b>Underperforming week:</b> ${esc(TRIAGE_META.underperfDef)}
+    <b>Underperforming week:</b> ${esc(META.underperfDef)}
   </div>`;
 
   // The five dimension cells read as "9 x2 (14 changes)", which is genuinely
@@ -218,13 +330,13 @@ export function renderTriage() {
 
   // Scores that are true but misleading if read at face value. Worth the space:
   // the Holiday Lighting 100 and the Lightning 4.3 both look like findings and are not.
-  if (TRIAGE_META.caveats && TRIAGE_META.caveats.length) {
+  if (META.warnings && META.warnings.length) {
     h += `<div style="margin-bottom:16px;padding:10px 14px;background:#fffbeb;border-left:3px solid #f59e0b;border-radius:4px;font-size:11px;line-height:1.6">
       <b>Read these before trusting a score:</b><ul style="margin:5px 0 0;padding-left:18px">${
-        TRIAGE_META.caveats.map(c => `<li style="margin-bottom:3px">${esc(c)}</li>`).join('')}</ul></div>`;
+        META.warnings.map(c => `<li style="margin-bottom:3px">${esc(c)}</li>`).join('')}</ul></div>`;
   }
 
-  TRIAGE_META.verticals.forEach(v => { h += sectionFor(v); });
+  META.verticals.forEach(v => { h += sectionFor(v, SNAP, PREV); });
 
   // Fleet-wide finding — this is a property of the tier 3/4 lists, not of any
   // one client, so it sits below the four sections rather than inside one.
@@ -249,8 +361,7 @@ export function renderTriage() {
   </div>`;
 
   h += `<div style="margin-top:12px;font-size:10px;color:var(--text-muted);line-height:1.5">
-    ${esc(TRIAGE_META.floorNote)}<br>
-    ${esc(TRIAGE_META.objSource)}
+    ${esc(META.floorNote)}<br>
     Positive replies are logged CRM pass-offs, so a reply that was never logged reads as underperformance.
     Hover a "largest bucket" cell for that client's full bucket breakdown.
   </div>`;
@@ -264,12 +375,15 @@ window.triageExportCsv = () => {
     'untT12','untT3','untT4','negTotal','negWrong','negNI','negHostile','billing','retainer','currency','leadCost',
     'renewal','set','nCamps','daysToFirstPos'];
   const q = v => `"${String(v === null || v === undefined ? '' : v).replace(/"/g,'""')}"`;
-  const csv = [cols.join(',')].concat(TRIAGE_ROWS.map(r => cols.map(c => q(r[c])).join(','))).join('\n');
+  const wk = weekState().week;
+  const snap = CACHE[wk];
+  if (!snap || !snap.ROWS) return;
+  const csv = [cols.join(',')].concat(snap.ROWS.map(r => cols.map(c => q(r[c])).join(','))).join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `client-triage-${TRIAGE_META.generated}.csv`;
+  link.download = `client-triage-${wk}.csv`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
