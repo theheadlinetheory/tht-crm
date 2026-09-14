@@ -19,10 +19,10 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260913215731';
-import { supabase } from './supabase-client.js?v=20260913215731';
-import { PERIODS, periodRange, fetchPeriod, rangeLabel } from './funnel-period.js?v=20260913215731';
-import { leadsTable } from './funnel-leads.js?v=20260913215731';
+import { esc, svgIcon } from './utils.js?v=20260914121323';
+import { supabase } from './supabase-client.js?v=20260914121323';
+import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel } from './funnel-period.js?v=20260914121323';
+import { leadsTable } from './funnel-leads.js?v=20260914121323';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -35,7 +35,13 @@ let _error = null;
 // deploy (version.json check on every tab focus), which threw the view back to
 // All each time Lars clicked a period during a deploy (2026-09-08).
 const PERIOD_KEY = 'funnelPeriod';
-let _period = (() => { try { return localStorage.getItem(PERIOD_KEY) || 'all'; } catch (_) { return 'all'; } })();
+/** The earliest Monday the levels cover — from the level 01 card when loaded, else the constant in funnel-period.js. */
+function backfillStart() {
+  const l1 = (_levels || []).find(l => l.level === '01');
+  const ws = l1 && l1.detail && l1.detail.window_start;
+  return /^\d{4}-\d{2}-\d{2}$/.test(ws || '') ? ws : undefined;
+}
+let _period = pinKey((() => { try { return localStorage.getItem(PERIOD_KEY) || 'all'; } catch (_) { return 'all'; } })());
 const _periodData = {};   // key → rows shaped like pipeline_latest
 let _periodLoading = null; // key being fetched
 
@@ -83,7 +89,7 @@ function loadPeriod(key, rerender) {
 window.setFunnelPeriod = (key) => {
   _period = key;
   try { localStorage.setItem(PERIOD_KEY, key); } catch (_) { /* private mode */ }
-  import('./render.js?v=20260913215731').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+  import('./render.js?v=20260914121323').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
 };
 
 const STATUS_STYLE = {
@@ -296,7 +302,7 @@ function breakdownTable(rows) {
 
 function periodLabel(key) {
   const r = periodRange(key);
-  const p = PERIODS.find(x => x.key === key);
+  const p = periods(backfillStart()).find(x => x.key === key);
   if (!r) return 'all time';
   const name = p && p.label ? p.label.toLowerCase() : key.startsWith('week:') ? 'the week of ' + key.slice(5) : rangeLabel(r);
   return `${name} (${r.from === r.to ? r.from : r.from + ' → ' + r.to})`;
@@ -305,7 +311,7 @@ function periodLabel(key) {
 /** Today · Yesterday · This week · Last week · All — days in Los Angeles time. */
 function periodBar() {
   let h = `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:12px">`;
-  PERIODS.forEach(p => {
+  periods(backfillStart()).forEach(p => {
     const on = _period === p.key;
     const label = p.label || rangeLabel(periodRange(p.key));
     h += `<button onclick="setFunnelPeriod('${p.key}')" style="padding:5px 12px;border:1px solid ${on ? '#1e1b4b' : 'var(--border)'};border-radius:999px;background:${on ? '#1e1b4b' : 'var(--card)'};color:${on ? '#fff' : '#374151'};font-size:12px;font-weight:600;cursor:pointer">${esc(label)}</button>`;
@@ -364,5 +370,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260913215731').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260914121323').then(m => reloadFunnel(m.render));
 };

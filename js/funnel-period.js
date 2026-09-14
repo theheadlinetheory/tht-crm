@@ -12,7 +12,7 @@
 // Nothing is written: the functions answer from the per-lead ledger and the
 // daily send snapshots. The "All" view keeps reading pipeline_latest.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260913215731';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260914121323';
 
 export const TZ = 'America/Los_Angeles';
 
@@ -30,13 +30,23 @@ export const PERIODS = [
   { key: 'yesterday', label: 'Yesterday' },
   { key: 'week',      label: 'This week' },
   { key: 'lastweek',  label: 'Last week' },
-  // Temporary, for reviewing the backfill one week at a time (Lars, 2026-09-10) — not a permanent history UI.
-  // Older weeks are labelled by their dates; only last week and forward keep names (Lars).
-  { key: 'week2',     label: null },
-  { key: 'week3',     label: null },
-  { key: 'week4',     label: null },
-  { key: 'week5',     label: null },
 ];
+// Every backfilled week as its own chip, pinned to the calendar (Lars, 2026-09-14: relative "two weeks ago" chips
+// pushed Aug 3–9 off the bar when the week rolled over). Temporary, until the backfill is as far back as wanted and a
+// different filter replaces it. Older weeks are labelled by their dates; only last week and forward keep names.
+export const BACKFILL_START = '2026-08-03'; // the level functions' WINDOW_START; the level 01 card carries the live value
+export function periods(backfillStart = BACKFILL_START) {
+  const { ymd, dow } = laToday();
+  const monday = addDays(ymd, -((dow + 6) % 7));
+  const out = [...PERIODS];
+  for (let m = addDays(monday, -14); m >= backfillStart; m = addDays(m, -7)) out.push({ key: 'week:' + m, label: null });
+  return out;
+}
+/** A saved 'week2'…'week5' key from the relative days → its calendar week, so the bar still shows it selected. */
+export function pinKey(key) {
+  if (!/^week[2-5]$/.test(key || '')) return key;
+  const r = periodRange(key); return r ? 'week:' + r.from : key;
+}
 
 /** 'Aug 24–30' for a range (LA dates). */
 export function rangeLabel(r) {
