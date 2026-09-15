@@ -22,6 +22,8 @@ export function esc(s){
   d.textContent=s;
   return d.innerHTML;
 }
+/** esc() for attribute values and inline-handler strings: quotes too (hardening review, 2026-09-15). */
+export function escAttr(s){ return esc(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 export function str(v){
   return v===null||v===undefined?'':String(v);

@@ -23,10 +23,10 @@
 // acquisition deals here (deal-modal.js, deals.js). Everything is read from the
 // deal's Timeline at click time — nothing new is stored.
 
-import { state } from './app.js?v=20260915111215';
-import { esc } from './utils.js?v=20260915111215';
-import { sbCreateInteraction, sbGetInteractions } from './api.js?v=20260915111215';
-import { markDisco, markDemo, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260915111215';
+import { state } from './app.js?v=20260915112420';
+import { esc } from './utils.js?v=20260915112420';
+import { sbCreateInteraction, sbGetInteractions, showToast } from './api.js?v=20260915112420';
+import { markDisco, markDemo, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260915112420';
 
 export const REMOVAL_PREFIX = 'Removed — ';
 
@@ -67,8 +67,12 @@ export async function writeRemovalNote(dealId, note, opts) {
   try {
     // opts.asOf (YYYY-MM-DD): recorded later from a Funnel list row — the ledger dates the removal to that day.
     await sbCreateInteraction({ deal_id: dealId, type: 'Note', content: REMOVAL_PREFIX + note + ' · marked in the CRM' + (opts && opts.asOf ? ' · as of ' + opts.asOf : '') });
+    return true;
   } catch (e) {
+    // Say so: a swallowed failure turned the Funnel row green while the answer was lost (hardening review, 2026-09-15).
     console.warn('[removal-reason] note not saved for', dealId, e && e.message);
+    showToast('Could not save the reason: ' + (e && e.message || e), 'error');
+    return false;
   }
 }
 

@@ -19,10 +19,10 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260915111215';
-import { supabase } from './supabase-client.js?v=20260915111215';
-import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel } from './funnel-period.js?v=20260915111215';
-import { leadsTable } from './funnel-leads.js?v=20260915111215';
+import { esc, svgIcon } from './utils.js?v=20260915112420';
+import { supabase } from './supabase-client.js?v=20260915112420';
+import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel } from './funnel-period.js?v=20260915112420';
+import { leadsTable } from './funnel-leads.js?v=20260915112420';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -42,20 +42,40 @@ function backfillStart() {
   return /^\d{4}-\d{2}-\d{2}$/.test(ws || '') ? ws : undefined;
 }
 let _period = pinKey((() => { try { return localStorage.getItem(PERIOD_KEY) || 'all'; } catch (_) { return 'all'; } })());
-const _periodData = {};   // key → rows shaped like pipeline_latest
+if (_period !== 'all' && !periodRange(_period)) _period = 'all'; // a stale or invalid saved key never sticks
+const _periodData = {};   // key → rows shaped like pipeline_latest (with _from/_to/_at, see periodRows)
 let _periodLoading = null; // key being fetched
+const _gen = {};           // key → fetch generation: only the latest fetch for a key may store its rows
+const PERIOD_TTL_MS = 15 * 60e3;
+/** The cached rows for a key, or null when there are none, they are for other dates (Today rolled over) or too old. */
+function periodRows(key) {
+  const c = _periodData[key]; if (!c) return null;
+  if (c.error) return c;
+  const r = periodRange(key);
+  if (!r || c._from !== r.from || c._to !== r.to || Date.now() - (c._at || 0) > PERIOD_TTL_MS) return null;
+  return c;
+}
+function storePeriod(key, rows, g) {
+  if (g !== undefined && g !== _gen[key]) return; // a slower, older fetch never overwrites a newer one
+  const r = periodRange(key) || {};
+  if (Array.isArray(rows)) { rows._from = r.from; rows._to = r.to; rows._at = Date.now(); }
+  _periodData[key] = rows;
+}
 
 export function loadFunnel(rerender) {
-  if (_period !== 'all') loadPeriod(_period, rerender);
+  // The period views borrow the level labels from the cards: ask for a period only once the cards are here
+  // (a pinned period on first paint used to title every card with its metric label — hardening review, 2026-09-15).
+  if (_period !== 'all' && _levels !== null) loadPeriod(_period, rerender);
   if (_levels !== null || _loading) return;
   _loading = true;
   supabase.from('pipeline_latest').select('*')
     .then(({ data, error }) => {
       _loading = false;
-      if (error) { _error = error.message; _levels = []; }
-      else { _levels = data || []; }
+      if (error) { _error = error.message; _levels = null; } // null, so the next load tries again
+      else { _levels = data || []; _error = null; if (_period !== 'all') loadPeriod(_period, rerender); }
       if (rerender) rerender();
-    });
+    })
+    .catch((e) => { _loading = false; _error = String(e && e.message || e); if (rerender) rerender(); });
 }
 
 /** Refetch everything WITHOUT blanking the page: the cards and lists on screen stay until the fresh ones arrive,
@@ -67,8 +87,9 @@ export function reloadFunnel(rerender) {
   const y = window.scrollY, key = _period;
   const cards = supabase.from('pipeline_latest').select('*')
     .then(({ data, error }) => { if (error) _error = error.message; else { _levels = data || []; _error = null; } });
+  const g = (_gen[key] = (_gen[key] || 0) + 1);
   const period = key !== 'all'
-    ? fetchPeriod(periodRange(key), _levels || []).then(rows => { _periodData[key] = rows; }).catch(() => {})
+    ? fetchPeriod(periodRange(key), _levels || []).then(rows => { storePeriod(key, rows, g); }).catch(() => {})
     : Promise.resolve();
   Promise.all([cards, period]).finally(() => {
     if (rerender) rerender();
@@ -77,19 +98,21 @@ export function reloadFunnel(rerender) {
 }
 
 function loadPeriod(key, rerender) {
-  if (_periodData[key] || _periodLoading === key) return;
+  if (periodRows(key) || _periodLoading === key) return;
+  if (!rerender) rerender = () => import('./render.js?v=20260915112420').then(m => m.render());
   _periodLoading = key;
+  const g = (_gen[key] = (_gen[key] || 0) + 1);
   fetchPeriod(periodRange(key), _levels || []).then(rows => {
-    _periodData[key] = rows;
+    storePeriod(key, rows, g);
   }).catch(e => {
-    _periodData[key] = { error: String(e && e.message || e) };
-  }).finally(() => { _periodLoading = null; if (rerender) rerender(); });
+    storePeriod(key, { error: String(e && e.message || e) }, g);
+  }).finally(() => { if (_periodLoading === key) _periodLoading = null; if (rerender) rerender(); });
 }
 
 window.setFunnelPeriod = (key) => {
   _period = key;
   try { localStorage.setItem(PERIOD_KEY, key); } catch (_) { /* private mode */ }
-  import('./render.js?v=20260915111215').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+  import('./render.js?v=20260915112420').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
 };
 
 const STATUS_STYLE = {
@@ -337,7 +360,8 @@ window.toggleFunnelDetails = (level) => {
 
 export function renderFunnel() {
   if (_error) {
-    return `<div style="padding:24px"><div style="color:#b91c1c;font-size:13px">Could not load the funnel: ${esc(_error)}</div></div>`;
+    return `<div style="padding:24px"><div style="color:#b91c1c;font-size:13px">Could not load the funnel: ${esc(_error)}</div>
+      <button onclick="refreshFunnel()" style="margin-top:10px;padding:6px 12px;border:1px solid var(--border);border-radius:7px;background:var(--card);font-size:12px;cursor:pointer">Try again</button></div>`;
   }
   if (_levels === null) {
     return `<div style="padding:24px;color:#9ca3af;font-size:13px">Loading the funnel…</div>`;
@@ -353,13 +377,15 @@ export function renderFunnel() {
         </div>`;
   h += periodBar();
   h += `<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">`;
+  // One level's bad answer must not take the screen down: a card that throws renders as its own error card.
+  const safeCard = (r) => { try { return r.error ? levelError(r) : levelCard(r); } catch (e) { return levelError({ ...r, error: 'could not render: ' + (e && e.message || e) }); } };
   if (_period === 'all') {
-    h += _levels.map(levelCard).join('');
+    h += _levels.map(safeCard).join('');
   } else {
-    const rows = _periodData[_period];
-    if (!rows) h += `<div style="padding:16px;color:#9ca3af;font-size:13px">Asking every level for ${esc(periodLabel(_period))}…</div>`;
-    else if (rows.error) h += `<div style="padding:16px;color:#b91c1c;font-size:13px">Could not load ${esc(periodLabel(_period))}: ${esc(rows.error)}</div>`;
-    else h += rows.map(r => r.error ? levelError(r) : levelCard(r)).join('');
+    const rows = periodRows(_period);
+    if (!rows) { loadPeriod(_period, null); h += `<div style="padding:16px;color:#9ca3af;font-size:13px">Asking every level for ${esc(periodLabel(_period))}…</div>`; }
+    else if (rows.error) h += `<div style="padding:16px;color:#b91c1c;font-size:13px">Could not load ${esc(periodLabel(_period))}: ${esc(rows.error)} <button onclick="refreshFunnel()" style="margin-left:8px;padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:var(--card);font-size:11px;cursor:pointer">Try again</button></div>`;
+    else h += rows.map(safeCard).join('');
   }
   h += `</div>`;
   h += `<div style="margin-top:16px;font-size:11px;color:#9ca3af;line-height:1.5">
@@ -370,5 +396,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260915111215').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260915112420').then(m => reloadFunnel(m.render));
 };

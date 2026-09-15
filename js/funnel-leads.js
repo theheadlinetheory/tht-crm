@@ -9,15 +9,15 @@
 // the events of the period for leads from any cohort. Temporary by intent —
 // the tables stay small while the window is a week.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260915111215';
-import { esc } from './utils.js?v=20260915111215';
-import { state } from './app.js?v=20260915111215';
-import { openDeal } from './deal-modal.js?v=20260915111215';
-import { openArchivedDeal } from './archive.js?v=20260915111215';
-import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260915111215';
-import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260915111215';
-import { deleteDeal } from './deals.js?v=20260915111215';
-import { showClientEndPicker } from './client-end.js?v=20260915111215';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260915112420';
+import { esc, escAttr } from './utils.js?v=20260915112420';
+import { state } from './app.js?v=20260915112420';
+import { openDeal } from './deal-modal.js?v=20260915112420';
+import { openArchivedDeal } from './archive.js?v=20260915112420';
+import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260915112420';
+import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260915112420';
+import { deleteDeal } from './deals.js?v=20260915112420';
+import { showClientEndPicker } from './client-end.js?v=20260915112420';
 
 // ── Record the outcome from the list (Lars, 2026-09-10) ──
 // A flagged row gets the same options the reps use live, and writes through the
@@ -26,20 +26,23 @@ import { showClientEndPicker } from './client-end.js?v=20260915111215';
 // 03, the demo outcome at 05 and 06, the offboard picker at 07.
 const PRE_DISCO_REASONS = ['Desk DQ', 'Miscategorized', 'Duplicate', 'Lost', 'Other…'];
 const FINAL_DEMO = DEMO_OUTCOMES.filter(o => o !== 'No-Show' && o !== 'Qualified — Pending');
-function optionsFor(level) {
+function optionsFor(level, onBoard) {
+  // "Not right now" moves a deal to Nurture — there is no deal to move when it is archived (hardening review, 2026-09-15).
+  const noNurture = (opts) => onBoard ? opts : opts.filter(o => !/not right now/i.test(o));
   if (level === '02') return PRE_DISCO_REASONS;
-  if (level === '03') return DISCO_OUTCOMES;
-  if (level === '05') return DEMO_OUTCOMES;
-  if (level === '06') return FINAL_DEMO;
+  if (level === '03') return noNurture(DISCO_OUTCOMES);
+  if (level === '05') return noNurture(DEMO_OUTCOMES);
+  if (level === '06') return noNurture(FINAL_DEMO);
   return null;
 }
 function outcomeControl(level, r, rowId) {
   if (level === '07') {
-    return r.client_id ? `<button onclick="funnelRecordEnd('${esc(r.client_id)}','${rowId}')" style="margin-left:8px;padding:2px 8px;border:1px solid #fde68a;border-radius:5px;background:#fff;font-size:11px;color:#92400e;cursor:pointer">Record the end…</button>` : '';
+    return r.client_id ? `<button onclick="funnelRecordEnd('${escAttr(r.client_id)}','${rowId}')" style="margin-left:8px;padding:2px 8px;border:1px solid #fde68a;border-radius:5px;background:#fff;font-size:11px;color:#92400e;cursor:pointer">Record the end…</button>` : '';
   }
-  const opts = optionsFor(level);
+  const onBoard = r.deal_id && state.deals.some(d => String(d.id) === String(r.deal_id));
+  const opts = optionsFor(level, onBoard);
   if (!opts || !r.deal_id) return '';
-  return `<select onchange="funnelSetOutcome('${level}','${esc(r.deal_id)}',this.value,'${rowId}','${esc(r.as_of || '')}')" style="margin-left:8px;padding:2px 6px;border:1px solid #fde68a;border-radius:5px;background:#fff;font-size:11px;color:#92400e">
+  return `<select onchange="funnelSetOutcome('${level}','${escAttr(r.deal_id)}',this.value,'${rowId}','${escAttr(r.as_of || '')}');this.selectedIndex=0" style="margin-left:8px;padding:2px 6px;border:1px solid #fde68a;border-radius:5px;background:#fff;font-size:11px;color:#92400e">
     <option value="">record what happened…</option>${opts.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>`;
 }
 // An outcome recorded from the list is remembered (per browser) until the ledger has read it — hourly — so a
@@ -59,8 +62,15 @@ function recordedFor(level, id) { const e = id ? recordedMap()[`${level}:${id}`]
 // The ledger reads answers on its own clock (hourly). Run it now and refresh the tab, so the row and the day/week
 // numbers agree for everyone within seconds — not only in the browser that answered (Lars, 2026-09-10). The
 // all-time cards keep their hourly rhythm so level 01's removals and the later levels' intake stay one generation.
+let _syncing = null, _syncAgain = false;
 async function syncLedger(delayMs = 0) {
   if (delayMs) await new Promise(r => setTimeout(r, delayMs));
+  // One ledger run at a time: three quick answers used to fire three runs and three repaints (hardening review, 2026-09-15).
+  if (_syncing) { _syncAgain = true; return _syncing; }
+  _syncing = (async () => { try { await syncLedgerOnce(); } finally { _syncing = null; if (_syncAgain) { _syncAgain = false; syncLedger(); } } })();
+  return _syncing;
+}
+async function syncLedgerOnce() {
   try {
     const headers = { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY };
     const r = await fetch(`${SUPABASE_URL}/functions/v1/pipeline-leads`, { method: 'POST', headers, body: '{}' });
@@ -93,7 +103,7 @@ window.funnelSetOutcome = async (level, dealId, value, rowId, asOf) => {
       }
       let note = value;
       if (value === 'Other…') { const r = prompt('Reason:'); if (!r || !r.trim()) return; note = 'Other: ' + r.trim(); }
-      await writeRemovalNote(dealId, note, opts);
+      if (await writeRemovalNote(dealId, note, opts) === false) return; // the note did not save: no green, no memory
       remember(level, dealId, dated(note)); markRecorded(rowId, dated(note)); syncLedger();
     } else if (level === '03') {
       await markDisco(dealId, value, opts); remember(level, dealId, dated(value)); markRecorded(rowId, dated(value)); syncLedger();
@@ -143,7 +153,7 @@ export function leadsTable(rows, label, level) {
     const onBoard = r.deal_id && state.deals.some(d => String(d.id) === String(r.deal_id));
     const name = esc(r.company || r.contact || '—');
     const company = r.deal_id
-      ? `<a href="#" onclick="event.preventDefault();funnelOpenDeal('${esc(r.deal_id)}')" title="${onBoard ? 'Open the deal card' : 'Open the archived deal card (read-only)'}" style="color:#1e1b4b;font-weight:600;text-decoration:underline dotted">${name}</a>`
+      ? `<a href="#" onclick="event.preventDefault();funnelOpenDeal('${escAttr(r.deal_id)}')" title="${onBoard ? 'Open the deal card' : 'Open the archived deal card (read-only)'}" style="color:#1e1b4b;font-weight:600;text-decoration:underline dotted">${name}</a>`
       : `<span style="color:#1f2937;font-weight:600">${name}</span>`;
     // No record of what happened next: highlighted so Aidan and Ioannis can fill it in while they QC (Lars, 2026-09-10).
     // Two flags (Lars, 2026-09-11): yellow = no record of what happened (left without a reason, a slot passed, moved on

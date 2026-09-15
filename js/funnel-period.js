@@ -12,7 +12,7 @@
 // Nothing is written: the functions answer from the per-lead ledger and the
 // daily send snapshots. The "All" view keeps reading pipeline_latest.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260915111215';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260915112420';
 
 export const TZ = 'America/Los_Angeles';
 
@@ -89,8 +89,12 @@ export { addDays };
 /** Ask every level for the period; returns rows shaped like pipeline_latest. */
 export async function fetchPeriod(range, levelDefs) {
   const headers = { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY };
+  // A gateway 504 is an HTML page and an auth failure is JSON without `ok`: read the text, then decide (hardening review, 2026-09-15).
   const ask = (n) => fetch(`${SUPABASE_URL}/functions/v1/pipeline-level0${n}`, { method: 'POST', headers, body: JSON.stringify(range) })
-    .then(r => r.json()).catch(e => ({ ok: false, error: String(e) }));
+    .then(async r => { const text = await r.text(); let j = null; try { j = JSON.parse(text); } catch (_) { /* not JSON */ }
+      if (!r.ok || !j || j.ok === false) return { ok: false, error: (j && (j.error || j.message)) || ('HTTP ' + r.status) };
+      return j; })
+    .catch(e => ({ ok: false, error: String(e && e.message || e) }));
   const results = await Promise.all([1, 2, 3, 4, 5, 6, 7].map(ask));
   const fetchedAt = new Date().toISOString();
   return results.map((r, i) => {
