@@ -59,6 +59,25 @@ export function svgIcon(name, size=14, color='currentColor') {
   return icons[name] || '';
 }
 
+// Brand marks for buttons that leave the CRM. A button that opens SmartLead
+// should look like SmartLead, so you know where it takes you before you click.
+//
+// Deliberately NOT entries in svgIcon(): these are filled and multi-colour, so
+// its single `color` stroke parameter cannot express them — and a brand logo
+// recoloured to match our UI stops being that brand's logo.
+export function brandIcon(name, size=15) {
+  const icons = {
+    // Traced off app.smartlead.ai's favicon — white megaphone on their purple
+    // (#757AE9 is the favicon's dominant pixel). Coordinates are measured from
+    // it rather than eyeballed, so the notch in the cone and the gap under the
+    // speaker survive at 15px.
+    smartlead: `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="5.5" fill="#757AE9"/><path d="M9.95 6.95 16.35 4a.7.7 0 0 1 .9.65v11.4a.7.7 0 0 1-.9.65l-6.4-2.95V12.6l3.93-2.25L9.95 8.1Z" fill="#fff"/><path d="M8.91 6.95H6.95a3.37 3.37 0 0 0 0 6.74h1.96Z" fill="#fff"/><rect x="7.31" y="15.3" width="2.72" height="4.75" rx="1.36" fill="#fff"/><path d="M18.19 8.1a2.25 2.25 0 0 1 0 4.5Z" fill="#fff"/></svg>`,
+    // Google's four-colour envelope.
+    gmail: `<svg width="${size}" height="${size}" viewBox="0 0 52 40" fill="none"><path d="M3.64 40h8.18V20.18L0 11v25.36C0 38.37 1.63 40 3.64 40Z" fill="#4285F4"/><path d="M40.18 40h8.18c2.01 0 3.64-1.63 3.64-3.64V11l-11.82 9.18V40Z" fill="#34A853"/><path d="M40.18 3.64v16.54L52 11V5.45c0-5.05-5.77-7.94-9.82-4.91l-2 2.1Z" fill="#FBBC04"/><path d="M11.82 20.18V3.64L26 14.27 40.18 3.64v16.54L26 30.82 11.82 20.18Z" fill="#EA4335"/><path d="M0 5.45V11l11.82 9.18V3.64l-2-1.5C5.77-1.49 0 .4 0 5.45Z" fill="#C5221F"/></svg>`,
+  };
+  return icons[name] || '';
+}
+
 export function fmtDate(d){
   if(!d) return '';
   const s=(d||'').slice(0,10);
