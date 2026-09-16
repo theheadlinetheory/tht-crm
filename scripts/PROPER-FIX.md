@@ -24,6 +24,12 @@ ended up outside the folder, and why Galaxy was unopenable by anyone but Aidan.
 
 ## Bug 2: the purple column bleed
 
+> **Superseded 2026-09-16.** The mismatch is now resolved the other way: retainer
+> clients always have inbox management (DB trigger `clients_retainer_inbox_mgmt`),
+> so their sheets always carry O:Q and every row gets an inbox link. Seeding
+> `false` in won-modal meant retainer sheets onboarded after 2026-08-27 had no
+> inbox columns at all. See tht-crm-backend commit 542e8ec.
+
 **Cause.** Two different flags disagreed.
 - The **layout** came from the frontend passing `billingModel === 'retainer'`.
 - The **row writer** (`push-to-client-sheet`) keys off `clients.has_inbox_mgmt`.

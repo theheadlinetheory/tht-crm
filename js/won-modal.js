@@ -4,14 +4,14 @@
 // SmartLead tags + SmartLead client portal. Ordered, with Retry.
 // Body-level overlay (survives render()).
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260915131737';
-import { str, esc, getToday } from './utils.js?v=20260915131737';
-import { createClientRecord, deriveTimezone } from './client-info.js?v=20260915131737';
-import { ensureLeadTrackerSheet } from './lead-tracker-sheet.js?v=20260915131737';
-import { invokeEdgeFunction, showToast } from './api.js?v=20260915131737';
-import { isAdmin } from './auth.js?v=20260915131737';
-import { prepaidNote } from './retainer-billing.js?v=20260915131737';
-import { createSmartleadPortal } from './smartlead-portal.js?v=20260915131737';
+import { state } from './app.js?v=20260916100853';
+import { str, esc, getToday } from './utils.js?v=20260916100853';
+import { createClientRecord, deriveTimezone } from './client-info.js?v=20260916100853';
+import { ensureLeadTrackerSheet } from './lead-tracker-sheet.js?v=20260916100853';
+import { invokeEdgeFunction, showToast } from './api.js?v=20260916100853';
+import { isAdmin } from './auth.js?v=20260916100853';
+import { prepaidNote } from './retainer-billing.js?v=20260916100853';
+import { createSmartleadPortal } from './smartlead-portal.js?v=20260916100853';
 
 let _w = null; // { deal, clientId, archived, sheetId, tagsDone, portal }
 const CURRENCIES = ['USD', 'AUD', 'CAD'];
@@ -250,18 +250,17 @@ async function runSteps(f, startIdx) {
       // client, then removes it from `deals` — that is what clears the card.
       // The overlay lives on document.body, so it survives the render() this
       // triggers and the remaining steps keep reporting into it.
-      const { deleteDeal } = await import('./deals.js?v=20260915131737');
+      const { deleteDeal } = await import('./deals.js?v=20260916100853');
       await deleteDeal(_w.deal.id, 'Closed Won', f.name);
       _w.archived = true;
     }
     setFooterProgress(2, null);
     if (startIdx <= 2) {
-      // Layout must follow has_inbox_mgmt (what push-to-client-sheet writes), not
-      // the billing model — mismatching the two is what caused the purple-column
-      // bleed. A client being onboarded here has no inbox management configured
-      // yet, so false is the right seed; the edge function re-reads the real
-      // value from the DB via clientId anyway.
-      _w.sheetId = await ensureLeadTrackerSheet(_w.clientId, f.name, false);
+      // Retainer clients work their own SmartLead inbox, so their sheet gets the
+      // inbox columns. A DB trigger sets has_inbox_mgmt for retainers when the
+      // client record is created (step 0), and the edge function reads that value
+      // via clientId — this argument is only the fallback.
+      _w.sheetId = await ensureLeadTrackerSheet(_w.clientId, f.name, f.billingModel === 'retainer');
     }
     setFooterProgress(3, null);
     if (startIdx <= 3 && !_w.tagsDone) {
@@ -335,7 +334,7 @@ export function wonPortalCopy() {
 export async function wonModalLink(existingName) {
   const dealId = _w.deal.id;
   wonModalDismiss();
-  const { deleteDeal } = await import('./deals.js?v=20260915131737');
+  const { deleteDeal } = await import('./deals.js?v=20260916100853');
   deleteDeal(dealId, 'Closed Won', existingName);
   showToast(`Deal linked to existing client "${existingName}"`, 'success');
 }
