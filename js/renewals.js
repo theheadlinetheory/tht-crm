@@ -20,10 +20,10 @@
 // Admin-only: it shows retainer amounts, and money is admin-gated per the
 // repo's role rule.
 // ═══════════════════════════════════════════════════════════
-import { esc, str } from './utils.js?v=20260916145256';
-import { addMonths, prettyDate, prepaidThrough } from './retainer-billing.js?v=20260916145256';
-import { cadenceOf, daysLeft, monthlyEquivalent, termEnd } from './client-terms.js?v=20260916145256';
-import { extensionsFor, extensionsStatus, loadTermExtensions } from './term-extensions.js?v=20260916145256';
+import { esc, str } from './utils.js?v=20260916145523';
+import { addMonths, prettyDate, prepaidThrough } from './retainer-billing.js?v=20260916145523';
+import { cadenceOf, daysLeft, monthlyEquivalent, termEnd } from './client-terms.js?v=20260916145523';
+import { extensionsFor, extensionsStatus, loadTermExtensions } from './term-extensions.js?v=20260916145523';
 
 const CURRENCY_SYMBOLS = { usd: '$', cad: 'CA$', aud: 'A$', gbp: '£', eur: '€' };
 const NOTICE_DAYS = [7, 3, 1];
@@ -167,7 +167,7 @@ export function buildRenewalRow(c, todayIso, extensions = []) {
     flags.push({ text: 'prepaid, but notices still fire', bad: false });
   if (!str(c.stripeCustomerId)) flags.push({ text: 'no stripe customer', bad: false });
   const cadence = cadenceOf(c.paymentTerms);
-  if (!cadence) flags.push({ text: 'payment terms not set', bad: true });
+  if (!cadence && status === 'active') flags.push({ text: 'payment terms not set', bad: true });
   else if (cadence !== 'Monthly') flags.push({ text: `paid ${cadence.toLowerCase()}: invoice by hand`, bad: false });
 
   // Contract term: launch + initial term + extensions. Separate from the
