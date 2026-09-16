@@ -1,10 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // INVOICE — Stripe invoice generation from Lead Tracker
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20260916103231';
-import { invokeEdgeFunction } from './api.js?v=20260916103231';
-import { esc, str } from './utils.js?v=20260916103231';
-import { render } from './render.js?v=20260916103231';
+import { state, pendingWrites } from './app.js?v=20260916144750';
+import { invokeEdgeFunction } from './api.js?v=20260916144750';
+import { esc, str } from './utils.js?v=20260916144750';
+import { render } from './render.js?v=20260916144750';
+import { renderTimeline } from './invoice-timeline.js?v=20260916144750';
 
 // ─── Month helpers ───
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -107,26 +108,6 @@ function getTimelineState(step) {
   return null;
 }
 
-function renderTimeline(step) {
-  const ts = getTimelineState(step);
-  if (!ts) return '';
-  return `<div style="display:flex;align-items:center;justify-content:center;gap:0;margin:0 0 16px;padding:12px 16px">
-    ${TIMELINE_STEPS.map((s, i) => {
-      const status = ts[s.key];
-      const color = status === 'done' ? '#059669' : status === 'active' ? '#4f46e5' : '#d1d5db';
-      const bg = status === 'done' ? '#ecfdf5' : status === 'active' ? '#eef2ff' : '#f9fafb';
-      const icon = status === 'done' ? '✓' : String(i + 1);
-      const connector = i < TIMELINE_STEPS.length - 1
-        ? `<div style="flex:1;height:2px;background:${ts[TIMELINE_STEPS[i + 1].key] === 'pending' ? '#e5e7eb' : '#059669'};min-width:24px"></div>`
-        : '';
-      return `<div style="display:flex;align-items:center;gap:6px">
-        <div style="width:24px;height:24px;border-radius:50%;background:${bg};border:2px solid ${color};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:${color}">${icon}</div>
-        <span style="font-size:11px;font-weight:600;color:${color}">${s.label}</span>
-      </div>${connector}`;
-    }).join('')}
-  </div>`;
-}
-
 // ─── Render the invoice modal ───
 export function renderInvoiceModal() {
   const m = state.invoiceModal;
@@ -135,7 +116,7 @@ export function renderInvoiceModal() {
   let html = `<div class="modal-overlay" onclick="closeInvoiceModal()">
     <div class="invoice-modal" onclick="event.stopPropagation()">`;
 
-  html += renderTimeline(m.step);
+  html += renderTimeline(TIMELINE_STEPS, getTimelineState(m.step));
 
   if (m.step === 'select') {
     html += renderSelectStep(m);
