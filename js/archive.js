@@ -1,14 +1,15 @@
 // ═══════════════════════════════════════════════════════════
 // ARCHIVE — Admin archive (Deals sheet archive), load/render
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, deletedDealIds } from './app.js?v=20260916145027';
-import { render } from './render.js?v=20260916145027';
-import { sbGetArchive, sbRestoreFromArchive, normalizeRow, supabase } from './api.js?v=20260916145027';
-import { clearDashboardArchiveCache } from './dashboard.js?v=20260916145027';
-import { esc, str, fmtDate } from './utils.js?v=20260916145027';
-import { registerActions } from './delegate.js?v=20260916145027';
-import { openDeal } from './deal-modal.js?v=20260916145027';
-import { filterSelect } from './html-helpers.js?v=20260916145027';
+import { state, store, pendingWrites, deletedDealIds } from './app.js?v=20260916145256';
+import { render } from './render.js?v=20260916145256';
+import { sbGetArchive, sbRestoreFromArchive, normalizeRow, supabase } from './api.js?v=20260916145256';
+import { clearDashboardArchiveCache } from './dashboard.js?v=20260916145256';
+import { esc, str, fmtDate } from './utils.js?v=20260916145256';
+import { registerActions } from './delegate.js?v=20260916145256';
+import { openDeal } from './deal-modal.js?v=20260916145256';
+import { filterSelect } from './html-helpers.js?v=20260916145256';
+import { loadJourneys, journeyFor, LEFT_AT_OPTIONS, WHY_OPTIONS } from './archive-journey.js?v=20260916145256';
 
 export async function loadArchive(silent){
   if(!silent){
@@ -36,9 +37,18 @@ export async function loadArchive(silent){
       });
       store.setArchiveData(parsed, {silent: true});
     }
+    await loadJourneys(); // where each lead left the funnel, and why — for the two filters on both archive screens
   } catch(e){ console.warn('Failed to load archive:', e); }
   state.archiveLoaded=true;
   render();
+}
+
+/** "Demo held · Said no / lost" with the recorded reason underneath — the same cell on both archive screens. */
+export function journeyCell(dealId){
+  const j = journeyFor(dealId);
+  if (j.leftAt === 'Not in the funnel') return `<span style="color:var(--text-muted)">Not in the funnel</span>`;
+  return `<div style="font-weight:600;color:#1e1b4b">${esc(j.leftAt)}${j.why ? ` <span style="font-weight:400;color:var(--text-muted)">· ${esc(j.why)}</span>` : ''}</div>` +
+         (j.reason ? `<div style="font-size:10px;color:var(--text-muted);max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(j.reason)}">${esc(j.reason)}</div>` : '');
 }
 
 export function renderArchiveTab(){
@@ -53,6 +63,8 @@ export function renderArchiveTab(){
   if(state.archiveFilterPipeline) filtered=filtered.filter(d=>d.pipeline===state.archiveFilterPipeline);
   if(state.archiveFilterStatus) filtered=filtered.filter(d=>d.archiveStatus===state.archiveFilterStatus);
   if(state.archiveFilterClient) filtered=filtered.filter(d=>d.clientName===state.archiveFilterClient);
+  if(state.archiveFilterLeftAt) filtered=filtered.filter(d=>journeyFor(d.id).leftAt===state.archiveFilterLeftAt);
+  if(state.archiveFilterWhy) filtered=filtered.filter(d=>journeyFor(d.id).why===state.archiveFilterWhy);
 
   // Sort
   if(state.archiveSortDir==='newest'){
@@ -70,6 +82,8 @@ export function renderArchiveTab(){
       ${filterSelect('archiveFilterPipeline', 'All Pipelines', pipelines, state.archiveFilterPipeline)}
       ${filterSelect('archiveFilterStatus', 'All Statuses', statuses, state.archiveFilterStatus)}
       ${filterSelect('archiveFilterClient', 'All Clients', clients, state.archiveFilterClient)}
+      ${filterSelect('archiveFilterLeftAt', 'Left the funnel at…', LEFT_AT_OPTIONS, state.archiveFilterLeftAt)}
+      ${filterSelect('archiveFilterWhy', 'Why…', WHY_OPTIONS, state.archiveFilterWhy)}
       <button class="btn btn-ghost" style="font-size:11px" data-action="archiveToggleSort">
         Sort: ${state.archiveSortDir==='newest'?'Newest First':'Oldest First'}
       </button>
@@ -84,6 +98,7 @@ export function renderArchiveTab(){
         <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:var(--text-muted)">Company</th>
         <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:var(--text-muted)">Client</th>
         <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:var(--text-muted)">Status</th>
+        <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:var(--text-muted)">Left the funnel at</th>
         <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:var(--text-muted)">Archived</th>
         <th style="text-align:center;padding:8px 10px;font-size:11px;font-weight:700;color:var(--text-muted)">Actions</th>
       </tr></thead><tbody>`;
@@ -98,6 +113,7 @@ export function renderArchiveTab(){
             <option value="Passed Off" ${d.archiveStatus==='Passed Off'?'selected':''}>Passed Off</option>
           </select>
         </td>
+        <td style="padding:8px 10px;font-size:11px">${journeyCell(d.id)}</td>
         <td style="padding:8px 10px;font-size:11px;color:var(--text-muted)">${fmtDate(d.archivedAt)||''}</td>
         <td style="text-align:center;padding:8px 10px">
           <button class="btn btn-ghost" style="font-size:10px;padding:4px 8px" data-action="restoreFromArchive" data-id="${esc(d.id)}">Restore</button>
@@ -164,7 +180,7 @@ export async function restoreFromArchive(id){
   } finally { pendingWrites.value--; }
   store.removeArchiveItem(id);
   clearDashboardArchiveCache();
-  const { initialSync } = await import('./api.js?v=20260916145027');
+  const { initialSync } = await import('./api.js?v=20260916145256');
   await initialSync();
 }
 
@@ -178,12 +194,16 @@ registerActions({
   archiveFilterPipeline(el) { state.archiveFilterPipeline = el.value; render(); },
   archiveFilterStatus(el) { state.archiveFilterStatus = el.value; render(); },
   archiveFilterClient(el) { state.archiveFilterClient = el.value; render(); },
+  archiveFilterLeftAt(el) { state.archiveFilterLeftAt = el.value; render(); },
+  archiveFilterWhy(el) { state.archiveFilterWhy = el.value; render(); },
+  archiveFilterLeftAtSelect(el) { state.archiveFilterLeftAt = el.value; render(); },
+  archiveFilterWhySelect(el) { state.archiveFilterWhy = el.value; render(); },
   archiveToggleSort() { state.archiveSortDir = state.archiveSortDir === 'newest' ? 'oldest' : 'newest'; render(); },
   updateArchiveStatus(el) { updateArchiveStatus(el.dataset.id, el.value); },
   restoreFromArchive(el) { restoreFromArchive(el.dataset.id); },
   openArchivedDeal(el) { openArchivedDeal(el.dataset.id); },
   toggleViewMode() { toggleViewMode(); },
-  archiveBackToBoard() { state.showEmployeeArchive=false; state.archiveSearch=''; state.archiveFilterClient=''; state.archiveFilterStatus=''; render(); },
+  archiveBackToBoard() { state.showEmployeeArchive=false; state.archiveSearch=''; state.archiveFilterClient=''; state.archiveFilterStatus=''; state.archiveFilterLeftAt=''; state.archiveFilterWhy=''; render(); },
   archiveRefresh() { state.archiveLoaded=false; loadArchive(); },
   archiveFilterClientSelect(el) { state.archiveFilterClient=el.value.trim(); render(); },
   archiveFilterStatusSelect(el) { state.archiveFilterStatus=el.value; render(); },
