@@ -15,6 +15,7 @@ test('known cadences normalize, whatever the spelling', () => {
   assert.equal(cadenceOf('Monthly'), 'Monthly');
   assert.equal(cadenceOf('bi-weekly'), 'Biweekly');
   assert.equal(cadenceOf(' WEEKLY '), 'Weekly');
+  assert.equal(cadenceOf('Paid in full'), 'Paid in full');
 });
 test('legacy free text is not guessed at', () => {
   assert.equal(cadenceOf('Prepaid'), '');

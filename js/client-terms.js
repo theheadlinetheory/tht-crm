@@ -6,7 +6,8 @@
 // Import-free so scripts/test-client-terms.mjs can load it under plain node.
 // ═══════════════════════════════════════════════════════════
 
-export const PAYMENT_CADENCES = ['Monthly', 'Biweekly', 'Weekly'];
+// 'Paid in full' = prepaid up front; no recurring payment unless they renew.
+export const PAYMENT_CADENCES = ['Monthly', 'Biweekly', 'Weekly', 'Paid in full'];
 export const TERM_UNITS = ['months', 'days'];
 const PAYMENTS_PER_YEAR = { Monthly: 12, Biweekly: 26, Weekly: 52 };
 
@@ -15,8 +16,8 @@ const s = (v) => (v == null ? '' : String(v));
 // 'Bi-weekly' → 'Biweekly'. Legacy free text ('Prepaid', 'Net 1') returns '' so
 // the UI asks a human instead of guessing.
 export function cadenceOf(paymentTerms) {
-  const t = s(paymentTerms).toLowerCase().replace(/[^a-z]/g, '');
-  return PAYMENT_CADENCES.find((c) => c.toLowerCase() === t) || '';
+  const key = (v) => s(v).toLowerCase().replace(/[^a-z]/g, '');
+  return PAYMENT_CADENCES.find((c) => key(c) === key(paymentTerms)) || '';
 }
 
 // Add n months to an ISO date (YYYY-MM-DD), clamping the day for short months.
