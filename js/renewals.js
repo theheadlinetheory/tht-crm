@@ -20,11 +20,15 @@
 // Admin-only: it shows retainer amounts, and money is admin-gated per the
 // repo's role rule.
 // ═══════════════════════════════════════════════════════════
-import { esc, str } from './utils.js?v=20260916144750';
-import { addMonths, prettyDate, prepaidThrough } from './retainer-billing.js?v=20260916144750';
+import { esc, str } from './utils.js?v=20260916145027';
+import { addMonths, prettyDate, prepaidThrough } from './retainer-billing.js?v=20260916145027';
+import { cadenceOf, daysLeft, monthlyEquivalent, termEnd } from './client-terms.js?v=20260916145027';
+import { extensionsFor, extensionsStatus, loadTermExtensions } from './term-extensions.js?v=20260916145027';
 
 const CURRENCY_SYMBOLS = { usd: '$', cad: 'CA$', aud: 'A$', gbp: '£', eur: '€' };
 const NOTICE_DAYS = [7, 3, 1];
+const TERM_WARN_DAYS = 14;
+const PER_PAYMENT = { Monthly: '/mo', Biweekly: '/2 wk', Weekly: '/wk' };
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // ─── date helpers (ISO strings in, ISO strings out) ───
@@ -125,7 +129,7 @@ export function money(amount, currency) {
 }
 
 // ─── one row ───
-export function buildRenewalRow(c, todayIso) {
+export function buildRenewalRow(c, todayIso, extensions = []) {
   const launch = str(c.launchDate).slice(0, 10);
   const status = str(c.status);
   const agreement = str(c.agreementType) || 'prepaid';
@@ -162,6 +166,15 @@ export function buildRenewalRow(c, todayIso) {
   if (prepaidActive && ann.date && through > ann.date && agreement === 'month_to_month' && Number(renewalDay))
     flags.push({ text: 'prepaid, but notices still fire', bad: false });
   if (!str(c.stripeCustomerId)) flags.push({ text: 'no stripe customer', bad: false });
+  const cadence = cadenceOf(c.paymentTerms);
+  if (!cadence) flags.push({ text: 'payment terms not set', bad: true });
+  else if (cadence !== 'Monthly') flags.push({ text: `paid ${cadence.toLowerCase()}: invoice by hand`, bad: false });
+
+  // Contract term: launch + initial term + extensions. Separate from the
+  // monthly renewal above, which is about money, not commitment.
+  const hasTerm = Number(c.initialTermLength) > 0;
+  const tEnd = termEnd(launch, c.initialTermLength, c.initialTermUnit, extensions);
+  const termLeft = daysLeft(tEnd, todayIso);
 
   const notices = status === 'active' && agreement === 'month_to_month' &&
                   !!Number(renewalDay) && noticesEnabled;
@@ -171,6 +184,12 @@ export function buildRenewalRow(c, todayIso) {
     color: str(c.color),
     status, agreement, basis,
     amount: str(c.monthlyRetainer),
+    cadence,
+    hasTerm,
+    termEnd: tEnd,
+    termLeft,
+    extensionCount: extensions.length,
+    id: str(c.id),
     currency: str(c.retainerCurrency) || 'usd',
     launch,
     renewal,
@@ -184,10 +203,10 @@ export function buildRenewalRow(c, todayIso) {
   };
 }
 
-export function buildRenewalRows(clients, todayIso) {
+export function buildRenewalRows(clients, todayIso, extensionsOf = () => []) {
   return clients
     .filter(c => str(c.billingModel) === 'retainer')
-    .map(c => buildRenewalRow(c, todayIso))
+    .map(c => buildRenewalRow(c, todayIso, extensionsOf(str(c.id))))
     .sort((a, b) => {
       const an = a.daysUntil === null, bn = b.daysUntil === null;
       if (an !== bn) return an ? 1 : -1;
@@ -198,6 +217,22 @@ export function buildRenewalRows(clients, todayIso) {
 
 // ─── render ───
 const URGENCY_COLOR = { crit: '#ef4444', warn: '#b45309', soon: '#059669', '': 'var(--text)', unknown: 'var(--text-muted)' };
+
+// Term end cell: the date, how far off it is, and the Extend button. Extensions
+// load async; until they do the date would be wrong, so nothing is shown.
+function termCell(r, status) {
+  if (status === 'error') return `<span style="color:#b91c1c">couldn't load</span>`;
+  if (status !== 'loaded') return `<span style="color:var(--text-muted)">…</span>`;
+  const btn = `<div><button onclick="openExtendTerm('${esc(r.id)}','${esc(r.name).replace(/'/g, '&#39;')}')" style="margin-top:4px;padding:2px 8px;font-size:10.5px;font-weight:600;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer">Extend</button></div>`;
+  if (!r.hasTerm) return `<span style="color:var(--text-muted)">open-ended</span>${btn}`;
+  if (!r.termEnd) return `<span style="color:var(--text-muted)">starts at launch</span>${btn}`;
+  const ended = r.termLeft < 0;
+  const color = r.termLeft <= TERM_WARN_DAYS ? '#b91c1c' : 'var(--text)';
+  const sub = ended ? `${prettyDate(r.termEnd)} · ${-r.termLeft}d ago` : fmtIn(r.termLeft);
+  const ext = r.extensionCount ? ` · ${r.extensionCount} ext` : '';
+  return `<div style="font-weight:600;color:${color}">${ended ? 'Term ended' : prettyDate(r.termEnd)}</div>
+    <div style="font-size:10.5px;color:var(--text-muted);margin-top:1px">${sub}${ext}</div>${btn}`;
+}
 
 function fmtIn(days) {
   if (days === null) return '—';
@@ -211,7 +246,9 @@ export function renderRenewals() {
     const d = new Date();
     return isoOf(d.getFullYear(), d.getMonth(), d.getDate());
   })();
-  const rows = buildRenewalRows(window.state?.clients || [], today);
+  if (extensionsStatus() === 'idle') loadTermExtensions(); // re-renders when done
+  const termStatus = extensionsStatus();
+  const rows = buildRenewalRows(window.state?.clients || [], today, extensionsFor);
 
   if (!rows.length) {
     return `<div style="padding:24px">
@@ -229,7 +266,7 @@ export function renderRenewals() {
   const byCur = {};
   for (const r of active) {
     if (r.amount === '') continue;
-    byCur[r.currency] = (byCur[r.currency] || 0) + Number(r.amount);
+    byCur[r.currency] = (byCur[r.currency] || 0) + monthlyEquivalent(r.amount, r.cadence);
   }
   const totals = Object.entries(byCur).sort((a, b) => b[1] - a[1])
     .map(([cur, v]) => money(v, cur)).join('  ·  ') || '—';
@@ -247,7 +284,7 @@ export function renderRenewals() {
   let h = `<div style="padding:20px 24px 40px">
     <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:4px">
       <h2 style="font-size:17px;font-weight:700;margin:0">Retainer Renewals</h2>
-      <span style="font-size:11px;color:var(--text-muted)">Read-only — edit dates in Settings ▸ Clients ▸ Retainer Billing</span>
+      <span style="font-size:11px;color:var(--text-muted)">Edit dates in Settings ▸ Clients ▸ Retainer Billing · extend terms here</span>
     </div>
     <p style="font-size:11.5px;color:var(--text-muted);margin:0 0 14px;max-width:78ch">
       Every retainer client ordered by the next date money is due. Dates come from the client's
@@ -263,16 +300,17 @@ export function renderRenewals() {
       ${stat('No Slack notice', silent.length,
              silent.length ? 'active, but never warned' : 'all active clients covered',
              silent.length ? '#ef4444' : '#cbd5e1')}
-      ${stat('Monthly value', totals, 'active clients only', '#059669')}
+      ${stat('Monthly value', totals, 'active clients · weekly/biweekly scaled to a month', '#059669')}
     </div>
 
     <div style="overflow-x:auto">
-    <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;border:1px solid var(--border);min-width:860px">
+    <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;border:1px solid var(--border);min-width:960px">
       <thead><tr style="background:#f9fafb">
         <th style="text-align:left;${th}">Client</th>
         <th style="text-align:left;${th}">Renews</th>
         <th style="text-align:right;${th}">In</th>
-        <th style="text-align:right;${th}">Monthly</th>
+        <th style="text-align:right;${th}">Amount</th>
+        <th style="text-align:left;${th}">Term ends</th>
         <th style="text-align:center;${th}">Month</th>
         <th style="text-align:left;${th}">Last paid</th>
         <th style="text-align:left;${th}">Slack notice</th>
@@ -305,7 +343,8 @@ export function renderRenewals() {
           : `<span style="color:var(--text-muted)">not set</span>`}
       </td>
       <td style="${td};text-align:right;font-weight:700;color:${URGENCY_COLOR[r.urgency] || 'var(--text)'}">${fmtIn(r.daysUntil)}</td>
-      <td style="${td};text-align:right;font-weight:600">${r.amount === '' ? '<span style="color:#b91c1c;font-weight:400">not set</span>' : esc(money(r.amount, r.currency))}</td>
+      <td style="${td};text-align:right;font-weight:600">${r.amount === '' ? '<span style="color:#b91c1c;font-weight:400">not set</span>' : esc(money(r.amount, r.currency)) + `<span style="color:var(--text-muted);font-weight:400">${PER_PAYMENT[r.cadence] || ''}</span>`}</td>
+      <td style="${td}">${termCell(r, termStatus)}</td>
       <td style="${td};text-align:center;color:var(--text-secondary)">${r.monthNumber === null ? '—' : r.monthNumber}</td>
       <td style="${td};color:var(--text-secondary)">${r.lastPaid ? prettyDate(r.lastPaid).replace(/, \d{4}$/, '') : '<span style="color:var(--text-muted)">—</span>'}</td>
       <td style="${td}">${notice}</td>

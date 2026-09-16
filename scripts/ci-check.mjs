@@ -113,6 +113,14 @@ const REQUIRED_FEATURES = [
   { file: 'retainer-billing.js', needle: 'export function renewalDayNote',        feature: 'Month-to-month: renewal day note + missing-day warning' },
   { file: 'settings.js',         needle: 'renewalDay:str(c.renewalDay',           feature: 'Settings → Clients: renewal day saved with the client' },
   { file: 'api.js',              needle: "renewal_day: 'renewalDay'",             feature: 'Month-to-month: renewal_day field mapping' },
+  // Client terms — cadence, initial term, extensions.
+  { file: 'won-modal.js',        needle: 'id="won-term-length"',                  feature: 'Close Won: initial term length' },
+  { file: 'won-modal.js',        needle: "sel('won-terms', PAYMENT_CADENCES)",    feature: 'Close Won: payment terms dropdown' },
+  { file: 'retainer-billing.js', needle: 'function renderTermsFields',             feature: 'Settings → Clients: payment terms + initial term' },
+  { file: 'api.js',              needle: "initial_term_length: 'initialTermLength'", feature: 'Client terms: initial_term_length field mapping' },
+  { file: 'settings.js',         needle: 'initialTermLength:str(c.initialTermLength', feature: 'Settings → Clients: initial term saved with the client' },
+  { file: 'renewals.js',         needle: 'function termCell',                     feature: 'Renewals: Term ends column + Extend button' },
+  { file: 'term-extensions.js',  needle: 'export async function saveTermExtension', feature: 'Renewals: save a term extension' },
   // Acquisition booking — one list per call type, shared by the deal modal and
   // the power dialer. Dropping a person here silently removes their calendar.
   { file: 'config.js',           needle: 'export const ACQ_STRATEGY_BOOKERS',     feature: 'Acquisition: strategy-call booker list' },
