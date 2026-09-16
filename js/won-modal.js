@@ -12,6 +12,7 @@ import { invokeEdgeFunction, showToast } from './api.js?v=20260916103231';
 import { isAdmin } from './auth.js?v=20260916103231';
 import { prepaidNote } from './retainer-billing.js?v=20260916103231';
 import { createSmartleadPortal } from './smartlead-portal.js?v=20260916103231';
+import { PAYMENT_CADENCES, TERM_UNITS } from './client-terms.js?v=20260916103231';
 
 let _w = null; // { deal, clientId, archived, sheetId, tagsDone, portal }
 const CURRENCIES = ['USD', 'AUD', 'CAD'];
@@ -31,6 +32,8 @@ const inp = (id, value, ph = '') =>
   `<input id="${id}" value="${esc(str(value))}" placeholder="${esc(ph)}" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;margin-top:3px">`;
 const lbl = (t) => `<label style="font-size:11px;font-weight:600;color:#64748b">${t}</label>`;
 const val = (id) => (document.getElementById(id)?.value || '').trim();
+const sel = (id, options) =>
+  `<select id="${id}" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;margin-top:3px">${options.map((o) => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>`;
 
 export function openWonModal(deal) {
   if (!isAdmin()) return; // admin-only
@@ -85,9 +88,13 @@ function renderBillingFields(type) {
   if (!el) return;
   if (type === 'retainer') {
     el.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div>${lbl('Monthly amount')}${inp('won-amount', '', 'e.g. 3000')}</div>
+      <div>${lbl('Amount per payment')}${inp('won-amount', '', 'e.g. 3000')}</div>
       <div>${lbl('Currency')}<select id="won-currency" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;margin-top:3px">${CURRENCIES.map((c) => `<option value="${c.toLowerCase()}">${c}</option>`).join('')}</select></div>
-      <div style="grid-column:1/3">${lbl('Payment terms')}${inp('won-terms', 'Monthly')}</div>
+      <div>${lbl('Payment terms')}${sel('won-terms', PAYMENT_CADENCES)}</div>
+      <div>${lbl('Initial term (blank = open-ended)')}<div style="display:flex;gap:6px">
+        <input type="number" id="won-term-length" min="1" step="1" placeholder="e.g. 6" style="flex:1;min-width:0;box-sizing:border-box;padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;margin-top:3px">
+        ${sel('won-term-unit', TERM_UNITS)}
+      </div></div>
       <div style="grid-column:1/3">
         <label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#64748b"><input type="checkbox" id="won-launch-tbd" checked onchange="wonToggleLaunchTBD()"> Launch date TBD (set later in Settings)</label>
         <input type="date" id="won-launch" disabled onchange="wonUpdatePrepaidNote()" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;margin-top:3px;opacity:.5">
@@ -173,6 +180,9 @@ function buildFields() {
     f.monthlyRetainer = parseFloat(val('won-amount')) || null;
     f.retainerCurrency = document.getElementById('won-currency')?.value || 'usd';
     f.paymentTerms = val('won-terms') || 'Monthly';
+    const termLength = parseInt(val('won-term-length'), 10);
+    f.initialTermLength = termLength > 0 ? termLength : '';
+    f.initialTermUnit = termLength > 0 ? val('won-term-unit') : '';
     const tbd = document.getElementById('won-launch-tbd')?.checked;
     const ld = document.getElementById('won-launch')?.value;
     f.launchDate = (!tbd && ld) ? ld : ''; // blank/TBD → stored as null
