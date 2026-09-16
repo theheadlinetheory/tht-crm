@@ -19,10 +19,10 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260916100853';
-import { supabase } from './supabase-client.js?v=20260916100853';
-import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel } from './funnel-period.js?v=20260916100853';
-import { leadsTable } from './funnel-leads.js?v=20260916100853';
+import { esc, svgIcon } from './utils.js?v=20260916103231';
+import { supabase } from './supabase-client.js?v=20260916103231';
+import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel } from './funnel-period.js?v=20260916103231';
+import { leadsTable } from './funnel-leads.js?v=20260916103231';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -62,20 +62,25 @@ function storePeriod(key, rows, g) {
   _periodData[key] = rows;
 }
 
+let _failedAt = 0;              // when the last card load failed
+const RETRY_COOLDOWN_MS = 30e3;  // no automatic refetch sooner than this; "Try again" ignores it
 export function loadFunnel(rerender) {
   // The period views borrow the level labels from the cards: ask for a period only once the cards are here
   // (a pinned period on first paint used to title every card with its metric label — hardening review, 2026-09-15).
   if (_period !== 'all' && _levels !== null) loadPeriod(_period, rerender);
-  if (_levels !== null || _loading) return;
+  // render.js calls this on every paint of the Funnel screen. After a failure the cards stay null so a later load
+  // can try again — but not on the very next paint, or a failing database gets a request per render (the 2026-09-16
+  // outage was made worse by exactly that kind of client retry storm). One try per 30 s unless the user asks.
+  if (_levels !== null || _loading || Date.now() - _failedAt < RETRY_COOLDOWN_MS) return;
   _loading = true;
   supabase.from('pipeline_latest').select('*')
     .then(({ data, error }) => {
       _loading = false;
-      if (error) { _error = error.message; _levels = null; } // null, so the next load tries again
-      else { _levels = data || []; _error = null; if (_period !== 'all') loadPeriod(_period, rerender); }
+      if (error) { _error = error.message; _levels = null; _failedAt = Date.now(); }
+      else { _levels = data || []; _error = null; _failedAt = 0; if (_period !== 'all') loadPeriod(_period, rerender); }
       if (rerender) rerender();
     })
-    .catch((e) => { _loading = false; _error = String(e && e.message || e); if (rerender) rerender(); });
+    .catch((e) => { _loading = false; _error = String(e && e.message || e); _failedAt = Date.now(); if (rerender) rerender(); });
 }
 
 /** Refetch everything WITHOUT blanking the page: the cards and lists on screen stay until the fresh ones arrive,
@@ -85,6 +90,7 @@ export function loadFunnel(rerender) {
  *  threw the scroll to the top and the list out of view). */
 export function reloadFunnel(rerender) {
   const y = window.scrollY, key = _period;
+  _failedAt = 0; // the user asked: no cooldown
   const cards = supabase.from('pipeline_latest').select('*')
     .then(({ data, error }) => { if (error) _error = error.message; else { _levels = data || []; _error = null; } });
   const g = (_gen[key] = (_gen[key] || 0) + 1);
@@ -99,7 +105,7 @@ export function reloadFunnel(rerender) {
 
 function loadPeriod(key, rerender) {
   if (periodRows(key) || _periodLoading === key) return;
-  if (!rerender) rerender = () => import('./render.js?v=20260916100853').then(m => m.render());
+  if (!rerender) rerender = () => import('./render.js?v=20260916103231').then(m => m.render());
   _periodLoading = key;
   const g = (_gen[key] = (_gen[key] || 0) + 1);
   fetchPeriod(periodRange(key), _levels || []).then(rows => {
@@ -112,7 +118,7 @@ function loadPeriod(key, rerender) {
 window.setFunnelPeriod = (key) => {
   _period = key;
   try { localStorage.setItem(PERIOD_KEY, key); } catch (_) { /* private mode */ }
-  import('./render.js?v=20260916100853').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+  import('./render.js?v=20260916103231').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
 };
 
 const STATUS_STYLE = {
@@ -396,5 +402,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260916100853').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260916103231').then(m => reloadFunnel(m.render));
 };
