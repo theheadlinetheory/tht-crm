@@ -6,6 +6,9 @@
 // the authority; this only shows the operator what it will do.
 // ═══════════════════════════════════════════════════════════
 import { esc, str } from './utils.js?v=20260916103231';
+import { addMonths, cadenceOf, PAYMENT_CADENCES, TERM_UNITS } from './client-terms.js?v=20260916103231';
+
+export { addMonths };
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const CURRENCIES = ['usd','aud','cad','gbp'];
@@ -16,18 +19,6 @@ const AGREEMENT_TYPES = [
 ];
 const FIELD = 'width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px';
 const LABEL = 'font-size:10px;font-weight:600;color:var(--text-muted)';
-
-// Add n months to an ISO date (YYYY-MM-DD), clamping the day for short months.
-export function addMonths(iso, n) {
-  const [y, m, d] = str(iso).slice(0, 10).split('-').map(Number);
-  if (!y || !m || !d) return '';
-  const idx = (m - 1) + n;
-  const ty = y + Math.floor(idx / 12);
-  const tm = ((idx % 12) + 12) % 12;
-  const daysInTarget = new Date(Date.UTC(ty, tm + 1, 0)).getUTCDate();
-  const td = Math.min(d, daysInTarget);
-  return `${ty}-${String(tm + 1).padStart(2, '0')}-${String(td).padStart(2, '0')}`;
-}
 
 export function prettyDate(iso) {
   const s = str(iso).slice(0, 10);
@@ -97,6 +88,39 @@ export function setPrepaidMonths(clientId, launchDate, value) {
   window.debouncedAutoSave?.();
 }
 
+// Payment cadence + initial term. A legacy free-text cadence ("Prepaid", "Net 1")
+// shows as an unpicked dropdown naming the old value, so nothing is overwritten
+// until someone chooses.
+function renderTermsFields(c) {
+  const id = esc(c.id);
+  const cadence = cadenceOf(c.paymentTerms);
+  const legacy = str(c.paymentTerms);
+  const unit = str(c.initialTermUnit) || 'months';
+  return `<div style="display:flex;gap:8px;margin-bottom:6px">
+      <div style="flex:1">
+        <label style="${LABEL}">Payment Terms</label>
+        <select onchange="updateClientField('${id}','paymentTerms',this.value);debouncedAutoSave()"
+          title="How often they pay. Weekly and Biweekly clients get no automatic draft invoice — invoice them by hand."
+          style="${FIELD}">
+          ${cadence ? '' : `<option value="" selected disabled>${esc(legacy ? `Pick one (was "${legacy}")` : 'Pick one')}</option>`}
+          ${PAYMENT_CADENCES.map(p => `<option value="${p}" ${cadence === p ? 'selected' : ''}>${p}</option>`).join('')}
+        </select>
+      </div>
+      <div style="flex:1">
+        <label style="${LABEL}">Initial Term — blank = open-ended</label>
+        <div style="display:flex;gap:4px">
+          <input type="number" min="1" step="1" placeholder="e.g. 6" value="${esc(str(c.initialTermLength ?? ''))}"
+            oninput="updateClientField('${id}','initialTermLength',this.value);debouncedAutoSave()"
+            title="How long they signed for, counted from the launch date. Extensions are added on the Renewals tab."
+            style="${FIELD};flex:1">
+          <select onchange="updateClientField('${id}','initialTermUnit',this.value);debouncedAutoSave()" style="${FIELD};flex:1">
+            ${TERM_UNITS.map(u => `<option value="${u}" ${unit === u ? 'selected' : ''}>${u}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+    </div>`;
+}
+
 export function renderRetainerBilling(c) {
   if (str(c.billingModel) !== 'retainer') return '';
   const agreement = str(c.agreementType || 'prepaid');
@@ -107,7 +131,7 @@ export function renderRetainerBilling(c) {
     <div style="font-size:10px;font-weight:700;color:#16a34a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Retainer Billing</div>
     <div style="display:flex;gap:8px;margin-bottom:6px">
       <div style="flex:2">
-        <label style="${LABEL}">Monthly Amount</label>
+        <label style="${LABEL}">Amount per payment</label>
         <input type="number" step="0.01" placeholder="e.g. 3000" value="${esc(str(c.monthlyRetainer ?? ''))}"
           oninput="updateClientField('${esc(c.id)}','monthlyRetainer',this.value)"
           style="${FIELD}">
@@ -120,6 +144,7 @@ export function renderRetainerBilling(c) {
         </select>
       </div>
     </div>
+${renderTermsFields(c)}
     <div>
       <label style="${LABEL}">Launch Date (billing start) — leave blank for TBD</label>
       <input type="date" value="${esc(str(c.launchDate || ''))}"

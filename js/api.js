@@ -371,6 +371,8 @@ const FIELD_MAP = {
   agreement_type: 'agreementType',
   prepaid_months: 'prepaidMonths',
   renewal_day: 'renewalDay',
+  initial_term_length: 'initialTermLength',
+  initial_term_unit: 'initialTermUnit',
   retainer_last_billed: 'retainerLastBilled',
   invoice_id: 'invoiceId',
   invoice_amount: 'invoiceAmount',
@@ -401,7 +403,7 @@ export function normalizeRow(row) {
   return normalized;
 }
 
-const NULLABLE_COLS = new Set(['completed_at','scheduled_time','created_at','updated_at','forwarded_at','pushed_to_tracker','pushed_to_ghl','queued_at','rerun_after','sent_at','archived_at','value','lead_cost','lead_email','rerun_days','booked_date','booked_time','follow_up_date','blocked_by_client','onboarding_parsed_at','date_paid','paid_status','invoice','payment_link','callback_status','notes','sheet_row','stripe_customer_id','stripe_invoice_id','stripe_invoice_item_id','payment_terms','client_phone','auto_followup_started_at','booking_sms_sent_at','setup_fee_total','setup_fee_deposit','setup_fee_spread_count','setup_fee_leads_billed','monthly_retainer','launch_date','prepaid_months','renewal_day','retainer_last_billed','activated_date','invoice_amount','invoiced_at']);
+const NULLABLE_COLS = new Set(['completed_at','scheduled_time','created_at','updated_at','forwarded_at','pushed_to_tracker','pushed_to_ghl','queued_at','rerun_after','sent_at','archived_at','value','lead_cost','lead_email','rerun_days','booked_date','booked_time','follow_up_date','blocked_by_client','onboarding_parsed_at','date_paid','paid_status','invoice','payment_link','callback_status','notes','sheet_row','stripe_customer_id','stripe_invoice_id','stripe_invoice_item_id','payment_terms','client_phone','auto_followup_started_at','booking_sms_sent_at','setup_fee_total','setup_fee_deposit','setup_fee_spread_count','setup_fee_leads_billed','monthly_retainer','launch_date','prepaid_months','renewal_day','initial_term_length','initial_term_unit','retainer_last_billed','activated_date','invoice_amount','invoiced_at']);
 
 export function camelToSnake(obj) {
   const result = {};

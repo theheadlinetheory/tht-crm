@@ -129,6 +129,8 @@ function buildClientUpdate(c) {
     launchDate:str(c.launchDate ?? ''),
     agreementType:str(c.agreementType ?? ''), // drives the monthly update's billing wording
     prepaidMonths:str(c.prepaidMonths ?? ''), // months paid up front from launchDate; blank/0 = invoiced monthly
+    initialTermLength:str(c.initialTermLength ?? ''), // retainer term signed at onboarding, from launchDate; blank = open-ended
+    initialTermUnit:str(c.initialTermUnit ?? ''),
     renewalDay:str(c.renewalDay ?? ''), // month_to_month only: day-of-month they renew, drives the 7/3/1 notices
     clientNotes:str(c.clientNotes ?? ''),
     warmCallNotesText:str(c.warmCallNotesText ?? ''),
@@ -683,7 +685,7 @@ function renderClientsSettings(){
           style="width:120px;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
       </div>`:''}
 
-      <div style="margin-bottom:8px">
+      ${str(c.billingModel)!=='retainer'?`<div style="margin-bottom:8px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Payment Terms</label>
         <select oninput="updateClientField('${esc(c.id)}','paymentTerms',this.value)"
           style="width:120px;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
@@ -691,7 +693,7 @@ function renderClientsSettings(){
           <option value="Net 15" ${str(c.paymentTerms||'Net 7')==='Net 15'?'selected':''}>Net 15</option>
           <option value="Net 30" ${str(c.paymentTerms||'Net 7')==='Net 30'?'selected':''}>Net 30</option>
         </select>
-      </div>
+      </div>`:''}
 
       <div style="margin-bottom:8px;padding:10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px">
         <div style="font-size:10px;font-weight:700;color:#0369a1;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Setup Fee Installments</div>
@@ -783,7 +785,7 @@ function renderClientsSettings(){
         </div>
       </div>`:''}
 
-      ${renderRetainerBilling(c)}
+      ${isAdmin()?renderRetainerBilling(c):''}
 
       <div style="margin-bottom:8px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">\uD83D\uDDFA\uFE0F Service Area</label>
