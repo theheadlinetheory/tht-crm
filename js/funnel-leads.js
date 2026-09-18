@@ -9,15 +9,15 @@
 // the events of the period for leads from any cohort. Temporary by intent —
 // the tables stay small while the window is a week.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260918093144';
-import { esc, escAttr } from './utils.js?v=20260918093144';
-import { state } from './app.js?v=20260918093144';
-import { openDeal } from './deal-modal.js?v=20260918093144';
-import { openArchivedDeal } from './archive.js?v=20260918093144';
-import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260918093144';
-import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260918093144';
-import { deleteDeal } from './deals.js?v=20260918093144';
-import { showClientEndPicker } from './client-end.js?v=20260918093144';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260918094402';
+import { esc, escAttr } from './utils.js?v=20260918094402';
+import { state } from './app.js?v=20260918094402';
+import { openDeal } from './deal-modal.js?v=20260918094402';
+import { openArchivedDeal } from './archive.js?v=20260918094402';
+import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES, DEMO_RESCHEDULING } from './disco-outcome.js?v=20260918094402';
+import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260918094402';
+import { deleteDeal } from './deals.js?v=20260918094402';
+import { showClientEndPicker } from './client-end.js?v=20260918094402';
 
 // ── Record the outcome from the list (Lars, 2026-09-10) ──
 // A flagged row gets the same options the reps use live, and writes through the
@@ -36,7 +36,7 @@ function optionsFor(level, onBoard) {
   if (level === '02') return PRE_DISCO_REASONS;
   if (level === '03') return noNurture(DISCO_OUTCOMES);
   if (level === '04') return [DEMO_BOOKED, ...AFTER_DISCO_REASONS];
-  if (level === '05') return noNurture(DEMO_OUTCOMES);
+  if (level === '05') return noNurture(['No-Show', DEMO_RESCHEDULING, ...DEMO_OUTCOMES.filter(o => o !== 'No-Show')]);
   if (level === '06') return noNurture(FINAL_DEMO);
   return null;
 }

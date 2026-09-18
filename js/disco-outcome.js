@@ -21,10 +21,10 @@
 // The answer is stored as a normal CRM interaction, which means no new table and
 // no schema change: the same anon insert the call touchpoints already use.
 
-import { state } from './app.js?v=20260918093144';
-import { esc, svgIcon } from './utils.js?v=20260918093144';
-import { sbCreateInteraction, showToast } from './api.js?v=20260918093144';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260918093144';
+import { state } from './app.js?v=20260918094402';
+import { esc, svgIcon } from './utils.js?v=20260918094402';
+import { sbCreateInteraction, showToast } from './api.js?v=20260918094402';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260918094402';
 
 // pipeline-level03 runs on the CRM's own Supabase project (moved 2026-09-03). It
 // is deployed with JWT verification, so the anon key goes along as the bearer.
@@ -60,6 +60,8 @@ export const DEMO_OUTCOME_PREFIX = 'Demo — ';
 // writes the answer INTO the Tracker row, so the Tracker fills itself.
 // "Qualified — Pending" = showed, no decision yet; the timeline keeps asking
 // until a final answer lands. "Closed Lost" asks for a reason.
+// A no-show still being rebooked (2026-09-18): the Funnel's level 05 list only — never an archive status, the deal stays live.
+export const DEMO_RESCHEDULING = 'No-Show — Rescheduling';
 export const DEMO_OUTCOMES = ['No-Show', 'Qualified — Pending', 'Qualified — Closed Won', 'Qualified — Not Right Now', 'Qualified — Closed Lost', 'Not Qualified'];
 export const DEMO_LOST = 'Qualified — Closed Lost';
 export const DEMO_PENDING = 'Qualified — Pending';
@@ -107,7 +109,7 @@ function openNurture(dealId, fromDemo) {
   state._nurtureEntryDealId = dealId;
   state._nurtureEntryBucket = 'not_now';
   state._nurtureEntryFromDemo = !!fromDemo;
-  import('./render.js?v=20260918093144').then(m => m.render());
+  import('./render.js?v=20260918094402').then(m => m.render());
 }
 
 export function pendingDiscoCount() {
@@ -182,7 +184,7 @@ export function askLostReason() {
 /** Record a demo's outcome on the Timeline. Returns false if the rep cancelled
  *  (a lost demo needs its reason), so callers do not archive on a non-answer. */
 export async function markDemo(dealId, outcome, opts) {
-  if (!outcome || !DEMO_OUTCOMES.includes(outcome)) return false;
+  if (!outcome || !(DEMO_OUTCOMES.includes(outcome) || outcome === DEMO_RESCHEDULING)) return false;
   let value = outcome;
   if (outcome === DEMO_LOST) {
     const reason = await askLostReason();
