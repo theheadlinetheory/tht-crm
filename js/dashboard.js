@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // DASHBOARD — Dashboard rendering (client fulfillment + acquisition)
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260918150357';
-import { ACQUISITION_STAGES, NURTURE_STAGES, DEFAULT_CLIENT_STAGES, ALL_PIPELINES } from './config.js?v=20260918150357';
-import { render } from './render.js?v=20260918150357';
-import { esc, fmt$ } from './utils.js?v=20260918150357';
-import { isAdmin, isEmployee } from './auth.js?v=20260918150357';
-import { getOverdueActivities } from './activities.js?v=20260918150357';
-import { sbGetArchivedDeals } from './api.js?v=20260918150357';
+import { state } from './app.js?v=20260919033445';
+import { ACQUISITION_STAGES, NURTURE_STAGES, DEFAULT_CLIENT_STAGES, ALL_PIPELINES } from './config.js?v=20260919033445';
+import { render } from './render.js?v=20260919033445';
+import { esc, fmt$ } from './utils.js?v=20260919033445';
+import { isAdmin, isEmployee } from './auth.js?v=20260919033445';
+import { getOverdueActivities } from './activities.js?v=20260919033445';
+import { sbGetArchivedDeals } from './api.js?v=20260919033445';
 
 function dateAddedToDate(dateAdded) {
   if (!dateAdded) return null;
@@ -263,14 +263,116 @@ function isRetainerBilled(c) { return String(c.billingModel || '') === 'retainer
 
 function isActiveClient(c) { return c && c.status !== 'inactive'; }
 
-// Pay-per-meeting (PPM / per-lead) clients — billed per booked meeting
+// Pay-per-meeting (PPM / per-lead) clients — billed per booked meeting.
+// A per-lead client with a blank lead_cost used to fall out of BOTH bars and
+// vanish from the KPI silently. Anyone not billed as a retainer is PPM; the
+// missing lead cost is a data gap to surface, not a reason to stop scoring them.
 export function getPpmClients() {
-  return state.clients.filter(c => isActiveClient(c) && !isRetainerBilled(c) && leadCostNum(c) > 0);
+  return state.clients.filter(c => isActiveClient(c) && !isRetainerBilled(c));
 }
+
 
 // Retainer clients — billed monthly, measured on positive replies passed off
 export function getRetainerClients() {
   return state.clients.filter(c => isActiveClient(c) && isRetainerBilled(c));
+}
+
+// ─── Trailing-window scoring ───────────────────────────────────────────────
+// The weekly bar (>=1 meeting / >=5 positives) stays the headline target.
+// A client can clear it every other week and still be sinking, so the trailing
+// 4-week total runs ALONGSIDE it as a watchlist — see renderTrailingWatchlist.
+// Dallas Land Care cleared the weekly bar on 29 Jun, 13 Jul, 27 Jul and 10 Aug
+// while its 4-week total never once reached 4.
+export const PPM_TRAILING_WEEKS = 4;
+export const PPM_TRAILING_TARGET = 4;      // >=1/wk sustained over 4 weeks
+export const PPM_STALE_DAYS = 14;          // no booked meeting in 2 weeks (PPM only)
+export const RETAINER_TRAILING_TARGET = 20; // >=5/wk sustained over 4 weeks
+
+// The trailing window ENDS at the selected week (inclusive), so it reads the
+// same whether you are looking at this week or auditing an earlier one.
+function trailingWeekKeys(weekKey, n = PPM_TRAILING_WEEKS) {
+  const keys = [];
+  for (let i = 0; i < n; i++) keys.push(shiftWeeks(weekKey, -i));
+  return keys;
+}
+
+// clientName → meetings billed across the trailing window
+function trailingBookedByClient(weekKey) {
+  const keys = new Set(trailingWeekKeys(weekKey));
+  const map = {};
+  for (const e of state.trackerEntries) {
+    if (!keys.has(trackerWeekKey(e.dateAdded))) continue;
+    const cn = resolveClientName(e.clientName);
+    if (!cn) continue;
+    map[cn] = (map[cn] || 0) + 1;
+  }
+  return map;
+}
+
+// clientName → positive replies (pass-offs) across the trailing window
+function trailingPositivesByClient(weekKey) {
+  const keys = new Set(trailingWeekKeys(weekKey));
+  const map = {};
+  for (const p of (state.passOffs || [])) {
+    if (!keys.has(passOffWeekKey(p.datePassed))) continue;
+    const cn = resolveClientName(p.clientName);
+    if (!cn) continue;
+    map[cn] = (map[cn] || 0) + 1;
+  }
+  return map;
+}
+
+// clientName → Date of the most recent BILLED MEETING (Lead Tracker row).
+// Deliberately does NOT consider pass-offs: a stream of pass-offs with zero
+// meetings is exactly the failure this is meant to catch, and mixing them in
+// kept the staleness dot green through Dallas Land Care's 27-day drought.
+function lastMeetingByClient() {
+  const map = {};
+  for (const e of state.trackerEntries) {
+    const cn = resolveClientName(e.clientName);
+    if (!cn) continue;
+    const dt = dateAddedToDate(e.dateAdded);
+    if (dt && (!map[cn] || dt > map[cn])) map[cn] = dt;
+  }
+  return map;
+}
+
+// clientName → Date of the most recent pass-off (retainer delivery signal)
+function lastPassOffByClient() {
+  const map = {};
+  for (const p of (state.passOffs || [])) {
+    const cn = resolveClientName(p.clientName);
+    if (!cn) continue;
+    const dt = p.datePassed ? new Date(p.datePassed) : null;
+    if (dt && !isNaN(dt.getTime()) && (!map[cn] || dt > map[cn])) map[cn] = dt;
+  }
+  return map;
+}
+
+// Weeks a client has actually been live, capped at the window length. A client
+// onboarded 10 days ago cannot have 4 weeks of delivery, and holding them to a
+// 4-week total would paint every new launch red for its first month — the same
+// false-signal problem the trailing window exists to remove.
+function scoredWeeks(client, name, weekKey, windowWeeks = PPM_TRAILING_WEEKS) {
+  const from = onboardedOnDate(client, name);
+  if (!from) return windowWeeks;           // unknown tenure → hold to the full bar
+  const weekEnd = weekStartOf(parseYmd(weekKey));
+  if (!weekEnd) return windowWeeks;
+  weekEnd.setDate(weekEnd.getDate() + 6);  // end of the selected week
+  const live = Math.floor((weekEnd - from) / (7 * 86400000)) + 1;
+  return Math.max(1, Math.min(windowWeeks, live));
+}
+
+// Target scaled to how long the client has been live.
+function proratedTarget(perWeek, client, name, weekKey) {
+  return perWeek * scoredWeeks(client, name, weekKey);
+}
+
+export function daysSince(dt, today = new Date()) {
+  if (!dt) return null;
+  const a = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+  const b = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  return Math.floor((b - a) / 86400000);
 }
 
 // clientName → booked meetings (Lead Tracker entries) in the given week
@@ -300,15 +402,49 @@ function positiveRepliesByClient(weekKey) {
 export function getWeeklyKpiStatus(weekKey) {
   const booked = bookedMeetingsByClient(weekKey);
   const positives = positiveRepliesByClient(weekKey);
+  const trailBooked = trailingBookedByClient(weekKey);
+  const trailPositives = trailingPositivesByClient(weekKey);
+  const lastMeeting = lastMeetingByClient();
+  const lastPassOff = lastPassOffByClient();
+  const today = new Date();
+
+  // A client is BELOW TARGET on the trailing window, not on a single week.
+  // `count` stays the selected week's number so the table still shows it, but
+  // `hit` — what drives the red/green — is the 4-week total.
   const ppm = getPpmClients().map(c => {
     const n = booked[c.name] || 0;
-    return { name: c.name, count: n, target: PPM_WEEKLY_TARGET, hit: n >= PPM_WEEKLY_TARGET };
+    const trailing = trailBooked[c.name] || 0;
+    const stale = daysSince(lastMeeting[c.name], today);
+    const tt = proratedTarget(PPM_WEEKLY_TARGET, c, c.name, weekKey);
+    return {
+      name: c.name, count: n, trailing,
+      target: PPM_WEEKLY_TARGET, trailingTarget: tt,
+      hit: n >= PPM_WEEKLY_TARGET,          // headline bar: this week
+      trailingHit: trailing >= tt,          // watchlist bar: last 4 weeks
+      staleDays: stale,
+      stale: (stale === null ? scoredWeeks(c, c.name, weekKey) >= PPM_TRAILING_WEEKS : stale >= PPM_STALE_DAYS),
+      missingLeadCost: leadCostNum(c) <= 0,
+    };
   }).sort((a, b) => a.count - b.count || a.name.localeCompare(b.name));
+
   const retainer = getRetainerClients().map(c => {
     const n = positives[c.name] || 0;
-    return { name: c.name, count: n, target: RETAINER_WEEKLY_TARGET, hit: n >= RETAINER_WEEKLY_TARGET };
+    const trailing = trailPositives[c.name] || 0;
+    const stale = daysSince(lastPassOff[c.name], today);
+    const tt = proratedTarget(RETAINER_WEEKLY_TARGET, c, c.name, weekKey);
+    return {
+      name: c.name, count: n, trailing,
+      target: RETAINER_WEEKLY_TARGET, trailingTarget: tt,
+      hit: n >= RETAINER_WEEKLY_TARGET,     // headline bar: this week
+      trailingHit: trailing >= tt,          // watchlist bar: last 4 weeks
+      staleDays: stale,
+      // The no-delivery alert is a pay-per-meeting signal only.
+      stale: false,
+      missingLeadCost: false,
+    };
   }).sort((a, b) => a.count - b.count || a.name.localeCompare(b.name));
-  return { ppm, retainer, booked, positives };
+
+  return { ppm, retainer, booked, positives, trailBooked, trailPositives, lastMeeting, lastPassOff };
 }
 
 function kpiTargetCard(title, rule, note, rows, accent) {
@@ -318,6 +454,10 @@ function kpiTargetCard(title, rule, note, rows, accent) {
   const pillBg = total === 0 ? '#f3f4f6' : allGood ? '#dcfce7' : '#fee2e2';
   const pillFg = total === 0 ? '#6b7280' : allGood ? '#166534' : '#991b1b';
   const missing = rows.filter(r => !r.hit);
+  // Staleness is reported separately from the trailing bar: a client can clear
+  // 4-in-4 on the strength of one good week and still have gone dark since.
+  const stale = rows.filter(r => r.stale);
+  const noCost = rows.filter(r => r.missingLeadCost);
   return `<div style="flex:1;min-width:280px;background:#fff;border:1px solid var(--border);border-left:4px solid ${accent};border-radius:10px;padding:14px 16px">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
       <div style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-muted)">${title}</div>
@@ -327,6 +467,8 @@ function kpiTargetCard(title, rule, note, rows, accent) {
     <div style="font-size:11px;color:var(--text-muted);margin-top:3px">${note}</div>
     ${missing.length ? `<div style="font-size:11px;color:#b91c1c;margin-top:8px;line-height:1.5"><b>Below target:</b> ${missing.map(r => `${esc(r.name)} (${r.count})`).join(', ')}</div>`
       : total ? `<div style="font-size:11px;color:#15803d;margin-top:8px;font-weight:600">All clients hitting the bar this week.</div>` : ''}
+    ${stale.length ? `<div style="font-size:11px;color:#9a3412;background:#fff7ed;border-radius:6px;padding:6px 8px;margin-top:8px;line-height:1.5"><b>No booked meeting in ${PPM_STALE_DAYS}+ days:</b> ${stale.map(r => `${esc(r.name)} (${r.staleDays === null ? 'never' : r.staleDays + 'd'})`).join(', ')}</div>` : ''}
+    ${noCost.length ? `<div style="font-size:11px;color:#854d0e;background:#fefce8;border-radius:6px;padding:6px 8px;margin-top:8px;line-height:1.5"><b>No lead cost set:</b> ${noCost.map(r => esc(r.name)).join(', ')} — scored, but cannot be invoiced.</div>` : ''}
   </div>`;
 }
 
@@ -339,11 +481,68 @@ function renderKpiTargetStrip(wk, ppm, retainer) {
     return `<span style="background:${rows.length ? (ok ? '#dcfce7' : '#fee2e2') : '#f3f4f6'};color:${rows.length ? (ok ? '#166534' : '#991b1b') : '#6b7280'};font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px">${hit}/${rows.length}</span>`;
   };
   const below = [...ppm, ...retainer].filter(r => !r.hit);
+  const stalest = [...ppm, ...retainer].filter(r => r.stale);
+  // Passed this week, but not sustaining it over four.
+  const sinking = [...ppm, ...retainer].filter(r => r.hit && !r.trailingHit);
   return `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:6px 12px;margin:0 0 8px">
     <span style="font-size:10px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--text-muted)">Weekly KPI · ${weekLabel(wk)}</span>
     <span style="font-size:11px;font-weight:600;color:#2563eb">PPM ≥ ${PPM_WEEKLY_TARGET} booked meeting/wk</span> ${ratio(ppm)}
     <span style="font-size:11px;font-weight:600;color:#7c3aed">Retainer ≥ ${RETAINER_WEEKLY_TARGET} positive replies/wk</span> ${ratio(retainer)}
     ${below.length ? `<span style="font-size:11px;color:#b91c1c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b>Below:</b> ${below.map(r => `${esc(r.name)} (${r.count})`).join(', ')}</span>` : ''}
+    ${sinking.length ? `<span style="font-size:11px;color:#9a3412;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b>Sinking:</b> ${sinking.map(r => `${esc(r.name)} (${r.trailing}/${r.trailingTarget})`).join(', ')}</span>` : ''}
+    ${stalest.length ? `<span style="font-size:11px;color:#9a3412;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b>No meeting ${PPM_STALE_DAYS}d+:</b> ${stalest.map(r => `${esc(r.name)} (${r.staleDays === null ? 'never' : r.staleDays + 'd'})`).join(', ')}</span>` : ''}
+  </div>`;
+}
+
+// ─── 4-week watchlist ──────────────────────────────────────────────────────
+// Sits UNDER the weekly KPI cards. The weekly bar is still the target; this
+// answers the question it cannot: "who cleared this week but is not actually
+// sustaining it?" Dallas Land Care cleared >=1 meeting on 29 Jun, 13 Jul,
+// 27 Jul and 10 Aug and never once reached 4 meetings in 4 weeks.
+function renderTrailingWatchlist(ppm, retainer) {
+  const rows = [...ppm, ...retainer].filter(r => !r.trailingHit);
+  if (!rows.length) {
+    return `<div style="margin-top:12px;font-size:11px;color:#15803d;font-weight:600">
+      Every client is also sustaining the bar over the last ${PPM_TRAILING_WEEKS} weeks.</div>`;
+  }
+  // Worst first; within that, the ones that LOOK fine this week come first —
+  // they are the ones the weekly bar is hiding.
+  rows.sort((a, b) => (b.hit ? 1 : 0) - (a.hit ? 1 : 0)
+    || (a.trailing / a.trailingTarget) - (b.trailing / b.trailingTarget)
+    || a.name.localeCompare(b.name));
+  const th = 'padding:6px 10px;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--text-muted)';
+  return `<div style="margin-top:14px;background:#fff;border:1px solid var(--border);border-left:4px solid #f97316;border-radius:10px;padding:12px 14px">
+    <div style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-muted)">Not sustaining the bar — last ${PPM_TRAILING_WEEKS} weeks</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:3px;line-height:1.5">
+      The weekly card above is the target. This is the same bar measured over ${PPM_TRAILING_WEEKS} weeks.
+      A client marked <b style="color:#9a3412">hidden by this week</b> passed the weekly check but is not keeping it up.
+    </div>
+    <table style="width:100%;border-collapse:collapse;margin-top:8px">
+      <thead><tr style="background:#f9fafb">
+        <th style="text-align:left;${th}">Client</th>
+        <th style="text-align:center;${th}">Type</th>
+        <th style="text-align:center;${th}">This week</th>
+        <th style="text-align:center;${th}">Last ${PPM_TRAILING_WEEKS} wks</th>
+        <th style="text-align:left;${th}">Read</th>
+      </tr></thead>
+      <tbody>${rows.map(r => {
+        const badge = r.target === RETAINER_WEEKLY_TARGET
+          ? `<span style="background:#ede9fe;color:#6d28d9;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px">RETAINER</span>`
+          : `<span style="background:#dbeafe;color:#1d4ed8;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px">PPM</span>`;
+        const read = r.hit
+          ? `<span style="color:#9a3412;font-weight:600">hidden by this week</span>`
+          : `<span style="color:#b91c1c;font-weight:600">below on both</span>`;
+        const stale = r.stale && r.staleDays !== null
+          ? ` <span style="color:#9a3412">· no meeting ${r.staleDays}d</span>` : '';
+        return `<tr style="border-top:1px solid #f3f4f6">
+          <td style="padding:6px 10px;font-size:12px;font-weight:600">${esc(r.name)}</td>
+          <td style="text-align:center;padding:6px 10px">${badge}</td>
+          <td style="text-align:center;padding:6px 10px;font-size:12px;font-weight:700;color:${r.hit ? '#15803d' : '#b91c1c'}">${r.count}</td>
+          <td style="text-align:center;padding:6px 10px;font-size:12px;font-weight:700;color:#b91c1c">${r.trailing}<span style="color:var(--text-muted);font-weight:400">/${r.trailingTarget}</span></td>
+          <td style="padding:6px 10px;font-size:11px">${read}${stale}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>
   </div>`;
 }
 
@@ -363,6 +562,7 @@ export function renderKpiTargetBar(weekKey, opts = {}) {
       ${kpiTargetCard('Pay-per-meeting clients', `≥ ${PPM_WEEKLY_TARGET} booked meeting per week`, 'Bare minimum — ~4/month keeps margins. Counts Lead Tracker entries booked in the week.', ppm, '#2563eb')}
       ${kpiTargetCard('Retainer clients', `≥ ${RETAINER_WEEKLY_TARGET} positive replies per week`, `The standing bar — under ${RETAINER_WEEKLY_TARGET} means the campaigns need work. Counts retainer leads passed off in the week.`, retainer, '#7c3aed')}
     </div>
+    ${renderTrailingWatchlist(ppm, retainer)}
   </div>`;
 }
 
@@ -464,7 +664,8 @@ function renderClientTable(selWeek, wkLabel, clientDeals) {
   // time-of-day remainder rounds a client's day count up by one.
   const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const clientCounts = {};
-  const blank = () => ({ active: 0, booked: 0, calledBack: 0, positives: 0, lastLead: null });
+  const blank = () => ({ active: 0, booked: 0, calledBack: 0, positives: 0,
+    trailBooked: 0, trailPositives: 0, lastMeeting: null, lastPassOff: null });
 
   state.clients.forEach(c => { clientCounts[c.name] = blank(); });
 
@@ -475,17 +676,24 @@ function renderClientTable(selWeek, wkLabel, clientDeals) {
     clientCounts[cn].active++;
   });
 
+  const trailWk = new Set(trailingWeekKeys(selWeek));
+
   state.trackerEntries.forEach(e => {
     const cn = resolveClientName(e.clientName);
     if (!cn) return;
     if (!clientCounts[cn]) clientCounts[cn] = blank();
-    if (trackerWeekKey(e.dateAdded) === selWeek) {
+    const wk = trackerWeekKey(e.dateAdded);
+    if (wk === selWeek) {
       clientCounts[cn].booked++;
       if (String(e.callbackStatus || '').toLowerCase() === 'called back') clientCounts[cn].calledBack++;
     }
+    if (trailWk.has(wk)) clientCounts[cn].trailBooked++;
     const dt = dateAddedToDate(e.dateAdded);
-    if (dt && (!clientCounts[cn].lastLead || dt > clientCounts[cn].lastLead)) {
-      clientCounts[cn].lastLead = dt;
+    // lastMeeting drives the staleness dot for PPM clients. Keep it separate
+    // from lastPassOff — pass-offs kept the old combined `lastLead` green
+    // through a client's entire meeting drought.
+    if (dt && (!clientCounts[cn].lastMeeting || dt > clientCounts[cn].lastMeeting)) {
+      clientCounts[cn].lastMeeting = dt;
     }
   });
 
@@ -493,10 +701,12 @@ function renderClientTable(selWeek, wkLabel, clientDeals) {
     const cn = resolveClientName(p.clientName);
     if (!cn) return;
     if (!clientCounts[cn]) clientCounts[cn] = blank();
-    if (passOffWeekKey(p.datePassed) === selWeek) clientCounts[cn].positives++;
+    const wk = passOffWeekKey(p.datePassed);
+    if (wk === selWeek) clientCounts[cn].positives++;
+    if (trailWk.has(wk)) clientCounts[cn].trailPositives++;
     const dt = p.datePassed ? new Date(p.datePassed) : null;
-    if (dt && !isNaN(dt.getTime()) && (!clientCounts[cn].lastLead || dt > clientCounts[cn].lastLead)) {
-      clientCounts[cn].lastLead = dt;
+    if (dt && !isNaN(dt.getTime()) && (!clientCounts[cn].lastPassOff || dt > clientCounts[cn].lastPassOff)) {
+      clientCounts[cn].lastPassOff = dt;
     }
   });
 
@@ -508,47 +718,66 @@ function renderClientTable(selWeek, wkLabel, clientDeals) {
     .map(([name, c]) => {
       const isRet = retainerNames.has(name);
       const delivered = isRet ? c.positives : c.booked;
+      const trailing = isRet ? c.trailPositives : c.trailBooked;
       const target = isRet ? RETAINER_WEEKLY_TARGET : PPM_WEEKLY_TARGET;
-      return { name, c, isRet, delivered, target, hit: delivered >= target };
+      const clientRow = state.clients.find(x => x.name === name);
+      const trailingTarget = proratedTarget(target, clientRow, name, selWeek);
+      // Red/green follows the TRAILING window; the week's own number is still
+      // shown, but on its own it is mostly variance.
+      return { name, c, isRet, delivered, trailing, target, trailingTarget,
+               hit: delivered >= target, trailingHit: trailing >= trailingTarget };
     })
     .sort((a, b) => (a.hit === b.hit ? 0 : a.hit ? 1 : -1) || b.delivered - a.delivered || a.name.localeCompare(b.name));
 
   const th = 'padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-muted)';
   let h = `<h3 style="font-size:14px;font-weight:700;margin-bottom:4px">Leads by Client \u2014 week of ${wkLabel}</h3>
-    <p style="font-size:11px;color:var(--text-muted);margin:0 0 10px">Delivered = booked meetings for pay-per-meeting clients, positive replies for retainer clients. Off-target clients are listed first.</p>
+    <p style="font-size:11px;color:var(--text-muted);margin:0 0 10px">Delivered = meetings billed for pay-per-meeting clients, positive replies for retainer clients. The big number is the selected week; the small one is the trailing ${PPM_TRAILING_WEEKS}-week total, which is what decides on/off target. <b>Last Delivery</b> counts booked meetings for PPM clients (amber at ${PPM_STALE_DAYS} days) and pass-offs for retainers (amber at 30), red at 30. Off-target clients are listed first.</p>
     <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;border:1px solid var(--border)">
       <thead><tr style="background:#f9fafb">
         <th style="text-align:left;${th}">Client</th>
         <th style="text-align:center;${th}">Time With Us</th>
         <th style="text-align:center;${th}">Type</th>
         <th style="text-align:center;${th}">Active</th>
-        <th style="text-align:center;${th}">Delivered (this week)</th>
+        <th style="text-align:center;${th}">Delivered (week / trailing)</th>
         <th style="text-align:center;${th}">Target</th>
         <th style="text-align:center;${th}">Called Back</th>
         <th style="text-align:center;${th}">Good</th>
-        <th style="text-align:center;${th}">Last Lead</th>
+        <th style="text-align:center;${th}">Last Delivery</th>
         <th style="text-align:center;${th}">Status</th>
       </tr></thead>
       <tbody>`;
 
   for (const row of visibleClients) {
-    const { name, c, isRet, delivered, target, hit } = row;
+    const { name, c, isRet, delivered, trailing, target, trailingTarget, hit, trailingHit } = row;
     const client = state.clients.find(x => x.name === name);
     const dot = client ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${client.color || '#818cf8'};margin-right:6px"></span>` : '';
     const good = isRet ? delivered : c.booked - c.calledBack;
 
+    // PPM clients are judged on MEETINGS, retainers on pass-offs. Mixing the
+    // two is what kept this dot green through Dallas Land Care's 27-day
+    // meeting drought while pass-offs kept arriving.
+    // PPM clients are judged on BOOKED MEETINGS, retainers on pass-offs.
+    // The old combined `lastLead` mixed the two, which is why this dot stayed
+    // green through Dallas Land Care's 27-day meeting drought — pass-offs kept
+    // arriving while zero meetings were booked.
+    const lastDelivery = isRet ? c.lastPassOff : c.lastMeeting;
+    const gap = lastDelivery ? Math.floor((today - lastDelivery) / 86400000) : null;
+    // The 14-day amber is a pay-per-meeting signal; retainers keep 30 days.
+    const amberAt = isRet ? 30 : PPM_STALE_DAYS;
+    const statusDot = (bg) => `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${bg};margin-right:4px"></span>`;
     let statusHtml = '';
-    if (c.lastLead) {
-      const daysSince = Math.floor((today - c.lastLead) / (1000 * 60 * 60 * 24));
-      if (daysSince >= 30) {
-        statusHtml = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#ef4444;margin-right:4px"></span><span style="color:#ef4444;font-weight:600">30+ days</span>`;
-      } else {
-        statusHtml = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e"></span>`;
-      }
+    if (gap === null) {
+      statusHtml = `${statusDot('#ef4444')}<span style="color:#ef4444;font-weight:600">never</span>`;
+    } else if (gap >= 30) {
+      statusHtml = `${statusDot('#ef4444')}<span style="color:#ef4444;font-weight:600">${gap}d</span>`;
+    } else if (gap >= amberAt) {
+      statusHtml = `${statusDot('#f97316')}<span style="color:#9a3412;font-weight:600">${gap}d</span>`;
+    } else {
+      statusHtml = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e"></span>`;
     }
 
     // Full date incl. year, so "Jul 26" can't be mistaken for another year
-    const lastLeadDisplay = c.lastLead ? c.lastLead.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '\u2014';
+    const lastLeadDisplay = lastDelivery ? lastDelivery.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '\u2014';
     const typeBadge = isRet
       ? `<span style="background:#ede9fe;color:#6d28d9;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px">RETAINER</span>`
       : `<span style="background:#dbeafe;color:#1d4ed8;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px">PPM</span>`;
@@ -564,7 +793,7 @@ function renderClientTable(selWeek, wkLabel, clientDeals) {
       <td style="text-align:center;padding:8px 12px;font-size:12px;color:var(--text-muted);white-space:nowrap" title="${esc(sinceTitle)}">${esc(tenureLabel(since, todayMidnight))}</td>
       <td style="text-align:center;padding:8px 12px">${typeBadge}</td>
       <td style="text-align:center;padding:8px 12px;font-size:12px">${c.active}</td>
-      <td style="text-align:center;padding:8px 12px;font-size:13px;font-weight:700;color:${hit ? '#111827' : '#b91c1c'}">${delivered}</td>
+      <td style="text-align:center;padding:8px 12px;font-size:13px;font-weight:700;color:${hit ? '#111827' : '#b91c1c'}">${delivered}<span style="display:block;font-size:10px;font-weight:600;color:${trailingHit ? 'var(--text-muted)' : '#9a3412'}">${trailing}/${trailingTarget} in ${PPM_TRAILING_WEEKS}w</span></td>
       <td style="text-align:center;padding:8px 12px">${targetBadge}</td>
       <td style="text-align:center;padding:8px 12px;font-size:12px;color:${c.calledBack ? '#ef4444' : 'var(--text-muted)'};font-weight:${c.calledBack ? '600' : '400'}">${isRet ? '\u2014' : c.calledBack}</td>
       <td style="text-align:center;padding:8px 12px;font-size:12px;color:#22c55e;font-weight:600">${good}</td>

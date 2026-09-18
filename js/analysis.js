@@ -11,16 +11,17 @@
 // /sequence-analytics endpoint the Weekly Updates tab uses, so the two tabs
 // can never report different numbers for the same week.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260918150357';
-import { render } from './render.js?v=20260918150357';
-import { esc, str } from './utils.js?v=20260918150357';
-import { isAdmin } from './auth.js?v=20260918150357';
-import { showToast } from './api.js?v=20260918150357';
+import { state } from './app.js?v=20260919033445';
+import { render } from './render.js?v=20260919033445';
+import { esc, str } from './utils.js?v=20260919033445';
+import { isAdmin } from './auth.js?v=20260919033445';
+import { showToast } from './api.js?v=20260919033445';
 import {
   currentWeekKey, weekLabel, shiftWeeks, ymd, weekStartOf,
   getWeeklyKpiStatus, getPpmClients, getRetainerClients,
   PPM_WEEKLY_TARGET, RETAINER_WEEKLY_TARGET,
-} from './dashboard.js?v=20260918150357';
+  PPM_TRAILING_WEEKS, PPM_STALE_DAYS,
+} from './dashboard.js?v=20260919033445';
 
 // Lives on the fulfillment-dashboard Supabase project (verify_jwt=false),
 // same as the Weekly Updates stats proxy.
@@ -513,6 +514,42 @@ function categoryChips(categories) {
 const TH = 'padding:6px 8px;font-size:10px;font-weight:700;color:#495057;background:#e9ecef;border:1px solid #d0d5dd;white-space:nowrap;position:sticky;top:0;z-index:2';
 const TD = 'padding:4px 8px;font-size:12px;border:1px solid #e2e5e9;white-space:nowrap';
 
+
+// Two standing signals, shown above the analysis run. Independent of whether
+// the Smartlead pull has been run, because they come from CRM data alone.
+function renderStandingSignals(kpi) {
+  const all = [...kpi.ppm, ...kpi.retainer];
+  const sinking = all.filter(r => !r.trailingHit);
+  const dark = kpi.ppm.filter(r => r.stale);
+  if (!sinking.length && !dark.length) {
+    return `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:11.5px;color:#15803d;font-weight:600">
+      Every client is sustaining the bar over the last ${PPM_TRAILING_WEEKS} weeks, and no pay-per-meeting client has gone ${PPM_STALE_DAYS}+ days without a booked meeting.</div>`;
+  }
+  const chip = (txt, sub) => `<span style="display:inline-block;background:#fff;border:1px solid #fed7aa;border-radius:6px;padding:3px 9px;margin:2px 4px 2px 0;font-size:11px">
+    <b>${esc(txt)}</b> <span style="color:#9a3412">${esc(sub)}</span></span>`;
+  let out = `<div style="background:#fff7ed;border:1px solid #fed7aa;border-left:4px solid #f97316;border-radius:8px;padding:10px 12px;margin-bottom:10px">`;
+  if (sinking.length) {
+    // The ones that passed THIS week are the dangerous ones — they look fine.
+    const hidden = sinking.filter(r => r.hit);
+    const both = sinking.filter(r => !r.hit);
+    out += `<div style="font-size:11px;font-weight:700;color:#9a3412;text-transform:uppercase;letter-spacing:.4px">Not sustaining the bar — last ${PPM_TRAILING_WEEKS} weeks</div>
+      <div style="margin-top:5px">
+        ${hidden.map(r => chip(r.name, `${r.trailing}/${r.trailingTarget} · passed this week`)).join('')}
+        ${both.map(r => chip(r.name, `${r.trailing}/${r.trailingTarget}`)).join('')}
+      </div>`;
+    if (hidden.length) {
+      out += `<div style="font-size:10.5px;color:#9a3412;margin-top:4px">
+        ${hidden.length} client${hidden.length === 1 ? '' : 's'} cleared the weekly bar but ${hidden.length === 1 ? 'is' : 'are'} not keeping it up — the weekly view alone would show ${hidden.length === 1 ? 'it' : 'them'} as fine.</div>`;
+    }
+  }
+  if (dark.length) {
+    out += `<div style="font-size:11px;font-weight:700;color:#9a3412;text-transform:uppercase;letter-spacing:.4px;margin-top:${sinking.length ? '9' : '0'}px">No booked meeting in ${PPM_STALE_DAYS}+ days — pay-per-meeting</div>
+      <div style="margin-top:5px">${dark.map(r => chip(r.name, r.staleDays === null ? 'never' : `${r.staleDays} days`)).join('')}</div>`;
+  }
+  out += `</div>`;
+  return out;
+}
+
 export function renderAnalysis() {
   const a = getA();
   const week = selectedWeek();
@@ -551,6 +588,12 @@ export function renderAnalysis() {
       ${a.rows.length ? `<button class="btn btn-ghost" style="font-size:11px;padding:5px 12px" onclick="analysisExportCsv()" title="Exports every matched campaign, including ones that sent nothing">Export CSV (${a.rows.length})</button>` : ''}
     </div>
   </div>`;
+
+  // ── Standing signals the weekly bar cannot show ──────────────────────────
+  // The header above answers "who missed THIS week". These two answer the
+  // questions that sank Dallas Land Care: who is clearing the weekly bar
+  // without sustaining it, and who has quietly gone dark.
+  h += renderStandingSignals(kpi);
 
   if (a.step === 'loading') {
     h += `<div style="padding:50px;text-align:center;color:var(--text-muted)">
