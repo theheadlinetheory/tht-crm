@@ -9,15 +9,15 @@
 // the events of the period for leads from any cohort. Temporary by intent —
 // the tables stay small while the window is a week.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260918090653';
-import { esc, escAttr } from './utils.js?v=20260918090653';
-import { state } from './app.js?v=20260918090653';
-import { openDeal } from './deal-modal.js?v=20260918090653';
-import { openArchivedDeal } from './archive.js?v=20260918090653';
-import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260918090653';
-import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260918090653';
-import { deleteDeal } from './deals.js?v=20260918090653';
-import { showClientEndPicker } from './client-end.js?v=20260918090653';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260918091352';
+import { esc, escAttr } from './utils.js?v=20260918091352';
+import { state } from './app.js?v=20260918091352';
+import { openDeal } from './deal-modal.js?v=20260918091352';
+import { openArchivedDeal } from './archive.js?v=20260918091352';
+import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260918091352';
+import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260918091352';
+import { deleteDeal } from './deals.js?v=20260918091352';
+import { showClientEndPicker } from './client-end.js?v=20260918091352';
 
 // ── Record the outcome from the list (Lars, 2026-09-10) ──
 // A flagged row gets the same options the reps use live, and writes through the
@@ -26,15 +26,16 @@ import { showClientEndPicker } from './client-end.js?v=20260918090653';
 // 03, the demo outcome at 05 and 06, the offboard picker at 07.
 const PRE_DISCO_REASONS = ['Desk DQ', 'Miscategorized', 'Duplicate', 'Lost', 'Other…'];
 const FINAL_DEMO = DEMO_OUTCOMES.filter(o => o !== 'No-Show' && o !== 'Qualified — Pending');
-// Level 04 (2026-09-18): a demo known only from the deal stage asks "was it booked?"; a removal with no reason asks why.
+// Level 04 (2026-09-18): was a demo booked after the disco, or did the lead drop? Every row can say either — "no demo
+// booked yet" is often a demo that happened with no booking on record (Aidan, 2026-09-18).
 const DEMO_BOOKED = 'Demo booked';
 const AFTER_DISCO_REASONS = ['Lost', 'Other…'];
-function optionsFor(level, onBoard, status) {
+function optionsFor(level, onBoard) {
   // "Not right now" moves a deal to Nurture — there is no deal to move when it is archived (hardening review, 2026-09-15).
   const noNurture = (opts) => onBoard ? opts : opts.filter(o => !/not right now/i.test(o));
   if (level === '02') return PRE_DISCO_REASONS;
   if (level === '03') return noNurture(DISCO_OUTCOMES);
-  if (level === '04') return status === 'moved on' ? [DEMO_BOOKED, ...AFTER_DISCO_REASONS] : AFTER_DISCO_REASONS;
+  if (level === '04') return [DEMO_BOOKED, ...AFTER_DISCO_REASONS];
   if (level === '05') return noNurture(DEMO_OUTCOMES);
   if (level === '06') return noNurture(FINAL_DEMO);
   return null;
@@ -46,15 +47,15 @@ function editableWhy(level, r, rowId) {
   if (level === '07' || !r.deal_id) return '';
   const onBoard = state.deals.some(d => String(d.id) === String(r.deal_id));
   if ((level === '02' || level === '04') && onBoard) return '';
-  if (!optionsFor(level, onBoard, r.status)) return '';
-  return ` onclick="funnelEditWhy(this,'${level}','${escAttr(r.deal_id)}','${rowId}','${escAttr(r.as_of || '')}','${escAttr(r.status)}')" title="Click to change" style="cursor:pointer;`;
+  if (!optionsFor(level, onBoard)) return '';
+  return ` onclick="funnelEditWhy(this,'${level}','${escAttr(r.deal_id)}','${rowId}','${escAttr(r.as_of || '')}')" title="Click to change" style="cursor:pointer;`;
 }
-window.funnelEditWhy = (td, level, dealId, rowId, asOf, status) => {
+window.funnelEditWhy = (td, level, dealId, rowId, asOf) => {
   if (td.querySelector('select')) return;
   const onBoard = state.deals.some(d => String(d.id) === String(dealId));
   const original = td.innerHTML;
   td.innerHTML = `<select style="padding:2px 6px;border:1px solid #e5e7eb;border-radius:5px;background:#fff;font-size:11px;color:#374151">
-    <option value="">change…</option>${optionsFor(level, onBoard, status).map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>`;
+    <option value="">change…</option>${optionsFor(level, onBoard).map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>`;
   const sel = td.querySelector('select');
   const restore = () => { if (sel.isConnected) td.innerHTML = original; };
   sel.onclick = (e) => e.stopPropagation();
@@ -68,7 +69,7 @@ function outcomeControl(level, r, rowId) {
     return r.client_id ? `<button onclick="funnelRecordEnd('${escAttr(r.client_id)}','${rowId}')" style="margin-left:8px;padding:2px 8px;border:1px solid #fde68a;border-radius:5px;background:#fff;font-size:11px;color:#92400e;cursor:pointer">Record the end…</button>` : '';
   }
   const onBoard = r.deal_id && state.deals.some(d => String(d.id) === String(r.deal_id));
-  const opts = optionsFor(level, onBoard, r.status);
+  const opts = optionsFor(level, onBoard);
   if (!opts || !r.deal_id) return '';
   return `<select onchange="funnelSetOutcome('${level}','${escAttr(r.deal_id)}',this.value,'${rowId}','${escAttr(r.as_of || '')}');this.selectedIndex=0" style="margin-left:8px;padding:2px 6px;border:1px solid #fde68a;border-radius:5px;background:#fff;font-size:11px;color:#92400e">
     <option value="">record what happened…</option>${opts.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>`;
