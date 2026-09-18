@@ -32,6 +32,9 @@ export const ACQUISITION_STAGES = [
   { id: "Closed Lost", label: "Closed Lost", color: "#6b7280" },
 ];
 
+// Industry options for a deal's vertical (deal modal + board filter)
+export const DEAL_VERTICALS = ['HVAC', 'Landscaping', 'Snow Removal', 'Holiday Lighting', 'Plumbing', 'Other'];
+
 export const NURTURE_STAGES = [
   { id: "Not Now", label: "Not Now", color: "#34d399" },
   { id: "Service Area Taken", label: "Service Area Taken", color: "#f97316" },
