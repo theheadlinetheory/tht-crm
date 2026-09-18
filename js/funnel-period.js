@@ -12,7 +12,7 @@
 // Nothing is written: the functions answer from the per-lead ledger and the
 // daily send snapshots. The "All" view keeps reading pipeline_latest.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260918094402';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260918110319';
 
 export const TZ = 'America/Los_Angeles';
 
@@ -29,23 +29,32 @@ export const PERIODS = [
   { key: 'today',     label: 'Today' },
   { key: 'yesterday', label: 'Yesterday' },
   { key: 'week',      label: 'This week' },
-  { key: 'lastweek',  label: 'Last week' },
 ];
+export function todayYmdLA() { return laToday().ymd; }
 // Every backfilled week as its own chip, pinned to the calendar (Lars, 2026-09-14: relative "two weeks ago" chips
 // pushed Aug 3–9 off the bar when the week rolled over). Temporary, until the backfill is as far back as wanted and a
 // different filter replaces it. Older weeks are labelled by their dates; only last week and forward keep names.
 export const BACKFILL_START = '2026-08-03'; // the level functions' WINDOW_START; the level 01 card carries the live value
-export function periods(backfillStart = BACKFILL_START) {
-  const { ymd, dow } = laToday();
-  const monday = addDays(ymd, -((dow + 6) % 7));
-  const out = [...PERIODS];
-  for (let m = addDays(monday, -14); m >= backfillStart; m = addDays(m, -7)) out.push({ key: 'week:' + m, label: null });
-  return out;
+export function periods(_backfillStart = BACKFILL_START) {
+  // The week-by-week chips were for the backfill; it is done (May–August, 2026-09-18). Any other stretch is picked
+  // on the calendar (a 'range:FROM:TO' key) — Lars: "an all tab, today, yesterday, this week, and then a calendar".
+  return [...PERIODS];
 }
 /** A saved 'week2'…'week5' key from the relative days → its calendar week, so the bar still shows it selected. */
 export function pinKey(key) {
-  if (!/^week[2-5]$/.test(key || '')) return key;
-  const r = periodRange(key); return r ? 'week:' + r.from : key;
+  // Old saved keys (last week, a backfill week) become the calendar range they meant, so the bar still shows them.
+  if (!/^(week[2-5]|lastweek|week:\d{4}-\d{2}-\d{2})$/.test(key || '')) return key;
+  const r = periodRange(key); return r ? `range:${r.from}:${r.to}` : key;
+}
+/** Days in a range, inclusive. */
+export function rangeDays(r) { return r ? Math.round((Date.parse(r.to + 'T00:00:00Z') - Date.parse(r.from + 'T00:00:00Z')) / 864e5) + 1 : 0; }
+/** Level 01's exact "unique leads contacted" for a picked range comes from Smartlead, one call per campaign; ask the
+ *  pipeline-sends function for it in the background (it caches the answer in pipeline_sends_period) — only for ranges
+ *  short enough for Smartlead's by-date analytics. Fire and forget: the card shows the number on the next refresh. */
+export function requestExactSends(r) {
+  if (!r || rangeDays(r) > 31) return;
+  const headers = { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY };
+  fetch(`${SUPABASE_URL}/functions/v1/pipeline-sends`, { method: 'POST', headers, body: JSON.stringify({ from: r.from, to: r.to }) }).catch(() => {});
 }
 
 /** 'Aug 24–30' for a range (LA dates). */
@@ -63,6 +72,10 @@ export function periodRange(key) {
   const { ymd, dow } = laToday();
   const monday = addDays(ymd, -((dow + 6) % 7));
   if (key && key.startsWith('week:')) { const m = key.slice(5); const end = addDays(m, 6); return { from: m, to: end < ymd ? end : ymd }; }
+  if (key && key.startsWith('range:')) { // 'range:YYYY-MM-DD:YYYY-MM-DD' from the calendar picker; never past today
+    const [, a, b] = key.split(':'); if (!/^\d{4}-\d{2}-\d{2}$/.test(a || '') || !/^\d{4}-\d{2}-\d{2}$/.test(b || '')) return null;
+    const from = a <= b ? a : b, to = (a <= b ? b : a) > ymd ? ymd : (a <= b ? b : a); return from <= to ? { from, to } : null;
+  }
   switch (key) {
     case 'today':     return { from: ymd, to: ymd };
     case 'yesterday': return { from: addDays(ymd, -1), to: addDays(ymd, -1) };
