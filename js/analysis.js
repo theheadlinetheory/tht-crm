@@ -11,17 +11,17 @@
 // /sequence-analytics endpoint the Weekly Updates tab uses, so the two tabs
 // can never report different numbers for the same week.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260918150837';
-import { render } from './render.js?v=20260918150837';
-import { esc, str } from './utils.js?v=20260918150837';
-import { isAdmin } from './auth.js?v=20260918150837';
-import { showToast } from './api.js?v=20260918150837';
+import { state } from './app.js?v=20260919033903';
+import { render } from './render.js?v=20260919033903';
+import { esc, str } from './utils.js?v=20260919033903';
+import { isAdmin } from './auth.js?v=20260919033903';
+import { showToast } from './api.js?v=20260919033903';
 import {
   currentWeekKey, weekLabel, shiftWeeks, ymd, weekStartOf,
   getWeeklyKpiStatus, getPpmClients, getRetainerClients,
   PPM_WEEKLY_TARGET, RETAINER_WEEKLY_TARGET,
   PPM_TRAILING_WEEKS, PPM_STALE_DAYS,
-} from './dashboard.js?v=20260918150837';
+} from './dashboard.js?v=20260919033903';
 
 // Lives on the fulfillment-dashboard Supabase project (verify_jwt=false),
 // same as the Weekly Updates stats proxy.
@@ -589,12 +589,6 @@ export function renderAnalysis() {
     </div>
   </div>`;
 
-  // ── Standing signals the weekly bar cannot show ──────────────────────────
-  // The header above answers "who missed THIS week". These two answer the
-  // questions that sank Dallas Land Care: who is clearing the weekly bar
-  // without sustaining it, and who has quietly gone dark.
-  h += renderStandingSignals(kpi);
-
   if (a.step === 'loading') {
     h += `<div style="padding:50px;text-align:center;color:var(--text-muted)">
       <div class="loading-spinner"></div>
@@ -616,6 +610,11 @@ export function renderAnalysis() {
   }
 
   // ── Results ──
+  // Standing signals the weekly bar cannot show: who is clearing the weekly
+  // bar without sustaining it, and which pay-per-meeting clients have gone
+  // dark. Shown with the analysis results, not before the run.
+  h += renderStandingSignals(kpi);
+
   if (a.errors.length) {
     h += `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:11px;color:#991b1b">
       ${a.errors.map(e => esc(e)).join('<br>')}
