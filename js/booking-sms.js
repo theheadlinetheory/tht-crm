@@ -8,15 +8,15 @@
 // Gated per-client on clients.sms_enabled. Sends via Blooio,
 // the same account already used to text leads.
 
-import { state, pendingWrites } from './app.js?v=20260918152403';
-import { showToast, sbUpdateDeal, camelToSnake } from './api.js?v=20260918152403';
-import { registerActions } from './delegate.js?v=20260918152403';
-import { modalHeader } from './html-helpers.js?v=20260918152403';
-import { esc, str, applyTemplate, svgIcon, fmtDate } from './utils.js?v=20260918152403';
-import { isAdmin, isEmployee } from './auth.js?v=20260918152403';
-import { sendBlooioText, formatDisplay } from './blooio.js?v=20260918152403';
-import { findClientForDeal } from './client-info.js?v=20260918152403';
-import { refreshModal } from './render.js?v=20260918152403';
+import { state, pendingWrites } from './app.js?v=20260918160628';
+import { showToast, sbUpdateDeal, camelToSnake } from './api.js?v=20260918160628';
+import { registerActions } from './delegate.js?v=20260918160628';
+import { modalHeader } from './html-helpers.js?v=20260918160628';
+import { esc, str, applyTemplate, svgIcon, fmtDate } from './utils.js?v=20260918160628';
+import { isAdmin, isEmployee } from './auth.js?v=20260918160628';
+import { sendBlooioText, formatDisplay } from './blooio.js?v=20260918160628';
+import { findClientForDeal } from './client-info.js?v=20260918160628';
+import { refreshModal } from './render.js?v=20260918160628';
 
 // Note: no line may end in a bare colon. applyTemplate() treats a trailing-colon
 // line as an empty label and deletes it, which silently ate the greeting.

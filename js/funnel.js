@@ -19,10 +19,10 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260918152403';
-import { supabase } from './supabase-client.js?v=20260918152403';
-import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel, rangeDays, todayYmdLA, requestExactSends } from './funnel-period.js?v=20260918152403';
-import { leadsTable } from './funnel-leads.js?v=20260918152403';
+import { esc, svgIcon } from './utils.js?v=20260918160628';
+import { supabase } from './supabase-client.js?v=20260918160628';
+import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel, rangeDays, todayYmdLA, requestExactSends } from './funnel-period.js?v=20260918160628';
+import { leadsTable } from './funnel-leads.js?v=20260918160628';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -105,7 +105,7 @@ export function reloadFunnel(rerender) {
 
 function loadPeriod(key, rerender) {
   if (periodRows(key) || _periodLoading === key) return;
-  if (!rerender) rerender = () => import('./render.js?v=20260918152403').then(m => m.render());
+  if (!rerender) rerender = () => import('./render.js?v=20260918160628').then(m => m.render());
   _periodLoading = key;
   const g = (_gen[key] = (_gen[key] || 0) + 1);
   fetchPeriod(periodRange(key), _levels || []).then(rows => {
@@ -118,25 +118,34 @@ function loadPeriod(key, rerender) {
 window.setFunnelPeriod = (key) => {
   _period = key;
   try { localStorage.setItem(PERIOD_KEY, key); } catch (_) { /* private mode */ }
-  if (key.startsWith('range:')) { // the exact unique-leads count: requested in the background, then the cards re-ask level 01
-    // The request can take minutes when Smartlead is rate-limiting (it waits the bursts out), and the gateway drops the
-    // HTTP answer after 150 s while the work continues — so do not trust the answer; poll for the number instead.
-    requestExactSends(periodRange(key)).catch(() => {});
+  if (key.startsWith('range:')) {
+    // Unique leads for a range: the send ledger answers any range up to yesterday on our side (2026-09-18). Only when
+    // the first answer comes back without it (a range that reaches today, or past the ledger's coverage) is Smartlead
+    // asked — in the background, waiting out its rate-limit bursts — and the cards re-ask level 01 until it lands.
     const hasUnique = () => { const rows = _periodData[key]; return Array.isArray(rows) && rows.some(r => r.level === '01' && r.detail && r.detail.metrics && r.detail.metrics.some(m => m.key === 'unique_leads' && m.denominator != null)); };
-    let tries = 0;
-    const poll = () => {
-      if (_period !== key || hasUnique() || tries++ >= 20) return;   // up to ~10 minutes: the hourly run fulfils what a rate-limited first try left
-      delete _periodData[key]; loadPeriod(key, null);
-      setTimeout(poll, 30000);
+    const loaded = () => Array.isArray(_periodData[key]) || (_periodData[key] && _periodData[key].error);
+    let waited = 0;
+    const whenLoaded = () => {
+      if (_period !== key) return;
+      if (!loaded()) { if ((waited += 500) < 60000) setTimeout(whenLoaded, 500); return; }
+      if (hasUnique()) return;
+      requestExactSends(periodRange(key)).catch(() => {});
+      let tries = 0;
+      const poll = () => {
+        if (_period !== key || hasUnique() || tries++ >= 20) return;   // up to ~10 minutes: the hourly run fulfils what a rate-limited first try left
+        delete _periodData[key]; loadPeriod(key, null);
+        setTimeout(poll, 30000);
+      };
+      setTimeout(poll, 20000);
     };
-    setTimeout(poll, 20000);
+    setTimeout(whenLoaded, 500);
   }
-  import('./render.js?v=20260918152403').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+  import('./render.js?v=20260918160628').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
 };
 
 // ── The calendar: pick any stretch of days (Lars, 2026-09-18) ──
 const _pick = { open: false, month: null, start: null, end: null }; // month 'YYYY-MM'; start/end 'YYYY-MM-DD' while choosing
-const rerenderNow = () => import('./render.js?v=20260918152403').then(m => m.render());
+const rerenderNow = () => import('./render.js?v=20260918160628').then(m => m.render());
 window.funnelPickToggle = () => {
   _pick.open = !_pick.open;
   if (_pick.open) { const r = periodRange(_period); _pick.month = (r ? r.to : todayYmdLA()).slice(0, 7); _pick.start = null; _pick.end = null; }
@@ -256,7 +265,7 @@ function uniqueHint(l, m) {
   if (l.level !== '01' || m.key !== 'unique_leads' || m.denominator != null || !_period.startsWith('range:')) return '';
   const r = periodRange(_period), n = r ? rangeDays(r) : 0;
   return n > 31
-    ? ` <span style="color:#9ca3af">· exact unique leads only for ranges up to 31 days</span>`
+    ? ` <span style="color:#9ca3af">· a range that reaches today: exact unique leads from Smartlead only up to 31 days — pick a range ending yesterday for any length</span>`
     : ` <span style="color:#9ca3af">· being fetched from Smartlead, one query per campaign — a few minutes when it is busy; fills in by itself</span>`;
 }
 
@@ -499,5 +508,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260918152403').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260918160628').then(m => reloadFunnel(m.render));
 };
