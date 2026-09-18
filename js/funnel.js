@@ -19,10 +19,10 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260918151912';
-import { supabase } from './supabase-client.js?v=20260918151912';
-import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel, rangeDays, todayYmdLA, requestExactSends } from './funnel-period.js?v=20260918151912';
-import { leadsTable } from './funnel-leads.js?v=20260918151912';
+import { esc, svgIcon } from './utils.js?v=20260918152403';
+import { supabase } from './supabase-client.js?v=20260918152403';
+import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel, rangeDays, todayYmdLA, requestExactSends } from './funnel-period.js?v=20260918152403';
+import { leadsTable } from './funnel-leads.js?v=20260918152403';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -105,7 +105,7 @@ export function reloadFunnel(rerender) {
 
 function loadPeriod(key, rerender) {
   if (periodRows(key) || _periodLoading === key) return;
-  if (!rerender) rerender = () => import('./render.js?v=20260918151912').then(m => m.render());
+  if (!rerender) rerender = () => import('./render.js?v=20260918152403').then(m => m.render());
   _periodLoading = key;
   const g = (_gen[key] = (_gen[key] || 0) + 1);
   fetchPeriod(periodRange(key), _levels || []).then(rows => {
@@ -125,18 +125,18 @@ window.setFunnelPeriod = (key) => {
     const hasUnique = () => { const rows = _periodData[key]; return Array.isArray(rows) && rows.some(r => r.level === '01' && r.detail && r.detail.metrics && r.detail.metrics.some(m => m.key === 'unique_leads' && m.denominator != null)); };
     let tries = 0;
     const poll = () => {
-      if (_period !== key || hasUnique() || tries++ >= 12) return;   // up to ~4 minutes
+      if (_period !== key || hasUnique() || tries++ >= 20) return;   // up to ~10 minutes: the hourly run fulfils what a rate-limited first try left
       delete _periodData[key]; loadPeriod(key, null);
-      setTimeout(poll, 20000);
+      setTimeout(poll, 30000);
     };
     setTimeout(poll, 20000);
   }
-  import('./render.js?v=20260918151912').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+  import('./render.js?v=20260918152403').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
 };
 
 // ── The calendar: pick any stretch of days (Lars, 2026-09-18) ──
 const _pick = { open: false, month: null, start: null, end: null }; // month 'YYYY-MM'; start/end 'YYYY-MM-DD' while choosing
-const rerenderNow = () => import('./render.js?v=20260918151912').then(m => m.render());
+const rerenderNow = () => import('./render.js?v=20260918152403').then(m => m.render());
 window.funnelPickToggle = () => {
   _pick.open = !_pick.open;
   if (_pick.open) { const r = periodRange(_period); _pick.month = (r ? r.to : todayYmdLA()).slice(0, 7); _pick.start = null; _pick.end = null; }
@@ -250,6 +250,16 @@ function sourcesTable(sources) {
   return h;
 }
 
+/** Level 01's unique-leads count for a picked range is one Smartlead query per campaign, stored once it lands: say so
+ *  instead of a bare dash (Lars, 2026-09-18: "a different range is not showing up now"). */
+function uniqueHint(l, m) {
+  if (l.level !== '01' || m.key !== 'unique_leads' || m.denominator != null || !_period.startsWith('range:')) return '';
+  const r = periodRange(_period), n = r ? rangeDays(r) : 0;
+  return n > 31
+    ? ` <span style="color:#9ca3af">· exact unique leads only for ranges up to 31 days</span>`
+    : ` <span style="color:#9ca3af">· being fetched from Smartlead, one query per campaign — a few minutes when it is busy; fills in by itself</span>`;
+}
+
 function levelCard(l) {
   const st = STATUS_STYLE[l.status] || STATUS_STYLE['not tracked'];
   const hasNumbers = l.numerator !== null && l.denominator !== null;
@@ -287,7 +297,7 @@ function levelCard(l) {
       }
       h += `<div style="margin-top:${i ? 4 : 10}px;display:flex;align-items:baseline;gap:10px">
               <span style="font-size:24px;font-weight:800;color:#1e1b4b;font-variant-numeric:tabular-nums">${fmtRate(m.rate)}</span>
-              <span style="font-size:12px;color:#6b7280;font-variant-numeric:tabular-nums">${fmtCount(m.numerator)} of ${fmtCount(m.denominator)}${m.label ? ` · ${esc(m.label)}` : ''}</span>
+              <span style="font-size:12px;color:#6b7280;font-variant-numeric:tabular-nums">${fmtCount(m.numerator)} of ${fmtCount(m.denominator)}${m.label ? ` · ${esc(m.label)}` : ''}${uniqueHint(l, m)}</span>
               ${(!i && verified) ? `<span style="font-size:10px;font-weight:700;color:#166534;background:#dcfce7;padding:1px 6px;border-radius:4px">verified baseline</span>` : ''}
             </div>`;
     });
@@ -489,5 +499,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260918151912').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260918152403').then(m => reloadFunnel(m.render));
 };

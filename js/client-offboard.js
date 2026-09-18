@@ -11,11 +11,11 @@
 // What this does NOT do, by decision: pause campaigns, detach inboxes (Tim and
 // Lars finish those), touch Stripe (the retainer cron already skips inactive
 // clients), or delete Smartlead tags (they cannot be deleted).
-import { state, pendingWrites } from './app.js?v=20260918151912';
-import { esc, str, getToday } from './utils.js?v=20260918151912';
-import { supabase, showToast, sbArchiveDeal, sbDeleteDeal, sbUpdateClient, invokeEdgeFunction } from './api.js?v=20260918151912';
-import { SUPABASE_ANON_KEY } from './config.js?v=20260918151912';
-import { render } from './render.js?v=20260918151912';
+import { state, pendingWrites } from './app.js?v=20260918152403';
+import { esc, str, getToday } from './utils.js?v=20260918152403';
+import { supabase, showToast, sbArchiveDeal, sbDeleteDeal, sbUpdateClient, invokeEdgeFunction } from './api.js?v=20260918152403';
+import { SUPABASE_ANON_KEY } from './config.js?v=20260918152403';
+import { render } from './render.js?v=20260918152403';
 
 const FULFILLMENT_FN = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/crm-client-offboard-record';
 

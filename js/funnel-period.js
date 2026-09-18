@@ -12,7 +12,7 @@
 // Nothing is written: the functions answer from the per-lead ledger and the
 // daily send snapshots. The "All" view keeps reading pipeline_latest.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260918151912';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260918152403';
 
 export const TZ = 'America/Los_Angeles';
 
@@ -52,7 +52,7 @@ export function rangeDays(r) { return r ? Math.round((Date.parse(r.to + 'T00:00:
  *  pipeline-sends function for it in the background (it caches the answer in pipeline_sends_period) — only for ranges
  *  short enough for Smartlead's by-date analytics. Fire and forget: the card shows the number on the next refresh. */
 export function requestExactSends(r) {
-  if (!r || rangeDays(r) > 92) return Promise.resolve(false);
+  if (!r || rangeDays(r) > 31) return Promise.resolve(false); // Smartlead answers one range query; longer stretches are not exact for unique leads
   const headers = { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY };
   // Resolves true once the row is stored, so the caller can re-ask level 01 and show the number (Lars, 2026-09-18:
   // "still not there" — the card had answered before the row existed and then sat in the 15-minute cache).
