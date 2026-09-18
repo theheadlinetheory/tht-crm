@@ -11,13 +11,13 @@
 //   CCs are ALSO editable here, on the idle checklist and on review rows.
 //   Lars's signature appended. The Client Info sheet is NOT used.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20260919033903';
-import { state } from './app.js?v=20260919033903';
-import { render } from './render.js?v=20260919033903';
-import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20260919033903';
-import { esc, str, svgIcon } from './utils.js?v=20260919033903';
-import { crmWeekContext, ctxCheckinLines, ctxDay, ctxSummary, ctxSection } from './weekly-context.js?v=20260919033903';
-import { DEFAULT_WEEKLY_UPDATE_TEMPLATE, WEEKLY_TOKENS, PPM_NOTE, applyWeeklyTemplate, weeklyGreeting } from './weekly-template.js?v=20260919033903';
+import { supabase } from './supabase-client.js?v=20260918151912';
+import { state } from './app.js?v=20260918151912';
+import { render } from './render.js?v=20260918151912';
+import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20260918151912';
+import { esc, str, svgIcon } from './utils.js?v=20260918151912';
+import { crmWeekContext, ctxCheckinLines, ctxDay, ctxSummary, ctxSection } from './weekly-context.js?v=20260918151912';
+import { DEFAULT_WEEKLY_UPDATE_TEMPLATE, WEEKLY_TOKENS, PPM_NOTE, applyWeeklyTemplate, weeklyGreeting } from './weekly-template.js?v=20260918151912';
 
 // Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
@@ -161,7 +161,11 @@ export async function weeklyPrepare(){
   try{
     const pullStats = async () => {
       const resp = await fetch(STATS_PROXY_URL,{ method:'POST', headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({ action:'weekly_client_stats', start_date: range.start, end_date: range.end }) });
+        // client_keywords scopes the proxy's pull to the ticked clients' campaigns
+        // (+ every ACTIVE campaign + anything touched this week, so the unmatched
+        // warning below still works) instead of every campaign in the account.
+        body: JSON.stringify({ action:'weekly_client_stats', start_date: range.start, end_date: range.end,
+          client_keywords: [...new Set(runClients.flatMap(clientKeywords))] }) });
       const payload = await resp.json().catch(()=>({ error:'Stats proxy returned a non-JSON response ('+resp.status+')' }));
       if(!resp.ok || payload.error) throw new Error(payload.error || ('Stats fetch failed ('+resp.status+')'));
       return payload;

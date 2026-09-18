@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // EMAIL — Forward to client, lead tracker push, send to thread
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20260919033903';
-import { render, refreshModal } from './render.js?v=20260919033903';
-import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20260919033903';
-import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20260919033903';
-import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20260919033903';
-import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20260919033903';
-import { CRM_BASE_URL, GEOCODIO_KEY } from './config.js?v=20260919033903';
+import { state, pendingWrites } from './app.js?v=20260918151912';
+import { render, refreshModal } from './render.js?v=20260918151912';
+import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20260918151912';
+import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20260918151912';
+import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20260918151912';
+import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20260918151912';
+import { CRM_BASE_URL, GEOCODIO_KEY } from './config.js?v=20260918151912';
 
 function formatEmailBody(html){
   if(!html) return '';
@@ -226,7 +226,7 @@ export async function autoPushToTracker(deal){
   const month = `${months[billingDate.getMonth()]}/${String(billingDate.getFullYear()).slice(-2)}`;
 
   // Insert into lead_tracker table
-  const { sbCreateTrackerEntry, normalizeRow } = await import('./api.js?v=20260919033903');
+  const { sbCreateTrackerEntry, normalizeRow } = await import('./api.js?v=20260918151912');
   const entry = await sbCreateTrackerEntry({
     deal_id: deal.id,
     client_name: clientName,
@@ -403,7 +403,7 @@ export async function executePassOff(dealId, clientName){
     }
 
     if(btn) btn.textContent='Archiving...';
-    const { deleteDeal }=await import('./deals.js?v=20260919033903');
+    const { deleteDeal }=await import('./deals.js?v=20260918151912');
     await deleteDeal(dealId,'Passed Off',clientName);
 
     document.getElementById('passoff-preview-overlay')?.remove();
