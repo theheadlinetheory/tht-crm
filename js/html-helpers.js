@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // HTML-HELPERS — Reusable HTML template builders (DRY)
 // ═══════════════════════════════════════════════════════════
-import { esc, svgIcon } from './utils.js?v=20260916150226';
+import { esc, svgIcon } from './utils.js?v=20260918073113';
 
 /**
  * Wraps content in a modal overlay + modal container.

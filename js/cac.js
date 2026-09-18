@@ -12,10 +12,10 @@
 //   payouts (selling labor); signed = clients created that month (any
 //   status); CAC = spend ÷ signed, shown as an em-dash when 0 signed.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20260916150226';
-import { state } from './app.js?v=20260916150226';
-import { render } from './render.js?v=20260916150226';
-import { esc } from './utils.js?v=20260916150226';
+import { supabase } from './supabase-client.js?v=20260918073113';
+import { state } from './app.js?v=20260918073113';
+import { render } from './render.js?v=20260918073113';
+import { esc } from './utils.js?v=20260918073113';
 
 // Fulfillment-dashboard Supabase project (verify_jwt=false; same
 // session-token contract as weekly-update-send — see js/weekly-updates.js).
@@ -60,6 +60,18 @@ const COMPONENT_LABELS = {
 };
 const componentLabel = c => COMPONENT_LABELS[c.vendor+' '+c.cost_type] || (c.vendor+' · '+c.cost_type);
 
+// "2026-09-06" -> "Sep 6"; a range collapses within one month ("Sep 1–17").
+// Older cached reports predate first_day/last_day — render nothing then.
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function componentDates(c){
+  if(!c.first_day) return '';
+  const md = d => { const [,m,day] = d.split('-'); return MONTHS_SHORT[Number(m)-1]+' '+Number(day); };
+  if(!c.last_day || c.last_day === c.first_day) return md(c.first_day);
+  if(c.first_day.slice(0,7) === c.last_day.slice(0,7))
+    return md(c.first_day)+'–'+Number(c.last_day.split('-')[2]);
+  return md(c.first_day)+' – '+md(c.last_day);
+}
+
 function renderStatCard(label, value, sub){
   return `<div style="flex:1;min-width:160px;background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 16px">
     <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">${esc(label)}</div>
@@ -69,11 +81,14 @@ function renderStatCard(label, value, sub){
 }
 
 function renderComponentRows(m, colspan){
-  const rows = (m.components||[]).map(c => `
+  const rows = (m.components||[]).map(c => {
+    const dates = componentDates(c);
+    return `
     <div style="display:flex;justify-content:space-between;gap:12px;padding:3px 0;border-bottom:1px dashed #f3f4f6">
-      <span>${esc(componentLabel(c))}${c.selling_labor?' <span style="color:#7c3aed;font-weight:600">(selling labor — excluded from cash)</span>':''}</span>
-      <span style="font-variant-numeric:tabular-nums">${fmtUsd(c.amount)}</span>
-    </div>`).join('');
+      <span>${esc(componentLabel(c))}${dates?` <span style="color:var(--text-muted)">· ${esc(dates)}</span>`:''}${c.selling_labor?' <span style="color:#7c3aed;font-weight:600">(selling labor — excluded from cash)</span>':''}</span>
+      <span style="font-variant-numeric:tabular-nums;white-space:nowrap">${fmtUsd(c.amount)}</span>
+    </div>`;
+  }).join('');
   return `<tr><td colspan="${colspan}" style="padding:8px 24px 12px;background:#fafafa;border-bottom:1px solid var(--border)">
     <div style="max-width:520px;font-size:12px;color:#374151">${rows || '<span style="color:var(--text-muted)">No spend recorded.</span>'}</div>
   </td></tr>`;
