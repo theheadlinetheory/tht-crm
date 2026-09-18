@@ -19,10 +19,10 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260918114439';
-import { supabase } from './supabase-client.js?v=20260918114439';
-import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel, rangeDays, todayYmdLA, requestExactSends } from './funnel-period.js?v=20260918114439';
-import { leadsTable } from './funnel-leads.js?v=20260918114439';
+import { esc, svgIcon } from './utils.js?v=20260918150357';
+import { supabase } from './supabase-client.js?v=20260918150357';
+import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel, rangeDays, todayYmdLA, requestExactSends } from './funnel-period.js?v=20260918150357';
+import { leadsTable } from './funnel-leads.js?v=20260918150357';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -105,7 +105,7 @@ export function reloadFunnel(rerender) {
 
 function loadPeriod(key, rerender) {
   if (periodRows(key) || _periodLoading === key) return;
-  if (!rerender) rerender = () => import('./render.js?v=20260918114439').then(m => m.render());
+  if (!rerender) rerender = () => import('./render.js?v=20260918150357').then(m => m.render());
   _periodLoading = key;
   const g = (_gen[key] = (_gen[key] || 0) + 1);
   fetchPeriod(periodRange(key), _levels || []).then(rows => {
@@ -118,13 +118,20 @@ function loadPeriod(key, rerender) {
 window.setFunnelPeriod = (key) => {
   _period = key;
   try { localStorage.setItem(PERIOD_KEY, key); } catch (_) { /* private mode */ }
-  if (key.startsWith('range:')) requestExactSends(periodRange(key)); // the exact unique-leads count, in the background
-  import('./render.js?v=20260918114439').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+  if (key.startsWith('range:')) { // the exact unique-leads count: fetched in the background, then the cards re-ask level 01
+    requestExactSends(periodRange(key)).then((stored) => {
+      if (!stored || _period !== key) return;
+      const rows = _periodData[key];
+      if (Array.isArray(rows) && rows.some(r => r.level === '01' && r.detail && r.detail.metrics && r.detail.metrics.some(m => m.key === 'unique_leads' && m.denominator != null))) return; // already has it
+      delete _periodData[key]; loadPeriod(key, null);
+    });
+  }
+  import('./render.js?v=20260918150357').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
 };
 
 // ── The calendar: pick any stretch of days (Lars, 2026-09-18) ──
 const _pick = { open: false, month: null, start: null, end: null }; // month 'YYYY-MM'; start/end 'YYYY-MM-DD' while choosing
-const rerenderNow = () => import('./render.js?v=20260918114439').then(m => m.render());
+const rerenderNow = () => import('./render.js?v=20260918150357').then(m => m.render());
 window.funnelPickToggle = () => {
   _pick.open = !_pick.open;
   if (_pick.open) { const r = periodRange(_period); _pick.month = (r ? r.to : todayYmdLA()).slice(0, 7); _pick.start = null; _pick.end = null; }
@@ -477,5 +484,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260918114439').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260918150357').then(m => reloadFunnel(m.render));
 };
