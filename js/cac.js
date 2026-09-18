@@ -12,10 +12,10 @@
 //   payouts (selling labor); signed = clients created that month (any
 //   status); CAC = spend ÷ signed, shown as an em-dash when 0 signed.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20260918073113';
-import { state } from './app.js?v=20260918073113';
-import { render } from './render.js?v=20260918073113';
-import { esc } from './utils.js?v=20260918073113';
+import { supabase } from './supabase-client.js?v=20260918075808';
+import { state } from './app.js?v=20260918075808';
+import { render } from './render.js?v=20260918075808';
+import { esc } from './utils.js?v=20260918075808';
 
 // Fulfillment-dashboard Supabase project (verify_jwt=false; same
 // session-token contract as weekly-update-send — see js/weekly-updates.js).
@@ -80,17 +80,23 @@ function renderStatCard(label, value, sub){
   </div>`;
 }
 
+// Fixed column widths so the date and amount columns line up across rows
+// (each row is its own div, so auto-sized columns would drift).
+const COMP_ROW_GRID = 'display:grid;grid-template-columns:1fr 108px 84px;gap:12px;align-items:baseline';
+
 function renderComponentRows(m, colspan){
-  const rows = (m.components||[]).map(c => {
-    const dates = componentDates(c);
-    return `
-    <div style="display:flex;justify-content:space-between;gap:12px;padding:3px 0;border-bottom:1px dashed #f3f4f6">
-      <span>${esc(componentLabel(c))}${dates?` <span style="color:var(--text-muted)">· ${esc(dates)}</span>`:''}${c.selling_labor?' <span style="color:#7c3aed;font-weight:600">(selling labor — excluded from cash)</span>':''}</span>
-      <span style="font-variant-numeric:tabular-nums;white-space:nowrap">${fmtUsd(c.amount)}</span>
-    </div>`;
-  }).join('');
+  const rows = (m.components||[]).map(c => `
+    <div style="${COMP_ROW_GRID};padding:3px 0;border-bottom:1px dashed #f3f4f6">
+      <span>${esc(componentLabel(c))}${c.selling_labor?' <span style="color:#7c3aed;font-weight:600">(selling labor — excluded from cash)</span>':''}</span>
+      <span style="color:var(--text-muted);white-space:nowrap;font-variant-numeric:tabular-nums">${esc(componentDates(c))}</span>
+      <span style="text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap">${fmtUsd(c.amount)}</span>
+    </div>`).join('');
+  const header = rows ? `
+    <div style="${COMP_ROW_GRID};padding:0 0 4px;border-bottom:1px solid #e5e7eb;font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">
+      <span>Item</span><span>Date</span><span style="text-align:right">Amount</span>
+    </div>` : '';
   return `<tr><td colspan="${colspan}" style="padding:8px 24px 12px;background:#fafafa;border-bottom:1px solid var(--border)">
-    <div style="max-width:520px;font-size:12px;color:#374151">${rows || '<span style="color:var(--text-muted)">No spend recorded.</span>'}</div>
+    <div style="max-width:560px;font-size:12px;color:#374151">${header}${rows || '<span style="color:var(--text-muted)">No spend recorded.</span>'}</div>
   </td></tr>`;
 }
 
