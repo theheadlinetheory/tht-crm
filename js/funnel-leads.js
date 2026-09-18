@@ -9,15 +9,15 @@
 // the events of the period for leads from any cohort. Temporary by intent —
 // the tables stay small while the window is a week.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260918084032';
-import { esc, escAttr } from './utils.js?v=20260918084032';
-import { state } from './app.js?v=20260918084032';
-import { openDeal } from './deal-modal.js?v=20260918084032';
-import { openArchivedDeal } from './archive.js?v=20260918084032';
-import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260918084032';
-import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260918084032';
-import { deleteDeal } from './deals.js?v=20260918084032';
-import { showClientEndPicker } from './client-end.js?v=20260918084032';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260918090432';
+import { esc, escAttr } from './utils.js?v=20260918090432';
+import { state } from './app.js?v=20260918090432';
+import { openDeal } from './deal-modal.js?v=20260918090432';
+import { openArchivedDeal } from './archive.js?v=20260918090432';
+import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260918090432';
+import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260918090432';
+import { deleteDeal } from './deals.js?v=20260918090432';
+import { showClientEndPicker } from './client-end.js?v=20260918090432';
 
 // ── Record the outcome from the list (Lars, 2026-09-10) ──
 // A flagged row gets the same options the reps use live, and writes through the
@@ -39,15 +39,26 @@ function optionsFor(level, onBoard, status) {
   if (level === '06') return noNurture(FINAL_DEMO);
   return null;
 }
-function outcomeControl(level, r, rowId) {
+// Every other row with a deal gets a quieter "change…" with the same options, to correct an answer after the fact
+// (Aidan, 2026-09-18: "retroactively change the WHY, like on the Demo Tracker"). The newest answer wins in the ledger.
+// At 02 and 04 an answer on a deal still on the board archives it, so a correction is offered on archived deals only.
+const FLAG_SELECT = 'border:1px solid #fde68a;color:#92400e';
+const EDIT_SELECT = 'border:1px solid #e5e7eb;color:#6b7280';
+function editControl(level, r, rowId) {
+  if (level === '07' || !r.deal_id) return '';
+  const onBoard = state.deals.some(d => String(d.id) === String(r.deal_id));
+  if ((level === '02' || level === '04') && onBoard) return '';
+  return outcomeControl(level, r, rowId, 'change…', EDIT_SELECT);
+}
+function outcomeControl(level, r, rowId, placeholder = 'record what happened…', tone = FLAG_SELECT) {
   if (level === '07') {
     return r.client_id ? `<button onclick="funnelRecordEnd('${escAttr(r.client_id)}','${rowId}')" style="margin-left:8px;padding:2px 8px;border:1px solid #fde68a;border-radius:5px;background:#fff;font-size:11px;color:#92400e;cursor:pointer">Record the end…</button>` : '';
   }
   const onBoard = r.deal_id && state.deals.some(d => String(d.id) === String(r.deal_id));
   const opts = optionsFor(level, onBoard, r.status);
   if (!opts || !r.deal_id) return '';
-  return `<select onchange="funnelSetOutcome('${level}','${escAttr(r.deal_id)}',this.value,'${rowId}','${escAttr(r.as_of || '')}');this.selectedIndex=0" style="margin-left:8px;padding:2px 6px;border:1px solid #fde68a;border-radius:5px;background:#fff;font-size:11px;color:#92400e">
-    <option value="">record what happened…</option>${opts.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>`;
+  return `<select onchange="funnelSetOutcome('${level}','${escAttr(r.deal_id)}',this.value,'${rowId}','${escAttr(r.as_of || '')}');this.selectedIndex=0" style="margin-left:8px;padding:2px 6px;${tone};border-radius:5px;background:#fff;font-size:11px">
+    <option value="">${placeholder}</option>${opts.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>`;
 }
 // An outcome recorded from the list is remembered (per browser) until the ledger has read it — hourly — so a
 // re-render in between (a realtime deal update, a chip change) does not put the yellow back on a row the rep
@@ -187,7 +198,7 @@ export function leadsTable(rows, label, level) {
       <td style="padding:5px 8px;color:#6b7280;white-space:nowrap;font-variant-numeric:tabular-nums">${esc(day(r.came_in))}</td>
       <td style="padding:5px 8px;white-space:nowrap"><span style="padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;background:${st.bg};color:${st.fg}">${esc(r.status)}</span></td>
       ${cellTds}
-      ${hasWhy ? `<td style="padding:5px 0 5px 8px;color:#374151;line-height:1.35" data-outcome>${(flag || stale) ? esc(r.note || '') + outcomeControl(level, r, rowId) : rec ? recordedMark(rec.text) : esc(r.note || '')}</td>` : ''}</tr>`;
+      ${hasWhy ? `<td style="padding:5px 0 5px 8px;color:#374151;line-height:1.35" data-outcome>${(flag || stale) ? esc(r.note || '') + outcomeControl(level, r, rowId) : rec ? recordedMark(rec.text) : esc(r.note || '') + editControl(level, r, rowId)}</td>` : ''}</tr>`;
   });
   return h + `</tbody></table></div></div>`;
 }
