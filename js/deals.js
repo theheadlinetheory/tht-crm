@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // DEALS — CRUD operations, bulk actions, drag-drop
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, pendingDealFields, deletedDealIds } from './app.js?v=20260918091352';
-import { render } from './render.js?v=20260918091352';
-import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbArchiveDeal, sbRestoreFromArchive, sbCreateActivity, camelToSnake, invokeEdgeFunction } from './api.js?v=20260918091352';
-import { showAcquisitionRemovalPicker, recordWonOnTimeline } from './removal-reason.js?v=20260918091352';
-import { clearDashboardArchiveCache } from './dashboard.js?v=20260918091352';
-import { uid, getToday, str } from './utils.js?v=20260918091352';
+import { state, store, pendingWrites, pendingDealFields, deletedDealIds } from './app.js?v=20260918092747';
+import { render } from './render.js?v=20260918092747';
+import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbArchiveDeal, sbRestoreFromArchive, sbCreateActivity, camelToSnake, invokeEdgeFunction } from './api.js?v=20260918092747';
+import { showAcquisitionRemovalPicker, recordWonOnTimeline } from './removal-reason.js?v=20260918092747';
+import { clearDashboardArchiveCache } from './dashboard.js?v=20260918092747';
+import { uid, getToday, str } from './utils.js?v=20260918092747';
 
 const TODAY = getToday;
 
@@ -25,12 +25,12 @@ export async function saveDeal(updated){
   finally { pendingWrites.value--; }
 }
 
-export async function deleteDeal(id, archiveStatus, clientName){
+export async function deleteDeal(id, archiveStatus, clientName, opts){
   const deal=state.deals.find(d=>d.id===id);
   const status=archiveStatus||'Deleted/Lost';
   // Closing an acquisition deal Won (drag, Won modal) also answers its demo on
   // the Timeline, so the Demo Tracker fills itself (removal-reason.js).
-  if(status==='Closed Won' && deal && deal.pipeline==='Acquisition') recordWonOnTimeline(id);
+  if(status==='Closed Won' && deal && deal.pipeline==='Acquisition') recordWonOnTimeline(id, opts); // opts.asOf: the date closed (Won modal)
   const cName=clientName||(deal?deal.stage:'');
   const pipeline=deal?deal.pipeline:'';
   deletedDealIds.add(id);
@@ -60,11 +60,11 @@ export async function moveDeal(dealId,newStage){
     if(pending && Object.keys(pending).length===0) delete pendingDealFields[String(dealId)];
   } finally { pendingWrites.value--; }
   if(d && (newStage==='Discovery Scheduled' || newStage==='Demo Scheduled') && d.bookedDate && /^\d{4}-\d{2}-\d{2}$/.test(d.bookedDate)){
-    const { generateAppointmentSequence } = await import('./activities.js?v=20260918091352');
+    const { generateAppointmentSequence } = await import('./activities.js?v=20260918092747');
     generateAppointmentSequence(d);
   }
   if(d && newStage==='No Show'){
-    const { assignNoShowSequence } = await import('./activities.js?v=20260918091352');
+    const { assignNoShowSequence } = await import('./activities.js?v=20260918092747');
     assignNoShowSequence(d);
   }
 }
@@ -121,7 +121,7 @@ export async function bulkAddActivity(){
   if(!dueDate||!dueDate.match(/^\d{4}-\d{2}-\d{2}$/)) return;
   const ids=[...state.bulkSelected];
   if(!confirm('Add "'+subject+'" activity to '+ids.length+' deal'+(ids.length!==1?'s':'')+'?')) return;
-  const { addActivity } = await import('./activities.js?v=20260918091352');
+  const { addActivity } = await import('./activities.js?v=20260918092747');
   for(const dealId of ids){
     addActivity(dealId,{type,subject,dueDate,dayLabel:''});
   }
@@ -200,7 +200,7 @@ export async function bulkRestoreFromArchive(){
       await sbRestoreFromArchive(id);
     }
     clearDashboardArchiveCache();
-    const { initialSync } = await import('./api.js?v=20260918091352');
+    const { initialSync } = await import('./api.js?v=20260918092747');
     initialSync();
   }finally{ pendingWrites.value--; }
 }

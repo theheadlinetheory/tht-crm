@@ -4,15 +4,15 @@
 // SmartLead tags + SmartLead client portal. Ordered, with Retry.
 // Body-level overlay (survives render()).
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260918091352';
-import { str, esc, getToday } from './utils.js?v=20260918091352';
-import { createClientRecord, deriveTimezone } from './client-info.js?v=20260918091352';
-import { ensureLeadTrackerSheet } from './lead-tracker-sheet.js?v=20260918091352';
-import { invokeEdgeFunction, showToast } from './api.js?v=20260918091352';
-import { isAdmin } from './auth.js?v=20260918091352';
-import { prepaidNote } from './retainer-billing.js?v=20260918091352';
-import { createSmartleadPortal } from './smartlead-portal.js?v=20260918091352';
-import { PAYMENT_CADENCES, TERM_UNITS } from './client-terms.js?v=20260918091352';
+import { state } from './app.js?v=20260918092747';
+import { str, esc, getToday } from './utils.js?v=20260918092747';
+import { createClientRecord, deriveTimezone } from './client-info.js?v=20260918092747';
+import { ensureLeadTrackerSheet } from './lead-tracker-sheet.js?v=20260918092747';
+import { invokeEdgeFunction, showToast } from './api.js?v=20260918092747';
+import { isAdmin } from './auth.js?v=20260918092747';
+import { prepaidNote } from './retainer-billing.js?v=20260918092747';
+import { createSmartleadPortal } from './smartlead-portal.js?v=20260918092747';
+import { PAYMENT_CADENCES, TERM_UNITS } from './client-terms.js?v=20260918092747';
 
 let _w = null; // { deal, clientId, archived, sheetId, tagsDone, portal }
 const CURRENCIES = ['USD', 'AUD', 'CAD'];
@@ -70,6 +70,10 @@ export function openWonModal(deal) {
           <div>${lbl('Location')}${inp('won-location', str(deal.location))}</div>
           <div>${lbl('Timezone')}${inp('won-tz', tz)}</div>
           <div style="grid-column:1/3">${lbl('Address')}${inp('won-address', str(deal.address))}</div>
+          <div style="grid-column:1/3">${lbl('Date closed')}
+            <input type="date" id="won-closed" value="${getToday()}" max="${getToday()}" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;margin-top:3px">
+            <div style="font-size:11px;color:#64748b;margin-top:3px">The day they said yes. Defaults to today — change it if you are logging this late, so the pipeline counts the close on the right day (Lars, 2026-09-18).</div>
+          </div>
         </div>
         <div id="won-billing-fields" style="margin-top:14px"></div>
       </div>
@@ -160,6 +164,10 @@ function buildFields() {
   const type = document.getElementById('won-billing').value;
   const contact = val('won-contact');
   const parts = contact.split(' ');
+  // The close date: the client's activated date AND the date on the demo's Closed Won mark, so a close logged days
+  // late lands on the day it happened (Light DMV closed 09-15, was logged 09-17 and read as a 09-17 close; 2026-09-18).
+  const closedRaw = val('won-closed');
+  const closedDate = /^\d{4}-\d{2}-\d{2}$/.test(closedRaw) && closedRaw <= getToday() ? closedRaw : getToday();
   const f = {
     name: val('won-name'),
     contactFirstName: parts[0] || '',
@@ -173,7 +181,8 @@ function buildFields() {
     timeZone: val('won-tz'),
     address: val('won-address'),
     status: 'active',
-    activatedDate: getToday(),
+    closedDate,
+    activatedDate: closedDate,
     billingModel: type,
   };
   if (type === 'retainer') {
@@ -260,8 +269,8 @@ async function runSteps(f, startIdx) {
       // client, then removes it from `deals` — that is what clears the card.
       // The overlay lives on document.body, so it survives the render() this
       // triggers and the remaining steps keep reporting into it.
-      const { deleteDeal } = await import('./deals.js?v=20260918091352');
-      await deleteDeal(_w.deal.id, 'Closed Won', f.name);
+      const { deleteDeal } = await import('./deals.js?v=20260918092747');
+      await deleteDeal(_w.deal.id, 'Closed Won', f.name, { asOf: f.closedDate });
       _w.archived = true;
     }
     setFooterProgress(2, null);
@@ -344,7 +353,7 @@ export function wonPortalCopy() {
 export async function wonModalLink(existingName) {
   const dealId = _w.deal.id;
   wonModalDismiss();
-  const { deleteDeal } = await import('./deals.js?v=20260918091352');
+  const { deleteDeal } = await import('./deals.js?v=20260918092747');
   deleteDeal(dealId, 'Closed Won', existingName);
   showToast(`Deal linked to existing client "${existingName}"`, 'success');
 }

@@ -23,10 +23,10 @@
 // acquisition deals here (deal-modal.js, deals.js). Everything is read from the
 // deal's Timeline at click time — nothing new is stored.
 
-import { state } from './app.js?v=20260918091352';
-import { esc } from './utils.js?v=20260918091352';
-import { sbCreateInteraction, sbGetInteractions, showToast } from './api.js?v=20260918091352';
-import { markDisco, markDemo, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260918091352';
+import { state } from './app.js?v=20260918092747';
+import { esc } from './utils.js?v=20260918092747';
+import { sbCreateInteraction, sbGetInteractions, showToast } from './api.js?v=20260918092747';
+import { markDisco, markDemo, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260918092747';
 
 export const REMOVAL_PREFIX = 'Removed — ';
 
@@ -80,12 +80,15 @@ export async function writeRemovalNote(dealId, note, opts) {
  *  demo; record "Qualified — Closed Won" on that demo touchpoint if no final
  *  answer is there yet, so the Timeline stays the one record and the ledger
  *  writes it into the Demo Tracker. Fire-and-forget: never blocks the close. */
-export async function recordWonOnTimeline(dealId) {
+export async function recordWonOnTimeline(dealId, opts) {
   try {
     const info = await leadStage(dealId);
     if (info.stage !== 'demo') return;
     if (info.demoMark && !/Pending/i.test(info.demoMark)) return;
-    await sbCreateInteraction({ deal_id: dealId, type: 'Meeting', content: DEMO_OUTCOME_PREFIX + 'Qualified — Closed Won · marked in the CRM' });
+    // opts.asOf (YYYY-MM-DD): the day they said yes, from the Won modal — the ledger dates the close there, not at
+    // whenever the rep got round to logging it (2026-09-18).
+    const asOf = opts && /^\d{4}-\d{2}-\d{2}$/.test(String(opts.asOf || '')) ? ' · as of ' + opts.asOf : '';
+    await sbCreateInteraction({ deal_id: dealId, type: 'Meeting', content: DEMO_OUTCOME_PREFIX + 'Qualified — Closed Won · marked in the CRM' + asOf });
   } catch (e) {
     console.warn('[removal-reason] won mark not written for', dealId, e && e.message);
   }
