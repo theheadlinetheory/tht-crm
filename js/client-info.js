@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // CLIENT-INFO — Client data, thread IDs, lookup functions
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20260918110538';
-import { CLIENT_PALETTE } from './config.js?v=20260918110538';
-import { str, uid } from './utils.js?v=20260918110538';
-import { sbCreateClient, camelToSnake } from './api.js?v=20260918110538';
-import { answeredQuestions } from './client-acquisition.js?v=20260918110538';
+import { state, store, pendingWrites } from './app.js?v=20260919001230';
+import { CLIENT_PALETTE } from './config.js?v=20260919001230';
+import { str, uid } from './utils.js?v=20260919001230';
+import { sbCreateClient, camelToSnake } from './api.js?v=20260919001230';
+import { answeredQuestions } from './client-acquisition.js?v=20260919001230';
 
 // ─── Derive campaign keyword from client name ───
 const SKIP_PREFIXES = /^(the|a|an)\s+/i;
@@ -86,6 +86,14 @@ export function findClientForDeal(deal){
     const stageClient=state.clients.find(c=>c.name===deal.stage);
     if(stageClient) return stageClient;
   }
+  // The campaign keyword only decides WHICH client a client lead belongs to. It must
+  // never turn an acquisition lead into a client lead: a one-word client keyword
+  // ("light", for Light DMV) hits our own "Holiday light installer … acquisition"
+  // campaign, and every Jingle-Bulbs-style prospect on it then renders as a RETAINER
+  // CLIENT — forward-to-client button, service-area check, client SOP cadence and all.
+  // Switching Pipeline on the deal card could not undo it, because the card saved the
+  // field while every derived behaviour kept reading the campaign name. Pipeline wins.
+  if(deal.pipeline && deal.pipeline!=='Client') return null;
   const cn=str(deal.campaignName).toLowerCase();
   if(!cn) return null;
   // Longest matching keyword wins — NOT whichever client comes first. state.clients
