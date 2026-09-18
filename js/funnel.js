@@ -19,10 +19,10 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260918110319';
-import { supabase } from './supabase-client.js?v=20260918110319';
-import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel } from './funnel-period.js?v=20260918110319';
-import { leadsTable } from './funnel-leads.js?v=20260918110319';
+import { esc, svgIcon } from './utils.js?v=20260918110538';
+import { supabase } from './supabase-client.js?v=20260918110538';
+import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel, rangeDays, todayYmdLA, requestExactSends } from './funnel-period.js?v=20260918110538';
+import { leadsTable } from './funnel-leads.js?v=20260918110538';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -105,7 +105,7 @@ export function reloadFunnel(rerender) {
 
 function loadPeriod(key, rerender) {
   if (periodRows(key) || _periodLoading === key) return;
-  if (!rerender) rerender = () => import('./render.js?v=20260918110319').then(m => m.render());
+  if (!rerender) rerender = () => import('./render.js?v=20260918110538').then(m => m.render());
   _periodLoading = key;
   const g = (_gen[key] = (_gen[key] || 0) + 1);
   fetchPeriod(periodRange(key), _levels || []).then(rows => {
@@ -118,8 +118,72 @@ function loadPeriod(key, rerender) {
 window.setFunnelPeriod = (key) => {
   _period = key;
   try { localStorage.setItem(PERIOD_KEY, key); } catch (_) { /* private mode */ }
-  import('./render.js?v=20260918110319').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+  if (key.startsWith('range:')) requestExactSends(periodRange(key)); // the exact unique-leads count, in the background
+  import('./render.js?v=20260918110538').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
 };
+
+// ── The calendar: pick any stretch of days (Lars, 2026-09-18) ──
+const _pick = { open: false, month: null, start: null, end: null }; // month 'YYYY-MM'; start/end 'YYYY-MM-DD' while choosing
+const rerenderNow = () => import('./render.js?v=20260918110538').then(m => m.render());
+window.funnelPickToggle = () => {
+  _pick.open = !_pick.open;
+  if (_pick.open) { const r = periodRange(_period); _pick.month = (r ? r.to : todayYmdLA()).slice(0, 7); _pick.start = null; _pick.end = null; }
+  rerenderNow();
+};
+window.funnelPickNav = (months) => {
+  const [y, m] = _pick.month.split('-').map(Number); const d = new Date(Date.UTC(y, m - 1 + months, 1));
+  const next = d.toISOString().slice(0, 7);
+  if (next <= todayYmdLA().slice(0, 7)) { _pick.month = next; rerenderNow(); }
+};
+window.funnelPickDay = (ymd) => {
+  if (ymd > todayYmdLA()) return;
+  if (!_pick.start || _pick.end) { _pick.start = ymd; _pick.end = null; rerenderNow(); return; } // first click: the start
+  const from = ymd < _pick.start ? ymd : _pick.start, to = ymd < _pick.start ? _pick.start : ymd;    // second: the end (either order)
+  _pick.open = false; _pick.start = null; _pick.end = null;
+  window.setFunnelPeriod(`range:${from}:${to}`);
+};
+document.addEventListener('click', (e) => { // a click outside closes it
+  if (!_pick.open) return;
+  const el = e.target; if (el && el.closest && (el.closest('#funnel-pick') || el.closest('#funnel-pick-chip'))) return;
+  _pick.open = false; rerenderNow();
+}, true);
+
+function calendarPopover() {
+  const today = todayYmdLA();
+  const cur = _period && _period.startsWith('range:') ? periodRange(_period) : null;
+  const selFrom = _pick.start || (cur && cur.from) || null, selTo = _pick.end || (_pick.start ? null : (cur && cur.to)) || null;
+  const [y, m] = _pick.month.split('-').map(Number);
+  const dow = new Date(Date.UTC(y, m - 1, 1)).getUTCDay(), days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const M = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const nDays = selFrom && selTo ? rangeDays({ from: selFrom, to: selTo }) : selFrom ? 1 : 0;
+  const nav = (fn, dis, glyph) => `<button onclick="${fn}" ${dis ? 'disabled' : ''} style="width:28px;height:28px;border:none;border-radius:50%;background:${dis ? 'transparent' : '#f3f4f6'};color:#6b7280;font-size:16px;cursor:${dis ? 'default' : 'pointer'};opacity:${dis ? .3 : 1}">${glyph}</button>`;
+  const monthKey = `${y}-${String(m).padStart(2, '0')}`;
+  let cells = '';
+  for (let i = 0; i < dow; i++) cells += '<div></div>';
+  for (let d = 1; d <= days; d++) {
+    const ymd = `${monthKey}-${String(d).padStart(2, '0')}`;
+    const future = ymd > today, isStart = ymd === selFrom, isEnd = ymd === selTo;
+    const span = selFrom && selTo && selFrom !== selTo, inRange = span && ymd > selFrom && ymd < selTo;
+    const band = inRange || (span && (isStart || isEnd));
+    const radius = !span ? '0' : (isStart ? '18px 0 0 18px' : isEnd ? '0 18px 18px 0' : '0');
+    cells += `<div style="height:36px;display:flex;align-items:center;justify-content:center;background:${band ? '#e0dcff' : 'transparent'};border-radius:${radius}">
+      <button onclick="funnelPickDay('${ymd}')" ${future ? 'disabled' : ''} style="width:34px;height:34px;border:none;border-radius:50%;cursor:${future ? 'default' : 'pointer'};font-size:13px;font-family:var(--font);background:${(isStart || isEnd) ? '#6b5cf6' : 'transparent'};color:${(isStart || isEnd) ? '#fff' : future ? '#d1d5db' : '#1f2937'};font-weight:${(isStart || isEnd) ? 700 : 400}">${d}</button></div>`;
+  }
+  return `<div id="funnel-pick" style="position:absolute;top:calc(100% + 6px);left:0;z-index:50;width:330px;background:#fff;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.18);overflow:hidden;border:1px solid var(--border)">
+    <div style="background:#6b5cf6;color:#fff;padding:14px 18px">
+      <div style="font-size:12px;opacity:.85">${selFrom ? esc(rangeLabel({ from: selFrom, to: selTo || selFrom })) : 'Pick a start day'}</div>
+      <div style="font-size:22px;font-weight:700;margin-top:2px">${nDays ? nDays + (nDays === 1 ? ' day' : ' days') : (selFrom ? 'now the end day' : 'Any stretch of days')}</div>
+    </div>
+    <div style="padding:10px 12px 12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:4px">${nav('funnelPickNav(-1)', false, '‹')}<span style="font-size:14px;font-weight:600;min-width:96px;text-align:center">${M[m - 1]}</span>${nav('funnelPickNav(1)', monthKey >= today.slice(0, 7), '›')}</div>
+        <div style="display:flex;align-items:center;gap:4px">${nav('funnelPickNav(-12)', false, '‹')}<span style="font-size:14px;font-weight:600">${y}</span>${nav('funnelPickNav(12)', String(y + 1) > today.slice(0, 4), '›')}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);font-size:11px;color:#9ca3af;text-align:center;margin-bottom:2px">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => `<div>${d}</div>`).join('')}</div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr)">${cells}</div>
+      <div style="display:flex;justify-content:flex-end;margin-top:6px"><button onclick="funnelPickToggle()" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);font-size:11px;cursor:pointer">Close</button></div>
+    </div></div>`;
+}
 
 const STATUS_STYLE = {
   live:          { bg: '#dcfce7', fg: '#166534', label: 'Live' },
@@ -333,20 +397,21 @@ function periodLabel(key) {
   const r = periodRange(key);
   const p = periods(backfillStart()).find(x => x.key === key);
   if (!r) return 'all time';
-  const name = p && p.label ? p.label.toLowerCase() : key.startsWith('week:') ? 'the week of ' + key.slice(5) : rangeLabel(r);
+  const name = p && p.label ? p.label.toLowerCase() : rangeLabel(r);
   return `${name} (${r.from === r.to ? r.from : r.from + ' → ' + r.to})`;
 }
 
 /** Today · Yesterday · This week · Last week · All — days in Los Angeles time. */
 function periodBar() {
-  let h = `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:12px">`;
-  periods(backfillStart()).forEach(p => {
-    const on = _period === p.key;
-    const label = p.label || rangeLabel(periodRange(p.key));
-    h += `<button onclick="setFunnelPeriod('${p.key}')" style="padding:5px 12px;border:1px solid ${on ? '#1e1b4b' : 'var(--border)'};border-radius:999px;background:${on ? '#1e1b4b' : 'var(--card)'};color:${on ? '#fff' : '#374151'};font-size:12px;font-weight:600;cursor:pointer">${esc(label)}</button>`;
-  });
+  let h = `<div style="position:relative;display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:12px">`;
+  const chip = (on, onclick, label, id) => `<button ${id ? `id="${id}"` : ''} onclick="${onclick}" style="padding:5px 12px;border:1px solid ${on ? '#1e1b4b' : 'var(--border)'};border-radius:999px;background:${on ? '#1e1b4b' : 'var(--card)'};color:${on ? '#fff' : 'var(--text)'};font-size:12px;font-weight:600;cursor:pointer">${label}</button>`;
+  periods(backfillStart()).forEach(p => { h += chip(_period === p.key, `setFunnelPeriod('${p.key}')`, esc(p.label)); });
+  const custom = _period.startsWith('range:') ? periodRange(_period) : null;
+  const nd = custom ? rangeDays(custom) : 0;
+  h += chip(!!custom, 'funnelPickToggle()', '📅 ' + (custom ? esc(rangeLabel(custom)) + ` <span style="font-weight:400;opacity:.8">· ${nd} ${nd === 1 ? 'day' : 'days'}</span>` : 'Pick dates'), 'funnel-pick-chip');
   const r = periodRange(_period);
-  h += `<span style="font-size:11px;color:#9ca3af;margin-left:4px">${r ? esc(r.from === r.to ? r.from : r.from + ' → ' + r.to) + ' · Los Angeles days · each level shows the leads that entered it in the period, and what happened in the period' : 'everything since the window opened, refreshed hourly'}</span>`;
+  h += `<span style="font-size:11px;color:#9ca3af;margin-left:4px">${r ? esc(r.from === r.to ? r.from : r.from + ' → ' + r.to) + ' · Los Angeles days · each level shows the leads that entered it in this period' : 'everything since the window opened, refreshed hourly'}</span>`;
+  if (_pick.open) h += calendarPopover();
   return h + `</div>`;
 }
 
@@ -386,7 +451,17 @@ export function renderFunnel() {
   // One level's bad answer must not take the screen down: a card that throws renders as its own error card.
   const safeCard = (r) => { try { return r.error ? levelError(r) : levelCard(r); } catch (e) { return levelError({ ...r, error: 'could not render: ' + (e && e.message || e) }); } };
   if (_period === 'all') {
-    h += _levels.map(safeCard).join('');
+    // The All cards come from the hourly run; their lead dropdowns come from the period views over the whole window
+    // (Lars, 2026-09-18: "the all tab is the only one that does not include the blue lead dropdowns"). Same rows, same
+    // yellow/orange rules; only the numbers stay the card's.
+    const ws = backfillStart(), allKey = ws ? `range:${ws}:${todayYmdLA()}` : null;
+    const pr = allKey ? periodRows(allKey) : null;
+    if (allKey && !pr) loadPeriod(allKey, null);
+    const merged = _levels.map(l => {
+      const x = Array.isArray(pr) ? pr.find(q => q.level === l.level) : null;
+      return x && x.detail && x.detail.leads ? { ...l, detail: { ...(l.detail || {}), leads: x.detail.leads, leads_label: `all leads since ${ws}`, activity_leads: x.detail.activity_leads, activity_leads_label: x.detail.activity_leads_label } } : l;
+    });
+    h += merged.map(safeCard).join('');
   } else {
     const rows = periodRows(_period);
     if (!rows) { loadPeriod(_period, null); h += `<div style="padding:16px;color:#9ca3af;font-size:13px">Asking every level for ${esc(periodLabel(_period))}…</div>`; }
@@ -402,5 +477,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260918110319').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260918110538').then(m => reloadFunnel(m.render));
 };
