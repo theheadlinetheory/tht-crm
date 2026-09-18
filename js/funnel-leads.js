@@ -9,15 +9,15 @@
 // the events of the period for leads from any cohort. Temporary by intent —
 // the tables stay small while the window is a week.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260918090432';
-import { esc, escAttr } from './utils.js?v=20260918090432';
-import { state } from './app.js?v=20260918090432';
-import { openDeal } from './deal-modal.js?v=20260918090432';
-import { openArchivedDeal } from './archive.js?v=20260918090432';
-import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260918090432';
-import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260918090432';
-import { deleteDeal } from './deals.js?v=20260918090432';
-import { showClientEndPicker } from './client-end.js?v=20260918090432';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260918090653';
+import { esc, escAttr } from './utils.js?v=20260918090653';
+import { state } from './app.js?v=20260918090653';
+import { openDeal } from './deal-modal.js?v=20260918090653';
+import { openArchivedDeal } from './archive.js?v=20260918090653';
+import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260918090653';
+import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260918090653';
+import { deleteDeal } from './deals.js?v=20260918090653';
+import { showClientEndPicker } from './client-end.js?v=20260918090653';
 
 // ── Record the outcome from the list (Lars, 2026-09-10) ──
 // A flagged row gets the same options the reps use live, and writes through the
@@ -39,26 +39,39 @@ function optionsFor(level, onBoard, status) {
   if (level === '06') return noNurture(FINAL_DEMO);
   return null;
 }
-// Every other row with a deal gets a quieter "change…" with the same options, to correct an answer after the fact
-// (Aidan, 2026-09-18: "retroactively change the WHY, like on the Demo Tracker"). The newest answer wins in the ledger.
+// Every other row's Why is click-to-edit, like a Demo Tracker cell: it looks as it always did, and a click swaps in
+// the same options to correct the answer after the fact (Aidan, 2026-09-18). The newest answer wins in the ledger.
 // At 02 and 04 an answer on a deal still on the board archives it, so a correction is offered on archived deals only.
-const FLAG_SELECT = 'border:1px solid #fde68a;color:#92400e';
-const EDIT_SELECT = 'border:1px solid #e5e7eb;color:#6b7280';
-function editControl(level, r, rowId) {
+function editableWhy(level, r, rowId) {
   if (level === '07' || !r.deal_id) return '';
   const onBoard = state.deals.some(d => String(d.id) === String(r.deal_id));
   if ((level === '02' || level === '04') && onBoard) return '';
-  return outcomeControl(level, r, rowId, 'change…', EDIT_SELECT);
+  if (!optionsFor(level, onBoard, r.status)) return '';
+  return ` onclick="funnelEditWhy(this,'${level}','${escAttr(r.deal_id)}','${rowId}','${escAttr(r.as_of || '')}','${escAttr(r.status)}')" title="Click to change" style="cursor:pointer;`;
 }
-function outcomeControl(level, r, rowId, placeholder = 'record what happened…', tone = FLAG_SELECT) {
+window.funnelEditWhy = (td, level, dealId, rowId, asOf, status) => {
+  if (td.querySelector('select')) return;
+  const onBoard = state.deals.some(d => String(d.id) === String(dealId));
+  const original = td.innerHTML;
+  td.innerHTML = `<select style="padding:2px 6px;border:1px solid #e5e7eb;border-radius:5px;background:#fff;font-size:11px;color:#374151">
+    <option value="">change…</option>${optionsFor(level, onBoard, status).map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>`;
+  const sel = td.querySelector('select');
+  const restore = () => { if (sel.isConnected) td.innerHTML = original; };
+  sel.onclick = (e) => e.stopPropagation();
+  sel.onkeydown = (e) => { if (e.key === 'Escape') restore(); };
+  sel.onblur = restore;
+  sel.onchange = () => { const v = sel.value; sel.onblur = null; restore(); if (v) window.funnelSetOutcome(level, dealId, v, rowId, asOf); };
+  sel.focus();
+};
+function outcomeControl(level, r, rowId) {
   if (level === '07') {
     return r.client_id ? `<button onclick="funnelRecordEnd('${escAttr(r.client_id)}','${rowId}')" style="margin-left:8px;padding:2px 8px;border:1px solid #fde68a;border-radius:5px;background:#fff;font-size:11px;color:#92400e;cursor:pointer">Record the end…</button>` : '';
   }
   const onBoard = r.deal_id && state.deals.some(d => String(d.id) === String(r.deal_id));
   const opts = optionsFor(level, onBoard, r.status);
   if (!opts || !r.deal_id) return '';
-  return `<select onchange="funnelSetOutcome('${level}','${escAttr(r.deal_id)}',this.value,'${rowId}','${escAttr(r.as_of || '')}');this.selectedIndex=0" style="margin-left:8px;padding:2px 6px;${tone};border-radius:5px;background:#fff;font-size:11px">
-    <option value="">${placeholder}</option>${opts.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>`;
+  return `<select onchange="funnelSetOutcome('${level}','${escAttr(r.deal_id)}',this.value,'${rowId}','${escAttr(r.as_of || '')}');this.selectedIndex=0" style="margin-left:8px;padding:2px 6px;border:1px solid #fde68a;border-radius:5px;background:#fff;font-size:11px;color:#92400e">
+    <option value="">record what happened…</option>${opts.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>`;
 }
 // An outcome recorded from the list is remembered (per browser) until the ledger has read it — hourly — so a
 // re-render in between (a realtime deal update, a chip change) does not put the yellow back on a row the rep
@@ -198,7 +211,7 @@ export function leadsTable(rows, label, level) {
       <td style="padding:5px 8px;color:#6b7280;white-space:nowrap;font-variant-numeric:tabular-nums">${esc(day(r.came_in))}</td>
       <td style="padding:5px 8px;white-space:nowrap"><span style="padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;background:${st.bg};color:${st.fg}">${esc(r.status)}</span></td>
       ${cellTds}
-      ${hasWhy ? `<td style="padding:5px 0 5px 8px;color:#374151;line-height:1.35" data-outcome>${(flag || stale) ? esc(r.note || '') + outcomeControl(level, r, rowId) : rec ? recordedMark(rec.text) : esc(r.note || '') + editControl(level, r, rowId)}</td>` : ''}</tr>`;
+      ${hasWhy ? `<td${(flag || stale || rec) ? ' style="' : editableWhy(level, r, rowId) || ' style="'}padding:5px 0 5px 8px;color:#374151;line-height:1.35" data-outcome>${(flag || stale) ? esc(r.note || '') + outcomeControl(level, r, rowId) : rec ? recordedMark(rec.text) : esc(r.note || '')}</td>` : ''}</tr>`;
   });
   return h + `</tbody></table></div></div>`;
 }
