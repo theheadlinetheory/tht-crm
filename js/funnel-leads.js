@@ -9,15 +9,15 @@
 // the events of the period for leads from any cohort. Temporary by intent —
 // the tables stay small while the window is a week.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260918075808';
-import { esc, escAttr } from './utils.js?v=20260918075808';
-import { state } from './app.js?v=20260918075808';
-import { openDeal } from './deal-modal.js?v=20260918075808';
-import { openArchivedDeal } from './archive.js?v=20260918075808';
-import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260918075808';
-import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260918075808';
-import { deleteDeal } from './deals.js?v=20260918075808';
-import { showClientEndPicker } from './client-end.js?v=20260918075808';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260918084032';
+import { esc, escAttr } from './utils.js?v=20260918084032';
+import { state } from './app.js?v=20260918084032';
+import { openDeal } from './deal-modal.js?v=20260918084032';
+import { openArchivedDeal } from './archive.js?v=20260918084032';
+import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20260918084032';
+import { writeRemovalNote, showAcquisitionRemovalPicker } from './removal-reason.js?v=20260918084032';
+import { deleteDeal } from './deals.js?v=20260918084032';
+import { showClientEndPicker } from './client-end.js?v=20260918084032';
 
 // ── Record the outcome from the list (Lars, 2026-09-10) ──
 // A flagged row gets the same options the reps use live, and writes through the
@@ -26,11 +26,15 @@ import { showClientEndPicker } from './client-end.js?v=20260918075808';
 // 03, the demo outcome at 05 and 06, the offboard picker at 07.
 const PRE_DISCO_REASONS = ['Desk DQ', 'Miscategorized', 'Duplicate', 'Lost', 'Other…'];
 const FINAL_DEMO = DEMO_OUTCOMES.filter(o => o !== 'No-Show' && o !== 'Qualified — Pending');
-function optionsFor(level, onBoard) {
+// Level 04 (2026-09-18): a demo known only from the deal stage asks "was it booked?"; a removal with no reason asks why.
+const DEMO_BOOKED = 'Demo booked';
+const AFTER_DISCO_REASONS = ['Lost', 'Other…'];
+function optionsFor(level, onBoard, status) {
   // "Not right now" moves a deal to Nurture — there is no deal to move when it is archived (hardening review, 2026-09-15).
   const noNurture = (opts) => onBoard ? opts : opts.filter(o => !/not right now/i.test(o));
   if (level === '02') return PRE_DISCO_REASONS;
   if (level === '03') return noNurture(DISCO_OUTCOMES);
+  if (level === '04') return status === 'moved on' ? [DEMO_BOOKED, ...AFTER_DISCO_REASONS] : AFTER_DISCO_REASONS;
   if (level === '05') return noNurture(DEMO_OUTCOMES);
   if (level === '06') return noNurture(FINAL_DEMO);
   return null;
@@ -40,7 +44,7 @@ function outcomeControl(level, r, rowId) {
     return r.client_id ? `<button onclick="funnelRecordEnd('${escAttr(r.client_id)}','${rowId}')" style="margin-left:8px;padding:2px 8px;border:1px solid #fde68a;border-radius:5px;background:#fff;font-size:11px;color:#92400e;cursor:pointer">Record the end…</button>` : '';
   }
   const onBoard = r.deal_id && state.deals.some(d => String(d.id) === String(r.deal_id));
-  const opts = optionsFor(level, onBoard);
+  const opts = optionsFor(level, onBoard, r.status);
   if (!opts || !r.deal_id) return '';
   return `<select onchange="funnelSetOutcome('${level}','${escAttr(r.deal_id)}',this.value,'${rowId}','${escAttr(r.as_of || '')}');this.selectedIndex=0" style="margin-left:8px;padding:2px 6px;border:1px solid #fde68a;border-radius:5px;background:#fff;font-size:11px;color:#92400e">
     <option value="">record what happened…</option>${opts.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>`;
@@ -105,6 +109,15 @@ window.funnelSetOutcome = async (level, dealId, value, rowId, asOf) => {
       if (value === 'Other…') { const r = prompt('Reason:'); if (!r || !r.trim()) return; note = 'Other: ' + r.trim(); }
       if (await writeRemovalNote(dealId, note, opts) === false) return; // the note did not save: no green, no memory
       remember(level, dealId, dated(note)); markRecorded(rowId, dated(note)); syncLedger();
+    } else if (level === '04') {
+      let note = value;
+      if (value === DEMO_BOOKED) await markDisco(dealId, DEMO_BOOKED, opts);
+      else {
+        if (value === 'Other…') { const r = prompt('Reason:'); if (!r || !r.trim()) return; note = 'Other: ' + r.trim(); }
+        if (await writeRemovalNote(dealId, note, opts) === false) return; // the note did not save: no green, no memory
+        if (state.deals.some(d => String(d.id) === String(dealId))) deleteDeal(dealId, note); // still on the board: archive it, as level 02 does
+      }
+      remember(level, dealId, dated(note)); markRecorded(rowId, dated(note)); syncLedger(2000);
     } else if (level === '03') {
       await markDisco(dealId, value, opts); remember(level, dealId, dated(value)); markRecorded(rowId, dated(value)); syncLedger();
     } else {
