@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // DASHBOARD — Dashboard rendering (client fulfillment + acquisition)
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260918160628';
-import { ACQUISITION_STAGES, NURTURE_STAGES, DEFAULT_CLIENT_STAGES, ALL_PIPELINES } from './config.js?v=20260918160628';
-import { render } from './render.js?v=20260918160628';
-import { esc, fmt$ } from './utils.js?v=20260918160628';
-import { isAdmin, isEmployee } from './auth.js?v=20260918160628';
-import { getOverdueActivities } from './activities.js?v=20260918160628';
-import { sbGetArchivedDeals } from './api.js?v=20260918160628';
+import { state } from './app.js?v=20260922004126';
+import { ACQUISITION_STAGES, NURTURE_STAGES, DEFAULT_CLIENT_STAGES, ALL_PIPELINES } from './config.js?v=20260922004126';
+import { render } from './render.js?v=20260922004126';
+import { esc, fmt$ } from './utils.js?v=20260922004126';
+import { isAdmin, isEmployee } from './auth.js?v=20260922004126';
+import { getOverdueActivities } from './activities.js?v=20260922004126';
+import { sbGetArchivedDeals } from './api.js?v=20260922004126';
 
 function dateAddedToDate(dateAdded) {
   if (!dateAdded) return null;
@@ -321,6 +321,34 @@ function trailingPositivesByClient(weekKey) {
     map[cn] = (map[cn] || 0) + 1;
   }
   return map;
+}
+
+// clientName → { weekKey: count } for every week in the trailing window, from
+// the same two sources the weekly bar uses: a Lead Tracker row is a meeting
+// billed to a PPM client, a pass-off is a positive reply delivered to a
+// retainer. Backs the week-by-week column in the Analysis tab, so a client's
+// four cells always add up to the trailing total shown next to them.
+export function trailingWeeklyDelivery(weekKey, weeks = PPM_TRAILING_WEEKS) {
+  const keys = trailingWeekKeys(weekKey, weeks);
+  const inWindow = new Set(keys);
+  const meetings = {}, positives = {};
+  const bump = (map, name, wk) => {
+    if (!map[name]) map[name] = {};
+    map[name][wk] = (map[name][wk] || 0) + 1;
+  };
+  for (const e of state.trackerEntries) {
+    const wk = trackerWeekKey(e.dateAdded);
+    if (!inWindow.has(wk)) continue;
+    const cn = resolveClientName(e.clientName);
+    if (cn) bump(meetings, cn, wk);
+  }
+  for (const p of (state.passOffs || [])) {
+    const wk = passOffWeekKey(p.datePassed);
+    if (!inWindow.has(wk)) continue;
+    const cn = resolveClientName(p.clientName);
+    if (cn) bump(positives, cn, wk);
+  }
+  return { weeks: keys, meetings, positives };
 }
 
 // clientName → Date of the most recent BILLED MEETING (Lead Tracker row).

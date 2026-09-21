@@ -11,17 +11,18 @@
 // /sequence-analytics endpoint the Weekly Updates tab uses, so the two tabs
 // can never report different numbers for the same week.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20260918160628';
-import { render } from './render.js?v=20260918160628';
-import { esc, str } from './utils.js?v=20260918160628';
-import { isAdmin } from './auth.js?v=20260918160628';
-import { showToast } from './api.js?v=20260918160628';
+import { state } from './app.js?v=20260922004126';
+import { render } from './render.js?v=20260922004126';
+import { esc, escAttr, str } from './utils.js?v=20260922004126';
+import { isAdmin } from './auth.js?v=20260922004126';
+import { showToast } from './api.js?v=20260922004126';
 import {
   currentWeekKey, weekLabel, shiftWeeks, ymd, weekStartOf,
   getWeeklyKpiStatus, getPpmClients, getRetainerClients,
   PPM_WEEKLY_TARGET, RETAINER_WEEKLY_TARGET,
   PPM_TRAILING_WEEKS, PPM_STALE_DAYS,
-} from './dashboard.js?v=20260918160628';
+  trailingWeeklyDelivery, weekLabelShort,
+} from './dashboard.js?v=20260922004126';
 
 // Lives on the fulfillment-dashboard Supabase project (verify_jwt=false),
 // same as the Weekly Updates stats proxy.
@@ -511,6 +512,58 @@ function categoryChips(categories) {
   }).join('');
 }
 
+// ─── Last 4 weeks of delivery ────────────────────────────────
+// The KPI column says how the client did in the selected week alone. This one
+// says whether that week was typical: the same metric they are billed on —
+// booked meetings for PPM, positive replies for retainer — counted week by
+// week across the trailing window ending at the selected week.
+//
+// Read live from CRM data at render time, NOT from the cached Smartlead run,
+// so a run restored from localStorage still shows today's numbers and an older
+// cache can't carry a stale (or missing) breakdown.
+
+// 'Sep 20 – 26' — weekLabel without the trailing year, which is repeated on
+// four lines in one cell and earns none of the width.
+const weekRangeLabel = w => weekLabel(w).replace(/,\s*\d{4}$/, '');
+
+function deliveryWeeks(delivery, clientName, isRetainer) {
+  const byWeek = (isRetainer ? delivery.positives : delivery.meetings)[clientName] || {};
+  // trailingWeeklyDelivery returns newest-first; read it oldest → newest so the
+  // cell reads left-to-right (or top-down) as a trend.
+  return [...delivery.weeks].reverse().map(w => ({ week: w, n: byWeek[w] || 0 }));
+}
+
+function deliveryTitle(delivery, clientName, isRetainer, week) {
+  const unit = isRetainer ? 'positive replies passed off' : 'booked meetings billed';
+  return `${escAttr(clientName)} — ${unit}, week by week, ${delivery.weeks.length} weeks ending ${escAttr(weekLabel(week))}`;
+}
+
+// Campaign rows: one line, so a client with eight campaigns doesn't grow eight
+// five-line cells of the same client-level number.
+function deliveryLine(delivery, clientName, isRetainer, week) {
+  const cells = deliveryWeeks(delivery, clientName, isRetainer);
+  return `<span title="${deliveryTitle(delivery, clientName, isRetainer, week)}" style="font-size:10.5px;color:var(--text-muted)">${cells.map(c =>
+    `<span style="${c.week === week ? 'font-weight:700;' : ''}">${esc(weekLabelShort(c.week))}: <span style="color:${c.n ? '#166534' : '#b91c1c'};font-weight:700">${c.n}</span></span>`
+  ).join(' · ')}</span>`;
+}
+
+// Client subtotal row: the full dated breakdown, with the window total under it.
+function deliveryStack(delivery, clientName, isRetainer, week) {
+  const cells = deliveryWeeks(delivery, clientName, isRetainer);
+  const total = cells.reduce((sum, c) => sum + c.n, 0);
+  return `<div title="${deliveryTitle(delivery, clientName, isRetainer, week)}" style="font-size:10px;line-height:1.45;min-width:126px;font-weight:400">
+    ${cells.map(c => `<div style="display:flex;justify-content:space-between;gap:8px${c.week === week ? ';font-weight:700' : ''}">
+      <span style="color:var(--text-muted)">${esc(weekRangeLabel(c.week))}</span>
+      <span style="color:${c.n ? '#166534' : '#b91c1c'};font-weight:700">${c.n}</span>
+    </div>`).join('')}
+    <div style="display:flex;justify-content:space-between;gap:8px;border-top:1px dashed var(--border);margin-top:2px;padding-top:2px">
+      <span style="color:var(--text-muted)">${delivery.weeks.length}-wk total</span>
+      <span style="font-weight:800">${total}</span>
+    </div>
+  </div>`;
+}
+
+
 const TH = 'padding:6px 8px;font-size:10px;font-weight:700;color:#495057;background:#e9ecef;border:1px solid #d0d5dd;white-space:nowrap;position:sticky;top:0;z-index:2';
 const TD = 'padding:4px 8px;font-size:12px;border:1px solid #e2e5e9;white-space:nowrap';
 
@@ -562,6 +615,8 @@ export function renderAnalysis() {
 
   const kpi = getWeeklyKpiStatus(week);
   const missed = [...kpi.ppm, ...kpi.retainer].filter(r => !r.hit);
+  // One pass over the tracker + pass-offs for the whole table.
+  const delivery = trailingWeeklyDelivery(week);
 
   let h = `<div class="tracker-container">`;
 
@@ -572,6 +627,7 @@ export function renderAnalysis() {
       <div style="font-size:11.5px;color:var(--text-muted);margin-top:3px;max-width:760px">
         Every campaign belonging to a client who fell short this week, with the week's sending diagnostics side by side.
         The bar is ≥ ${RETAINER_WEEKLY_TARGET} positive replies per week for retainer clients, ≥ ${PPM_WEEKLY_TARGET} booked meeting per week for pay-per-meeting.
+        <b>Last ${PPM_TRAILING_WEEKS} weeks</b> is what the client is billed on, week by week — booked meetings for pay-per-meeting, positive replies for retainer — so you can see whether this week was typical.
         Sent / replies / positives come from the same Smartlead endpoint as the Weekly Updates tab.
         Bounce rate is bounces ÷ emails sent in the week; reply categories cover replies to those sends.
       </div>
@@ -637,11 +693,12 @@ export function renderAnalysis() {
       : a.showDormant ? `<button class="btn btn-ghost" style="font-size:10px;padding:2px 8px" onclick="analysisToggleDormant()">Hide campaigns that sent nothing</button>` : ''}
   </div>`;
 
-  h += `<div class="tracker-table-wrap"><table class="tracker-table" style="min-width:2060px">
+  h += `<div class="tracker-table-wrap"><table class="tracker-table" style="min-width:2200px">
     <thead><tr>
       <th style="${TH}">Client</th>
       <th style="${TH}">Type</th>
       <th style="${TH}">KPI</th>
+      <th style="${TH}" title="Week by week over the last ${PPM_TRAILING_WEEKS} weeks: booked meetings for a pay-per-meeting client, positive replies for a retainer client">Last ${PPM_TRAILING_WEEKS} weeks</th>
       <th style="${TH}">Campaign</th>
       <th style="${TH}">Status</th>
       <th style="${TH}">Industry</th>
@@ -680,12 +737,14 @@ export function renderAnalysis() {
       clientRows.forEach(x => (x.daily || []).forEach(d => { if (d && d.sent > 0) days.add(d.date); }));
       const client = state.clients.find(c => c.name === r.clientName);
       h += `<tr style="background:#f5f3ff">
-        <td style="${TD};font-weight:800" colspan="8">
+        <td style="${TD};font-weight:800" colspan="3">
           ${client ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${client.color || '#818cf8'};margin-right:6px"></span>` : ''}${esc(r.clientName)}
           <span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:6px;background:${r.isRetainer ? '#ede9fe' : '#dbeafe'};color:${r.isRetainer ? '#6d28d9' : '#1d4ed8'}">${r.isRetainer ? 'RETAINER' : 'PPM'}</span>
           <span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:4px;background:${r.kpiHit ? '#dcfce7' : '#fee2e2'};color:${r.kpiHit ? '#166534' : '#991b1b'}">${r.kpiActual}/${r.kpiTarget} ${r.isRetainer ? 'positive replies' : 'booked meetings'}</span>
           <span style="font-size:11px;color:var(--text-muted);margin-left:8px">${clientRows.length} campaign${clientRows.length === 1 ? '' : 's'}</span>
         </td>
+        <td style="${TD};vertical-align:top">${deliveryStack(delivery, r.clientName, r.isRetainer, week)}</td>
+        <td style="${TD}" colspan="5"></td>
         <td style="${TD};text-align:right;font-weight:800">${t.sent.toLocaleString()}</td>
         <td style="${TD};text-align:right;font-weight:700">${t.firstTouch.toLocaleString()}<span style="color:var(--text-muted);font-weight:400;font-size:10px"> ${fmtPct(t.firstTouch, t.sent, 0)}</span></td>
         <td style="${TD};text-align:right;font-weight:700">${t.followUp.toLocaleString()}<span style="color:var(--text-muted);font-weight:400;font-size:10px"> ${fmtPct(t.followUp, t.sent, 0)}</span></td>
@@ -707,6 +766,7 @@ export function renderAnalysis() {
       <td style="${TD};color:var(--text-muted)">${esc(r.clientName)}</td>
       <td style="${TD};color:var(--text-muted)">${r.isRetainer ? 'Retainer' : 'PPM'}</td>
       <td style="${TD};color:var(--text-muted)">${r.kpiActual}/${r.kpiTarget}</td>
+      <td style="${TD}">${deliveryLine(delivery, r.clientName, r.isRetainer, week)}</td>
       <td style="${TD};max-width:340px;overflow:hidden;text-overflow:ellipsis">
         <a href="${SMARTLEAD_CAMPAIGN_URL(r.campaignId)}" target="_blank" rel="noopener" title="${esc(r.campaignName)} — open in Smartlead" style="color:var(--purple);text-decoration:none;font-weight:600">${esc(r.campaignName)}</a>
       </td>
@@ -736,13 +796,22 @@ export function renderAnalysis() {
 }
 
 // ─── CSV export ──────────────────────────────────────────────
-const CSV_HEADERS = ['Client', 'Type', 'KPI actual', 'KPI target', 'Campaign', 'Smartlead URL', 'Status',
+const CSV_HEADERS = ['Client', 'Type', 'KPI actual', 'KPI target', `Last ${PPM_TRAILING_WEEKS} weeks`, 'Campaign', 'Smartlead URL', 'Status',
   'Industry', 'Data source', 'DM type', 'Emails sent', 'New leads (step 1)', 'Follow-ups (step 2+)',
   'New lead %', 'Days sending', 'Days in week', 'Per-day sends',
   'Total replies', 'Reply rate %', 'Positive replies', 'Positive per send %', 'Bounces', 'Bounce rate %',
   'Reply categories'];
 
-export function buildCsv(rows) {
+// `delivery` is the trailingWeeklyDelivery bundle for the exported week; the
+// column exports blank without it rather than failing the download.
+function deliveryCsv(delivery, clientName, isRetainer) {
+  if (!delivery) return '';
+  return deliveryWeeks(delivery, clientName, isRetainer)
+    .map(c => `${weekRangeLabel(c.week)}: ${c.n}`)
+    .join('; ');
+}
+
+export function buildCsv(rows, delivery) {
   const cell = v => {
     const s = str(v);
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -753,6 +822,7 @@ export function buildCsv(rows) {
       r.clientName,
       r.isRetainer ? 'Retainer' : 'PPM',
       r.kpiActual, r.kpiTarget,
+      deliveryCsv(delivery, r.clientName, r.isRetainer),
       r.campaignName,
       SMARTLEAD_CAMPAIGN_URL(r.campaignId),
       r.status,
@@ -794,7 +864,7 @@ window.analysisCloseCopy = () => { getA().copy = null; render(); };
 window.analysisExportCsv = () => {
   const a = getA();
   if (!a.rows.length) return;
-  const csv = buildCsv(a.rows);
+  const csv = buildCsv(a.rows, trailingWeeklyDelivery(selectedWeek()));
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
