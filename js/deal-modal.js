@@ -1171,6 +1171,16 @@ window.startTranscriptPolling = startTranscriptPolling;
 
 // ─── Render Functions ───
 
+// "they first replied March 2026" for the reactivation banner. Local because it
+// is used once, and because fmtDate gives a full day-level date — more
+// precision than this sentence wants.
+function firstRepliedLabel(deal){
+  if(!deal.createdDate) return '';
+  const d=new Date(deal.createdDate);
+  if(isNaN(d)) return '';
+  return ` — they first replied ${d.toLocaleDateString('en-US',{month:'long',year:'numeric'})}`;
+}
+
 export function renderDealModal(deal){
   if(deal.pipeline==='Acquisition' && state.assignableUsers.length === 0 && !state._loadingAssignableUsers){
     state._loadingAssignableUsers = true;
@@ -1188,6 +1198,10 @@ export function renderDealModal(deal){
         ${deal._archived?`<div style="background:#fef3c7;border:2px solid #f59e0b;border-radius:8px;padding:8px 12px;margin-bottom:12px">
           <div style="font-size:13px;font-weight:700;color:#92400e">ARCHIVED${deal._archived.status?` · ${esc(deal._archived.status)}`:''}${deal._archived.at?` · ${esc(fmtDate(deal._archived.at)||'')}`:''}</div>
           <div style="font-size:11px;color:#92400e">For looking at what happened. To record the outcome for the pipeline, use the yellow row on the Funnel tab — it is dated to the call or demo, not to today. Restore only if the deal is actually back in play.</div>
+        </div>`:''}
+        ${deal.retargetStatus==='replied'?`<div style="background:#fef3c7;border:2px solid #f59e0b;border-radius:8px;padding:8px 12px;margin-bottom:12px">
+          <div style="font-size:13px;font-weight:700;color:#92400e">REACTIVATED${deal.retargetCampaign?` · replied to ${esc(deal.retargetCampaign)}`:''}${deal.retargetDate?` on ${esc(fmtDate(deal.retargetDate)||deal.retargetDate)}`:''}</div>
+          <div style="font-size:11px;color:#92400e">This lead went quiet and came back through a reactivation campaign${firstRepliedLabel(deal)}. The timeline entry has the reply.</div>
         </div>`:''}
         ${isRetainerClient(deal)?`<div style="background:#dbeafe;border:2px solid #3b82f6;border-radius:8px;padding:8px 12px;margin-bottom:12px;display:flex;align-items:center;gap:8px">
           <span style="font-size:16px">${svgIcon('clipboard',16)}</span>
