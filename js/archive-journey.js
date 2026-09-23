@@ -5,7 +5,7 @@
 // The funnel's ledger (pipeline_leads, rebuilt hourly by the pipeline) already knows, for every lead that replied
 // since 2026-05-04, the furthest level it reached and why it left. This module reads it once and answers by deal id.
 // Both archive screens (the admin Archive tab and the employees' Archived Deals view) use it — keep them identical.
-import { supabase } from './api.js?v=20260923101551';
+import { supabase } from './api.js?v=20260923114158';
 
 export const LEFT_AT_OPTIONS = ['Replied', 'Disco booked', 'Disco held', 'Demo booked', 'Demo held', 'Closed', 'Not in the funnel'];
 export const WHY_OPTIONS = ['No reason recorded', 'Said no / lost', 'Not right now', 'Cancelled, never rebooked', 'No-show', 'DQ on the disco', 'DQ on the demo', 'Removed by us', 'Still open'];
