@@ -5,7 +5,7 @@
 // The funnel's ledger (pipeline_leads, rebuilt hourly by the pipeline) already knows, for every lead that replied
 // since 2026-05-04, the furthest level it reached and why it left. This module reads it once and answers by deal id.
 // Both archive screens (the admin Archive tab and the employees' Archived Deals view) use it — keep them identical.
-import { supabase } from './api.js?v=20260923154040';
+import { supabase } from './api.js?v=20260923154217';
 
 export const LEFT_AT_OPTIONS = ['Replied', 'Disco booked', 'Disco held', 'Demo booked', 'Demo held', 'Closed', 'Not in the funnel'];
 export const WHY_OPTIONS = ['No reason recorded', 'Said no / lost', 'Not right now', 'Cancelled, never rebooked', 'No-show', 'DQ on the disco', 'DQ on the demo', 'Removed by us', 'Still open'];
@@ -33,14 +33,26 @@ function classify(l) {
   return { leftAt, why, reason, email: l.lead_email, hadMeeting };
 }
 
+// PostgREST returns at most 1000 rows per request whatever range is asked for,
+// so page through until a short page comes back.
+async function fetchAllLeads() {
+  const PAGE = 1000, data = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data: page, error } = await supabase.from('pipeline_leads').select(COLS).order('lead_email').range(from, from + PAGE - 1);
+    if (error) return { data, error };
+    data.push(...(page || []));
+    if (!page || page.length < PAGE) return { data, error: null };
+  }
+}
+
 /** Load (or refresh) the ledger. Safe to call often: one request per 10 minutes. */
 export function loadJourneys(force) {
   if (!force && (_loading || Date.now() - _loadedAt < TTL_MS)) return _loading || Promise.resolve();
-  _loading = supabase.from('pipeline_leads').select(COLS).range(0, 9999)
+  _loading = fetchAllLeads()
     .then(({ data, error }) => {
       if (error) { console.warn('[archive-journey]', error.message); return; }
       const m = new Map();
-      for (const l of data || []) {
+      for (const l of data) {
         const j = classify(l);
         for (const id of [l.deal_id, ...(Array.isArray(l.deal_ids) ? l.deal_ids : [])]) if (id) m.set(String(id), j);
       }
