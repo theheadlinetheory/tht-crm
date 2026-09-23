@@ -12,10 +12,10 @@
 //   payouts (selling labor); signed = clients created that month (any
 //   status); CAC = spend ÷ signed, shown as an em-dash when 0 signed.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20260923093321';
-import { state } from './app.js?v=20260923093321';
-import { render } from './render.js?v=20260923093321';
-import { esc } from './utils.js?v=20260923093321';
+import { supabase } from './supabase-client.js?v=20260923101432';
+import { state } from './app.js?v=20260923101432';
+import { render } from './render.js?v=20260923101432';
+import { esc } from './utils.js?v=20260923101432';
 
 // Fulfillment-dashboard Supabase project (verify_jwt=false; same
 // session-token contract as weekly-update-send — see js/weekly-updates.js).
@@ -126,7 +126,7 @@ export function renderCacTab(){
 
   const months = (state.cacReport.months||[]).slice().reverse(); // newest first
   const allTime = state.cacReport.all_time;
-  const sinceLabel = months.length ? months[months.length-1].label : 'Aug 2026';
+  const sinceLabel = months.length ? months[months.length-1].label : 'Jul 2026';
 
   // Headline cards: ALL-TIME is the star — monthly is noisy (see footnote).
   if(allTime){
@@ -172,7 +172,7 @@ export function renderCacTab(){
   html += `<div style="font-size:11px;color:var(--text-muted);margin-top:8px;line-height:1.6">
     Loaded = every acquisition cost (tools, data, mailboxes, selling labor). Cash = loaded minus selling labor
     (SDR commissions). Signed = clients created in the CRM that month, any status. Numbers refresh from
-    the daily cost jobs — tracked from Aug 2026. Click a month for the component breakdown.
+    the daily cost jobs — tracked from Jul 2026. Click a month for the component breakdown.
   </div></div>`;
   return html;
 }
