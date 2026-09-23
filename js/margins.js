@@ -7,10 +7,10 @@
 // Net-30 clients read low in the latest month until their payment lands —
 // that is the service-month attribution being honest, footnoted below.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20260923114158';
-import { state } from './app.js?v=20260923114158';
-import { render } from './render.js?v=20260923114158';
-import { esc } from './utils.js?v=20260923114158';
+import { supabase } from './supabase-client.js?v=20260923121951';
+import { state } from './app.js?v=20260923121951';
+import { render } from './render.js?v=20260923121951';
+import { esc } from './utils.js?v=20260923121951';
 
 const MARGIN_FN_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/margin-report';
 
@@ -113,6 +113,7 @@ export function renderMarginsTab(){
   for(const c of r.clients){
     const open = !!expanded[c.client_id];
     const badges = [
+      c.verified ? ' <span title="QC\u2019d: every cost row verified against its source" style="color:#047857;font-weight:600">\u2713 checked</span>' : '',
       c.status !== 'active' ? '<span style="color:var(--text-muted);font-weight:500"> (churned)</span>' : '',
       c.unrecorded_lists > 0 ? ` <span title="${c.unrecorded_lists} custom list(s) built before cost capture — cost understated" style="color:#b45309;font-weight:600">⚠ ${c.unrecorded_lists}</span>` : '',
     ].join('');
@@ -132,7 +133,7 @@ export function renderMarginsTab(){
     Window starts ${esc(sinceLabel)} — when cost tracking became trustworthy; earlier revenue is excluded on purpose.
     Revenue is attributed to the SERVICE month, so net-30 clients (Lightning, Timesavers) read low in the latest
     month until their payment lands. Costs are client-scoped only (inboxes, domains, pipeline runs, labor,
-    tools) — acquisition CAC and general overhead live in their own views. ⚠ marks clients whose custom-list
+    tools) — acquisition CAC and general overhead live in their own views. \u2713 checked = founder-QC\u2019d, every cost row verified against its source (they sort to the bottom as the done pile). \u26a0 marks clients whose custom-list
     build costs predate capture: their real margin is lower than shown.
     ${r.excluded_legacy_revenue > 0 ? esc(fmtUsd(r.excluded_legacy_revenue)+' of window revenue belongs to pre-dashboard clients and is excluded from the table.') : ''}
   </div></div>`;
