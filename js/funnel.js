@@ -19,10 +19,10 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20260922004126';
-import { supabase } from './supabase-client.js?v=20260922004126';
-import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel, rangeDays, todayYmdLA, requestExactSends } from './funnel-period.js?v=20260922004126';
-import { leadsTable } from './funnel-leads.js?v=20260922004126';
+import { esc, svgIcon } from './utils.js?v=20260923081858';
+import { supabase } from './supabase-client.js?v=20260923081858';
+import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel, rangeDays, todayYmdLA, requestExactSends } from './funnel-period.js?v=20260923081858';
+import { leadsTable } from './funnel-leads.js?v=20260923081858';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -105,7 +105,7 @@ export function reloadFunnel(rerender) {
 
 function loadPeriod(key, rerender) {
   if (periodRows(key) || _periodLoading === key) return;
-  if (!rerender) rerender = () => import('./render.js?v=20260922004126').then(m => m.render());
+  if (!rerender) rerender = () => import('./render.js?v=20260923081858').then(m => m.render());
   _periodLoading = key;
   const g = (_gen[key] = (_gen[key] || 0) + 1);
   fetchPeriod(periodRange(key), _levels || []).then(rows => {
@@ -140,12 +140,12 @@ window.setFunnelPeriod = (key) => {
     };
     setTimeout(whenLoaded, 500);
   }
-  import('./render.js?v=20260922004126').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+  import('./render.js?v=20260923081858').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
 };
 
 // ── The calendar: pick any stretch of days (Lars, 2026-09-18) ──
 const _pick = { open: false, month: null, start: null, end: null }; // month 'YYYY-MM'; start/end 'YYYY-MM-DD' while choosing
-const rerenderNow = () => import('./render.js?v=20260922004126').then(m => m.render());
+const rerenderNow = () => import('./render.js?v=20260923081858').then(m => m.render());
 window.funnelPickToggle = () => {
   _pick.open = !_pick.open;
   if (_pick.open) { const r = periodRange(_period); _pick.month = (r ? r.to : todayYmdLA()).slice(0, 7); _pick.start = null; _pick.end = null; }
@@ -269,6 +269,24 @@ function uniqueHint(l, m) {
     : ` <span style="color:#9ca3af">· being fetched from Smartlead, one query per campaign — a few minutes when it is busy; fills in by itself</span>`;
 }
 
+/** Stage 1 as a flow: emails sent → unique leads contacted → positive responses → qualified positive responses.
+ *  The rate lines above stay the headline; this shows where the numbers come from (Lars, 2026-09-23). */
+function stageFlow01(l, metrics, d) {
+  const m1 = metrics[0] || {}, m2 = metrics[1] || {};
+  const positives = d.positives_raw != null ? Number(d.positives_raw) : (Array.isArray(d.leads) ? d.leads.length : null);
+  const steps = [
+    { n: m1.denominator, label: 'Emails sent' },
+    { n: m2.denominator, label: 'Unique leads contacted' },
+    { n: positives, label: 'Positive responses', hint: 'replies the AI tagged positive, less the ones corrected within 48h' },
+    { n: m1.numerator, label: 'Qualified positive responses', hint: 'after the reps removed desk DQs, miscategorised replies and duplicates', strong: true },
+  ];
+  const tile = (s) => `<div style="display:flex;flex-direction:column;gap:2px;padding:8px 12px;border:1px solid ${s.strong ? '#1e1b4b' : 'var(--border)'};border-radius:8px;background:${s.strong ? '#f5f3ff' : 'var(--card)'};min-width:150px" ${s.hint ? `title="${esc(s.hint)}"` : ''}>
+      <span style="font-size:17px;font-weight:800;color:#1e1b4b;font-variant-numeric:tabular-nums">${fmtCount(s.n)}</span>
+      <span style="font-size:11px;color:#6b7280">${esc(s.label)}</span></div>`;
+  const arrow = `<span style="color:#9ca3af;font-size:16px;padding:0 2px">→</span>`;
+  return `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:10px 0 6px">${steps.map(tile).join(arrow)}</div>`;
+}
+
 function levelCard(l) {
   const st = STATUS_STYLE[l.status] || STATUS_STYLE['not tracked'];
   const hasNumbers = l.numerator !== null && l.denominator !== null;
@@ -326,6 +344,7 @@ function levelCard(l) {
     if (d.activity && d.activity.some(a => !a.hidden)) h += activityLine(d.activity);
     // Day / week views: the actual leads, for the setter's QC (funnel-leads.js) — each list
     // behind its own dropdown, closed by default (Lars, 2026-09-09: "not such a huge scroll").
+    if (l.level === '01') h += stageFlow01(l, metrics, d); // test on stage 1 (Lars, 2026-09-23): what happens inside the stage, as a flow of counts
     if (d.leads && d.leads.length) h += leadsDropdown(l.level + '-cohort', d.leads, d.leads_label || 'leads in this period');
     if (d.activity_leads && d.activity_leads.length) h += leadsDropdown(l.level + '-activity', d.activity_leads, d.activity_leads_label || 'happened in this period');
     // Rep removals are the most common reason a level shrinks and a signal in
@@ -508,5 +527,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20260922004126').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20260923081858').then(m => reloadFunnel(m.render));
 };

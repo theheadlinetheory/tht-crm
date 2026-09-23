@@ -21,10 +21,10 @@
 // The answer is stored as a normal CRM interaction, which means no new table and
 // no schema change: the same anon insert the call touchpoints already use.
 
-import { state } from './app.js?v=20260922004126';
-import { esc, svgIcon } from './utils.js?v=20260922004126';
-import { sbCreateInteraction, showToast } from './api.js?v=20260922004126';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260922004126';
+import { state } from './app.js?v=20260923081858';
+import { esc, svgIcon } from './utils.js?v=20260923081858';
+import { sbCreateInteraction, showToast } from './api.js?v=20260923081858';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260923081858';
 
 // pipeline-level03 runs on the CRM's own Supabase project (moved 2026-09-03). It
 // is deployed with JWT verification, so the anon key goes along as the bearer.
@@ -109,7 +109,7 @@ function openNurture(dealId, fromDemo) {
   state._nurtureEntryDealId = dealId;
   state._nurtureEntryBucket = 'not_now';
   state._nurtureEntryFromDemo = !!fromDemo;
-  import('./render.js?v=20260922004126').then(m => m.render());
+  import('./render.js?v=20260923081858').then(m => m.render());
 }
 
 export function pendingDiscoCount() {
