@@ -5,7 +5,7 @@
 // The funnel's ledger (pipeline_leads, rebuilt hourly by the pipeline) already knows, for every lead that replied
 // since 2026-05-04, the furthest level it reached and why it left. This module reads it once and answers by deal id.
 // Both archive screens (the admin Archive tab and the employees' Archived Deals view) use it — keep them identical.
-import { supabase } from './api.js?v=20260923144404';
+import { supabase } from './api.js?v=20260923154040';
 
 export const LEFT_AT_OPTIONS = ['Replied', 'Disco booked', 'Disco held', 'Demo booked', 'Demo held', 'Closed', 'Not in the funnel'];
 export const WHY_OPTIONS = ['No reason recorded', 'Said no / lost', 'Not right now', 'Cancelled, never rebooked', 'No-show', 'DQ on the disco', 'DQ on the demo', 'Removed by us', 'Still open'];
@@ -28,7 +28,9 @@ function classify(l) {
     : (tn || l.demo_outcome === 'lost' || rr) ? 'Said no / lost'
     : 'Still open';
   const reason = rr || tn || (l.demo_outcome ? 'Demo: ' + l.demo_outcome.replace(/_/g, ' ') : '') || (l.disco_outcome ? 'Disco: ' + l.disco_outcome : '');
-  return { leftAt, why, reason, email: l.lead_email };
+  // Held a disco, held a demo, or missed a demo — nurture keeps these as manual follow-ups.
+  const hadMeeting = !!(l.disco_conducted_at || l.demo_conducted_at || l.demo_no_show);
+  return { leftAt, why, reason, email: l.lead_email, hadMeeting };
 }
 
 /** Load (or refresh) the ledger. Safe to call often: one request per 10 minutes. */

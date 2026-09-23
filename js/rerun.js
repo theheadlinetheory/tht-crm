@@ -1,15 +1,16 @@
 // ═══════════════════════════════════════════════════════════
 // NURTURE — Two-bucket nurture pipeline (Not Now + Service Area Taken)
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20260923144404';
-import { render } from './render.js?v=20260923144404';
-import { sbGetRerunQueue, sbAddToRerun, sbUpdateRerunItem, sbUpdateRerunStatus, sbUpdateDeal, sbUpdateActivity, sbArchiveDeal, sbDeleteDeal, camelToSnake, normalizeRow, invokeEdgeFunction } from './api.js?v=20260923144404';
-import { esc, getToday, fmtDate, svgIcon } from './utils.js?v=20260923144404';
-import { registerActions } from './delegate.js?v=20260923144404';
-import { statCard, filterSelect, modalWrap, modalHeader, modalFooter } from './html-helpers.js?v=20260923144404';
-import { NURTURE_NOT_NOW_SEQUENCE, ACQUISITION_STAGES, MANUAL_OUTREACH_OWNER } from './config.js?v=20260923144404';
-import { isAdmin, getOwnerNameForDeal, getOwnerColor, loadAssignableUsers } from './auth.js?v=20260923144404';
-import { dealHadDemo } from './demo-tracker.js?v=20260923144404';
+import { state, store, pendingWrites } from './app.js?v=20260923154040';
+import { render } from './render.js?v=20260923154040';
+import { sbGetRerunQueue, sbAddToRerun, sbUpdateRerunItem, sbUpdateRerunStatus, sbUpdateDeal, sbUpdateActivity, sbArchiveDeal, sbDeleteDeal, camelToSnake, normalizeRow, invokeEdgeFunction } from './api.js?v=20260923154040';
+import { esc, getToday, fmtDate, svgIcon } from './utils.js?v=20260923154040';
+import { registerActions } from './delegate.js?v=20260923154040';
+import { statCard, filterSelect, modalWrap, modalHeader, modalFooter } from './html-helpers.js?v=20260923154040';
+import { NURTURE_NOT_NOW_SEQUENCE, ACQUISITION_STAGES, MANUAL_OUTREACH_OWNER } from './config.js?v=20260923154040';
+import { isAdmin, getOwnerNameForDeal, getOwnerColor, loadAssignableUsers } from './auth.js?v=20260923154040';
+import { dealHadDemo } from './demo-tracker.js?v=20260923154040';
+import { loadJourneys, journeyFor } from './archive-journey.js?v=20260923154040';
 
 // ─── Data Loading ───
 
@@ -67,16 +68,34 @@ export function getDueNurtureItems() {
   return getNurtureItems('not_now').filter(r => r.followUpDate && r.followUpDate <= today);
 }
 
-// Due items that still need a human. Everyone else is handled by the automated
-// follow-up sequence, so they don't belong in the alert.
+// Manual follow-up (whoever owns it): held a disco, held or missed a demo, or
+// owned by MANUAL_OUTREACH_OWNER. Everything else in Not Now is the automation
+// pool — kept in the queue, dated or not, for the reactivation campaign.
+// The disco/demo history comes from the pipeline_leads ledger, loaded once.
+let _journeysRequested = false;
+function ensureJourneysLoaded() {
+  if (_journeysRequested) return;
+  _journeysRequested = true;
+  loadJourneys(true).then(render);
+}
+
+function hadDemoOrNoShow(dealId) {
+  return state.demoEntries.some(e => String(e.dealId) === String(dealId) && /^(Showed|No-Show)/.test(e.showStatus || ''));
+}
+
 function needsManualOutreach(item) {
-  if (dealHadDemo(item.dealId)) return true;
+  ensureJourneysLoaded();
+  if (hadDemoOrNoShow(item.dealId) || journeyFor(item.dealId).hadMeeting) return true;
   const deal = state.deals.find(d => String(d.id) === String(item.dealId));
   return !!deal && getOwnerNameForDeal(deal) === MANUAL_OUTREACH_OWNER;
 }
 
 function getManualDueItems() {
   return getDueNurtureItems().filter(needsManualOutreach);
+}
+
+function getAutomationPool() {
+  return getNurtureItems('not_now').filter(r => !needsManualOutreach(r));
 }
 
 export function getOverdueNurtureItems() {
@@ -190,7 +209,19 @@ export function exportNurtureForSmartlead() {
   if (!isAdmin()) return;
   const items = getNurtureItems('service_area_taken');
   if (!items.length) { alert('No Service Area Taken items to export.'); return; }
+  downloadNurtureCsv(items, 'nurture_sat_smartlead.csv');
+}
 
+// Not Now leads with no disco/demo history and not owned by the manual owner —
+// the list the automated reactivation sequence takes over.
+export function exportAutomationPool() {
+  if (!isAdmin()) return;
+  const items = getAutomationPool();
+  if (!items.length) { alert('No leads in the automation pool.'); return; }
+  downloadNurtureCsv(items, 'nurture_automation_pool.csv');
+}
+
+function downloadNurtureCsv(items, filename) {
   const headers = ['email', 'first_name', 'last_name', 'company_name', 'website', 'location', 'custom1', 'custom2'];
   const rows = items.map(r => {
     const nameParts = (r.dealName || '').split(' ');
@@ -208,7 +239,7 @@ export function exportNurtureForSmartlead() {
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = 'nurture_sat_smartlead.csv'; a.click();
+  a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
 }
 
@@ -386,7 +417,9 @@ export function renderNurtureDropdown() {
 // ─── Main Nurture Tab ───
 
 export function renderNurtureTab() {
-  const notNowItems = getFilteredNurtureItems().filter(r => (r.bucket || '').toLowerCase() === 'not_now');
+  const followup = state.nurtureFilterFollowup;
+  const notNowItems = getFilteredNurtureItems().filter(r => (r.bucket || '').toLowerCase() === 'not_now'
+    && (!followup || (followup === 'Manual') === needsManualOutreach(r)));
   const satItems = getFilteredNurtureItems().filter(r => (r.bucket || '').toLowerCase() === 'service_area_taken');
   const campaigns = getNurtureCampaigns();
   const totalNotNow = getNurtureItems('not_now').length;
@@ -400,11 +433,13 @@ export function renderNurtureTab() {
       ${statCard('Service Area Taken', totalSAT, '#f97316')}
       ${statCard('Due Today', totalDue, '#2563eb')}
       ${statCard('Overdue', totalOverdue, '#dc2626')}
+      ${statCard('Automation Pool', getAutomationPool().length, '#6b7280')}
     </div>
 
     <div class="rerun-filters">
       ${filterSelect('nurtureFilterCampaign', 'All Campaigns', campaigns, state.nurtureFilterCampaign)}
       ${filterSelect('nurtureFilterBucket', 'All Buckets', ['not_now', 'service_area_taken'], state.nurtureFilterBucket)}
+      ${filterSelect('nurtureFilterFollowup', 'Manual + Automated', ['Manual', 'Automated'], state.nurtureFilterFollowup)}
       <span style="font-size:11px;color:var(--text-muted);margin-left:auto">${notNowItems.length + satItems.length} active items</span>
     </div>`;
 
@@ -413,7 +448,10 @@ export function renderNurtureTab() {
   } else {
     // ── Not Now Section ──
     h += `<div style="margin-top:20px">
-      <h4 style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text-primary)">Not Now (${notNowItems.length})</h4>`;
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <h4 style="font-size:13px;font-weight:700;color:var(--text-primary);margin:0">Not Now (${notNowItems.length})</h4>
+        ${isAdmin() ? `<button class="btn btn-ghost" style="font-size:10px;padding:2px 10px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db" data-action="exportAutomationPool">${svgIcon('upload', 10)} Export automation pool</button>` : ''}
+      </div>`;
 
     if (notNowItems.length === 0) {
       h += `<div class="rerun-empty" style="padding:16px">No &ldquo;Not Now&rdquo; items.</div>`;
@@ -437,7 +475,7 @@ export function renderNurtureTab() {
           <td style="color:var(--text-muted)">${esc(r.email || '')}</td>
           <td>${esc(r.campaignName || '')}</td>
           <td style="font-weight:600">${esc(followUp ? fmtDate(followUp) : '-')}</td>
-          <td><span style="font-size:11px;font-weight:600;color:${statusColor}">${statusLabel}</span></td>
+          <td><span style="font-size:11px;font-weight:600;color:${statusColor}">${statusLabel}</span>${needsManualOutreach(r) ? '' : '<div style="font-size:9px;font-weight:700;color:#6b7280;margin-top:2px">AUTOMATED</div>'}</td>
           <td style="color:var(--text-muted);font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.notes || '')}">${esc(r.notes || '')}</td>
           <td style="white-space:nowrap">
             <button class="btn" style="font-size:10px;padding:2px 8px;background:#ede9fe;color:#7c3aed;border:1px solid #c4b5fd" data-action="reactivateNurtureDeal" data-id="${esc(r.id)}" data-deal-id="${esc(r.dealId)}">Re-activate</button>
@@ -996,6 +1034,13 @@ registerActions({
   },
 
   // SmartLead export
+  nurtureFilterFollowup(el) {
+    state.nurtureFilterFollowup = el.value;
+    render();
+  },
+
+  exportAutomationPool() { exportAutomationPool(); },
+
   exportNurtureSmartlead() {
     exportNurtureForSmartlead();
   },
