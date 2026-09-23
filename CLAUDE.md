@@ -32,6 +32,24 @@ deploy — good, that's the guardrail catching it.
   "leads aren't coming in", "highlights not working", "sheet not created", "invoice
   wrong" → that's backend → **Aidan**, not this repo.
 
+## Adding a Supabase table
+
+Schema does not live in this repo (see above) — but the rule bites here, because this
+is the app that goes blank when it is missed.
+
+Since **2026-10-30** Supabase no longer grants a newly created `public` table to the
+Data API. `js/api.js` holds the anon key and reads 25 tables through PostgREST
+directly; a new table created without a `GRANT` returns `42501 permission denied for
+table <name>` to every one of those calls.
+
+In the Supabase SQL editor, straight after the `CREATE TABLE`:
+
+```sql
+select public.grant_data_api('your_new_table');
+```
+
+Full note and the reasoning: `tht-crm-backend/CLAUDE.md` → "Creating a new table".
+
 ## How to work a frontend bug
 
 1. **Reproduce / locate.** Find the file + function. Module map: `render.js` (board
