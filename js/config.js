@@ -121,6 +121,10 @@ export const NURTURE_NOT_NOW_SEQUENCE = [
   { dayOffset: 7, type: 'Call', subject: 'Final follow-up attempt' },
 ];
 
+// Not Now leads are moving to an automated SmartLead follow-up sequence. The
+// ones that stay manual: anyone who held a demo, and anyone owned by this person.
+export const MANUAL_OUTREACH_OWNER = 'Aidan Hutchinson';
+
 export const NO_SHOW_SEQUENCE = [
   { dayOffset: 0, type: 'Email', subject: 'No Show Email #1 — Phone Disco or Google Meet Demo (SmartLead)' },
   { dayOffset: 2, type: 'Email', subject: 'No Show Email #2 (SmartLead)' },

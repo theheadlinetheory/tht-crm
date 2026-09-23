@@ -1,15 +1,15 @@
 // ═══════════════════════════════════════════════════════════
 // NURTURE — Two-bucket nurture pipeline (Not Now + Service Area Taken)
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20260923124930';
-import { render } from './render.js?v=20260923124930';
-import { sbGetRerunQueue, sbAddToRerun, sbUpdateRerunItem, sbUpdateRerunStatus, sbUpdateDeal, sbUpdateActivity, sbArchiveDeal, sbDeleteDeal, camelToSnake, normalizeRow, invokeEdgeFunction } from './api.js?v=20260923124930';
-import { esc, getToday, fmtDate, svgIcon } from './utils.js?v=20260923124930';
-import { registerActions } from './delegate.js?v=20260923124930';
-import { statCard, filterSelect, modalWrap, modalHeader, modalFooter } from './html-helpers.js?v=20260923124930';
-import { NURTURE_NOT_NOW_SEQUENCE, ACQUISITION_STAGES } from './config.js?v=20260923124930';
-import { isAdmin, getOwnerNameForDeal, getOwnerColor, loadAssignableUsers } from './auth.js?v=20260923124930';
-import { dealHadDemo } from './demo-tracker.js?v=20260923124930';
+import { state, store, pendingWrites } from './app.js?v=20260923144404';
+import { render } from './render.js?v=20260923144404';
+import { sbGetRerunQueue, sbAddToRerun, sbUpdateRerunItem, sbUpdateRerunStatus, sbUpdateDeal, sbUpdateActivity, sbArchiveDeal, sbDeleteDeal, camelToSnake, normalizeRow, invokeEdgeFunction } from './api.js?v=20260923144404';
+import { esc, getToday, fmtDate, svgIcon } from './utils.js?v=20260923144404';
+import { registerActions } from './delegate.js?v=20260923144404';
+import { statCard, filterSelect, modalWrap, modalHeader, modalFooter } from './html-helpers.js?v=20260923144404';
+import { NURTURE_NOT_NOW_SEQUENCE, ACQUISITION_STAGES, MANUAL_OUTREACH_OWNER } from './config.js?v=20260923144404';
+import { isAdmin, getOwnerNameForDeal, getOwnerColor, loadAssignableUsers } from './auth.js?v=20260923144404';
+import { dealHadDemo } from './demo-tracker.js?v=20260923144404';
 
 // ─── Data Loading ───
 
@@ -65,6 +65,18 @@ export function getNurtureCampaigns() {
 export function getDueNurtureItems() {
   const today = getToday();
   return getNurtureItems('not_now').filter(r => r.followUpDate && r.followUpDate <= today);
+}
+
+// Due items that still need a human. Everyone else is handled by the automated
+// follow-up sequence, so they don't belong in the alert.
+function needsManualOutreach(item) {
+  if (dealHadDemo(item.dealId)) return true;
+  const deal = state.deals.find(d => String(d.id) === String(item.dealId));
+  return !!deal && getOwnerNameForDeal(deal) === MANUAL_OUTREACH_OWNER;
+}
+
+function getManualDueItems() {
+  return getDueNurtureItems().filter(needsManualOutreach);
 }
 
 export function getOverdueNurtureItems() {
@@ -288,15 +300,45 @@ export function setNurtureOwner(dealId, ownerName) {
     .finally(() => { pendingWrites.value--; });
 }
 
-// ─── Due Today Banner (Acquisition Pipeline) ───
+// ─── Due Today Dropdown (Acquisition Pipeline) ───
 
+// Which due items this browser has already seen in the open dropdown. Only
+// drives the "new" highlight on the chip, so losing it just re-lights the chip.
+const NURTURE_SEEN_KEY = 'nurtureSeenDueIds';
+
+function readSeenDueIds() {
+  try { return new Set(JSON.parse(localStorage.getItem(NURTURE_SEEN_KEY) || '[]')); }
+  catch { return new Set(); }
+}
+
+function markDueIdsSeen(items) {
+  try { localStorage.setItem(NURTURE_SEEN_KEY, JSON.stringify(items.map(r => String(r.id)))); }
+  catch { /* storage blocked — chip just stays lit */ }
+}
+
+// Compact chip for the top alert strip; the list itself opens as a dropdown.
 export function renderDueTodayBanner() {
-  const dueItems = getDueNurtureItems();
+  const dueItems = getManualDueItems();
+  if (!dueItems.length) return '';
+  const seen = readSeenDueIds();
+  const unseen = dueItems.filter(r => !seen.has(String(r.id))).length;
+  const lit = unseen > 0 && !state._nurtureDropdownOpen;
+  const css = lit
+    ? 'background:#f59e0b;color:#fff;border:1px solid #d97706;box-shadow:0 0 0 3px #fde68a'
+    : 'background:#fffbeb;color:#92400e;border:1px solid #fde68a';
+  return `<button class="btn" data-action="toggleNurtureDropdown" title="Nurture follow-ups needing manual outreach"
+    style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;${css}">
+    ${svgIcon('bell', 11)} Nurture due (${dueItems.length})${lit ? ` · ${unseen} new` : ''} ${state._nurtureDropdownOpen ? '▴' : '▾'}</button>`;
+}
+
+export function renderNurtureDropdown() {
+  if (!state._nurtureDropdownOpen) return '';
+  const dueItems = getManualDueItems();
   if (!dueItems.length) return '';
 
-  // The owner picker needs assignableUsers, which loads lazily. The banner can
+  // The owner picker needs assignableUsers, which loads lazily. The dropdown can
   // render before any deal modal has opened, so pull the list here too. Until
-  // it arrives the chip falls back to plain text (see ownerChip below).
+  // it arrives the chip falls back to plain text (see ownerChip above).
   if (state.assignableUsers.length === 0 && !state._loadingAssignableUsers) {
     state._loadingAssignableUsers = true;
     loadAssignableUsers().then(() => { state._loadingAssignableUsers = false; render(); })
@@ -304,8 +346,11 @@ export function renderDueTodayBanner() {
   }
 
   const today = getToday();
-  let h = `<div class="nurture-banner" style="margin:8px 16px;padding:10px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px">
-    <div style="font-weight:700;font-size:12px;margin-bottom:6px;color:#92400e">${svgIcon('bell', 12)} Nurture Follow-ups Due (${dueItems.length})</div>`;
+  let h = `<div style="position:relative;z-index:60"><div class="nurture-banner" style="position:absolute;top:4px;left:16px;width:min(820px,calc(100vw - 32px));max-height:60vh;overflow-y:auto;padding:10px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.15)">
+    <div style="display:flex;align-items:center;justify-content:space-between;font-weight:700;font-size:12px;margin-bottom:6px;color:#92400e">
+      <span>${svgIcon('bell', 12)} Nurture Follow-ups Due — manual outreach (${dueItems.length})</span>
+      <button class="btn btn-ghost" data-action="toggleNurtureDropdown" style="font-size:11px;padding:1px 8px">Close</button>
+    </div>`;
 
   for (const item of dueItems) {
     const { label: urgencyLabel, color: urgencyColor } = getUrgencyBadge(item.followUpDate, today);
@@ -334,7 +379,7 @@ export function renderDueTodayBanner() {
     </div>`;
   }
 
-  h += `</div>`;
+  h += `</div></div>`;
   return h;
 }
 
@@ -733,6 +778,14 @@ registerActions({
       }
     }
 
+    render();
+  },
+
+  // Opening the dropdown marks everything currently due as seen, which is what
+  // turns the chip's "new" highlight off until another lead comes due.
+  toggleNurtureDropdown() {
+    state._nurtureDropdownOpen = !state._nurtureDropdownOpen;
+    if (state._nurtureDropdownOpen) markDueIdsSeen(getManualDueItems());
     render();
   },
 
