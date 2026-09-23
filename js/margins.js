@@ -7,10 +7,10 @@
 // Net-30 clients read low in the latest month until their payment lands —
 // that is the service-month attribution being honest, footnoted below.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20260923121951';
-import { state } from './app.js?v=20260923121951';
-import { render } from './render.js?v=20260923121951';
-import { esc } from './utils.js?v=20260923121951';
+import { supabase } from './supabase-client.js?v=20260923124930';
+import { state } from './app.js?v=20260923124930';
+import { render } from './render.js?v=20260923124930';
+import { esc } from './utils.js?v=20260923124930';
 
 const MARGIN_FN_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/margin-report';
 
@@ -116,6 +116,7 @@ export function renderMarginsTab(){
       c.verified ? ' <span title="QC\u2019d: every cost row verified against its source" style="color:#047857;font-weight:600">\u2713 checked</span>' : '',
       c.status !== 'active' ? '<span style="color:var(--text-muted);font-weight:500"> (churned)</span>' : '',
       c.unrecorded_lists > 0 ? ` <span title="${c.unrecorded_lists} custom list(s) built before cost capture — cost understated" style="color:#b45309;font-weight:600">⚠ ${c.unrecorded_lists}</span>` : '',
+      c.reused_domains > 0 ? ` <span title="${c.reused_domains} domain(s) reused from an earlier holder — purchase billed to the first client, cost elsewhere not missing" style="color:var(--text-muted);font-weight:600">♻ ${c.reused_domains}</span>` : '',
     ].join('');
     html += `<tr onclick="marginToggle('${esc(c.client_id)}')" style="cursor:pointer">
       <td style="${td};text-align:left;font-weight:600">${esc(c.name)}${badges}</td>
