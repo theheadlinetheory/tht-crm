@@ -7,10 +7,10 @@
 // Net-30 clients read low in the latest month until their payment lands —
 // that is the service-month attribution being honest, footnoted below.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20260923154217';
-import { state } from './app.js?v=20260923154217';
-import { render } from './render.js?v=20260923154217';
-import { esc } from './utils.js?v=20260923154217';
+import { supabase } from './supabase-client.js?v=20260925131125';
+import { state } from './app.js?v=20260925131125';
+import { render } from './render.js?v=20260925131125';
+import { esc } from './utils.js?v=20260925131125';
 
 const MARGIN_FN_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/margin-report';
 
@@ -89,11 +89,26 @@ export function renderMarginsTab(){
 
   const r = state.marginReport;
   const sinceLabel = monthLabel(r.from);
+
+  // Active and churned live on separate sub-tabs so day-to-day reading is
+  // the current roster only (Aidan, 2026-09-25); the stat cards follow the
+  // shown subset so the headline numbers match the table below them.
+  const view = state.marginView || 'active';
+  const active = r.clients.filter(c => c.status === 'active');
+  const churned = r.clients.filter(c => c.status !== 'active');
+  const shown = view === 'churned' ? churned : active;
+  const sum = k => shown.reduce((a, c) => a + (Number(c[k]) || 0), 0);
+  const sRev = sum('revenue'), sCost = sum('cost'), sMar = sum('margin');
+  const pill = (id, label, n) => `<button onclick="marginView('${id}')"
+    style="font-size:12px;font-weight:600;padding:6px 14px;border-radius:999px;border:1px solid var(--border);cursor:pointer;
+    background:${view===id?'#111827':'#fff'};color:${view===id?'#fff':'#374151'}">${label} (${n})</button>`;
+  html += `<div style="display:flex;gap:8px;margin-bottom:12px">${pill('active','Active',active.length)}${pill('churned','Churned',churned.length)}</div>`;
+
   html += `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">
-    ${statCard('Revenue · since '+sinceLabel, fmtUsd(r.totals.revenue), 'service-month attributed')}
-    ${statCard('Client costs · since '+sinceLabel, fmtUsd(r.totals.cost), 'client-scoped only — CAC and overhead excluded')}
-    ${statCard('Margin · since '+sinceLabel, fmtUsd(r.totals.margin),
-      r.totals.revenue>0 ? (100*r.totals.margin/r.totals.revenue).toFixed(1)+'% of revenue' : '')}
+    ${statCard('Revenue · since '+sinceLabel, fmtUsd(sRev), (view==='churned'?'churned clients':'active clients')+', service-month attributed')}
+    ${statCard('Client costs · since '+sinceLabel, fmtUsd(sCost), 'client-scoped only — CAC and overhead excluded')}
+    ${statCard('Margin · since '+sinceLabel, fmtUsd(sMar),
+      sRev>0 ? (100*sMar/sRev).toFixed(1)+'% of revenue' : '')}
   </div>`;
 
   const th = 'padding:8px 10px;text-align:right;font-weight:600;white-space:nowrap';
@@ -110,11 +125,10 @@ export function renderMarginsTab(){
 
   const td = 'padding:8px 10px;text-align:right;font-variant-numeric:tabular-nums;border-bottom:1px solid #f3f4f6';
   const expanded = state.marginExpanded || {};
-  for(const c of r.clients){
+  for(const c of shown){
     const open = !!expanded[c.client_id];
     const badges = [
       c.verified ? ' <span title="QC\u2019d: every cost row verified against its source" style="color:#047857;font-weight:600">\u2713 checked</span>' : '',
-      c.status !== 'active' ? '<span style="color:var(--text-muted);font-weight:500"> (churned)</span>' : '',
       c.unrecorded_lists > 0 ? ` <span title="${c.unrecorded_lists} custom list(s) built before cost capture — cost understated" style="color:#b45309;font-weight:600">⚠ ${c.unrecorded_lists}</span>` : '',
       c.reused_domains > 0 ? ` <span title="${c.reused_domains} domain(s) reused from an earlier holder — purchase billed to the first client, cost elsewhere not missing" style="color:var(--text-muted);font-weight:600">♻ ${c.reused_domains}</span>` : '',
     ].join('');
@@ -143,6 +157,7 @@ export function renderMarginsTab(){
 
 // ─── Window exposures for inline onclick handlers ───
 window.marginRefresh = () => loadMarginReport(true);
+window.marginView = (v) => { state.marginView = v; render(); };
 window.marginToggle = (id) => {
   const s = state.marginExpanded || (state.marginExpanded = {});
   s[id] = !s[id];
