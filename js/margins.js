@@ -7,10 +7,10 @@
 // Net-30 clients read low in the latest month until their payment lands —
 // that is the service-month attribution being honest, footnoted below.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20260925131125';
-import { state } from './app.js?v=20260925131125';
-import { render } from './render.js?v=20260925131125';
-import { esc } from './utils.js?v=20260925131125';
+import { supabase } from './supabase-client.js?v=20260925132239';
+import { state } from './app.js?v=20260925132239';
+import { render } from './render.js?v=20260925132239';
+import { esc } from './utils.js?v=20260925132239';
 
 const MARGIN_FN_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/margin-report';
 
@@ -58,7 +58,7 @@ function monthRows(c, colspan){
       <span style="text-align:right;font-variant-numeric:tabular-nums;color:${marginColor(m.margin)}">${fmtUsd(m.margin)}</span>
     </div>`).join('');
   return `<tr><td colspan="${colspan}" style="padding:8px 24px 12px;background:#fafafa;border-bottom:1px solid var(--border)">
-    <div style="max-width:560px;font-size:12px;color:#374151">
+    <div style="max-width:600px;font-size:13px;color:#374151">
       <div style="display:grid;grid-template-columns:1fr 100px 100px 100px;gap:12px;padding:0 0 4px;border-bottom:1px solid #e5e7eb;font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">
         <span>Month</span><span style="text-align:right">Revenue</span><span style="text-align:right">Cost</span><span style="text-align:right">Margin</span>
       </div>${rows}
@@ -96,24 +96,25 @@ export function renderMarginsTab(){
   const view = state.marginView || 'active';
   const active = r.clients.filter(c => c.status === 'active');
   const churned = r.clients.filter(c => c.status !== 'active');
-  const shown = view === 'churned' ? churned : active;
+  const shown = view === 'churned' ? churned : view === 'all' ? r.clients : active;
+  const viewLabel = view === 'churned' ? 'Churned' : view === 'all' ? 'All clients' : 'Active';
   const sum = k => shown.reduce((a, c) => a + (Number(c[k]) || 0), 0);
   const sRev = sum('revenue'), sCost = sum('cost'), sMar = sum('margin');
   const pill = (id, label, n) => `<button onclick="marginView('${id}')"
     style="font-size:12px;font-weight:600;padding:6px 14px;border-radius:999px;border:1px solid var(--border);cursor:pointer;
     background:${view===id?'#111827':'#fff'};color:${view===id?'#fff':'#374151'}">${label} (${n})</button>`;
-  html += `<div style="display:flex;gap:8px;margin-bottom:12px">${pill('active','Active',active.length)}${pill('churned','Churned',churned.length)}</div>`;
+  html += `<div style="display:flex;gap:8px;margin-bottom:12px">${pill('active','Active',active.length)}${pill('churned','Churned',churned.length)}${pill('all','All',r.clients.length)}</div>`;
 
   html += `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">
-    ${statCard('Revenue · since '+sinceLabel, fmtUsd(sRev), (view==='churned'?'churned clients':'active clients')+', service-month attributed')}
-    ${statCard('Client costs · since '+sinceLabel, fmtUsd(sCost), 'client-scoped only — CAC and overhead excluded')}
-    ${statCard('Margin · since '+sinceLabel, fmtUsd(sMar),
+    ${statCard(viewLabel+' revenue', fmtUsd(sRev), 'since '+sinceLabel+', these '+shown.length+' clients only')}
+    ${statCard(viewLabel+' costs', fmtUsd(sCost), 'client-scoped — CAC and overhead excluded')}
+    ${statCard(viewLabel+' margin', fmtUsd(sMar),
       sRev>0 ? (100*sMar/sRev).toFixed(1)+'% of revenue' : '')}
   </div>`;
 
-  const th = 'padding:8px 10px;text-align:right;font-weight:600;white-space:nowrap';
+  const th = 'padding:9px 12px;text-align:right;font-weight:600;white-space:nowrap';
   html += `<div style="overflow-x:auto;background:#fff;border:1px solid var(--border);border-radius:10px">
-    <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <table style="width:100%;border-collapse:collapse;font-size:13.5px">
     <thead><tr style="background:#f9fafb;border-bottom:2px solid var(--border)">
       <th style="${th};text-align:left">Client</th>
       <th style="${th}">Revenue</th>
@@ -123,7 +124,7 @@ export function renderMarginsTab(){
       <th style="width:36px"></th>
     </tr></thead><tbody>`;
 
-  const td = 'padding:8px 10px;text-align:right;font-variant-numeric:tabular-nums;border-bottom:1px solid #f3f4f6';
+  const td = 'padding:10px 12px;text-align:right;font-variant-numeric:tabular-nums;border-bottom:1px solid #f3f4f6';
   const expanded = state.marginExpanded || {};
   for(const c of shown){
     const open = !!expanded[c.client_id];
