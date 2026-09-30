@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // BLOOIO — In-CRM texting via Blooio API (thread viewer + send)
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20260930095001';
-import { showToast, sbCreateActivity, sbUpdateDeal, camelToSnake } from './api.js?v=20260930095001';
-import { uid, getToday, esc, applyTemplate } from './utils.js?v=20260930095001';
-import { refreshModal } from './render.js?v=20260930095001';
-import { BLOOIO_BASE_URL, BLOOIO_API_KEY, SEQUENCE_TEMPLATES, CLIENT_LEAD_TEMPLATES, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260930095001';
-import { findClientForDeal } from './client-info.js?v=20260930095001';
+import { state, pendingWrites } from './app.js?v=20260930131419';
+import { showToast, sbCreateActivity, sbUpdateDeal, camelToSnake } from './api.js?v=20260930131419';
+import { uid, getToday, esc, applyTemplate } from './utils.js?v=20260930131419';
+import { refreshModal } from './render.js?v=20260930131419';
+import { BLOOIO_BASE_URL, BLOOIO_API_KEY, SEQUENCE_TEMPLATES, CLIENT_LEAD_TEMPLATES, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20260930131419';
+import { findClientForDeal } from './client-info.js?v=20260930131419';
 
 let cachedFromNumber = null;
 
@@ -279,7 +279,7 @@ export function openBlooioModal(dealId, phoneField){
     seqSelect.value = 0;
     populateTemplates(0);
   } else {
-    const stageToSeq = { 'Cold Email Response':'follow-up', 'Follow-up':'follow-up', 'Discovery Scheduled':'pre-call-nurture', 'Demo Scheduled':'pre-call-nurture' };
+    const stageToSeq = { 'Initial Response':'follow-up', 'Follow-up':'follow-up', 'Discovery Scheduled':'pre-call-nurture', 'Demo Scheduled':'pre-call-nurture' };
     const autoId = stageToSeq[deal.stage];
     if(autoId){
       const idx = sequences.findIndex(s => s.id === autoId);

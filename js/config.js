@@ -20,7 +20,7 @@ export const ROLES = {
 
 // ─── Pipeline & Stage Definitions ───
 export const ACQUISITION_STAGES = [
-  { id: "Cold Email Response", label: "Cold Email Response", color: "#059669" },
+  { id: "Initial Response", label: "Initial Response", color: "#059669" },
   { id: "Follow-up", label: "Follow-up", color: "#10b981" },
   { id: "Discovery Scheduled", label: "Discovery Scheduled", color: "#2563eb" },
   { id: "Demo Scheduled", label: "Demo Scheduled", color: "#0891b2" },
@@ -366,7 +366,7 @@ export function getTestData() {
   const TOMORROW = new Date(Date.now()+86400000).toISOString().split("T")[0];
 
   const TEST_DEALS = [
-    {id:"t1",company:"Southern Cutz Lawn & Landscape",contact:"Marcus Johnson",email:"marcus@southerncutz.com",phone:"(321) 555-0142",value:1057,stage:"Cold Email Response",pipeline:"Client",flag:"green",notes:"",website:"southerncutz.com",location:"Brevard, FL",campaignName:"FL Landscaping",leadCategory:"Interested",slLeadId:"",slCampaignId:"",smartleadUrl:"",createdDate:TODAY,lastUpdated:TODAY},
+    {id:"t1",company:"Southern Cutz Lawn & Landscape",contact:"Marcus Johnson",email:"marcus@southerncutz.com",phone:"(321) 555-0142",value:1057,stage:"Initial Response",pipeline:"Client",flag:"green",notes:"",website:"southerncutz.com",location:"Brevard, FL",campaignName:"FL Landscaping",leadCategory:"Interested",slLeadId:"",slCampaignId:"",smartleadUrl:"",createdDate:TODAY,lastUpdated:TODAY},
     {id:"t2",company:"Hill's Lawn & Grounds Care",contact:"David Hill",email:"info@hillslawn.com",phone:"(303) 555-0198",value:1057,stage:"Follow-up",pipeline:"Client",flag:"green",notes:"",website:"hillslawn.com",location:"Denver, CO",campaignName:"CO Landscaping",leadCategory:"Information Request",slLeadId:"",slCampaignId:"",smartleadUrl:"",createdDate:YESTERDAY,lastUpdated:TODAY},
     {id:"t3",company:"Denver Landscaping & Design",contact:"Sarah Chen",email:"sarah@denverld.com",phone:"",value:1057,stage:"Follow-up",pipeline:"Client",flag:"",notes:"Waiting on callback",website:"denverld.com",location:"Denver, CO",campaignName:"CO Landscaping",leadCategory:"Interested",slLeadId:"",slCampaignId:"",smartleadUrl:"",createdDate:YESTERDAY,lastUpdated:TODAY},
     {id:"t4",company:"All Proscape LLC",contact:"Tony Rivera",email:"tony@allproscape.com",phone:"(512) 555-0167",value:1057,stage:"Discovery Scheduled",pipeline:"Acquisition",flag:"red",notes:"Missed last call",website:"allproscape.com",location:"Austin, TX",campaignName:"TX Acquisition",leadCategory:"Meeting Request",slLeadId:"",slCampaignId:"",smartleadUrl:"",createdDate:YESTERDAY,lastUpdated:TODAY},
