@@ -4,12 +4,12 @@
 // the term end itself is derived in client-terms.js, never stored.
 // Admin-only, like the Renewals tab that hosts it.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20260930094615';
-import { render } from './render.js?v=20260930094615';
-import { showToast } from './api.js?v=20260930094615';
-import { esc, str } from './utils.js?v=20260930094615';
-import { currentUser, isAdmin } from './auth.js?v=20260930094615';
-import { TERM_UNITS } from './client-terms.js?v=20260930094615';
+import { supabase } from './supabase-client.js?v=20260930095001';
+import { render } from './render.js?v=20260930095001';
+import { showToast } from './api.js?v=20260930095001';
+import { esc, str } from './utils.js?v=20260930095001';
+import { currentUser, isAdmin } from './auth.js?v=20260930095001';
+import { TERM_UNITS } from './client-terms.js?v=20260930095001';
 
 const PAGE = 1000; // PostgREST caps a response at 1000 rows
 let _byClient = null; // { [clientId]: row[] } once loaded
