@@ -7,13 +7,13 @@
 //   one tab instead of three (Aidan, 2026-09-29: essential numbers only,
 //   limited noise; add more later).
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20260929151132';
-import { state } from './app.js?v=20260929151132';
-import { render } from './render.js?v=20260929151132';
-import { esc } from './utils.js?v=20260929151132';
-import { renderCacTab } from './cac.js?v=20260929151132';
-import { renderMarginsTab } from './margins.js?v=20260929151132';
-import { renderOverheadTab } from './overhead.js?v=20260929151132';
+import { supabase } from './supabase-client.js?v=20260930094615';
+import { state } from './app.js?v=20260930094615';
+import { render } from './render.js?v=20260930094615';
+import { esc } from './utils.js?v=20260930094615';
+import { renderCacTab } from './cac.js?v=20260930094615';
+import { renderMarginsTab } from './margins.js?v=20260930094615';
+import { renderOverheadTab } from './overhead.js?v=20260930094615';
 
 const FN_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/cfo-report';
 
@@ -69,9 +69,9 @@ function overviewHtml(){
     ${metricCard('Gross margin', k.gross_margin_pct===null?'—':k.gross_margin_pct.toFixed(1)+'%', 'revenue minus delivery costs')}
   </div>
   <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
-    ${metricCard('LTV : CAC', k.ltv_cac===null?'—':k.ltv_cac.toFixed(1)+'x', `LTV ${fmtUsd0(k.ltv)} vs CAC ${k.blended_cac===null?'—':fmtUsd0(k.blended_cac)} · 3x+ is good`, ratioColor)}
+    ${metricCard('LTV : CAC', k.ltv_cac===null?'—':k.ltv_cac.toFixed(1)+'x', `realized lifetime LTV ${fmtUsd0(k.ltv)} vs loaded CAC ${k.blended_cac===null?'—':fmtUsd0(k.blended_cac)} (SDR labor incl.) · 3x+ good`, ratioColor)}
     ${metricCard('CAC payback', k.cac_payback_months===null?'—':k.cac_payback_months.toFixed(1)+' mo', 'months of gross profit to earn back a client · under 12 is strong', paybackColor)}
-    ${metricCard('Avg client LTV', fmtUsd0(k.avg_ltv_revenue), `lifetime revenue across ${k.clients_lifetime} clients · ARPA ${fmtUsd0(k.arpa)}/mo`)}
+    ${metricCard('Avg client LTV', fmtUsd0(k.avg_ltv_revenue), `all-time realized, ${k.clients_lifetime} clients ever · still growing for actives · ARPA ${fmtUsd0(k.arpa)}/mo`)}
   </div>`;
 
   const th = 'padding:8px 10px;text-align:right;font-weight:600;white-space:nowrap';
