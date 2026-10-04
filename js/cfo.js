@@ -7,13 +7,13 @@
 //   one tab instead of three (Aidan, 2026-09-29: essential numbers only,
 //   limited noise; add more later).
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20260930131419';
-import { state } from './app.js?v=20260930131419';
-import { render } from './render.js?v=20260930131419';
-import { esc } from './utils.js?v=20260930131419';
-import { renderCacTab } from './cac.js?v=20260930131419';
-import { renderMarginsTab } from './margins.js?v=20260930131419';
-import { renderOverheadTab } from './overhead.js?v=20260930131419';
+import { supabase } from './supabase-client.js?v=20261004144216';
+import { state } from './app.js?v=20261004144216';
+import { render } from './render.js?v=20261004144216';
+import { esc } from './utils.js?v=20261004144216';
+import { renderCacTab } from './cac.js?v=20261004144216';
+import { renderMarginsTab } from './margins.js?v=20261004144216';
+import { renderOverheadTab } from './overhead.js?v=20261004144216';
 
 const FN_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/cfo-report';
 
@@ -115,7 +115,7 @@ export function renderCfoTab(){
   let html = `<div style="padding:8px 20px 0;max-width:960px">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
       <h2 style="font-size:16px;font-weight:700;margin:0 6px 0 0">CFO Hub</h2>
-      ${pill('overview','Overview')}${pill('cac','CAC')}${pill('margins','Margins')}${pill('overhead','Overhead')}
+      ${pill('overview','Overview')}${pill('cac','CAC')}${pill('margins','Client Margins')}${pill('overhead','Overhead')}
       <span style="flex:1"></span>
       ${view==='overview'&&gen?`<span style="font-size:11px;color:var(--text-muted)">Updated ${esc(gen.toLocaleString())}</span>`:''}
       ${view==='overview'?`<button class="btn btn-ghost" style="font-size:12px;padding:6px 14px" onclick="cfoRefresh()" ${state.cfoLoading?'disabled':''}>${state.cfoLoading?'Refreshing…':'↻ Refresh'}</button>`:''}

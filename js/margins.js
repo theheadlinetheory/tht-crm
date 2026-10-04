@@ -7,10 +7,10 @@
 // Net-30 clients read low in the latest month until their payment lands —
 // that is the service-month attribution being honest, footnoted below.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20260930131419';
-import { state } from './app.js?v=20260930131419';
-import { render } from './render.js?v=20260930131419';
-import { esc } from './utils.js?v=20260930131419';
+import { supabase } from './supabase-client.js?v=20261004144216';
+import { state } from './app.js?v=20261004144216';
+import { render } from './render.js?v=20261004144216';
+import { esc } from './utils.js?v=20261004144216';
 
 const MARGIN_FN_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/margin-report';
 
@@ -49,6 +49,65 @@ function statCard(label, value, sub){
   </div>`;
 }
 
+// Full cost breakdown for one client — fetched on demand (the same rows the
+// old client-dashboard Cost Tracking modal showed, now living here so every
+// cost and revenue number is under the CFO Hub — Aidan, 2026-10-04).
+const LABOR = new Set(['tim','ioannis','gtme1']);
+const RECURRING = new Set(['zapmail']);
+async function fetchClientDetail(clientId){
+  const { data: { session } } = await supabase.auth.getSession();
+  const resp = await fetch(MARGIN_FN_URL,{ method:'POST',
+    headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+session.access_token },
+    body: JSON.stringify({ client_id: clientId }) });
+  const data = await resp.json();
+  if(!resp.ok || data.error) throw new Error(data.error || 'detail failed');
+  return data.client_detail;
+}
+window.marginDetail = (id) => {
+  const s = state.marginDetails || (state.marginDetails = {});
+  if(s[id]) { delete s[id]; render(); return; }
+  s[id] = { loading: true };
+  render();
+  fetchClientDetail(id)
+    .then(d => { s[id] = { data: d }; render(); })
+    .catch(e => { s[id] = { error: String(e.message||e) }; render(); });
+};
+function costBreakdown(id){
+  const st = (state.marginDetails||{})[id];
+  if(!st) return '';
+  if(st.loading) return '<div style="padding:8px 0;color:var(--text-muted);font-size:12px">Loading cost breakdown…</div>';
+  if(st.error) return `<div style="padding:8px 0;color:#b91c1c;font-size:12px">${esc(st.error)}</div>`;
+  const rows = st.data.costs || [];
+  const buckets = { 'One-off': new Map(), 'Labor': new Map(), 'Monthly inboxes': new Map() };
+  let est = 0;
+  for(const r of rows){
+    if(r.vendor === 'custom-list' || r.vendor === 'domain-reuse') continue;
+    const b = LABOR.has(r.vendor) ? 'Labor' : RECURRING.has(r.vendor) ? 'Monthly inboxes' : 'One-off';
+    const k = r.vendor + ' · ' + String(r.cost_type||'').replace(/_/g,' ');
+    const prev = buckets[b].get(k) || { amt:0, qty:0, actual:true };
+    prev.amt += Number(r.amount_usd)||0;
+    prev.qty += Number(r.quantity)||0;
+    prev.actual = prev.actual && !!r.is_actual;
+    buckets[b].set(k, prev);
+    if(r.metadata && r.metadata.estimate) est++;
+  }
+  let html = '<div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;padding-top:8px;border-top:1px solid #e5e7eb">';
+  for(const [title, map] of Object.entries(buckets)){
+    if(!map.size) continue;
+    const tot = [...map.values()].reduce((a,v)=>a+v.amt,0);
+    html += `<div style="min-width:220px;flex:1"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">${title} — ${fmtUsd(tot)}</div>`;
+    for(const [k,v] of [...map.entries()].sort((a,b)=>b[1].amt-a[1].amt)){
+      html += `<div style="display:flex;gap:8px;font-size:12px;padding:2px 0">
+        <span style="color:#374151">${esc(k)}${v.actual?'':' <span style="opacity:.5">*</span>'}</span>
+        <span style="color:var(--text-muted);font-size:11px">${v.qty>1?Math.round(v.qty).toLocaleString():''}</span>
+        <span style="flex:1"></span><span style="font-variant-numeric:tabular-nums">${fmtUsd(v.amt)}</span></div>`;
+    }
+    html += '</div>';
+  }
+  html += `</div><div style="font-size:10.5px;color:var(--text-muted);margin-top:6px">* computed or estimated, not vendor-billed${est?` · ${est} estimated row(s) in this client's ledger`:''}</div>`;
+  return html;
+}
+
 function monthRows(c, colspan){
   const rows = (c.months||[]).map(m => `
     <div style="display:grid;grid-template-columns:1fr 100px 100px 100px;gap:12px;padding:3px 0;border-bottom:1px dashed #f3f4f6">
@@ -62,7 +121,9 @@ function monthRows(c, colspan){
       <div style="display:grid;grid-template-columns:1fr 100px 100px 100px;gap:12px;padding:0 0 4px;border-bottom:1px solid #e5e7eb;font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">
         <span>Month</span><span style="text-align:right">Revenue</span><span style="text-align:right">Cost</span><span style="text-align:right">Margin</span>
       </div>${rows}
+      <button class="btn btn-ghost" style="font-size:11px;padding:4px 10px;margin-top:8px" onclick="event.stopPropagation();marginDetail('${esc(c.client_id)}')">${(state.marginDetails||{})[c.client_id]?'Hide':'Show'} full cost breakdown</button>
     </div>
+    ${costBreakdown(c.client_id)}
   </td></tr>`;
 }
 
