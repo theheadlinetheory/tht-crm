@@ -1,18 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // AIMFOX — LinkedIn-outreach cards (created by the aimfox-webhook edge fn)
 // ═══════════════════════════════════════════════════════════
-import { esc } from './utils.js?v=20261005085638';
+import { esc } from './utils.js?v=20261005090246';
 
 const LINKEDIN_BLUE = '#0a66c2';
 
 export function isAimfoxDeal(deal) {
   return deal.leadSource === 'aimfox';
-}
-
-/** Small "in" badge on the pipeline card so LinkedIn leads stand out from email ones. */
-export function aimfoxCardBadge(deal) {
-  if (!isAimfoxDeal(deal)) return '';
-  return `<span title="LinkedIn lead (Aimfox)" style="display:inline-block;margin-right:4px;font-size:9px;font-weight:800;background:${LINKEDIN_BLUE};color:#fff;padding:1px 4px;border-radius:3px;vertical-align:middle;font-family:Arial,sans-serif">in</span>`;
 }
 
 /** Replaces the "Smartlead Source" block in the deal modal for LinkedIn leads. */
