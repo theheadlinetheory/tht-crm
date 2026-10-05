@@ -1,14 +1,28 @@
 // ═══════════════════════════════════════════════════════════
 // TRENDS — All-time billable meetings + revenue per client, per month
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261005144452';
-import { esc, str } from './utils.js?v=20261005144452';
-import { multiFilterDropdown } from './html-helpers.js?v=20261005144452';
-import { isAdmin } from './auth.js?v=20261005144452';
-import { monthOf } from './lead-tracker-monthly.js?v=20261005144452';
-import { computeSetupFeeMap } from './lead-tracker.js?v=20261005144452';
+import { state } from './app.js?v=20261005145004';
+import { esc, str } from './utils.js?v=20261005145004';
+import { multiFilterDropdown } from './html-helpers.js?v=20261005145004';
+import { isAdmin } from './auth.js?v=20261005145004';
+import { computeSetupFeeMap } from './lead-tracker.js?v=20261005145004';
 
-// ─── All time: every month, per client, by appointment month (the billing rule) ───
+// ─── All time: every month, per client ───
+// A lead counts in its appointment month by default — the billing rule, falling
+// back to the booked date for rows with no appointment date. The Appt/Booked
+// toggle (shared with the PPM Meetings date range) switches to booked month.
+function parseMDY(s) {
+  const p = str(s).split('/');
+  if (p.length !== 3) return null;
+  const m = parseInt(p[0], 10), d = parseInt(p[1], 10);
+  let y = parseInt(p[2], 10);
+  if (!Number.isFinite(m) || !Number.isFinite(d) || !Number.isFinite(y) || m < 1 || m > 12) return null;
+  if (y < 100) y += 2000;
+  return { y, m };
+}
+const bookedBasis = () => state.trackerFilters?.dateBasis === 'booked';
+const monthOf = e => bookedBasis() ? parseMDY(e.dateAdded) : (parseMDY(e.apptDate) || parseMDY(e.dateAdded));
+
 const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const monthKey = (y, m) => `${y}-${String(m).padStart(2, '0')}`;
 const monthLabel = (y, m) => `${MONTH_ABBR[m - 1]} '${String(y).slice(-2)}`;
@@ -26,7 +40,7 @@ function buildAllTimeData(withRevenue) {
   let first = null, last = null;
   for (const e of state.trackerEntries) {
     const client = str(e.clientName).trim();
-    const when = monthOf(e, 'appt');
+    const when = monthOf(e);
     if (!client || !when) continue;
     if (str(e.callbackStatus).toLowerCase() === 'called back') continue; // not billable
     const k = monthKey(when.y, when.m);
@@ -80,6 +94,14 @@ function renderChart(months, totals, showRevenue, yearEdge) {
   return `<div style="display:flex;align-items:flex-end;gap:2px;height:${CHART_H + 36}px;margin:4px 0 14px;overflow-x:auto">${bars}</div>`;
 }
 
+function basisToggle() {
+  const btn = (v, label) => {
+    const on = bookedBasis() === (v === 'booked');
+    return `<button onclick="trackerSetDateBasis('${v}')" style="padding:4px 12px;font-size:11px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:${on ? 'var(--purple)' : '#fff'};color:${on ? '#fff' : 'var(--text-muted)'}">${label}</button>`;
+  };
+  return `<div style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">${btn('appt', 'Appt month')}${btn('booked', 'Booked month')}</div>`;
+}
+
 function renderAllTime() {
   const admin = isAdmin();
   const showRevenue = admin && state.trendsMetric === 'revenue';
@@ -105,11 +127,12 @@ function renderAllTime() {
   let html = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:4px">
     <div>
       <div style="font-size:13px;font-weight:700">${allMeetings} meetings${admin ? ` · ${fmtUsd(allCents)}` : ''} <span style="font-weight:400;color:var(--text-muted)">all time${picked.length ? ` · ${picked.length === 1 ? esc(picked[0]) : picked.length + ' clients'}` : ''}</span></div>
-      <div style="font-size:11px;color:var(--text-muted)">By appointment month (how it's invoiced). Called-back meetings excluded.</div>
+      <div style="font-size:11px;color:var(--text-muted)">${bookedBasis() ? 'By the month the lead was booked' : 'By appointment month (how it\'s invoiced)'}. Called-back meetings excluded.</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
       ${multiFilterDropdown(state, 'trendsClients', 'showTrendsClientDropdown', 'All clients', 'clients', [...data.clients].sort())}
       ${admin ? trendsToggle('trendsMetric', [['meetings', 'Meetings'], ['revenue', 'Revenue']]) : ''}
+      ${basisToggle()}
     </div>
   </div>`;
   html += renderChart(months, totals, showRevenue, yearEdge);
