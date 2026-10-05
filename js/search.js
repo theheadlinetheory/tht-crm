@@ -1,12 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // SEARCH — Global search, activity badges, pipeline helpers
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261004150946';
-import { ACQUISITION_STAGES, NURTURE_STAGES, CLIENT_PALETTE, ALL_PIPELINES } from './config.js?v=20261004150946';
-import { render } from './render.js?v=20261004150946';
-import { getToday } from './utils.js?v=20261004150946';
-import { isEmployee, isAdmin, getOwnerNameForDeal } from './auth.js?v=20261004150946';
-import { lookupClientInfo } from './client-info.js?v=20261004150946';
+import { state } from './app.js?v=20261005085638';
+import { ACQUISITION_STAGES, NURTURE_STAGES, CLIENT_PALETTE, ALL_PIPELINES } from './config.js?v=20261005085638';
+import { render } from './render.js?v=20261005085638';
+import { getToday } from './utils.js?v=20261005085638';
+import { isEmployee, isAdmin, getOwnerNameForDeal } from './auth.js?v=20261005085638';
+import { lookupClientInfo } from './client-info.js?v=20261005085638';
+import { dealChannel } from './acquisition-channel.js?v=20261005085638';
 
 export function globalSearch(q){
   // Re-entrancy guard. restorePreserve() re-focuses the search input after
@@ -76,6 +77,9 @@ export function getPipelineDeals(){
     }
     if(state.verticalFilter){
       acqDeals = acqDeals.filter(d => (d.vertical || 'Other') === state.verticalFilter);
+    }
+    if(state.channelFilter){
+      acqDeals = acqDeals.filter(d => dealChannel(d) === state.channelFilter);
     }
     return acqDeals;
   }

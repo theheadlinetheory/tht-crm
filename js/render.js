@@ -2,38 +2,54 @@
 // RENDER — Main render loop, refreshModal, list view
 // ═══════════════════════════════════════════════════════════
 
-import { state, savedScrollLeft, setSavedScrollLeft } from './app.js?v=20261004150946';
-import { ACQUISITION_STAGES, NURTURE_STAGES, ACTIVITY_ICONS, DEAL_VERTICALS, detectCountry } from './config.js?v=20261004150946';
-import { esc, svgIcon, getToday, fmtDate, fmtTime12, str, stripHtml } from './utils.js?v=20261004150946';
-import { isAdmin, isEmployee, isFounder, currentUser, renderUserMenu, getOwnerForDeal, getOwnerNameForDeal, loadAssignableUsers } from './auth.js?v=20261004150946';
-import { initialSync as syncFromSheet } from './api.js?v=20261004150946';
-import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js?v=20261004150946';
-import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWonDrop, renderDealModal, renderNewDealModal, renderAddClientModal, toggleBadgeDropdown } from './deal-modal.js?v=20261004150946';
-import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from './activities.js?v=20261004150946';
-import { renderDashboard, renderKpiTargetBar } from './dashboard.js?v=20261004150946';
-import { loadFunnel, renderFunnel } from './funnel.js?v=20261004150946';
-import { journeyCell, loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js?v=20261004150946';
-import { journeyFor, LEFT_AT_OPTIONS, WHY_OPTIONS } from './archive-journey.js?v=20261004150946';
-import { toggleBulkMode, bulkMoveStage, bulkSelectAll, bulkArchive, bulkAddActivity, toggleBulkSelect } from './deals.js?v=20261004150946';
-import { openSettings } from './settings.js?v=20261004150946';
-import { serviceAreaResults } from './maps.js?v=20261004150946';
-import { lookupClientInfo, isRetainerClient, deriveTimezone } from './client-info.js?v=20261004150946';
-import { openClientInfoPanel } from './client-panel.js?v=20261004150946';
-import { openCalendlyEmbed, removeAppointment, addManualAppointment } from './calendly.js?v=20261004150946';
-import { capturePreserve, restorePreserve } from './render-preserve.js?v=20261004150946';
-import { doDragOver, doDragLeave, clearAllDragOver, doDrop } from './deals.js?v=20261004150946';
-import { loadDiscoOutcomes, renderDiscoOutcomeBanner } from './disco-outcome.js?v=20261004150946';
-import { renderDueTodayBanner, renderNurtureDropdown, renderNurtureTab, renderNurtureEntryModal, renderReactivateModal, renderSnoozeModal, loadNurtureData, clearNurtureDraft } from './rerun.js?v=20261004150946';
-import { renderDemoTracker } from './demo-tracker.js?v=20261004150946';
-import { renderColdCallingTab } from './cold-calling.js?v=20261004150946';
-import { renderRetargetingTab } from './retargeting.js?v=20261004150946';
-import { renderCacTab } from './cac.js?v=20261004150946';
-import { renderMarginsTab } from './margins.js?v=20261004150946';
-import { renderOverheadTab } from './overhead.js?v=20261004150946';
-import { renderCfoTab } from './cfo.js?v=20261004150946';
-import { renderRenewals } from './renewals.js?v=20261004150946';
-import { isPowerDialerActive } from './power-dialer.js?v=20261004150946';
-import { aimfoxCardBadge } from './aimfox.js?v=20261004150946';
+import { state, savedScrollLeft, setSavedScrollLeft } from './app.js?v=20261005085638';
+import { ACQUISITION_STAGES, NURTURE_STAGES, ACTIVITY_ICONS, DEAL_VERTICALS, detectCountry } from './config.js?v=20261005085638';
+import { esc, svgIcon, getToday, fmtDate, fmtTime12, str, stripHtml } from './utils.js?v=20261005085638';
+import { isAdmin, isEmployee, isFounder, currentUser, renderUserMenu, getOwnerForDeal, getOwnerNameForDeal, loadAssignableUsers } from './auth.js?v=20261005085638';
+import { initialSync as syncFromSheet } from './api.js?v=20261005085638';
+import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js?v=20261005085638';
+import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWonDrop, renderDealModal, renderNewDealModal, renderAddClientModal, toggleBadgeDropdown } from './deal-modal.js?v=20261005085638';
+import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from './activities.js?v=20261005085638';
+import { renderDashboard, renderKpiTargetBar } from './dashboard.js?v=20261005085638';
+import { loadFunnel, renderFunnel } from './funnel.js?v=20261005085638';
+import { journeyCell, loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js?v=20261005085638';
+import { journeyFor, LEFT_AT_OPTIONS, WHY_OPTIONS } from './archive-journey.js?v=20261005085638';
+import { toggleBulkMode, bulkMoveStage, bulkSelectAll, bulkArchive, bulkAddActivity, toggleBulkSelect } from './deals.js?v=20261005085638';
+import { openSettings } from './settings.js?v=20261005085638';
+import { serviceAreaResults } from './maps.js?v=20261005085638';
+import { lookupClientInfo, isRetainerClient, deriveTimezone } from './client-info.js?v=20261005085638';
+import { openClientInfoPanel } from './client-panel.js?v=20261005085638';
+import { openCalendlyEmbed, removeAppointment, addManualAppointment } from './calendly.js?v=20261005085638';
+import { capturePreserve, restorePreserve } from './render-preserve.js?v=20261005085638';
+import { doDragOver, doDragLeave, clearAllDragOver, doDrop } from './deals.js?v=20261005085638';
+import { loadDiscoOutcomes, renderDiscoOutcomeBanner } from './disco-outcome.js?v=20261005085638';
+import { renderDueTodayBanner, renderNurtureDropdown, renderNurtureTab, renderNurtureEntryModal, renderReactivateModal, renderSnoozeModal, loadNurtureData, clearNurtureDraft } from './rerun.js?v=20261005085638';
+import { renderDemoTracker } from './demo-tracker.js?v=20261005085638';
+import { renderColdCallingTab } from './cold-calling.js?v=20261005085638';
+import { renderRetargetingTab } from './retargeting.js?v=20261005085638';
+import { renderCacTab } from './cac.js?v=20261005085638';
+import { renderMarginsTab } from './margins.js?v=20261005085638';
+import { renderOverheadTab } from './overhead.js?v=20261005085638';
+import { renderCfoTab } from './cfo.js?v=20261005085638';
+import { renderRenewals } from './renewals.js?v=20261005085638';
+import { isPowerDialerActive } from './power-dialer.js?v=20261005085638';
+import { aimfoxCardBadge, isAimfoxDeal } from './aimfox.js?v=20261005085638';
+import { ACQUISITION_CHANNELS } from './acquisition-channel.js?v=20261005085638';
+
+// ─── Single-select acquisition filter (state[key] holds the value, state[openKey] the dropdown) ───
+function singleFilterDropdown(key,openKey,placeholder,options){
+  const value=state[key];
+  return `<div class="acq-filter-wrap">
+    <button class="acq-filter-toggle ${value?'has-filter':''}" onclick="event.stopPropagation();state.${openKey}=!state.${openKey};render()">
+      ${esc(value||placeholder)} ▾
+    </button>
+    ${state[openKey]?`<div class="acq-filter-dropdown" onclick="event.stopPropagation()">
+      ${['',...options].map(o=>`<div class="acq-filter-option ${value===o?'selected':''}" onclick="state.${key}='${esc(o)}';state.${openKey}=false;render()">
+        ${value===o?'✓':' '} ${o?esc(o):'All'}
+      </div>`).join('')}
+    </div>`:''}
+  </div>`;
+}
 
 // ─── renderListView ───
 function renderListView(deals,stages){
@@ -401,24 +417,11 @@ function renderInternal(){
     }
   }
 
-  // ─── Vertical Filter Dropdown ───
+  // ─── Vertical + Channel Filter Dropdowns ───
   if(state.pipeline==='acquisition' && state.acquisitionSubTab==='pipeline'){
-    const hasVF=state.verticalFilter!=='';
-    const vfLabel=hasVF?state.verticalFilter:'Vertical';
-    html+=`<div style="padding:0 20px;margin-bottom:4px">
-      <div class="acq-filter-wrap">
-        <button class="acq-filter-toggle ${hasVF?'has-filter':''}" onclick="event.stopPropagation();state.showVerticalFilterDropdown=!state.showVerticalFilterDropdown;render()">
-          ${esc(vfLabel)} ▾
-        </button>
-        ${state.showVerticalFilterDropdown?`<div class="acq-filter-dropdown" onclick="event.stopPropagation()">
-          <div class="acq-filter-option ${!hasVF?'selected':''}" onclick="state.verticalFilter='';state.showVerticalFilterDropdown=false;render()">
-            ${!hasVF?'✓':' '} All
-          </div>
-          ${DEAL_VERTICALS.map(v=>`<div class="acq-filter-option ${state.verticalFilter===v?'selected':''}" onclick="state.verticalFilter='${v}';state.showVerticalFilterDropdown=false;render()">
-            ${state.verticalFilter===v?'✓':' '} ${v}
-          </div>`).join('')}
-        </div>`:''}
-      </div>
+    html+=`<div style="padding:0 20px;margin-bottom:4px;display:flex;gap:8px">
+      ${singleFilterDropdown('verticalFilter','showVerticalFilterDropdown','Vertical',DEAL_VERTICALS)}
+      ${singleFilterDropdown('channelFilter','showChannelFilterDropdown','Channel',ACQUISITION_CHANNELS)}
     </div>`;
   }
 
@@ -494,7 +497,7 @@ function renderInternal(){
         html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading analysis...</div>';
         if(!window._analysisLoading){
           window._analysisLoading=true;
-          import('./analysis.js?v=20261004150946').then(m=>{ window._analysisModule=m; render(); }).catch(()=>{ window._analysisLoading=false; });
+          import('./analysis.js?v=20261005085638').then(m=>{ window._analysisModule=m; render(); }).catch(()=>{ window._analysisLoading=false; });
         }
       }
       // The grid is long and wide, and every render replaces the DOM wholesale.
@@ -530,7 +533,7 @@ function renderInternal(){
         html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading client triage...</div>';
         if(!window._triageLoading){
           window._triageLoading=true;
-          import('./triage.js?v=20261004150946').then(m=>{ window._triageModule=m; render(); }).catch(()=>{ window._triageLoading=false; });
+          import('./triage.js?v=20261005085638').then(m=>{ window._triageModule=m; render(); }).catch(()=>{ window._triageLoading=false; });
         }
       }
       const tWrap=document.querySelector('.tracker-table-wrap');
@@ -549,7 +552,7 @@ function renderInternal(){
         html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading follow-up reminders...</div>';
         if(!window._followupLoading){
           window._followupLoading=true;
-          import('./followup-reminders.js?v=20261004150946').then(m=>{ window._followupModule=m; render(); }).catch(()=>{ window._followupLoading=false; });
+          import('./followup-reminders.js?v=20261005085638').then(m=>{ window._followupModule=m; render(); }).catch(()=>{ window._followupLoading=false; });
         }
       }
       app.innerHTML=html;
@@ -563,7 +566,7 @@ function renderInternal(){
         html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading weekly updates...</div>';
         if(!window._weeklyLoading){
           window._weeklyLoading=true;
-          import('./weekly-updates.js?v=20261004150946').then(m=>{ window._weeklyModule=m; render(); }).catch(()=>{ window._weeklyLoading=false; });
+          import('./weekly-updates.js?v=20261005085638').then(m=>{ window._weeklyModule=m; render(); }).catch(()=>{ window._weeklyLoading=false; });
         }
       }
       app.innerHTML=html;
@@ -577,7 +580,7 @@ function renderInternal(){
         html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading monthly updates...</div>';
         if(!window._monthlyLoading){
           window._monthlyLoading=true;
-          import('./monthly-updates.js?v=20261004150946').then(m=>{ window._monthlyModule=m; render(); }).catch(()=>{ window._monthlyLoading=false; });
+          import('./monthly-updates.js?v=20261005085638').then(m=>{ window._monthlyModule=m; render(); }).catch(()=>{ window._monthlyLoading=false; });
         }
       }
       app.innerHTML=html;
@@ -606,12 +609,12 @@ function renderInternal(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading…</div>';
           if(!window._trackerMonthlyLoading){
             window._trackerMonthlyLoading=true;
-            import('./lead-tracker-monthly.js?v=20261004150946').then(m=>{ window._trackerMonthlyModule=m; render(); })
+            import('./lead-tracker-monthly.js?v=20261005085638').then(m=>{ window._trackerMonthlyModule=m; render(); })
               .catch(()=>{ window._trackerMonthlyLoading=false; });
           }
           if(!state.trackerLoaded && !window._trackerLoading){
             window._trackerLoading=true;
-            import('./lead-tracker.js?v=20261004150946').then(m=>{
+            import('./lead-tracker.js?v=20261005085638').then(m=>{
               window._trackerModule=m;
               m.loadTrackerEntries().then(()=>render()).catch(()=>render());
             }).catch(()=>{ window._trackerLoading=false; });
@@ -624,11 +627,11 @@ function renderInternal(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading trends...</div>';
           if(!window._trendsLoading){
             window._trendsLoading=true;
-            import('./trends.js?v=20261004150946').then(m=>{ window._trendsModule=m; render(); }).catch(()=>{ window._trendsLoading=false; });
+            import('./trends.js?v=20261005085638').then(m=>{ window._trendsModule=m; render(); }).catch(()=>{ window._trendsLoading=false; });
           }
           if(!state.trackerLoaded && !window._trackerLoading){
             window._trackerLoading=true;
-            import('./lead-tracker.js?v=20261004150946').then(m=>{
+            import('./lead-tracker.js?v=20261005085638').then(m=>{
               window._trackerModule=m;
               m.loadTrackerEntries().then(()=>render()).catch(()=>render());
             }).catch(()=>{ window._trackerLoading=false; });
@@ -641,7 +644,7 @@ function renderInternal(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading retainer leads...</div>';
           if(!window._passOffsLoading){
             window._passOffsLoading=true;
-            import('./pass-offs.js?v=20261004150946').then(m=>{ window._passOffsModule=m; render(); }).catch(()=>{ window._passOffsLoading=false; });
+            import('./pass-offs.js?v=20261005085638').then(m=>{ window._passOffsModule=m; render(); }).catch(()=>{ window._passOffsLoading=false; });
           }
         }
       } else {
@@ -651,14 +654,14 @@ function renderInternal(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading tracker...</div>';
           if(!window._trackerLoading){
             window._trackerLoading=true;
-            import('./lead-tracker.js?v=20261004150946').then(m=>{
+            import('./lead-tracker.js?v=20261005085638').then(m=>{
               window._trackerModule=m;
               if(!state.trackerLoaded){ m.loadTrackerEntries().then(()=>render()).catch(()=>render()); }
               else render();
             }).catch(()=>{ window._trackerLoading=false; });
             if(!window._invoiceLoading){
               window._invoiceLoading=true;
-              import('./invoice.js?v=20261004150946').then(m=>{ window._invoiceModule=m; }).catch(()=>{ window._invoiceLoading=false; });
+              import('./invoice.js?v=20261005085638').then(m=>{ window._invoiceModule=m; }).catch(()=>{ window._invoiceLoading=false; });
             }
           }
         }
@@ -666,7 +669,7 @@ function renderInternal(){
           html+=window._invoiceModule.renderInvoiceModal();
         } else if(state.invoiceModal && !window._invoiceLoading){
           window._invoiceLoading=true;
-          import('./invoice.js?v=20261004150946').then(m=>{ window._invoiceModule=m; render(); });
+          import('./invoice.js?v=20261005085638').then(m=>{ window._invoiceModule=m; render(); });
         }
       }
       html+=`</div>`; // close the --tracker-top wrapper
@@ -892,7 +895,7 @@ function renderInternal(){
           data-deal-id="${deal.id}"
           onclick="${state.bulkMode?`event.preventDefault();event.stopPropagation();toggleBulkSelect('${deal.id}')`:`openDeal('${deal.id}')`}">
           <div class="deal-card-top">
-            <div class="deal-company">${state.bulkMode?`<span class="bulk-check">${isBulkSel?'✓':''}</span>`:''}${(()=>{const c=detectCountry(deal);return c.code!=='US'?'<span title="'+c.label+'" style="font-size:12px;margin-right:3px;vertical-align:middle">'+c.flag+'</span>':'';})()}${deal.hasNewText?'<span class="reply-indicator text-reply-indicator" title="New text reply received">'+svgIcon('message-circle',12,'#16a34a')+'</span>':''}${deal.hasNewReply?'<span class="reply-indicator" title="New email reply received">'+svgIcon('mail',12,'#3b82f6')+'</span>':''}${esc(deal.company||deal.contact||deal.email||"New Deal")}${isRetainerClient(deal)?'<span style="display:inline-block;margin-left:6px;font-size:9px;font-weight:700;background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:3px;vertical-align:middle;white-space:nowrap;letter-spacing:.3px">RETAINER</span>':''}${aimfoxCardBadge(deal)}</div>
+            <div class="deal-company">${state.bulkMode?`<span class="bulk-check">${isBulkSel?'✓':''}</span>`:''}${(()=>{const c=detectCountry(deal);return c.code!=='US'?'<span title="'+c.label+'" style="font-size:12px;margin-right:3px;vertical-align:middle">'+c.flag+'</span>':'';})()}${deal.hasNewText?'<span class="reply-indicator text-reply-indicator" title="New text reply received">'+svgIcon('message-circle',12,'#16a34a')+'</span>':''}${deal.hasNewReply?'<span class="reply-indicator" title="New '+(isAimfoxDeal(deal)?'LinkedIn':'email')+' reply received">'+svgIcon('mail',12,'#3b82f6')+'</span>':''}${aimfoxCardBadge(deal)}${esc(deal.company||deal.contact||deal.email||"New Deal")}${isRetainerClient(deal)?'<span style="display:inline-block;margin-left:6px;font-size:9px;font-weight:700;background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:3px;vertical-align:middle;white-space:nowrap;letter-spacing:.3px">RETAINER</span>':''}</div>
             <div class="status-indicator" onclick="event.stopPropagation();toggleBadgeDropdown('${deal.id}')">
               <div class="status-dot" style="background:${badge?badge.color:'#d1d5db'}"></div>
               ${badge?`<span class="status-count" style="color:${badge.color}">${badge.count}</span>`:''}
