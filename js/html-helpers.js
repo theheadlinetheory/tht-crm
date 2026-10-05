@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // HTML-HELPERS — Reusable HTML template builders (DRY)
 // ═══════════════════════════════════════════════════════════
-import { esc, svgIcon } from './utils.js?v=20261005144300';
+import { esc, svgIcon } from './utils.js?v=20261005144452';
 
 /**
  * Wraps content in a modal overlay + modal container.
@@ -82,5 +82,27 @@ export function infoSection(header, body, { bg = '#f8fafc', borderColor = '#e2e8
   return `<div style="margin-bottom:16px;padding:12px;background:${bg};border-radius:8px;border:1px solid ${borderColor}">
     <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">${header}</div>
     ${body}
+  </div>`;
+}
+
+/**
+ * Multi-select dropdown filter. st[key] is the array of picked values, st[openKey]
+ * whether the menu is open; options call the global toggleMultiFilter(key, value).
+ */
+export function multiFilterDropdown(st, key, openKey, allLabel, noun, options) {
+  const picked = st[key];
+  const label = !picked.length ? allLabel : picked.length === 1 ? picked[0] : `${picked.length} ${noun}`;
+  return `<div class="acq-filter-wrap">
+    <button class="acq-filter-toggle ${picked.length ? 'has-filter' : ''}" onclick="event.stopPropagation();state.${openKey}=!state.${openKey};render()">
+      ${esc(label)} ▾
+    </button>
+    ${st[openKey] ? `<div class="acq-filter-dropdown" onclick="event.stopPropagation()">
+      <div class="acq-filter-option ${!picked.length ? 'selected' : ''}" onclick="state.${key}=[];render()">
+        ${!picked.length ? '✓' : '\u2003'} All
+      </div>
+      ${options.map(o => `<div class="acq-filter-option ${picked.includes(o) ? 'selected' : ''}" data-v="${esc(o)}" onclick="toggleMultiFilter('${key}',this.dataset.v)">
+        ${picked.includes(o) ? '✓' : '\u2003'} ${esc(o)}
+      </div>`).join('')}
+    </div>` : ''}
   </div>`;
 }
