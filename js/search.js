@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // SEARCH — Global search, activity badges, pipeline helpers
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261005090246';
-import { ACQUISITION_STAGES, NURTURE_STAGES, CLIENT_PALETTE, ALL_PIPELINES } from './config.js?v=20261005090246';
-import { render } from './render.js?v=20261005090246';
-import { getToday } from './utils.js?v=20261005090246';
-import { isEmployee, isAdmin, getOwnerNameForDeal } from './auth.js?v=20261005090246';
-import { lookupClientInfo } from './client-info.js?v=20261005090246';
-import { dealChannel } from './acquisition-channel.js?v=20261005090246';
+import { state } from './app.js?v=20261005090640';
+import { ACQUISITION_STAGES, NURTURE_STAGES, CLIENT_PALETTE, ALL_PIPELINES } from './config.js?v=20261005090640';
+import { render } from './render.js?v=20261005090640';
+import { getToday } from './utils.js?v=20261005090640';
+import { isEmployee, isAdmin, getOwnerNameForDeal } from './auth.js?v=20261005090640';
+import { lookupClientInfo } from './client-info.js?v=20261005090640';
+import { dealChannel } from './acquisition-channel.js?v=20261005090640';
 
 export function globalSearch(q){
   // Re-entrancy guard. restorePreserve() re-focuses the search input after
@@ -72,15 +72,11 @@ export function getStages(){
 export function getPipelineDeals(){
   if(state.pipeline==="acquisition"){
     let acqDeals = state.deals.filter(d=>d.pipeline==='Acquisition');
-    if(state.acquisitionFilter){
-      acqDeals = acqDeals.filter(d => getOwnerNameForDeal(d) === state.acquisitionFilter);
-    }
-    if(state.verticalFilter){
-      acqDeals = acqDeals.filter(d => (d.vertical || 'Other') === state.verticalFilter);
-    }
-    if(state.channelFilter){
-      acqDeals = acqDeals.filter(d => dealChannel(d) === state.channelFilter);
-    }
+    // Each filter is a multi-select: empty = all, otherwise match any picked value.
+    const pick = (values, valueOf) => { if(values.length) acqDeals = acqDeals.filter(d => values.includes(valueOf(d))); };
+    pick(state.acquisitionFilter, getOwnerNameForDeal);
+    pick(state.verticalFilter, d => d.vertical || 'Other');
+    pick(state.channelFilter, dealChannel);
     return acqDeals;
   }
   if(state.pipeline==="nurture") return state.deals.filter(d=>NURTURE_STAGES.some(s=>s.id===d.stage));

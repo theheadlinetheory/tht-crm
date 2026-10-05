@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // DIALER — JustCall Dialer (embedded iframe via SDK protocol)
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261005090246';
-import { str, esc, uid, getToday } from './utils.js?v=20261005090246';
-import { invokeEdgeFunction, sbCreateActivity, camelToSnake } from './api.js?v=20261005090246';
-import { getBestNumberForLead, getRegionForPhone, recordCallOutcome } from './number-health.js?v=20261005090246';
-import { JUSTCALL_USER_MAP } from './config.js?v=20261005090246';
-import { currentUser } from './auth.js?v=20261005090246';
+import { state } from './app.js?v=20261005090640';
+import { str, esc, uid, getToday } from './utils.js?v=20261005090640';
+import { invokeEdgeFunction, sbCreateActivity, camelToSnake } from './api.js?v=20261005090640';
+import { getBestNumberForLead, getRegionForPhone, recordCallOutcome } from './number-health.js?v=20261005090640';
+import { JUSTCALL_USER_MAP } from './config.js?v=20261005090640';
+import { currentUser } from './auth.js?v=20261005090640';
 
 const DIALER_URL = 'https://app.justcall.io/dialer';
 let dialerReady = false;
@@ -171,7 +171,7 @@ async function onCallEnded(){
     }));
 
     // The webhook has had a few seconds by now — pull its touchpoint in.
-    const { refreshModal } = await import('./render.js?v=20261005090246');
+    const { refreshModal } = await import('./render.js?v=20261005090640');
     if(state.selectedDeal === dealId) refreshModal();
 
     if(wasAnswered && deal && deal.pipeline === 'Client' && phone){

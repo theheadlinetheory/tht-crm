@@ -7,11 +7,11 @@
 // Net-30 clients read low in the latest month until their payment lands —
 // that is the service-month attribution being honest, footnoted below.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20261005090246';
-import { state } from './app.js?v=20261005090246';
-import { render } from './render.js?v=20261005090246';
-import { esc } from './utils.js?v=20261005090246';
-import { costBreakdown } from './margin-costs.js?v=20261005090246';
+import { supabase } from './supabase-client.js?v=20261005090640';
+import { state } from './app.js?v=20261005090640';
+import { render } from './render.js?v=20261005090640';
+import { esc } from './utils.js?v=20261005090640';
+import { costBreakdown } from './margin-costs.js?v=20261005090640';
 
 const MARGIN_FN_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/margin-report';
 
