@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // LEAD TRACKER — Editable grid view for lead billing & status
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20261005090640';
-import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20261005090640';
-import { isAdmin, isEmployee } from './auth.js?v=20261005090640';
-import { esc, svgIcon, str } from './utils.js?v=20261005090640';
-import { render } from './render.js?v=20261005090640';
+import { state, store, pendingWrites } from './app.js?v=20261005135410';
+import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20261005135410';
+import { isAdmin, isEmployee } from './auth.js?v=20261005135410';
+import { esc, svgIcon, str } from './utils.js?v=20261005135410';
+import { render } from './render.js?v=20261005135410';
 
 // ─── Column Definitions ───
 // The billing "Month" ('July/26') is deliberately not a column — the sheet shows
@@ -264,7 +264,7 @@ function getClientColorMap() {
 // first `spread` non-called-back leads per client, in date order. Returns a map
 // entryId → { surcharge (cents), index (1-based), spread }. Admin-only (lead cost
 // is admin-only), so callers gate on isAdmin().
-function computeSetupFeeMap() {
+export function computeSetupFeeMap() {
   const map = {};
   for (const c of state.clients) {
     const total = Number(c.setupFeeTotal || 0);
