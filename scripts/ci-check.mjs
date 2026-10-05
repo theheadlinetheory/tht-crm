@@ -70,6 +70,9 @@ const REQUIRED_FEATURES = [
   { file: 'weekly-template.js', needle: "'{PPM_NOTE}': ctx.ppm ? PPM_NOTE : ''", feature: 'Weekly Updates: {PPM_NOTE} sentence for pay-per-meeting clients only' },
   { file: 'weekly-updates.js', needle: 'weeklyGreeting(first, p.to, ccList)', feature: 'Weekly Updates: greeting resolved from To AND Cc at Prepare' },
   { file: 'settings.js',       needle: "'otherContacts',this.value",         feature: 'Settings → Clients: Additional Contacts (weekly-update CC) field' },
+  // The update's TO line is its own field, not the lead-delivery address
+  // (Denair delivers leads to an attribution inbox nobody reads).
+  { file: 'settings.js',       needle: "'weeklyUpdateEmails',this.value",    feature: 'Settings → Clients: Weekly Update Emails (weekly-update TO) field' },
   // Top-level tabs
   { file: 'render.js',         needle: "state.pipeline==='dashboard'",  feature: 'Dashboard tab' },
   { file: 'render.js',         needle: "state.pipeline==='acquisition'", feature: 'Acquisition tab' },

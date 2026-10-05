@@ -2,39 +2,39 @@
 // RENDER — Main render loop, refreshModal, list view
 // ═══════════════════════════════════════════════════════════
 
-import { state, savedScrollLeft, setSavedScrollLeft } from './app.js?v=20261005135410';
-import { ACQUISITION_STAGES, NURTURE_STAGES, ACTIVITY_ICONS, DEAL_VERTICALS, detectCountry } from './config.js?v=20261005135410';
-import { esc, svgIcon, getToday, fmtDate, fmtTime12, str, stripHtml } from './utils.js?v=20261005135410';
-import { isAdmin, isEmployee, isFounder, currentUser, renderUserMenu, getOwnerForDeal, getOwnerNameForDeal, loadAssignableUsers } from './auth.js?v=20261005135410';
-import { initialSync as syncFromSheet } from './api.js?v=20261005135410';
-import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js?v=20261005135410';
-import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWonDrop, renderDealModal, renderNewDealModal, renderAddClientModal, toggleBadgeDropdown } from './deal-modal.js?v=20261005135410';
-import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from './activities.js?v=20261005135410';
-import { renderDashboard, renderKpiTargetBar } from './dashboard.js?v=20261005135410';
-import { loadFunnel, renderFunnel } from './funnel.js?v=20261005135410';
-import { journeyCell, loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js?v=20261005135410';
-import { journeyFor, LEFT_AT_OPTIONS, WHY_OPTIONS } from './archive-journey.js?v=20261005135410';
-import { toggleBulkMode, bulkMoveStage, bulkSelectAll, bulkArchive, bulkAddActivity, toggleBulkSelect } from './deals.js?v=20261005135410';
-import { openSettings } from './settings.js?v=20261005135410';
-import { serviceAreaResults } from './maps.js?v=20261005135410';
-import { lookupClientInfo, isRetainerClient, deriveTimezone } from './client-info.js?v=20261005135410';
-import { openClientInfoPanel } from './client-panel.js?v=20261005135410';
-import { openCalendlyEmbed, removeAppointment, addManualAppointment } from './calendly.js?v=20261005135410';
-import { capturePreserve, restorePreserve } from './render-preserve.js?v=20261005135410';
-import { doDragOver, doDragLeave, clearAllDragOver, doDrop } from './deals.js?v=20261005135410';
-import { loadDiscoOutcomes, renderDiscoOutcomeBanner } from './disco-outcome.js?v=20261005135410';
-import { renderDueTodayBanner, renderNurtureDropdown, renderNurtureTab, renderNurtureEntryModal, renderReactivateModal, renderSnoozeModal, loadNurtureData, clearNurtureDraft } from './rerun.js?v=20261005135410';
-import { renderDemoTracker } from './demo-tracker.js?v=20261005135410';
-import { renderColdCallingTab } from './cold-calling.js?v=20261005135410';
-import { renderRetargetingTab } from './retargeting.js?v=20261005135410';
-import { renderCacTab } from './cac.js?v=20261005135410';
-import { renderMarginsTab } from './margins.js?v=20261005135410';
-import { renderOverheadTab } from './overhead.js?v=20261005135410';
-import { renderCfoTab } from './cfo.js?v=20261005135410';
-import { renderRenewals } from './renewals.js?v=20261005135410';
-import { isPowerDialerActive } from './power-dialer.js?v=20261005135410';
-import { isAimfoxDeal } from './aimfox.js?v=20261005135410';
-import { ACQUISITION_CHANNELS, channelCardBadge } from './acquisition-channel.js?v=20261005135410';
+import { state, savedScrollLeft, setSavedScrollLeft } from './app.js?v=20261005153117';
+import { ACQUISITION_STAGES, NURTURE_STAGES, ACTIVITY_ICONS, DEAL_VERTICALS, detectCountry } from './config.js?v=20261005153117';
+import { esc, svgIcon, getToday, fmtDate, fmtTime12, str, stripHtml } from './utils.js?v=20261005153117';
+import { isAdmin, isEmployee, isFounder, currentUser, renderUserMenu, getOwnerForDeal, getOwnerNameForDeal, loadAssignableUsers } from './auth.js?v=20261005153117';
+import { initialSync as syncFromSheet } from './api.js?v=20261005153117';
+import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js?v=20261005153117';
+import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWonDrop, renderDealModal, renderNewDealModal, renderAddClientModal, toggleBadgeDropdown } from './deal-modal.js?v=20261005153117';
+import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from './activities.js?v=20261005153117';
+import { renderDashboard, renderKpiTargetBar } from './dashboard.js?v=20261005153117';
+import { loadFunnel, renderFunnel } from './funnel.js?v=20261005153117';
+import { journeyCell, loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js?v=20261005153117';
+import { journeyFor, LEFT_AT_OPTIONS, WHY_OPTIONS } from './archive-journey.js?v=20261005153117';
+import { toggleBulkMode, bulkMoveStage, bulkSelectAll, bulkArchive, bulkAddActivity, toggleBulkSelect } from './deals.js?v=20261005153117';
+import { openSettings } from './settings.js?v=20261005153117';
+import { serviceAreaResults } from './maps.js?v=20261005153117';
+import { lookupClientInfo, isRetainerClient, deriveTimezone } from './client-info.js?v=20261005153117';
+import { openClientInfoPanel } from './client-panel.js?v=20261005153117';
+import { openCalendlyEmbed, removeAppointment, addManualAppointment } from './calendly.js?v=20261005153117';
+import { capturePreserve, restorePreserve } from './render-preserve.js?v=20261005153117';
+import { doDragOver, doDragLeave, clearAllDragOver, doDrop } from './deals.js?v=20261005153117';
+import { loadDiscoOutcomes, renderDiscoOutcomeBanner } from './disco-outcome.js?v=20261005153117';
+import { renderDueTodayBanner, renderNurtureDropdown, renderNurtureTab, renderNurtureEntryModal, renderReactivateModal, renderSnoozeModal, loadNurtureData, clearNurtureDraft } from './rerun.js?v=20261005153117';
+import { renderDemoTracker } from './demo-tracker.js?v=20261005153117';
+import { renderColdCallingTab } from './cold-calling.js?v=20261005153117';
+import { renderRetargetingTab } from './retargeting.js?v=20261005153117';
+import { renderCacTab } from './cac.js?v=20261005153117';
+import { renderMarginsTab } from './margins.js?v=20261005153117';
+import { renderOverheadTab } from './overhead.js?v=20261005153117';
+import { renderCfoTab } from './cfo.js?v=20261005153117';
+import { renderRenewals } from './renewals.js?v=20261005153117';
+import { isPowerDialerActive } from './power-dialer.js?v=20261005153117';
+import { isAimfoxDeal } from './aimfox.js?v=20261005153117';
+import { ACQUISITION_CHANNELS, channelCardBadge } from './acquisition-channel.js?v=20261005153117';
 
 // ─── Multi-select acquisition filter (state[key] is an array of picked values, state[openKey] the dropdown) ───
 function multiFilterDropdown(key,openKey,allLabel,noun,options){
@@ -494,7 +494,7 @@ function renderInternal(){
         html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading analysis...</div>';
         if(!window._analysisLoading){
           window._analysisLoading=true;
-          import('./analysis.js?v=20261005135410').then(m=>{ window._analysisModule=m; render(); }).catch(()=>{ window._analysisLoading=false; });
+          import('./analysis.js?v=20261005153117').then(m=>{ window._analysisModule=m; render(); }).catch(()=>{ window._analysisLoading=false; });
         }
       }
       // The grid is long and wide, and every render replaces the DOM wholesale.
@@ -530,7 +530,7 @@ function renderInternal(){
         html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading client triage...</div>';
         if(!window._triageLoading){
           window._triageLoading=true;
-          import('./triage.js?v=20261005135410').then(m=>{ window._triageModule=m; render(); }).catch(()=>{ window._triageLoading=false; });
+          import('./triage.js?v=20261005153117').then(m=>{ window._triageModule=m; render(); }).catch(()=>{ window._triageLoading=false; });
         }
       }
       const tWrap=document.querySelector('.tracker-table-wrap');
@@ -549,7 +549,7 @@ function renderInternal(){
         html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading follow-up reminders...</div>';
         if(!window._followupLoading){
           window._followupLoading=true;
-          import('./followup-reminders.js?v=20261005135410').then(m=>{ window._followupModule=m; render(); }).catch(()=>{ window._followupLoading=false; });
+          import('./followup-reminders.js?v=20261005153117').then(m=>{ window._followupModule=m; render(); }).catch(()=>{ window._followupLoading=false; });
         }
       }
       app.innerHTML=html;
@@ -563,7 +563,7 @@ function renderInternal(){
         html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading weekly updates...</div>';
         if(!window._weeklyLoading){
           window._weeklyLoading=true;
-          import('./weekly-updates.js?v=20261005135410').then(m=>{ window._weeklyModule=m; render(); }).catch(()=>{ window._weeklyLoading=false; });
+          import('./weekly-updates.js?v=20261005153117').then(m=>{ window._weeklyModule=m; render(); }).catch(()=>{ window._weeklyLoading=false; });
         }
       }
       app.innerHTML=html;
@@ -577,7 +577,7 @@ function renderInternal(){
         html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading monthly updates...</div>';
         if(!window._monthlyLoading){
           window._monthlyLoading=true;
-          import('./monthly-updates.js?v=20261005135410').then(m=>{ window._monthlyModule=m; render(); }).catch(()=>{ window._monthlyLoading=false; });
+          import('./monthly-updates.js?v=20261005153117').then(m=>{ window._monthlyModule=m; render(); }).catch(()=>{ window._monthlyLoading=false; });
         }
       }
       app.innerHTML=html;
@@ -606,12 +606,12 @@ function renderInternal(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading…</div>';
           if(!window._trackerMonthlyLoading){
             window._trackerMonthlyLoading=true;
-            import('./lead-tracker-monthly.js?v=20261005135410').then(m=>{ window._trackerMonthlyModule=m; render(); })
+            import('./lead-tracker-monthly.js?v=20261005153117').then(m=>{ window._trackerMonthlyModule=m; render(); })
               .catch(()=>{ window._trackerMonthlyLoading=false; });
           }
           if(!state.trackerLoaded && !window._trackerLoading){
             window._trackerLoading=true;
-            import('./lead-tracker.js?v=20261005135410').then(m=>{
+            import('./lead-tracker.js?v=20261005153117').then(m=>{
               window._trackerModule=m;
               m.loadTrackerEntries().then(()=>render()).catch(()=>render());
             }).catch(()=>{ window._trackerLoading=false; });
@@ -624,11 +624,11 @@ function renderInternal(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading trends...</div>';
           if(!window._trendsLoading){
             window._trendsLoading=true;
-            import('./trends.js?v=20261005135410').then(m=>{ window._trendsModule=m; render(); }).catch(()=>{ window._trendsLoading=false; });
+            import('./trends.js?v=20261005153117').then(m=>{ window._trendsModule=m; render(); }).catch(()=>{ window._trendsLoading=false; });
           }
           if(!state.trackerLoaded && !window._trackerLoading){
             window._trackerLoading=true;
-            import('./lead-tracker.js?v=20261005135410').then(m=>{
+            import('./lead-tracker.js?v=20261005153117').then(m=>{
               window._trackerModule=m;
               m.loadTrackerEntries().then(()=>render()).catch(()=>render());
             }).catch(()=>{ window._trackerLoading=false; });
@@ -641,7 +641,7 @@ function renderInternal(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading retainer leads...</div>';
           if(!window._passOffsLoading){
             window._passOffsLoading=true;
-            import('./pass-offs.js?v=20261005135410').then(m=>{ window._passOffsModule=m; render(); }).catch(()=>{ window._passOffsLoading=false; });
+            import('./pass-offs.js?v=20261005153117').then(m=>{ window._passOffsModule=m; render(); }).catch(()=>{ window._passOffsLoading=false; });
           }
         }
       } else {
@@ -651,14 +651,14 @@ function renderInternal(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading tracker...</div>';
           if(!window._trackerLoading){
             window._trackerLoading=true;
-            import('./lead-tracker.js?v=20261005135410').then(m=>{
+            import('./lead-tracker.js?v=20261005153117').then(m=>{
               window._trackerModule=m;
               if(!state.trackerLoaded){ m.loadTrackerEntries().then(()=>render()).catch(()=>render()); }
               else render();
             }).catch(()=>{ window._trackerLoading=false; });
             if(!window._invoiceLoading){
               window._invoiceLoading=true;
-              import('./invoice.js?v=20261005135410').then(m=>{ window._invoiceModule=m; }).catch(()=>{ window._invoiceLoading=false; });
+              import('./invoice.js?v=20261005153117').then(m=>{ window._invoiceModule=m; }).catch(()=>{ window._invoiceLoading=false; });
             }
           }
         }
@@ -666,7 +666,7 @@ function renderInternal(){
           html+=window._invoiceModule.renderInvoiceModal();
         } else if(state.invoiceModal && !window._invoiceLoading){
           window._invoiceLoading=true;
-          import('./invoice.js?v=20261005135410').then(m=>{ window._invoiceModule=m; render(); });
+          import('./invoice.js?v=20261005153117').then(m=>{ window._invoiceModule=m; render(); });
         }
       }
       html+=`</div>`; // close the --tracker-top wrapper

@@ -5,19 +5,20 @@
 // Send: fulfillment `weekly-update-send` edge fn — sends FROM
 //   lars@theheadlinetheory.com via Gmail on dedicated "<Client> weekly
 //   update" threads (first send starts the thread, later weeks reply into
-//   it). Recipients from the CRM DB: TO = clients.notify_email, CC = aidan@ +
+//   it). Recipients from the CRM DB: TO = clients.weekly_update_emails
+//   ("Weekly Update Emails", blank → clients.notify_email), CC = aidan@ +
 //   clients.other_contacts ("Additional Contacts"). Both live on the client
-//   row and are editable in Settings → Clients → Client Contact Info; the
+//   row and are editable in Settings → Clients; the
 //   CCs are ALSO editable here, on the idle checklist and on review rows.
 //   Lars's signature appended. The Client Info sheet is NOT used.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20261005135410';
-import { state } from './app.js?v=20261005135410';
-import { render } from './render.js?v=20261005135410';
-import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20261005135410';
-import { esc, str, svgIcon } from './utils.js?v=20261005135410';
-import { crmWeekContext, ctxCheckinLines, ctxDay, ctxSummary, ctxSection } from './weekly-context.js?v=20261005135410';
-import { DEFAULT_WEEKLY_UPDATE_TEMPLATE, WEEKLY_TOKENS, PPM_NOTE, applyWeeklyTemplate, weeklyGreeting } from './weekly-template.js?v=20261005135410';
+import { supabase } from './supabase-client.js?v=20261005153117';
+import { state } from './app.js?v=20261005153117';
+import { render } from './render.js?v=20261005153117';
+import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20261005153117';
+import { esc, str, svgIcon } from './utils.js?v=20261005153117';
+import { crmWeekContext, ctxCheckinLines, ctxDay, ctxSummary, ctxSection } from './weekly-context.js?v=20261005153117';
+import { DEFAULT_WEEKLY_UPDATE_TEMPLATE, WEEKLY_TOKENS, PPM_NOTE, applyWeeklyTemplate, weeklyGreeting } from './weekly-template.js?v=20261005153117';
 
 // Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
@@ -463,7 +464,7 @@ export async function weeklyCcChange(i, value){
 export async function weeklyClientCcChange(clientId, value){
   const client = (state.clients||[]).find(c=>str(c.id)===str(clientId));
   if(!client) return;
-  await saveExtraCcs(client, parseExtraCcs(value, client.notifyEmail));
+  await saveExtraCcs(client, parseExtraCcs(value, str(client.weeklyUpdateEmails).trim() || client.notifyEmail));
   render();
 }
 
@@ -696,7 +697,7 @@ export function renderWeeklyUpdates(){
             Pulls last week's Smartlead stats (<strong>${esc(range.label)}</strong>, the most recent completed Saturday→Friday week) for every active client,
             fills the template, and lets you review + customize each email before sending them all at once.<br>
             Sent from lars@theheadlinetheory.com on each client's "weekly update" thread. Recipients come from the client's
-            profile — TO = Contact Email, CC = aidan@ + Additional Contacts. Add a CC on any client below and it sticks for every future week.
+            profile — TO = Weekly Update Emails, CC = aidan@ + Additional Contacts. Add a CC on any client below and it sticks for every future week.
           </div>
           ${lastRun?`<div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">Last run: ${esc(str(lastRun.range))} — ${lastRun.sent||0} sent${lastRun.failed?`, ${lastRun.failed} failed`:''} (${esc(str(lastRun.sentAt).slice(0,10))})</div>`:''}
         </div>
