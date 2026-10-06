@@ -4,7 +4,7 @@
 // All mutations go through store.* methods to prevent direct
 // state tampering and ensure consistent re-renders.
 
-import { render, refreshModal } from './render.js?v=20261006091409';
+import { render, refreshModal } from './render.js?v=20261006124911';
 
 // ─── Raw State (private — modules should use store.*) ───
 export const state = {
@@ -86,8 +86,6 @@ export const state = {
   passOffsLoaded: false,
   passOffsFilters: { client: '', dateFrom: '', dateTo: '' },
   passOffsSort: { field: 'datePassed', dir: 'desc' },
-  // Summary-card bucket for Retainer Leads: 'month' (default) or 'week'.
-  passOffsPeriod: 'month',
   invoiceModal: null,
   demoEntries: [],
   demoLoaded: false,
