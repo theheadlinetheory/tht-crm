@@ -1,11 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // AUTH — Supabase Auth (Google OAuth), roles, campaign assignments
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20261005145004';
-import { state } from './app.js?v=20261005145004';
-import { render } from './render.js?v=20261005145004';
-import { esc, svgIcon } from './utils.js?v=20261005145004';
-import { resolveRoutingOwner } from './routing-rules.js?v=20261005145004';
+import { supabase } from './supabase-client.js?v=20261006091409';
+import { state } from './app.js?v=20261006091409';
+import { render } from './render.js?v=20261006091409';
+import { getVisiblePipelinesWithArchive } from './search.js?v=20261006091409';
+import { esc, svgIcon } from './utils.js?v=20261006091409';
+import { resolveRoutingOwner } from './routing-rules.js?v=20261006091409';
 
 const ALLOWED_DOMAIN = 'theheadlinetheory.com';
 export let currentUser = null;
@@ -98,11 +99,10 @@ export function setupAuthListener(onLogin){
       showTransitionScreen('Loading your CRM...');
 
       const hash = location.hash.replace('#','').split('/')[0];
-      if(isAdmin()){
-        state.pipeline = hash && ['dashboard','funnel','acquisition','client_leads','nurture'].includes(hash) ? hash : 'client_leads';
-      } else {
-        state.pipeline = hash && ['acquisition','client_leads'].includes(hash) ? hash : 'client_leads';
-      }
+      // Any tab this role can see survives a reload (Renewals, and Dashboard/Funnel
+      // for employees, used to fall back to Client Leads).
+      const visible = getVisiblePipelinesWithArchive().map(p => p.id);
+      state.pipeline = hash && (visible.includes(hash) || (isAdmin() && hash === 'nurture')) ? hash : 'client_leads';
 
       document.getElementById('app').style.display='block';
       try { await onLogin(); } catch(e){ console.error('initApp error:', e); }
