@@ -49,6 +49,11 @@ console.log(`   checked ${jsFiles.length} files`);
 // Each entry: a substring that MUST still exist in the given file. These are
 // stable structural anchors for whole features/tabs — not cosmetic strings.
 const REQUIRED_FEATURES = [
+  // Lead Tracker: every passed lead opens its deal card (PPM Meetings icon, Retainer Leads company link)
+  { file: 'lead-card.js',      needle: 'window.openLeadCard',                 feature: 'Lead Tracker: open a lead\'s deal card' },
+  { file: 'lead-tracker.js',   needle: 'leadCardIcon(leadCardId(entry))',     feature: 'PPM Meetings: open-card icon on Lead Name' },
+  { file: 'pass-offs.js',      needle: "openLeadCard('${escAttr(leadCardId(entry))}')", feature: 'Retainer Leads: company opens the deal card' },
+  { file: 'render.js',         needle: 'a lead\'s card (openLeadCard) has to be added here', feature: 'Lead Tracker: deal modal rendered on the tracker screen' },
   // Client Leads sub-tabs + the Weekly Updates feature (the one that got deleted)
   // The sub-tab buttons route through switchClientLeadsTab(), which also writes
   // the URL hash so the tab survives a reload — don't go back to setting

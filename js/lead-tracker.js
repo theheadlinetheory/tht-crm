@@ -1,11 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // LEAD TRACKER — Editable grid view for lead billing & status
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20261006124911';
-import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20261006124911';
-import { isAdmin, isEmployee } from './auth.js?v=20261006124911';
-import { esc, svgIcon, str } from './utils.js?v=20261006124911';
-import { render } from './render.js?v=20261006124911';
+import { state, store, pendingWrites } from './app.js?v=20261006131302';
+import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20261006131302';
+import { isAdmin, isEmployee } from './auth.js?v=20261006131302';
+import { esc, svgIcon, str } from './utils.js?v=20261006131302';
+import { render } from './render.js?v=20261006131302';
+import { leadCardId, leadCardIcon, matchLeadCards } from './lead-card.js?v=20261006131302';
 
 // ─── Column Definitions ───
 // The billing "Month" ('July/26') is deliberately not a column — the sheet shows
@@ -370,6 +371,13 @@ export function renderLeadTracker() {
   // Table
   html += `<div class="tracker-table-wrap"><table class="tracker-table">`;
 
+  // Rows from the old sheet ('migrated-N') or added by hand have no deal_id of their own: match them to a deal
+  // by email + company so they can open a card too. Older rows keep the email in the name field.
+  matchLeadCards(state.trackerEntries.map(e => {
+    const email = str(e.leadEmail).includes('@') ? str(e.leadEmail) : str(e.leadName).includes('@') ? str(e.leadName) : '';
+    return { id: e.id, dealId: e.dealId, email, company: str(e.leadName).includes('@') ? str(e.leadEmail) : str(e.leadName) };
+  }));
+
   // Header
   const admin = isAdmin();
   html += `<thead><tr>`;
@@ -403,6 +411,8 @@ export function renderLeadTracker() {
       const val = str(entry[col.key]);
       const isEditing = state.trackerEditingCell && state.trackerEditingCell.id === entry.id && state.trackerEditingCell.field === col.key;
       // Color the client name cell with client color
+      // Lead Name is click-to-edit, so the card opens from a small icon in front of it (lead-card.js).
+      const cardIcon = col.key === 'leadName' ? leadCardIcon(leadCardId(entry)) : '';
       const cellColorStyle = (col.key === 'clientName' && clientColor) ? `color:${clientColor};font-weight:600;` : (col.key === 'leadCost' && isZeroCost) ? 'color:#dc2626;font-weight:700;' : '';
 
       if (col.editable && isEditing) {
@@ -411,13 +421,13 @@ export function renderLeadTracker() {
           onkeydown="if(event.key==='Enter'){this.blur();} if(event.key==='d'&&(event.ctrlKey||event.metaKey)){event.preventDefault();trackerFillDown('${entry.id}','${col.key}',this.value);}"
           autofocus><button class="tracker-fill-btn" onmousedown="event.preventDefault();trackerFillDown('${entry.id}','${col.key}',document.querySelector('.tracker-cell-input').value)" title="Fill down (Cmd+D)">↓</button></td>`;
       } else if (col.editable && !isCalledBack) {
-        html += `<td class="tracker-cell-editable" style="${cellColorStyle}" onclick="trackerEditCell('${entry.id}','${col.key}')">${editableCellInner(col.key, val, feeMap[entry.id])}</td>`;
+        html += `<td class="tracker-cell-editable" style="${cellColorStyle}" onclick="trackerEditCell('${entry.id}','${col.key}')">${cardIcon}${editableCellInner(col.key, val, feeMap[entry.id])}</td>`;
       } else if (isCalledBack) {
-        html += `<td><s style="color:#ef4444">${esc(DATE_COLUMNS.has(col.key) ? fmtExactDate(val) : val)}</s></td>`;
+        html += `<td>${cardIcon}<s style="color:#ef4444">${esc(DATE_COLUMNS.has(col.key) ? fmtExactDate(val) : val)}</s></td>`;
       } else if (col.key === 'leadEmail' && val) {
         html += `<td><a href="mailto:${esc(val)}" style="color:var(--purple);text-decoration:none;font-size:12px">${esc(val)}</a></td>`;
       } else {
-        html += `<td style="${cellColorStyle}">${esc(val)}</td>`;
+        html += `<td style="${cellColorStyle}">${cardIcon}${esc(val)}</td>`;
       }
     }
 

@@ -1,15 +1,15 @@
 // ═══════════════════════════════════════════════════════════
 // ARCHIVE — Admin archive (Deals sheet archive), load/render
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, deletedDealIds } from './app.js?v=20261006124911';
-import { render } from './render.js?v=20261006124911';
-import { sbGetArchive, sbRestoreFromArchive, normalizeRow, supabase } from './api.js?v=20261006124911';
-import { clearDashboardArchiveCache } from './dashboard.js?v=20261006124911';
-import { esc, str, fmtDate } from './utils.js?v=20261006124911';
-import { registerActions } from './delegate.js?v=20261006124911';
-import { openDeal } from './deal-modal.js?v=20261006124911';
-import { filterSelect } from './html-helpers.js?v=20261006124911';
-import { loadJourneys, journeyFor, LEFT_AT_OPTIONS, WHY_OPTIONS } from './archive-journey.js?v=20261006124911';
+import { state, store, pendingWrites, deletedDealIds } from './app.js?v=20261006131302';
+import { render } from './render.js?v=20261006131302';
+import { sbGetArchive, sbRestoreFromArchive, normalizeRow, supabase } from './api.js?v=20261006131302';
+import { clearDashboardArchiveCache } from './dashboard.js?v=20261006131302';
+import { esc, str, fmtDate } from './utils.js?v=20261006131302';
+import { registerActions } from './delegate.js?v=20261006131302';
+import { openDeal } from './deal-modal.js?v=20261006131302';
+import { filterSelect } from './html-helpers.js?v=20261006131302';
+import { loadJourneys, journeyFor, LEFT_AT_OPTIONS, WHY_OPTIONS } from './archive-journey.js?v=20261006131302';
 
 export async function loadArchive(silent){
   if(!silent){
@@ -142,7 +142,13 @@ export async function openArchivedDeal(id){
     }
     if (!deal) { alert('This archived deal has no card data left to show.'); return; }
     deal.id = id; deal.hasNewReply = false; deal.hasNewText = false;
-    deal._archived = { at: a ? a.archivedAt : null, status: a ? a.archiveStatus : null };
+    // Opened from outside the Archive tab (Funnel, Lead Tracker) the archive list is usually not loaded — ask for this one row so the banner still says when and why.
+    let at = a ? a.archivedAt : null, status = a ? a.archiveStatus : null;
+    if (!a) {
+      const { data: ar } = await supabase.from('archive').select('archived_at,archive_status').eq('id', id).limit(1);
+      if (ar && ar[0]) { at = ar[0].archived_at; status = ar[0].archive_status; }
+    }
+    deal._archived = { at, status };
     if (!state.deals.some(d => String(d.id) === String(id))) state.deals.push(deal);
     openDeal(id);
   } catch (e) { console.warn('[archive] could not open the card', e && e.message); }
@@ -180,7 +186,7 @@ export async function restoreFromArchive(id){
   } finally { pendingWrites.value--; }
   store.removeArchiveItem(id);
   clearDashboardArchiveCache();
-  const { initialSync } = await import('./api.js?v=20261006124911');
+  const { initialSync } = await import('./api.js?v=20261006131302');
   await initialSync();
 }
 

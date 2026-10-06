@@ -1,8 +1,9 @@
-import { state, pendingWrites } from './app.js?v=20261006124911';
-import { sbUpdatePassOff, sbDeletePassOff, camelToSnake, normalizeRow, showToast } from './api.js?v=20261006124911';
-import { isAdmin, isEmployee } from './auth.js?v=20261006124911';
-import { esc, str } from './utils.js?v=20261006124911';
-import { render } from './render.js?v=20261006124911';
+import { state, pendingWrites } from './app.js?v=20261006131302';
+import { sbUpdatePassOff, sbDeletePassOff, camelToSnake, normalizeRow, showToast } from './api.js?v=20261006131302';
+import { isAdmin, isEmployee } from './auth.js?v=20261006131302';
+import { esc, escAttr, str } from './utils.js?v=20261006131302';
+import { leadCardId } from './lead-card.js?v=20261006131302';
+import { render } from './render.js?v=20261006131302';
 
 // The billing month ('July/26') is deliberately not a column — the sheet shows
 // the exact date the lead was passed off instead.
@@ -159,6 +160,9 @@ export function renderPassOffs() {
         // Show a dash rather than an empty cell, so a missing/unmapped date is
         // visible instead of looking like a rendering gap.
         html += `<td>${formatDate(entry.datePassed) || '<span style="color:#d1d5db">—</span>'}</td>`;
+      } else if (col.key === 'company' && leadCardId(entry)) {
+        // The company opens the lead's deal card — archived (Passed Off) cards open read-only (lead-card.js).
+        html += `<td><a href="#" onclick="event.preventDefault();openLeadCard('${escAttr(leadCardId(entry))}')" title="Open the deal card" style="color:#1e1b4b;font-weight:600;text-decoration:underline dotted">${esc(str(entry.company) || str(entry.contact) || str(entry.email) || 'Open card')}</a></td>`;
       } else if (col.key === 'clientName' && clientColor) {
         html += `<td style="color:${clientColor};font-weight:600">${esc(str(entry[col.key]))}</td>`;
       } else if (col.key === 'notes' && isEditing) {
