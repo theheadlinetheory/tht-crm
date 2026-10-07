@@ -11,8 +11,8 @@
 // google-task.js and smartlead-portal.js each grew their own copy of this;
 // gmail-threads.js would have been the third.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261007130251';
-import { supabase } from './supabase-client.js?v=20261007130251';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261007131022';
+import { supabase } from './supabase-client.js?v=20261007131022';
 
 export async function invokeEdgeFunctionAsUser(fnName, body, { signal } = {}) {
   const { data: { session } } = await supabase.auth.getSession();

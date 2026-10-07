@@ -2,7 +2,7 @@
 // daily payment check (client-payment-reminder) stops sending pay reminders:
 // it emails a courtesy notice 2 days before the due date and, on the due date,
 // posts a "Charge Card on File" button to #client-payments.
-import { esc, str } from './utils.js?v=20261007130251';
+import { esc, str } from './utils.js?v=20261007131022';
 
 export function renderAutoChargeToggle(c) {
   const on = str(c.autoCharge).toUpperCase() === 'TRUE';
