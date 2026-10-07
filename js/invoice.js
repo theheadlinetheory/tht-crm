@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // INVOICE — Stripe invoice generation from Lead Tracker
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20261007131252';
-import { invokeEdgeFunction } from './api.js?v=20261007131252';
-import { esc, str } from './utils.js?v=20261007131252';
-import { render } from './render.js?v=20261007131252';
-import { renderTimeline } from './invoice-timeline.js?v=20261007131252';
+import { state, pendingWrites } from './app.js?v=20261007131824';
+import { invokeEdgeFunction } from './api.js?v=20261007131824';
+import { esc, str } from './utils.js?v=20261007131824';
+import { render } from './render.js?v=20261007131824';
+import { renderTimeline } from './invoice-timeline.js?v=20261007131824';
 
 // ─── Month helpers ───
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -363,7 +363,19 @@ function getClientInfo(clientName) {
     email: str(client?.notifyEmail) || '',
     invoiceEmails: str(client?.invoiceEmails) || str(client?.notifyEmail) || '',
     paymentTerms: str(client?.paymentTerms) || 'Net 7',
+    autoCharge: str(client?.autoCharge).toUpperCase() === 'TRUE',
   };
+}
+
+// Auto-charge clients get charged in Stripe the day this goes out, so their
+// copy is a heads-up rather than a request to pay.
+function defaultInvoiceBody(clientName, month) {
+  const info = getClientInfo(clientName);
+  const greeting = hasMultipleContacts(clientName) ? 'team' : (info.firstName || 'team');
+  const headsUp = info.autoCharge
+    ? ' Just a heads up, it will be charged to the payment method on file today, so no need to respond.'
+    : '';
+  return `Hey ${greeting},\n\nInvoice for ${formatMonthDisplay(month)} is attached below.${headsUp}\n\nLooking forward to keeping the momentum going.`;
 }
 
 function renderDoneStep(m) {
@@ -395,9 +407,8 @@ function renderEmailPreviewStep(m) {
   const info = getClientInfo(m.client);
   const leadCount = m.entries.filter(e => !m.excluded.has(e.id)).length;
   const leadWord = leadCount === 1 ? 'lead' : 'leads';
-  const greeting = hasMultipleContacts(m.client) ? 'team' : (info.firstName || 'team');
 
-  const defaultBody = `Hey ${greeting},\n\nInvoice for ${formatMonthDisplay(m.month)} is attached below.\n\nLooking forward to keeping the momentum going.`;
+  const defaultBody = defaultInvoiceBody(m.client, m.month);
   if (!m._emailInit) {
     m.emailTo = info.invoiceEmails;
     m.emailCc = 'lars@theheadlinetheory.com';
@@ -475,8 +486,9 @@ function renderEmailSentStep(m) {
       <div style="font-size:40px;margin:12px 0">✉️</div>
       <div style="font-size:14px;font-weight:600;margin-bottom:4px">Invoice email sent</div>
       <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Sent to ${esc(m.emailSentTo || '')} from aidan@theheadlinetheory.com</div>
+      ${getClientInfo(m.client).autoCharge ? `<div style="font-size:13px;font-weight:600;color:#7c3aed;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:6px;padding:8px 12px;margin-bottom:12px">💳 Auto-charge client: charge their payment method on file in Stripe now.</div>` : ''}
       <a href="https://dashboard.stripe.com/invoices/${encodeURIComponent(m.result?.invoiceId || '')}" target="_blank" class="btn btn-ghost" style="margin-bottom:8px;display:inline-flex;align-items:center;gap:4px">
-        View in Stripe ↗
+        ${getClientInfo(m.client).autoCharge ? 'Charge in Stripe' : 'View in Stripe'} ↗
       </a>
       <div style="display:flex;gap:8px;margin-top:12px;justify-content:center">
         <button class="btn btn-ghost" onclick="invoiceSendAgain()">Send Again</button>
@@ -608,8 +620,7 @@ function renderBulkReviewStep(m) {
   if (idx >= results.length) return '';
   const r = results[idx];
   const info = getClientInfo(r.clientName);
-  const greeting = hasMultipleContacts(r.clientName) ? 'team' : (info.firstName || 'team');
-  const defaultBody = `Hey ${greeting},\n\nInvoice for ${formatMonthDisplay(m.month)} is attached below.\n\nLooking forward to keeping the momentum going.`;
+  const defaultBody = defaultInvoiceBody(r.clientName, m.month);
 
   if (!m._bulkEmailInit || m._bulkEmailClient !== r.clientName) {
     m.emailTo = info.invoiceEmails;
@@ -687,8 +698,11 @@ function renderBulkDoneStep(m) {
   const rows = results.map(r => {
     const statusColor = r.error ? '#dc2626' : r.emailSent ? '#059669' : '#d97706';
     const statusLabel = r.error ? 'Failed' : r.emailSent ? 'Sent' : 'Draft';
+    const charge = r.emailSent && getClientInfo(r.clientName).autoCharge
+      ? ` <a href="https://dashboard.stripe.com/invoices/${encodeURIComponent(r.invoiceId || '')}" target="_blank" style="font-size:11px;font-weight:600;color:#7c3aed">💳 Charge in Stripe ↗</a>`
+      : '';
     return `<tr>
-      <td style="padding:6px 8px;font-size:13px">${esc(r.clientName)}</td>
+      <td style="padding:6px 8px;font-size:13px">${esc(r.clientName)}${charge}</td>
       <td style="padding:6px 8px;text-align:center">${r.error ? '—' : r.lineItems}</td>
       <td style="padding:6px 8px;text-align:right">${r.error ? '—' : formatDollars(r.totalCents)}</td>
       <td style="padding:6px 8px;text-align:right"><span style="font-size:11px;font-weight:600;color:${statusColor};background:${statusColor}15;padding:2px 8px;border-radius:4px">${statusLabel}</span></td>
