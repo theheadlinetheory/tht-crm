@@ -1,16 +1,18 @@
 // ═══════════════════════════════════════════════════════════
 // NURTURE — Two-bucket nurture pipeline (Not Now + Service Area Taken)
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20261007111216';
-import { render } from './render.js?v=20261007111216';
-import { sbGetRerunQueue, sbAddToRerun, sbUpdateRerunItem, sbUpdateRerunStatus, sbUpdateDeal, sbUpdateActivity, sbArchiveDeal, sbDeleteDeal, camelToSnake, normalizeRow, invokeEdgeFunction } from './api.js?v=20261007111216';
-import { esc, getToday, fmtDate, svgIcon } from './utils.js?v=20261007111216';
-import { registerActions } from './delegate.js?v=20261007111216';
-import { statCard, filterSelect, modalWrap, modalHeader, modalFooter } from './html-helpers.js?v=20261007111216';
-import { NURTURE_NOT_NOW_SEQUENCE, ACQUISITION_STAGES, MANUAL_OUTREACH_OWNER } from './config.js?v=20261007111216';
-import { isAdmin, getOwnerNameForDeal, getOwnerColor, loadAssignableUsers } from './auth.js?v=20261007111216';
-import { dealHadDemo } from './demo-tracker.js?v=20261007111216';
-import { loadJourneys, journeyFor } from './archive-journey.js?v=20261007111216';
+import { state, store, pendingWrites } from './app.js?v=20261007130042';
+import { render } from './render.js?v=20261007130042';
+import { sbGetRerunQueue, sbAddToRerun, sbUpdateRerunItem, sbUpdateRerunStatus, sbUpdateDeal, sbUpdateActivity, sbArchiveDeal, sbDeleteDeal, camelToSnake, normalizeRow, invokeEdgeFunction } from './api.js?v=20261007130042';
+import { esc, getToday, fmtDate, svgIcon } from './utils.js?v=20261007130042';
+import { registerActions } from './delegate.js?v=20261007130042';
+import { statCard, filterSelect, modalWrap, modalHeader, modalFooter } from './html-helpers.js?v=20261007130042';
+import { NURTURE_NOT_NOW_SEQUENCE, ACQUISITION_STAGES, MANUAL_OUTREACH_OWNER } from './config.js?v=20261007130042';
+import { isAdmin, getOwnerNameForDeal, getOwnerColor, loadAssignableUsers } from './auth.js?v=20261007130042';
+import { dealHadDemo } from './demo-tracker.js?v=20261007130042';
+import { loadJourneys, journeyFor } from './archive-journey.js?v=20261007130042';
+import { assignReactivationSequence } from './activities.js?v=20261007130042';
+import { renderManualReactivation } from './nurture-manual.js?v=20261007130042';
 
 // ─── Data Loading ───
 
@@ -83,7 +85,7 @@ function hadDemoOrNoShow(dealId) {
   return state.demoEntries.some(e => String(e.dealId) === String(dealId) && /^(Showed|No-Show)/.test(e.showStatus || ''));
 }
 
-function needsManualOutreach(item) {
+export function needsManualOutreach(item) {
   ensureJourneysLoaded();
   if (hadDemoOrNoShow(item.dealId) || journeyFor(item.dealId).hadMeeting) return true;
   const deal = state.deals.find(d => String(d.id) === String(item.dealId));
@@ -96,11 +98,6 @@ function getManualDueItems() {
 
 function getAutomationPool() {
   return getNurtureItems('not_now').filter(r => !needsManualOutreach(r));
-}
-
-export function getOverdueNurtureItems() {
-  const today = getToday();
-  return getNurtureItems('not_now').filter(r => r.followUpDate && r.followUpDate < today);
 }
 
 // ─── Core Functions ───
@@ -245,9 +242,9 @@ function downloadNurtureCsv(items, filename) {
 
 // ─── Urgency Badge Helper ───
 
-function getUrgencyBadge(followUpDate, today) {
+export function getUrgencyBadge(followUpDate, today) {
   if (!followUpDate) return { label: '', color: '#6b7280', bg: '#f3f4f6' };
-  const followUp = followUpDate.replace(/-/g, '/');
+  const followUp = followUpDate;
   if (followUp > today) {
     return { label: 'Upcoming', color: '#16a34a', bg: '#f0fdf4' };
   }
@@ -298,7 +295,7 @@ export function setBlockedByClient(rerunId, clientName) {
 // field and colour source as the deal modal, so a person looks identical here
 // and everywhere else in the CRM. Falls back to read-only text while the
 // assignable-user list is still loading.
-function ownerChip(deal, dealId) {
+export function ownerChip(deal, dealId) {
   if (!deal) return '';
   const name = getOwnerNameForDeal(deal);
   const style = getOwnerColor(name);
@@ -380,7 +377,10 @@ export function renderNurtureDropdown() {
   let h = `<div style="position:relative;z-index:60"><div class="nurture-banner" style="position:absolute;top:4px;left:16px;width:min(820px,calc(100vw - 32px));max-height:60vh;overflow-y:auto;padding:10px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.15)">
     <div style="display:flex;align-items:center;justify-content:space-between;font-weight:700;font-size:12px;margin-bottom:6px;color:#92400e">
       <span>${svgIcon('bell', 12)} Nurture Follow-ups Due — manual outreach (${dueItems.length})</span>
-      <button class="btn btn-ghost" data-action="toggleNurtureDropdown" style="font-size:11px;padding:1px 8px">Close</button>
+      <span style="display:flex;gap:4px">
+        <button class="btn btn-ghost" data-action="openManualReactivation" style="font-size:11px;padding:1px 8px">Open Manual tab</button>
+        <button class="btn btn-ghost" data-action="toggleNurtureDropdown" style="font-size:11px;padding:1px 8px">Close</button>
+      </span>
     </div>`;
 
   for (const item of dueItems) {
@@ -416,30 +416,47 @@ export function renderNurtureDropdown() {
 
 // ─── Main Nurture Tab ───
 
+// Reactivation is split in two: leads a person works by hand (Manual) and
+// leads the SmartLead sequence takes over (Automated). needsManualOutreach()
+// decides which side a lead is on, so it only ever shows up in one.
+function nurtureSubTabBar(view) {
+  const btn = (id, label) => `<button data-action="switchNurtureView" data-view="${id}" style="padding:4px 14px;font-size:11px;font-weight:600;font-family:var(--font);cursor:pointer;border:1px solid ${view === id ? 'var(--purple)' : 'var(--border)'};border-radius:6px;background:${view === id ? '#f3e8ff' : '#fff'};color:${view === id ? 'var(--purple)' : 'var(--text-muted)'}">${label}</button>`;
+  return `<div style="display:flex;gap:6px;margin-bottom:12px">${btn('manual', 'Manual')}${btn('automated', 'Automated')}</div>`;
+}
+
 export function renderNurtureTab() {
-  const followup = state.nurtureFilterFollowup;
-  const notNowItems = getFilteredNurtureItems().filter(r => (r.bucket || '').toLowerCase() === 'not_now'
-    && (!followup || (followup === 'Manual') === needsManualOutreach(r)));
+  const view = state.nurtureSubTab === 'automated' ? 'automated' : 'manual';
+  let h = `<div class="rerun-container">${nurtureSubTabBar(view)}`;
+  h += view === 'manual' ? renderManualReactivation() : renderAutomatedNurture();
+  h += `</div>`;
+
+  // Modals
+  if (state._nurtureEntryDealId) {
+    h += renderNurtureEntryModal(state._nurtureEntryDealId);
+  }
+  if (state._showReactivateModal) {
+    h += renderReactivateModal(state._reactivateNurtureId, state._reactivateDealId);
+  }
+  if (state._showSnoozeModal) {
+    h += renderSnoozeModal(state._snoozeNurtureId, state._snoozeDealId);
+  }
+
+  return h;
+}
+
+function renderAutomatedNurture() {
+  const notNowItems = getFilteredNurtureItems().filter(r => (r.bucket || '').toLowerCase() === 'not_now' && !needsManualOutreach(r));
   const satItems = getFilteredNurtureItems().filter(r => (r.bucket || '').toLowerCase() === 'service_area_taken');
   const campaigns = getNurtureCampaigns();
-  const totalNotNow = getNurtureItems('not_now').length;
-  const totalSAT = getNurtureItems('service_area_taken').length;
-  const totalDue = getDueNurtureItems().length;
-  const totalOverdue = getOverdueNurtureItems().length;
 
-  let h = `<div class="rerun-container">
-    <div class="rerun-stat-cards">
-      ${statCard('Not Now', totalNotNow, '#d97706')}
-      ${statCard('Service Area Taken', totalSAT, '#f97316')}
-      ${statCard('Due Today', totalDue, '#2563eb')}
-      ${statCard('Overdue', totalOverdue, '#dc2626')}
+  let h = `<div class="rerun-stat-cards">
       ${statCard('Automation Pool', getAutomationPool().length, '#6b7280')}
+      ${statCard('Service Area Taken', getNurtureItems('service_area_taken').length, '#f97316')}
     </div>
 
     <div class="rerun-filters">
       ${filterSelect('nurtureFilterCampaign', 'All Campaigns', campaigns, state.nurtureFilterCampaign)}
       ${filterSelect('nurtureFilterBucket', 'All Buckets', ['not_now', 'service_area_taken'], state.nurtureFilterBucket)}
-      ${filterSelect('nurtureFilterFollowup', 'Manual + Automated', ['Manual', 'Automated'], state.nurtureFilterFollowup)}
       <span style="font-size:11px;color:var(--text-muted);margin-left:auto">${notNowItems.length + satItems.length} active items</span>
     </div>`;
 
@@ -449,7 +466,7 @@ export function renderNurtureTab() {
     // ── Not Now Section ──
     h += `<div style="margin-top:20px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-        <h4 style="font-size:13px;font-weight:700;color:var(--text-primary);margin:0">Not Now (${notNowItems.length})</h4>
+        <h4 style="font-size:13px;font-weight:700;color:var(--text-primary);margin:0">Not Now — automation pool (${notNowItems.length})</h4>
         ${isAdmin() ? `<button class="btn btn-ghost" style="font-size:10px;padding:2px 10px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db" data-action="exportAutomationPool">${svgIcon('upload', 10)} Export automation pool</button>` : ''}
       </div>`;
 
@@ -462,9 +479,7 @@ export function renderNurtureTab() {
         </tr></thead><tbody>`;
 
       const today = getToday();
-      // Demo-held leads first — they are the ones worth calling back.
-      const orderedNotNow = [...notNowItems].sort((a, b) => (dealHadDemo(b.dealId) ? 1 : 0) - (dealHadDemo(a.dealId) ? 1 : 0));
-      for (const r of orderedNotNow) {
+      for (const r of notNowItems) {
         const followUp = r.followUpDate || '';
         const badge = getUrgencyBadge(followUp, today);
         const statusLabel = badge.label || 'Scheduled';
@@ -475,7 +490,7 @@ export function renderNurtureTab() {
           <td style="color:var(--text-muted)">${esc(r.email || '')}</td>
           <td>${esc(r.campaignName || '')}</td>
           <td style="font-weight:600">${esc(followUp ? fmtDate(followUp) : '-')}</td>
-          <td><span style="font-size:11px;font-weight:600;color:${statusColor}">${statusLabel}</span>${needsManualOutreach(r) ? '' : '<div style="font-size:9px;font-weight:700;color:#6b7280;margin-top:2px">AUTOMATED</div>'}</td>
+          <td><span style="font-size:11px;font-weight:600;color:${statusColor}">${statusLabel}</span></td>
           <td style="color:var(--text-muted);font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.notes || '')}">${esc(r.notes || '')}</td>
           <td style="white-space:nowrap">
             <button class="btn" style="font-size:10px;padding:2px 8px;background:#ede9fe;color:#7c3aed;border:1px solid #c4b5fd" data-action="reactivateNurtureDeal" data-id="${esc(r.id)}" data-deal-id="${esc(r.dealId)}">Re-activate</button>
@@ -532,19 +547,6 @@ export function renderNurtureTab() {
       }
     }
     h += `</div>`;
-  }
-
-  h += `</div>`;
-
-  // Modals
-  if (state._nurtureEntryDealId) {
-    h += renderNurtureEntryModal(state._nurtureEntryDealId);
-  }
-  if (state._showReactivateModal) {
-    h += renderReactivateModal(state._reactivateNurtureId, state._reactivateDealId);
-  }
-  if (state._showSnoozeModal) {
-    h += renderSnoozeModal(state._snoozeNurtureId, state._snoozeDealId);
   }
 
   return h;
@@ -681,7 +683,7 @@ export function renderNurtureEntryModal(dealId) {
 export function renderReactivateModal(nurtureId, dealId) {
   let body = modalHeader('Re-activate Deal', 'closeReactivateModal');
   body += `<div class="modal-body">
-    <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Choose which Acquisition stage to return this deal to.</p>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Choose which Acquisition stage to return this deal to. <strong>Reactivating</strong> also adds the Day 1–3 reactivation tasks, starting today.</p>
     <div style="margin-bottom:12px">
       <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Stage</label>
       <select id="reactivate-stage" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
@@ -711,6 +713,26 @@ export function renderSnoozeModal(nurtureId, dealId) {
   </div>`;
   body += modalFooter('closeSnoozeModal', 'confirmSnooze', 'Snooze');
   return modalWrap(body, { closeAction: 'dismissSnoozeModal', width: '400px' });
+}
+
+// ─── Re-activate ───
+
+// The one path back into the sales pipeline (single, bulk and the due
+// dropdown all land here). Landing in Reactivating starts the Day 1–3
+// reactivation cadence, so the deal never sits there with no tasks.
+async function reactivateDeal(nurtureId, dealId, stage) {
+  const deal = state.deals.find(d => String(d.id) === String(dealId));
+  if (deal) {
+    deal.pipeline = 'Acquisition';
+    deal.stage = stage;
+    pendingWrites.value++;
+    sbUpdateDeal(dealId, camelToSnake({ pipeline: 'Acquisition', stage }))
+      .catch(e => console.error('Failed to re-activate deal:', e))
+      .finally(() => { pendingWrites.value--; });
+  }
+  clearDealActivities(dealId);
+  if (deal && stage === 'Reactivating') assignReactivationSequence(dealId);
+  await updateNurtureStatus(nurtureId, 'reactivated');
 }
 
 // ─── Event Delegation Handlers ───
@@ -877,46 +899,14 @@ registerActions({
     state._reactivateDealId = null;
 
     if (nurtureId === '__bulk__') {
-      // Bulk reactivate all selected SAT items
-      const selectedIds = [...state.satSelected];
+      const selected = [...state.satSelected].map(id => state.rerunQueue.find(r => r.id === id)).filter(Boolean);
       state.satSelected.clear();
       state.satSelectAll = false;
-
-      for (const id of selectedIds) {
-        const item = state.rerunQueue.find(r => r.id === id);
-        if (!item) continue;
-
-        const deal = state.deals.find(d => String(d.id) === String(item.dealId));
-        if (deal) {
-          deal.pipeline = 'Acquisition';
-          deal.stage = stage;
-          pendingWrites.value++;
-          sbUpdateDeal(deal.id, camelToSnake({ pipeline: 'Acquisition', stage }))
-            .catch(e => console.error('Failed to re-activate deal:', e))
-            .finally(() => { pendingWrites.value--; });
-        }
-        clearDealActivities(item.dealId);
-        updateNurtureStatus(id, 'reactivated');
-      }
+      selected.forEach(item => reactivateDeal(item.id, item.dealId, stage));
       render();
       return;
     }
-
-    // Single reactivate
-    const deal = state.deals.find(d => String(d.id) === String(dealId));
-    if (deal) {
-      deal.pipeline = 'Acquisition';
-      deal.stage = stage;
-      render();
-
-      pendingWrites.value++;
-      sbUpdateDeal(dealId, camelToSnake({ pipeline: 'Acquisition', stage }))
-        .catch(e => console.error('Failed to re-activate deal:', e))
-        .finally(() => { pendingWrites.value--; });
-    }
-
-    clearDealActivities(dealId);
-    await updateNurtureStatus(nurtureId, 'reactivated');
+    await reactivateDeal(nurtureId, dealId, stage);
   },
 
   // Snooze flow
@@ -1033,10 +1023,14 @@ registerActions({
     }
   },
 
-  // SmartLead export
-  nurtureFilterFollowup(el) {
-    state.nurtureFilterFollowup = el.value;
+  switchNurtureView(el) {
+    state.nurtureSubTab = el.dataset.view;
     render();
+  },
+  openManualReactivation() {
+    state._nurtureDropdownOpen = false;
+    state.nurtureSubTab = 'manual';
+    if (window.switchAcqSubTab) window.switchAcqSubTab('nurture');
   },
 
   exportAutomationPool() { exportAutomationPool(); },

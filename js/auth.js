@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // AUTH — Supabase Auth (Google OAuth), roles, campaign assignments
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20261007111216';
-import { state } from './app.js?v=20261007111216';
-import { render } from './render.js?v=20261007111216';
-import { getVisiblePipelinesWithArchive } from './search.js?v=20261007111216';
-import { esc, svgIcon } from './utils.js?v=20261007111216';
-import { resolveRoutingOwner } from './routing-rules.js?v=20261007111216';
+import { supabase } from './supabase-client.js?v=20261007130042';
+import { state } from './app.js?v=20261007130042';
+import { render } from './render.js?v=20261007130042';
+import { getVisiblePipelinesWithArchive } from './search.js?v=20261007130042';
+import { esc, svgIcon } from './utils.js?v=20261007130042';
+import { resolveRoutingOwner } from './routing-rules.js?v=20261007130042';
 
 const ALLOWED_DOMAIN = 'theheadlinetheory.com';
 export let currentUser = null;
@@ -264,7 +264,7 @@ export function resetAppState(){
   state.archiveSearch = '';
   state.archiveLoaded = false;
   state.archiveData = [];
-  state.nurtureSubTab = 'board';
+  state.nurtureSubTab = 'manual';
   state.searchQuery = '';
   state.searchResults = null;
   state.bulkMode = false;

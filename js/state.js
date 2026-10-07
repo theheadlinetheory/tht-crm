@@ -4,7 +4,7 @@
 // All mutations go through store.* methods to prevent direct
 // state tampering and ensure consistent re-renders.
 
-import { render, refreshModal } from './render.js?v=20261007111216';
+import { render, refreshModal } from './render.js?v=20261007130042';
 
 // ─── Raw State (private — modules should use store.*) ───
 export const state = {
@@ -34,7 +34,6 @@ export const state = {
   rerunLoading: false,
   nurtureFilterCampaign: '',
   nurtureFilterBucket: '',
-  nurtureFilterFollowup: '',
   satSelected: new Set(),
   satSelectAll: false,
   archiveData: [],

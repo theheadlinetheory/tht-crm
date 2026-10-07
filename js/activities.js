@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // ACTIVITIES — Activity CRUD, SOP sequences, overdue tracking
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, completedActivityIds, deletedActivityIds, inFlightActivityIds } from './app.js?v=20261007111216';
-import { SOP_DAYS, CLIENT_SOP_DAYS, PRE_CALL_SEQUENCE, NO_SHOW_SEQUENCE } from './config.js?v=20261007111216';
-import { render, refreshModal } from './render.js?v=20261007111216';
-import { sbCreateActivity, sbUpdateActivity, sbDeleteActivity, camelToSnake } from './api.js?v=20261007111216';
-import { uid, getToday, isValidDate, fmtTime12 } from './utils.js?v=20261007111216';
-import { findClientForDeal } from './client-info.js?v=20261007111216';
+import { state, store, pendingWrites, completedActivityIds, deletedActivityIds, inFlightActivityIds } from './app.js?v=20261007130042';
+import { SOP_DAYS, CLIENT_SOP_DAYS, PRE_CALL_SEQUENCE, NO_SHOW_SEQUENCE, REACTIVATION_DAYS } from './config.js?v=20261007130042';
+import { render, refreshModal } from './render.js?v=20261007130042';
+import { sbCreateActivity, sbUpdateActivity, sbDeleteActivity, camelToSnake } from './api.js?v=20261007130042';
+import { uid, getToday, isValidDate, fmtTime12 } from './utils.js?v=20261007130042';
+import { findClientForDeal } from './client-info.js?v=20261007130042';
 
 async function retryActivityWrite(fn, label, maxRetries=3){
   pendingWrites.value++;
@@ -250,6 +250,18 @@ export function assignNoShowSequence(deal){
     const dayLabel = step.dayOffset === 0 ? 'Immediately' : '+' + step.dayOffset + 'd';
     addActivity(deal.id, { type: step.type, subject: step.subject, dueDate: targetDate, dayLabel });
   }
+}
+
+// Day 1 starts today, Day 2 tomorrow, and so on — the whole reactivation
+// cadence lands on the deal the moment it is re-activated.
+export function assignReactivationSequence(dealId){
+  const start = new Date(getToday()+'T00:00:00');
+  Object.entries(REACTIVATION_DAYS).forEach(([dayLabel, acts], i) => {
+    const d = new Date(start);
+    d.setDate(d.getDate() + i);
+    const dueDate = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    for(const act of acts) addActivity(dealId, { type: act.type, subject: act.subject, dueDate, dayLabel });
+  });
 }
 
 // Expose to inline HTML handlers
