@@ -12,10 +12,10 @@
 //   payouts (selling labor); signed = clients created that month (any
 //   status); CAC = spend ÷ signed, shown as an em-dash when 0 signed.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20261007130042';
-import { state } from './app.js?v=20261007130042';
-import { render } from './render.js?v=20261007130042';
-import { esc } from './utils.js?v=20261007130042';
+import { supabase } from './supabase-client.js?v=20261007130251';
+import { state } from './app.js?v=20261007130251';
+import { render } from './render.js?v=20261007130251';
+import { esc } from './utils.js?v=20261007130251';
 
 // Fulfillment-dashboard Supabase project (verify_jwt=false; same
 // session-token contract as weekly-update-send — see js/weekly-updates.js).
