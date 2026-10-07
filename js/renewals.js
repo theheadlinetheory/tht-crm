@@ -20,10 +20,10 @@
 // Admin-only: it shows retainer amounts, and money is admin-gated per the
 // repo's role rule.
 // ═══════════════════════════════════════════════════════════
-import { esc, str } from './utils.js?v=20261006131302';
-import { addMonths, prettyDate, prepaidThrough } from './retainer-billing.js?v=20261006131302';
-import { cadenceOf, daysLeft, monthlyEquivalent, termEnd } from './client-terms.js?v=20261006131302';
-import { extensionsFor, extensionsStatus, loadTermExtensions } from './term-extensions.js?v=20261006131302';
+import { esc, str } from './utils.js?v=20261007082852';
+import { addMonths, prettyDate, prepaidThrough } from './retainer-billing.js?v=20261007082852';
+import { cadenceOf, daysLeft, monthlyEquivalent, termEnd } from './client-terms.js?v=20261007082852';
+import { extensionsFor, extensionsStatus, loadTermExtensions } from './term-extensions.js?v=20261007082852';
 
 const CURRENCY_SYMBOLS = { usd: '$', cad: 'CA$', aud: 'A$', gbp: '£', eur: '€' };
 const NOTICE_DAYS = [7, 3, 1];
