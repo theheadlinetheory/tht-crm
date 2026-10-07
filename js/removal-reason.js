@@ -23,10 +23,10 @@
 // acquisition deals here (deal-modal.js, deals.js). Everything is read from the
 // deal's Timeline at click time — nothing new is stored.
 
-import { state } from './app.js?v=20261007082852';
-import { esc } from './utils.js?v=20261007082852';
-import { sbCreateInteraction, sbGetInteractions, showToast } from './api.js?v=20261007082852';
-import { markDisco, markDemo, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20261007082852';
+import { state } from './app.js?v=20261007111216';
+import { esc } from './utils.js?v=20261007111216';
+import { sbCreateInteraction, sbGetInteractions, showToast } from './api.js?v=20261007111216';
+import { markDisco, markDemo, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20261007111216';
 
 export const REMOVAL_PREFIX = 'Removed — ';
 
@@ -165,8 +165,9 @@ function recordedStatus(info) {
  * The picker, for one or many acquisition deals.
  *   onPick(label)  runs after the reason is recorded — the caller archives.
  *   onNurture()    "Move to Nurture" instead of archiving (pre-disco only).
+ *   onPurge()      "Delete permanently" for test/junk — no reason, counts nowhere (admins; single deal).
  */
-export async function showAcquisitionRemovalPicker(dealIds, { onPick, onNurture }) {
+export async function showAcquisitionRemovalPicker(dealIds, { onPick, onNurture, onPurge }) {
   const existing = document.getElementById('archive-reason-picker');
   if (existing) existing.remove();
 
@@ -245,6 +246,18 @@ export async function showAcquisitionRemovalPicker(dealIds, { onPick, onNurture 
   }
 
   box.appendChild(list);
+  if (onPurge && dealIds.length === 1) {
+    const purge = document.createElement('button');
+    purge.className = 'btn';
+    purge.style.cssText = 'width:100%;margin-top:14px;font-size:12px;justify-content:center;background:#fff;color:#dc2626;border:1px dashed #fca5a5';
+    purge.textContent = 'Delete permanently (test / junk)';
+    purge.onclick = () => {
+      if (!confirm('Permanently delete this deal?\n\nIt will be erased from the CRM, the archive and every metric, as if it was never here. This cannot be undone.')) return;
+      div.remove();
+      onPurge();
+    };
+    box.appendChild(purge);
+  }
   const cancel = document.createElement('button');
   cancel.className = 'btn btn-ghost';
   cancel.style.cssText = 'width:100%;margin-top:12px;font-size:12px';

@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // DEALS — CRUD operations, bulk actions, drag-drop
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, pendingDealFields, deletedDealIds } from './app.js?v=20261007082852';
-import { render } from './render.js?v=20261007082852';
-import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbArchiveDeal, sbRestoreFromArchive, sbCreateActivity, camelToSnake, invokeEdgeFunction } from './api.js?v=20261007082852';
-import { showAcquisitionRemovalPicker, recordWonOnTimeline } from './removal-reason.js?v=20261007082852';
-import { clearDashboardArchiveCache } from './dashboard.js?v=20261007082852';
-import { uid, getToday, str } from './utils.js?v=20261007082852';
+import { state, store, pendingWrites, pendingDealFields, deletedDealIds } from './app.js?v=20261007111216';
+import { render } from './render.js?v=20261007111216';
+import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbPurgeDeal, sbArchiveDeal, sbRestoreFromArchive, sbCreateActivity, camelToSnake, invokeEdgeFunction } from './api.js?v=20261007111216';
+import { showAcquisitionRemovalPicker, recordWonOnTimeline } from './removal-reason.js?v=20261007111216';
+import { clearDashboardArchiveCache } from './dashboard.js?v=20261007111216';
+import { uid, getToday, str } from './utils.js?v=20261007111216';
 
 const TODAY = getToday;
 
@@ -44,6 +44,19 @@ export async function deleteDeal(id, archiveStatus, clientName, opts){
   finally { pendingWrites.value--; }
 }
 
+// Erase a test/junk deal everywhere, as if it was never in the CRM. Not an archive:
+// nothing is kept, and no metric counts it. Admin only (enforced by purge_deal).
+export async function purgeDeal(id){
+  deletedDealIds.add(id);
+  localStorage.setItem('tht_deletedDeals',JSON.stringify([...deletedDealIds]));
+  store.removeDeal(id, {silent: true});
+  store.removeActivitiesForDeal(id, {silent: true});
+  store.set({selectedDeal: null});
+  pendingWrites.value++;
+  try { await sbPurgeDeal(id); clearDashboardArchiveCache(); }
+  finally { pendingWrites.value--; }
+}
+
 export async function moveDeal(dealId,newStage){
   const d=state.deals.find(x=>x.id===dealId);
   if(d){d.stage=newStage;d.lastUpdated=TODAY();}
@@ -60,11 +73,11 @@ export async function moveDeal(dealId,newStage){
     if(pending && Object.keys(pending).length===0) delete pendingDealFields[String(dealId)];
   } finally { pendingWrites.value--; }
   if(d && (newStage==='Discovery Scheduled' || newStage==='Demo Scheduled') && d.bookedDate && /^\d{4}-\d{2}-\d{2}$/.test(d.bookedDate)){
-    const { generateAppointmentSequence } = await import('./activities.js?v=20261007082852');
+    const { generateAppointmentSequence } = await import('./activities.js?v=20261007111216');
     generateAppointmentSequence(d);
   }
   if(d && newStage==='No Show'){
-    const { assignNoShowSequence } = await import('./activities.js?v=20261007082852');
+    const { assignNoShowSequence } = await import('./activities.js?v=20261007111216');
     assignNoShowSequence(d);
   }
 }
@@ -121,7 +134,7 @@ export async function bulkAddActivity(){
   if(!dueDate||!dueDate.match(/^\d{4}-\d{2}-\d{2}$/)) return;
   const ids=[...state.bulkSelected];
   if(!confirm('Add "'+subject+'" activity to '+ids.length+' deal'+(ids.length!==1?'s':'')+'?')) return;
-  const { addActivity } = await import('./activities.js?v=20261007082852');
+  const { addActivity } = await import('./activities.js?v=20261007111216');
   for(const dealId of ids){
     addActivity(dealId,{type,subject,dueDate,dayLabel:''});
   }
@@ -200,7 +213,7 @@ export async function bulkRestoreFromArchive(){
       await sbRestoreFromArchive(id);
     }
     clearDashboardArchiveCache();
-    const { initialSync } = await import('./api.js?v=20261007082852');
+    const { initialSync } = await import('./api.js?v=20261007111216');
     initialSync();
   }finally{ pendingWrites.value--; }
 }
