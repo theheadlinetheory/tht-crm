@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // ACTIVITIES — Activity CRUD, SOP sequences, overdue tracking
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, completedActivityIds, deletedActivityIds, inFlightActivityIds } from './app.js?v=20261008074628';
-import { SOP_DAYS, CLIENT_SOP_DAYS, PRE_CALL_SEQUENCE, NO_SHOW_SEQUENCE, REACTIVATION_DAYS } from './config.js?v=20261008074628';
-import { render, refreshModal } from './render.js?v=20261008074628';
-import { sbCreateActivity, sbUpdateActivity, sbDeleteActivity, camelToSnake } from './api.js?v=20261008074628';
-import { uid, getToday, isValidDate, fmtTime12 } from './utils.js?v=20261008074628';
-import { findClientForDeal } from './client-info.js?v=20261008074628';
+import { state, store, pendingWrites, completedActivityIds, deletedActivityIds, inFlightActivityIds } from './app.js?v=20261008202832';
+import { SOP_DAYS, CLIENT_SOP_DAYS, PRE_CALL_SEQUENCE, NO_SHOW_SEQUENCE, REACTIVATION_DAYS } from './config.js?v=20261008202832';
+import { render, refreshModal } from './render.js?v=20261008202832';
+import { sbCreateActivity, sbUpdateActivity, sbDeleteActivity, camelToSnake } from './api.js?v=20261008202832';
+import { uid, getToday, isValidDate, fmtTime12 } from './utils.js?v=20261008202832';
+import { findClientForDeal } from './client-info.js?v=20261008202832';
 
 async function retryActivityWrite(fn, label, maxRetries=3){
   pendingWrites.value++;
@@ -69,6 +69,9 @@ export function addActivity(dealId,act){
   persistActivity(a);
 }
 
+// Deals whose orphaned activities we've already told the user about (one alert per deal, not per activity)
+const dealGoneAlerted=new Set();
+
 async function persistActivity(a, attempt=0){
   const maxRetries=4;
   pendingWrites.value++;
@@ -78,12 +81,25 @@ async function persistActivity(a, attempt=0){
     removePendingActivity(a.id);
   }catch(e){
     console.error(`Create activity failed (attempt ${attempt+1}):`,e);
+    // 23503 = activities_deal_id_fkey: the deal was deleted/archived. Retrying can never succeed,
+    // so drop it from the WAL instead of replaying it (and alerting) on every page load.
+    if(e && e.code==='23503'){
+      removePendingActivity(a.id);
+      inFlightActivityIds.delete(String(a.id));
+      store.removeActivity(a.id, {silent: true});
+      if(!dealGoneAlerted.has(String(a.dealId))){
+        dealGoneAlerted.add(String(a.dealId));
+        alert('An activity could not be saved because its deal no longer exists (it was deleted or archived). Nothing else needs to be done.');
+      }
+      render();
+      return;
+    }
     if(attempt<maxRetries){
       const delay=Math.min(2000*(attempt+1),10000);
       setTimeout(()=>persistActivity(a,attempt+1),delay);
       return;
     }
-    alert('Activity failed to save after multiple attempts. Please check your connection and try again.');
+    alert('Activity failed to save after multiple attempts. Please check your connection and try again.'+(e&&e.message?'\n\nError: '+e.message:''));
     inFlightActivityIds.delete(String(a.id));
   }finally{
     pendingWrites.value--;
