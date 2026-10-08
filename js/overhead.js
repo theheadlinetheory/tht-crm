@@ -7,10 +7,10 @@
 // quietly doubles is visible the month it happens. * = computed/estimated,
 // no star = vendor-billed actual.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20261008153223';
-import { state } from './app.js?v=20261008153223';
-import { render } from './render.js?v=20261008153223';
-import { esc } from './utils.js?v=20261008153223';
+import { supabase } from './supabase-client.js?v=20261008155335';
+import { state } from './app.js?v=20261008155335';
+import { render } from './render.js?v=20261008155335';
+import { esc } from './utils.js?v=20261008155335';
 
 const FN_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/overhead-report';
 

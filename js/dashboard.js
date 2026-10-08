@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // DASHBOARD — Dashboard rendering (client fulfillment + acquisition)
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261008153223';
-import { ACQUISITION_STAGES, NURTURE_STAGES, DEFAULT_CLIENT_STAGES, ALL_PIPELINES } from './config.js?v=20261008153223';
-import { render } from './render.js?v=20261008153223';
-import { esc, fmt$ } from './utils.js?v=20261008153223';
-import { isAdmin, isEmployee } from './auth.js?v=20261008153223';
-import { getOverdueActivities } from './activities.js?v=20261008153223';
-import { sbGetArchivedDeals } from './api.js?v=20261008153223';
+import { state } from './app.js?v=20261008155335';
+import { ACQUISITION_STAGES, NURTURE_STAGES, DEFAULT_CLIENT_STAGES, ALL_PIPELINES } from './config.js?v=20261008155335';
+import { render } from './render.js?v=20261008155335';
+import { esc, fmt$ } from './utils.js?v=20261008155335';
+import { isAdmin, isEmployee } from './auth.js?v=20261008155335';
+import { getOverdueActivities } from './activities.js?v=20261008155335';
+import { funnelMonths, funnelMonth, acquisitionCounts, conversionLevels, retentionLevel } from './dashboard-funnel.js?v=20261008155335';
 
 function dateAddedToDate(dateAdded) {
   if (!dateAdded) return null;
@@ -85,28 +85,6 @@ export function getStagesForPipeline(pip){
   return DEFAULT_CLIENT_STAGES;
 }
 
-// ─── Dashboard Archive Cache ───
-let _dashboardArchiveCache = null;
-let _dashboardArchiveLoading = false;
-
-async function ensureArchiveLoaded() {
-  if (_dashboardArchiveCache) return _dashboardArchiveCache;
-  if (_dashboardArchiveLoading) return [];
-  _dashboardArchiveLoading = true;
-  try {
-    _dashboardArchiveCache = await sbGetArchivedDeals();
-  } catch(e) {
-    console.warn('Failed to load archive for dashboard:', e);
-    _dashboardArchiveCache = [];
-  }
-  _dashboardArchiveLoading = false;
-  return _dashboardArchiveCache;
-}
-
-export function clearDashboardArchiveCache() {
-  _dashboardArchiveCache = null;
-}
-
 function resolveClientName(rawName) {
   if (!rawName) return rawName;
   const exact = state.clients.find(c => c.name === rawName);
@@ -138,8 +116,6 @@ function getClientForDeal(deal) {
 
 export function renderDashboard(){
   const tab = state.dashboardTab || 'client_leads';
-  const now = new Date();
-  const thisMonth = now.toISOString().slice(0,7);
   const cs = `padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;margin-bottom:-2px`;
 
   let h = `<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin:0 20px">
@@ -147,24 +123,10 @@ export function renderDashboard(){
     ${isAdmin()||isEmployee()?`<button onclick="state.dashboardTab='acquisition';render()" style="${cs};color:${tab==='acquisition'?'#2563eb':'var(--text-muted)'};border-bottom:2px solid ${tab==='acquisition'?'#2563eb':'transparent'}">Acquisition</button>`:''}
   </div>`;
 
-  // Load archive data if not cached
-  if (!_dashboardArchiveCache) {
-    if (!_dashboardArchiveLoading) {
-      ensureArchiveLoaded().then(() => { if (state.pipeline === 'dashboard') render(); });
-    }
-    h += `<div style="padding:60px;text-align:center;color:var(--text-muted)">
-      <div class="loading-spinner"></div>
-      <div style="margin-top:12px;font-size:13px">Loading dashboard data...</div>
-    </div>`;
-    return h;
-  }
-
-  const archived = _dashboardArchiveCache;
-
   if (tab === 'client_leads') {
     h += renderClientDashboard();
   } else if (isAdmin()||isEmployee()) {
-    h += renderAcquisitionDashboard(thisMonth, archived);
+    h += renderAcquisitionDashboard();
   }
   return h;
 }
@@ -531,6 +493,14 @@ export function renderKpiTargetBar(weekKey, opts = {}) {
   </div>`;
 }
 
+// Funnel level 07, all time — the one client number the Funnel tracks.
+function retentionCard(cardStyle, labelStyle, numStyle) {
+  const l = retentionLevel(render);
+  const rate = l && l.rate !== null && l.rate !== undefined ? Number(l.rate).toFixed(1) + '%' : '—';
+  const sub = l ? `${l.numerator ?? '—'} / ${l.denominator ?? '—'} clients · from the Funnel` : 'loading…';
+  return `<div style="${cardStyle}"><div style="${labelStyle}">Retained Past 90 Days</div><div style="${numStyle};color:#059669">${rate}</div><div style="font-size:10px;color:var(--text-muted);margin-top:2px">${sub}</div></div>`;
+}
+
 export function renderClientDashboard(){
   const thisWeek = currentWeekKey();
   const selWeek = state.dashboardWeek || thisWeek;
@@ -611,6 +581,7 @@ export function renderClientDashboard(){
       <div style="${cardStyle}"><div style="${labelStyle}">Active Leads</div><div style="${numStyle};color:var(--purple)">${activeLeads}</div></div>
       <div style="${cardStyle}"><div style="${labelStyle}">Undistributed</div><div style="${numStyle};color:${undistributed ? '#f59e0b' : '#22c55e'}">${undistributed}</div></div>
       <div style="${cardStyle}"><div style="${labelStyle}">Overdue Tasks</div><div style="${numStyle};color:${overdueActs.length ? '#ef4444' : '#22c55e'}">${overdueActs.length}</div></div>
+      ${retentionCard(cardStyle, labelStyle, numStyle)}
     </div>`;
 
   // ─── Per-Client Table ───
@@ -846,54 +817,15 @@ function renderIntakeChart() {
   </div>`;
 }
 
-export function renderAcquisitionDashboard(thisMonth, archived){
-  const selMonth = state.dashboardAcqMonth || thisMonth;
+export function renderAcquisitionDashboard(){
+  const months = funnelMonths();
+  const selMonth = months.includes(state.dashboardAcqMonth) ? state.dashboardAcqMonth : months[0];
   const acqDeals = state.deals.filter(d => d.pipeline === 'Acquisition');
-  const acqArchived = archived.filter(d => d.pipeline === 'Acquisition');
-
-  // Build month set
-  const monthSet = new Set();
-  acqDeals.forEach(d => { const cm = (d.createdDate || '').slice(0,7); if (cm) monthSet.add(cm); });
-  acqArchived.forEach(d => {
-    const cm = (d.createdDate || '').slice(0,7); if (cm) monthSet.add(cm);
-    const am = (d.archivedAt || '').slice(0,7); if (am) monthSet.add(am);
-  });
-  monthSet.add(thisMonth);
-  const allMonths = [...monthSet].sort().reverse();
-
   const [sy, sm] = selMonth.split('-').map(Number);
-  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const monthLabel = monthNames[sm - 1] + ' ' + sy;
+  const monthLabel = MONTH_ABBR[sm - 1] + ' ' + sy;
+  const rows = funnelMonth(selMonth, render);
 
-  // KPI 1: New Responses (active + archived, createdDate in month)
-  const newResponses = acqDeals.filter(d => (d.createdDate || '').slice(0,7) === selMonth).length
-    + acqArchived.filter(d => (d.createdDate || '').slice(0,7) === selMonth).length;
-
-  // KPI 2: Closed Won (archived, archived_at in month)
-  const closedWon = acqArchived.filter(d => d.archiveStatus === 'Closed Won' && (d.archivedAt || '').slice(0,7) === selMonth).length;
-
-  // KPI 3: Closed Lost (archived, archived_at in month)
-  const closedLost = acqArchived.filter(d => d.archiveStatus === 'Deleted/Lost' && (d.archivedAt || '').slice(0,7) === selMonth).length;
-
-  // KPI 4: Pipeline Value (active only)
-  const totalValue = acqDeals.reduce((s, d) => s + (Number(d.value) || 0), 0);
-
-  // Demo-based metrics from demo_tracker table
-  const fullMonthNames = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
-  const demoMonthLabel = `${fullMonthNames[sm]}/${String(sy).slice(-2)}`;
-  const monthDemos = state.demoEntries.filter(e => String(e.month || '') === demoMonthLabel);
-  const allDemos = state.demoEntries;
-  const demosBooked = allDemos.length;
-  const noShows = allDemos.filter(e => String(e.showStatus || '') === 'No-Show').length;
-  const allWon = allDemos.filter(e => String(e.outcome || '') === 'Qualified — Closed Won').length;
-  const showRate = demosBooked ? (((demosBooked - noShows) / demosBooked) * 100).toFixed(0) : '0';
-  const closeRate = demosBooked ? ((allWon / demosBooked) * 100).toFixed(0) : '0';
-  const monthDemosBooked = monthDemos.length;
-  const monthNoShows = monthDemos.filter(e => String(e.showStatus || '') === 'No-Show').length;
-  const monthShowed = monthDemos.filter(e => String(e.showStatus || '') === 'Showed').length;
-  const monthWon = monthDemos.filter(e => String(e.outcome || '') === 'Qualified — Closed Won').length;
-
-  // KPI 7: Overdue Tasks
+  // KPI: Overdue Tasks
   const overdueActs = getOverdueActivities().filter(a => {
     const deal = state.deals.find(d => d.id === a.dealId);
     return deal && deal.pipeline === 'Acquisition';
@@ -902,36 +834,49 @@ export function renderAcquisitionDashboard(thisMonth, archived){
   const cardStyle = 'background:#fff;border-radius:10px;padding:16px;border:1px solid var(--border)';
   const labelStyle = 'font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600';
   const numStyle = 'font-size:28px;font-weight:800';
+  const subStyle = 'font-size:10px;color:var(--text-muted);margin-top:2px';
+  const num = (n) => (n === null || n === undefined) ? '—' : Number(n).toLocaleString('en-US');
+  const card = (label, value, color, sub = '') => `<div style="${cardStyle}"><div style="${labelStyle}">${label}</div><div style="${numStyle};color:${color}">${value}</div>${sub ? `<div style="${subStyle}">${sub}</div>` : ''}</div>`;
 
-  // All-time Won/Lost counts for pipeline grid
-  const totalWon = acqArchived.filter(d => d.archiveStatus === 'Closed Won').length;
-  const totalLost = acqArchived.filter(d => d.archiveStatus === 'Deleted/Lost').length;
-  const wonValue = acqArchived.filter(d => d.archiveStatus === 'Closed Won').reduce((s, d) => s + (Number(d.value) || 0), 0);
+  let funnelHtml;
+  if (!rows) {
+    funnelHtml = `<div style="padding:40px;text-align:center;color:var(--text-muted)"><div class="loading-spinner"></div><div style="margin-top:12px;font-size:13px">Loading ${monthLabel} from the Funnel...</div></div>`;
+  } else {
+    const c = acquisitionCounts(rows);
+    funnelHtml = `<div style="margin-top:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px">
+      ${card(`Positive Responses (${monthLabel})`, num(c.positives), '#2563eb')}
+      ${card('Discos Scheduled', num(c.discosScheduled), '#7c3aed')}
+      ${card('Discos Conducted', num(c.discosConducted), '#6366f1')}
+      ${card('Demos Booked', num(c.demosBooked), '#818cf8')}
+      ${card('Demos Conducted', num(c.demosConducted), '#0891b2')}
+      ${card('Closed Won', num(c.won), '#22c55e')}
+      ${card('Removed (DQ)', num(c.removed), '#ef4444', 'desk DQ / DQ on a call')}
+      ${card('Overdue Tasks', overdueActs.length, overdueActs.length ? '#ef4444' : '#22c55e')}
+    </div>
+    <h3 style="font-size:14px;font-weight:700;margin-bottom:10px">Conversion (${monthLabel})</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:24px">
+      ${conversionLevels(rows).map(l => `<div style="background:#fff;border-radius:8px;padding:10px 12px;border:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text-muted);font-weight:600">${esc(l.label || '')}</div>
+        <div style="font-size:22px;font-weight:800;color:var(--text)">${l.rate === null || l.rate === undefined ? '—' : Number(l.rate).toFixed(1) + '%'}</div>
+        <div style="font-size:10px;color:var(--text-muted)">${l.error ? 'unavailable' : `${num(l.numerator)} / ${num(l.denominator)}`}</div>
+      </div>`).join('')}
+    </div>`;
+  }
 
   return `<div style="padding:24px;max-width:960px;margin:0 auto">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
       <div>
         <h2 style="font-size:18px;font-weight:800;margin:0 0 4px">Acquisition</h2>
-        <p style="font-size:12px;color:var(--text-muted);margin:0">Sales pipeline for signing new clients</p>
+        <p style="font-size:12px;color:var(--text-muted);margin:0">Same numbers as the Funnel tab for the month (Los Angeles days)</p>
       </div>
       <select onchange="state.dashboardAcqMonth=this.value;render()" style="padding:6px 12px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;font-family:var(--font);background:#fff;cursor:pointer">
-        ${allMonths.map(m => {
+        ${months.map(m => {
           const [y2, m2] = m.split('-').map(Number);
-          return `<option value="${m}" ${m === selMonth ? 'selected' : ''}>${monthNames[m2 - 1]} ${y2}</option>`;
+          return `<option value="${m}" ${m === selMonth ? 'selected' : ''}>${MONTH_ABBR[m2 - 1]} ${y2}</option>`;
         }).join('')}
       </select>
     </div>
-    <div style="margin-top:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:24px">
-      <div style="${cardStyle}"><div style="${labelStyle}">New Responses (${monthLabel})</div><div style="${numStyle};color:#2563eb">${newResponses}</div></div>
-      <div style="${cardStyle}"><div style="${labelStyle}">Closed Won (${monthLabel})</div><div style="${numStyle};color:#22c55e">${closedWon}</div></div>
-      <div style="${cardStyle}"><div style="${labelStyle}">Closed Lost (${monthLabel})</div><div style="${numStyle};color:#ef4444">${closedLost}</div></div>
-      <div style="${cardStyle}"><div style="${labelStyle}">Pipeline Value</div><div style="${numStyle};color:var(--purple)">${fmt$(totalValue)}</div></div>
-      <div style="${cardStyle}"><div style="${labelStyle}">Demos (${monthLabel})</div><div style="${numStyle};color:#818cf8">${monthDemosBooked}</div><div style="font-size:10px;color:var(--text-muted);margin-top:2px">${monthShowed} showed, ${monthNoShows} no-show</div></div>
-      <div style="${cardStyle}"><div style="${labelStyle}">Won (${monthLabel})</div><div style="${numStyle};color:#22c55e">${monthWon}</div></div>
-      <div style="${cardStyle}"><div style="${labelStyle}">Show Rate</div><div style="${numStyle};color:#0891b2">${showRate}%</div><div style="font-size:10px;color:var(--text-muted);margin-top:2px">${demosBooked - noShows}/${demosBooked} all time</div></div>
-      <div style="${cardStyle}"><div style="${labelStyle}">Demo Close Rate</div><div style="${numStyle};color:#22c55e">${closeRate}%</div><div style="font-size:10px;color:var(--text-muted);margin-top:2px">${allWon}/${demosBooked} all time</div></div>
-      <div style="${cardStyle}"><div style="${labelStyle}">Overdue Tasks</div><div style="${numStyle};color:${overdueActs.length ? '#ef4444' : '#22c55e'}">${overdueActs.length}</div></div>
-    </div>
+    ${funnelHtml}
     <h3 style="font-size:14px;font-weight:700;margin-bottom:10px">Pipeline Stages</h3>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px">
       ${getStagesForPipeline('Acquisition').map(s => {
@@ -943,15 +888,6 @@ export function renderAcquisitionDashboard(thisMonth, archived){
           <div style="font-size:10px;color:var(--text-muted)">${fmt$(stageValue)}</div>
         </div>`;
       }).join('')}
-      <div style="background:#fff;border-radius:8px;padding:10px 12px;border:1px solid var(--border);border-top:3px solid #22c55e">
-        <div style="font-size:10px;color:var(--text-muted);font-weight:600">Won</div>
-        <div style="font-size:22px;font-weight:800;color:#22c55e">${totalWon}</div>
-        <div style="font-size:10px;color:#059669">${fmt$(wonValue)}</div>
-      </div>
-      <div style="background:#fff;border-radius:8px;padding:10px 12px;border:1px solid var(--border);border-top:3px solid #ef4444">
-        <div style="font-size:10px;color:var(--text-muted);font-weight:600">Lost</div>
-        <div style="font-size:22px;font-weight:800;color:#ef4444">${totalLost}</div>
-      </div>
     </div>
   </div>`;
 }
