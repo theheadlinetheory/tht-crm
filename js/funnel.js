@@ -19,10 +19,10 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20261008202832';
-import { supabase } from './supabase-client.js?v=20261008202832';
-import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel, rangeDays, todayYmdLA, requestExactSends } from './funnel-period.js?v=20261008202832';
-import { leadsTable } from './funnel-leads.js?v=20261008202832';
+import { esc, svgIcon } from './utils.js?v=20261008153223';
+import { supabase } from './supabase-client.js?v=20261008153223';
+import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel, rangeDays, todayYmdLA, requestExactSends } from './funnel-period.js?v=20261008153223';
+import { leadsTable } from './funnel-leads.js?v=20261008153223';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -40,7 +40,12 @@ const OFFER_KEY = 'funnelOffer';
 // filtered All view come from the whole-window period views (the hourly cards are unfiltered).
 let _offer = (() => { try { const v = localStorage.getItem(OFFER_KEY) || ''; return v === 'ppm' || v === 'retainer' ? v : ''; } catch (_) { return ''; } })();
 const OFFERS = [{ key: '', label: 'All offers' }, { key: 'ppm', label: 'PPM' }, { key: 'retainer', label: 'Retainer' }];
-const ck = (key) => _offer ? `${key}@${_offer}` : key; // cache key: a period under a filter is its own entry
+// Channels (Lars, 2026-10-08): '' = every channel, else the one the lead replied on. Same mechanics as the offer filter.
+const CHANNEL_KEY = 'funnelChannel';
+const CHANNELS = [{ key: '', label: 'All channels' }, { key: 'email', label: 'Email' }, { key: 'linkedin', label: 'LinkedIn' }, { key: 'sms', label: 'SMS' }];
+let _channel = (() => { try { const v = localStorage.getItem(CHANNEL_KEY) || ''; return CHANNELS.some(c => c.key === v) ? v : ''; } catch (_) { return ''; } })();
+const filterLabel = () => [_offer === 'ppm' ? 'PPM' : _offer === 'retainer' ? 'retainer' : '', (CHANNELS.find(c => c.key === _channel) || {}).label || ''].filter(Boolean).join(' · ');
+const ck = (key) => (_offer || _channel) ? `${key}@${_offer}@${_channel}` : key; // cache key: a period under a filter is its own entry
 /** The earliest Monday the levels cover — from the level 01 card when loaded, else the constant in funnel-period.js. */
 function backfillStart() {
   const l1 = (_levels || []).find(l => l.level === '01');
@@ -101,7 +106,7 @@ export function reloadFunnel(rerender) {
     .then(({ data, error }) => { if (error) _error = error.message; else { _levels = data || []; _error = null; } });
   const g = (_gen[ck(key)] = (_gen[ck(key)] || 0) + 1);
   const period = key !== 'all'
-    ? fetchPeriod(periodRange(key), _levels || [], _offer).then(rows => { storePeriod(key, rows, g); }).catch(() => {})
+    ? fetchPeriod(periodRange(key), _levels || [], _offer, _channel).then(rows => { storePeriod(key, rows, g); }).catch(() => {})
     : Promise.resolve();
   Promise.all([cards, period]).finally(() => {
     if (rerender) rerender();
@@ -111,10 +116,10 @@ export function reloadFunnel(rerender) {
 
 function loadPeriod(key, rerender) {
   if (periodRows(key) || _periodLoading === key) return;
-  if (!rerender) rerender = () => import('./render.js?v=20261008202832').then(m => m.render());
+  if (!rerender) rerender = () => import('./render.js?v=20261008153223').then(m => m.render());
   _periodLoading = key;
   const g = (_gen[ck(key)] = (_gen[ck(key)] || 0) + 1);
-  fetchPeriod(periodRange(key), _levels || [], _offer).then(rows => {
+  fetchPeriod(periodRange(key), _levels || [], _offer, _channel).then(rows => {
     storePeriod(key, rows, g);
   }).catch(e => {
     storePeriod(key, { error: String(e && e.message || e) }, g);
@@ -146,18 +151,23 @@ window.setFunnelPeriod = (key) => {
     };
     setTimeout(whenLoaded, 500);
   }
-  import('./render.js?v=20261008202832').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+  import('./render.js?v=20261008153223').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
 };
 
 window.setFunnelOffer = (offer) => {
   _offer = offer === 'ppm' || offer === 'retainer' ? offer : '';
   try { localStorage.setItem(OFFER_KEY, _offer); } catch (_) { /* private mode */ }
-  import('./render.js?v=20261008202832').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
+  import('./render.js?v=20261008153223').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
+};
+window.setFunnelChannel = (channel) => {
+  _channel = CHANNELS.some(c => c.key === channel) ? channel : '';
+  try { localStorage.setItem(CHANNEL_KEY, _channel); } catch (_) { /* private mode */ }
+  import('./render.js?v=20261008153223').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
 };
 
 // ── The calendar: pick any stretch of days (Lars, 2026-09-18) ──
 const _pick = { open: false, month: null, start: null, end: null }; // month 'YYYY-MM'; start/end 'YYYY-MM-DD' while choosing
-const rerenderNow = () => import('./render.js?v=20261008202832').then(m => m.render());
+const rerenderNow = () => import('./render.js?v=20261008153223').then(m => m.render());
 window.funnelPickToggle = () => {
   _pick.open = !_pick.open;
   if (_pick.open) { const r = periodRange(_period); _pick.month = (r ? r.to : todayYmdLA()).slice(0, 7); _pick.start = null; _pick.end = null; }
@@ -367,6 +377,8 @@ function levelCard(l) {
     // behind its own dropdown, closed by default (Lars, 2026-09-09: "not such a huge scroll").
     if (Array.isArray(d.flow) && d.flow.length) h += flowStrip(d.flow);      // every stage: what happens inside it, as a flow of counts (Lars, 2026-09-23)
     else if (l.level === '01') h += stageFlow01(l, metrics, d);             // older cards, until the next hourly run
+    // Stage 1 by channel (Lars, 2026-10-08): LinkedIn and SMS each get their own strip under the email one.
+    if (Array.isArray(d.flows)) d.flows.forEach(f => { if (f && Array.isArray(f.steps) && f.steps.length) h += `<div style="margin-top:6px"><div style="font-size:11px;font-weight:700;color:#1e1b4b;text-transform:uppercase;letter-spacing:.04em">${esc(f.label || f.channel || '')}${f.note ? ` <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#9ca3af">· ${esc(f.note)}</span>` : ''}</div>${flowStrip(f.steps)}</div>`; });
     if (d.leads && d.leads.length) h += leadsDropdown(l.level + '-cohort', d.leads, d.leads_label || 'leads in this period');
     if (d.activity_leads && d.activity_leads.length) h += leadsDropdown(l.level + '-activity', d.activity_leads, d.activity_leads_label || 'happened in this period');
     // Rep removals are the most common reason a level shrinks and a signal in
@@ -482,10 +494,12 @@ function periodBar() {
   const nd = custom ? rangeDays(custom) : 0;
   h += chip(!!custom, 'funnelPickToggle()', '📅 ' + (custom ? esc(rangeLabel(custom)) + ` <span style="font-weight:400;opacity:.8">· ${nd} ${nd === 1 ? 'day' : 'days'}</span>` : 'Pick dates'), 'funnel-pick-chip');
   const r = periodRange(_period);
-  h += `<span style="font-size:11px;color:#9ca3af;margin-left:4px">${r ? esc(r.from === r.to ? r.from : r.from + ' → ' + r.to) + ' · Los Angeles days · each level shows the leads that entered it in this period' : (_offer ? 'everything since the window opened, by offer' : 'everything since the window opened, refreshed hourly')}</span>`;
+  h += `<span style="font-size:11px;color:#9ca3af;margin-left:4px">${r ? esc(r.from === r.to ? r.from : r.from + ' → ' + r.to) + ' · Los Angeles days · each level shows the leads that entered it in this period' : ((_offer || _channel) ? 'everything since the window opened, by ' + filterLabel() : 'everything since the window opened, refreshed hourly')}</span>`;
   if (_pick.open) h += calendarPopover();
   h += `</div><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px">`;
   OFFERS.forEach(o => { h += chip(_offer === o.key, `setFunnelOffer('${o.key}')`, esc(o.label)); });
+  h += `<span style="width:10px"></span>`;
+  CHANNELS.forEach(c => { h += chip(_channel === c.key, `setFunnelChannel('${c.key}')`, esc(c.label)); });
   h += `<span style="font-size:11px;color:#9ca3af;margin-left:4px">${_offer === 'ppm' ? 'pay-per-meeting: replies through Jul 15, 2026 and sends to that day · a client who signed PPM counts here whenever they replied' : _offer === 'retainer' ? 'retainer: replies from Jul 16, 2026 and sends from that day · a client who signed a retainer counts here whenever they replied' : 'the offer we were pitching when the lead replied: PPM through Jul 15, 2026, retainers since · a closed client counts under the offer they signed'}</span>`;
   return h + `</div>`;
 }
@@ -532,10 +546,10 @@ export function renderFunnel() {
     const ws = backfillStart(), allKey = ws ? `range:${ws}:${todayYmdLA()}` : null;
     const pr = allKey ? periodRows(allKey) : null;
     if (allKey && !pr) loadPeriod(allKey, null);
-    if (_offer) {
-      // Under an offer filter the hourly cards do not apply: the whole-window period views are the cards.
-      if (!Array.isArray(pr)) h += `<div style="padding:16px;color:#9ca3af;font-size:13px">Splitting every level by offer since ${esc(ws || '')}…</div>`;
-      else h += pr.map(x => ({ ...x, label: (_levels.find(l => l.level === x.level) || {}).label || x.label, detail: { ...(x.detail || {}), leads_label: `all ${_offer === 'ppm' ? 'PPM' : 'retainer'} leads since ${ws}` } })).map(safeCard).join('');
+    if (_offer || _channel) {
+      // Under an offer or channel filter the hourly cards do not apply: the whole-window period views are the cards.
+      if (!Array.isArray(pr)) h += `<div style="padding:16px;color:#9ca3af;font-size:13px">Splitting every level by ${esc(filterLabel())} since ${esc(ws || '')}…</div>`;
+      else h += pr.map(x => ({ ...x, label: (_levels.find(l => l.level === x.level) || {}).label || x.label, detail: { ...(x.detail || {}), leads_label: `all ${filterLabel()} leads since ${ws}` } })).map(safeCard).join('');
     } else {
       const merged = _levels.map(l => {
         const x = Array.isArray(pr) ? pr.find(q => q.level === l.level) : null;
@@ -558,5 +572,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20261008202832').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20261008153223').then(m => reloadFunnel(m.render));
 };

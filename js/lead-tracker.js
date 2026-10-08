@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // LEAD TRACKER — Editable grid view for lead billing & status
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20261008202832';
-import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20261008202832';
-import { isAdmin, isEmployee } from './auth.js?v=20261008202832';
-import { esc, svgIcon, str } from './utils.js?v=20261008202832';
-import { render } from './render.js?v=20261008202832';
-import { leadCardId, leadCardIcon, matchLeadCards } from './lead-card.js?v=20261008202832';
+import { state, store, pendingWrites } from './app.js?v=20261008153223';
+import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20261008153223';
+import { isAdmin, isEmployee } from './auth.js?v=20261008153223';
+import { esc, svgIcon, str } from './utils.js?v=20261008153223';
+import { render } from './render.js?v=20261008153223';
+import { leadCardId, leadCardIcon, matchLeadCards } from './lead-card.js?v=20261008153223';
 
 // ─── Column Definitions ───
 // The billing "Month" ('July/26') is deliberately not a column — the sheet shows
