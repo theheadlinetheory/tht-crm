@@ -1,18 +1,18 @@
 // ═══════════════════════════════════════════════════════════
 // NURTURE — Two-bucket nurture pipeline (Not Now + Service Area Taken)
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20261008025640';
-import { render } from './render.js?v=20261008025640';
-import { sbGetRerunQueue, sbAddToRerun, sbUpdateRerunItem, sbUpdateRerunStatus, sbUpdateDeal, sbUpdateActivity, sbArchiveDeal, sbDeleteDeal, camelToSnake, normalizeRow, invokeEdgeFunction } from './api.js?v=20261008025640';
-import { esc, getToday, fmtDate, svgIcon } from './utils.js?v=20261008025640';
-import { registerActions } from './delegate.js?v=20261008025640';
-import { statCard, filterSelect, modalWrap, modalHeader, modalFooter } from './html-helpers.js?v=20261008025640';
-import { NURTURE_NOT_NOW_SEQUENCE, ACQUISITION_STAGES, MANUAL_OUTREACH_OWNER } from './config.js?v=20261008025640';
-import { isAdmin, getOwnerNameForDeal, getOwnerColor, loadAssignableUsers } from './auth.js?v=20261008025640';
-import { dealHadDemo } from './demo-tracker.js?v=20261008025640';
-import { loadJourneys, journeyFor } from './archive-journey.js?v=20261008025640';
-import { assignReactivationSequence } from './activities.js?v=20261008025640';
-import { renderManualReactivation } from './nurture-manual.js?v=20261008025640';
+import { state, store, pendingWrites } from './app.js?v=20261008074628';
+import { render } from './render.js?v=20261008074628';
+import { sbGetRerunQueue, sbAddToRerun, sbUpdateRerunItem, sbUpdateRerunStatus, sbUpdateDeal, sbUpdateActivity, sbArchiveDeal, sbDeleteDeal, camelToSnake, normalizeRow, invokeEdgeFunction } from './api.js?v=20261008074628';
+import { esc, getToday, fmtDate, svgIcon } from './utils.js?v=20261008074628';
+import { registerActions } from './delegate.js?v=20261008074628';
+import { statCard, filterSelect, modalWrap, modalHeader, modalFooter } from './html-helpers.js?v=20261008074628';
+import { NURTURE_NOT_NOW_SEQUENCE, ACQUISITION_STAGES, MANUAL_OUTREACH_OWNER } from './config.js?v=20261008074628';
+import { isAdmin, getOwnerNameForDeal, getOwnerColor, loadAssignableUsers } from './auth.js?v=20261008074628';
+import { dealHadDemo } from './demo-tracker.js?v=20261008074628';
+import { loadJourneys, journeyFor } from './archive-journey.js?v=20261008074628';
+import { assignReactivationSequence } from './activities.js?v=20261008074628';
+import { renderManualReactivation } from './nurture-manual.js?v=20261008074628';
 
 // ─── Data Loading ───
 
@@ -475,7 +475,7 @@ function renderAutomatedNurture() {
     } else {
       h += `<table class="rerun-table">
         <thead><tr>
-          <th>Company</th><th>Contact</th><th>Campaign / Market</th><th>Follow-up Date</th><th>Status</th><th>Note</th><th></th>
+          <th>Company</th><th>Contact</th><th>Campaign / Market</th><th>Follow-up Date</th><th>Status</th><th>Note</th><th title="Set to Aidan Hutchinson to move a lead to Manual">Owner</th><th></th>
         </tr></thead><tbody>`;
 
       const today = getToday();
@@ -492,6 +492,7 @@ function renderAutomatedNurture() {
           <td style="font-weight:600">${esc(followUp ? fmtDate(followUp) : '-')}</td>
           <td><span style="font-size:11px;font-weight:600;color:${statusColor}">${statusLabel}</span></td>
           <td style="color:var(--text-muted);font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.notes || '')}">${esc(r.notes || '')}</td>
+          <td>${ownerChip(state.deals.find(d => String(d.id) === String(r.dealId)), r.dealId)}</td>
           <td style="white-space:nowrap">
             <button class="btn" style="font-size:10px;padding:2px 8px;background:#ede9fe;color:#7c3aed;border:1px solid #c4b5fd" data-action="reactivateNurtureDeal" data-id="${esc(r.id)}" data-deal-id="${esc(r.dealId)}">Re-activate</button>
             <button class="btn" style="font-size:10px;padding:2px 8px;background:#fef3c7;color:#d97706;border:1px solid #fde68a" data-action="snoozeNurtureDeal" data-id="${esc(r.id)}" data-deal-id="${esc(r.dealId)}">Snooze</button>
