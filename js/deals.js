@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // DEALS — CRUD operations, bulk actions, drag-drop
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, pendingDealFields, deletedDealIds } from './app.js?v=20261008155335';
-import { render } from './render.js?v=20261008155335';
-import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbPurgeDeal, sbArchiveDeal, sbRestoreFromArchive, sbCreateActivity, camelToSnake, invokeEdgeFunction } from './api.js?v=20261008155335';
-import { showAcquisitionRemovalPicker, recordWonOnTimeline } from './removal-reason.js?v=20261008155335';
-import { uid, getToday, str } from './utils.js?v=20261008155335';
+import { state, store, pendingWrites, pendingDealFields, deletedDealIds } from './app.js?v=20261009113117';
+import { render } from './render.js?v=20261009113117';
+import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbPurgeDeal, sbArchiveDeal, sbRestoreFromArchive, sbCreateActivity, camelToSnake, invokeEdgeFunction } from './api.js?v=20261009113117';
+import { showAcquisitionRemovalPicker, recordWonOnTimeline } from './removal-reason.js?v=20261009113117';
+import { uid, getToday, str } from './utils.js?v=20261009113117';
 
 const TODAY = getToday;
 
@@ -58,6 +58,7 @@ export async function purgeDeal(id){
 
 export async function moveDeal(dealId,newStage){
   const d=state.deals.find(x=>x.id===dealId);
+  const fromStage=d?d.stage:null;
   if(d){d.stage=newStage;d.lastUpdated=TODAY();}
   // Track pending stage so sync doesn't revert it
   if(!pendingDealFields[String(dealId)]) pendingDealFields[String(dealId)]={};
@@ -72,12 +73,23 @@ export async function moveDeal(dealId,newStage){
     if(pending && Object.keys(pending).length===0) delete pendingDealFields[String(dealId)];
   } finally { pendingWrites.value--; }
   if(d && (newStage==='Discovery Scheduled' || newStage==='Demo Scheduled') && d.bookedDate && /^\d{4}-\d{2}-\d{2}$/.test(d.bookedDate)){
-    const { generateAppointmentSequence } = await import('./activities.js?v=20261008155335');
+    const { generateAppointmentSequence } = await import('./activities.js?v=20261009113117');
     generateAppointmentSequence(d);
   }
   if(d && newStage==='No Show'){
-    const { assignNoShowSequence } = await import('./activities.js?v=20261008155335');
+    const { assignNoShowSequence } = await import('./activities.js?v=20261009113117');
     assignNoShowSequence(d);
+    // The stage is overwritten the moment the card moves on; the Timeline is not. Write the no-show as the mark
+    // the outcome dropdown would have written, dated at the booked day, so the sales pipeline keeps it after the lead
+    // rebooks (Cole McRae, 2026-10-09: no-show on 10-05, rebooked, card moved to Under Review — the no-show vanished
+    // and the ledger read the missed slot as the held demo).
+    try {
+      const { markDemo, markDisco } = await import('./disco-outcome.js?v=20261009113117');
+      const asOf = /^\d{4}-\d{2}-\d{2}$/.test(String(d.bookedDate||'')) ? d.bookedDate : undefined;
+      const opts = asOf ? { asOf } : undefined;
+      if (['Demo Scheduled','Under Review','Waiting for Payment/Contract'].includes(fromStage)) await markDemo(dealId, 'No-Show', opts);
+      else if (fromStage==='Discovery Scheduled') await markDisco(dealId, 'No-show', opts);
+    } catch (e) { console.warn('[moveDeal] no-show mark not written:', e && e.message || e); }
   }
 }
 
@@ -133,7 +145,7 @@ export async function bulkAddActivity(){
   if(!dueDate||!dueDate.match(/^\d{4}-\d{2}-\d{2}$/)) return;
   const ids=[...state.bulkSelected];
   if(!confirm('Add "'+subject+'" activity to '+ids.length+' deal'+(ids.length!==1?'s':'')+'?')) return;
-  const { addActivity } = await import('./activities.js?v=20261008155335');
+  const { addActivity } = await import('./activities.js?v=20261009113117');
   for(const dealId of ids){
     addActivity(dealId,{type,subject,dueDate,dayLabel:''});
   }
@@ -210,7 +222,7 @@ export async function bulkRestoreFromArchive(){
     for(const id of ids){
       await sbRestoreFromArchive(id);
     }
-    const { initialSync } = await import('./api.js?v=20261008155335');
+    const { initialSync } = await import('./api.js?v=20261009113117');
     initialSync();
   }finally{ pendingWrites.value--; }
 }
