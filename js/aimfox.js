@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // AIMFOX — LinkedIn-outreach cards (created by the aimfox-webhook edge fn)
 // ═══════════════════════════════════════════════════════════
-import { esc } from './utils.js?v=20261009113117';
+import { esc } from './utils.js?v=20261013003200';
 
 const LINKEDIN_BLUE = '#0a66c2';
 

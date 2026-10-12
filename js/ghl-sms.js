@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // GHL SMS — cold-SMS reply cards (created by the ghl-sms-webhook edge fn)
 // ═══════════════════════════════════════════════════════════
-import { esc } from './utils.js?v=20261009113117';
+import { esc } from './utils.js?v=20261013003200';
 
 const SMS_GREEN = '#16a34a';
 // THT's own GoHighLevel sub-account — the one the cold-SMS workflows run in.
@@ -12,13 +12,18 @@ export function isGhlSmsDeal(deal) {
 }
 
 /**
- * The contact's page in GHL, which opens on their SMS thread. A direct
- * /conversations/<id> link would need the conversation id, which GHL's
- * webhook doesn't send; the contact id is stored on every SMS card.
+ * Where "Open conversation in GoHighLevel" goes. The conversation id is looked
+ * up by the ghl-sms-webhook, so it is always in THT's sub-account; an SMS card
+ * without one falls back to the contact's page. ghl_contact_id alone is not
+ * enough: push-to-ghl stamps Client-pipeline cards with ids from *clients'*
+ * GHL accounts, which would open the wrong account.
  */
 export function ghlConversationUrl(deal) {
-  const id = String(deal.ghlContactId || '').trim();
-  return id ? `https://app.gohighlevel.com/v2/location/${GHL_LOCATION_ID}/contacts/detail/${encodeURIComponent(id)}` : '';
+  const base = `https://app.gohighlevel.com/v2/location/${GHL_LOCATION_ID}`;
+  const convId = String(deal.ghlConversationId || '').trim();
+  if (convId) return `${base}/conversations/conversations/${encodeURIComponent(convId)}`;
+  const contactId = String(deal.ghlContactId || '').trim();
+  return contactId && isGhlSmsDeal(deal) ? `${base}/contacts/detail/${encodeURIComponent(contactId)}` : '';
 }
 
 function ghlLink(deal) {
