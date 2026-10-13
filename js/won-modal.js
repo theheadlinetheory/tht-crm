@@ -4,15 +4,15 @@
 // SmartLead tags + SmartLead client portal. Ordered, with Retry.
 // Body-level overlay (survives render()).
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261013003200';
-import { str, esc, getToday } from './utils.js?v=20261013003200';
-import { createClientRecord, deriveTimezone } from './client-info.js?v=20261013003200';
-import { ensureLeadTrackerSheet } from './lead-tracker-sheet.js?v=20261013003200';
-import { invokeEdgeFunction, showToast } from './api.js?v=20261013003200';
-import { isAdmin } from './auth.js?v=20261013003200';
-import { prepaidNote } from './retainer-billing.js?v=20261013003200';
-import { createSmartleadPortal } from './smartlead-portal.js?v=20261013003200';
-import { PAYMENT_CADENCES, TERM_UNITS } from './client-terms.js?v=20261013003200';
+import { state } from './app.js?v=20261014031643';
+import { str, esc, getToday } from './utils.js?v=20261014031643';
+import { createClientRecord, deriveTimezone } from './client-info.js?v=20261014031643';
+import { ensureLeadTrackerSheet } from './lead-tracker-sheet.js?v=20261014031643';
+import { invokeEdgeFunction, showToast } from './api.js?v=20261014031643';
+import { isAdmin } from './auth.js?v=20261014031643';
+import { prepaidNote } from './retainer-billing.js?v=20261014031643';
+import { createSmartleadPortal } from './smartlead-portal.js?v=20261014031643';
+import { PAYMENT_CADENCES, TERM_UNITS } from './client-terms.js?v=20261014031643';
 
 let _w = null; // { deal, clientId, archived, sheetId, tagsDone, portal }
 const CURRENCIES = ['USD', 'AUD', 'CAD'];
@@ -215,6 +215,8 @@ function buildFields() {
 // sitting in Acquisition forever, and re-dragging it hit the duplicate block
 // against the client the first attempt had already made.
 const STEPS = ['Create client record', 'Remove deal from pipeline', 'Create Lead Tracker sheet', 'Create SmartLead tags', 'Create SmartLead client portal'];
+// PPL clients don't get a Smartlead portal — we work their leads, they don't log in.
+const stepsFor = (f) => f.billingModel === 'retainer' ? STEPS : STEPS.slice(0, 4);
 
 // Which step to resume from — the first one that hasn't completed. Every step is
 // idempotent, so re-running the failed one is always safe.
@@ -223,7 +225,7 @@ const nextStep = () => !_w.clientId ? 0 : !_w.archived ? 1 : !_w.sheetId ? 2 : !
 function setFooterProgress(activeIdx, failedIdx) {
   const f = document.getElementById('won-footer');
   if (!f) return;
-  const rows = STEPS.map((s, i) => {
+  const rows = (_w?.steps || STEPS).map((s, i) => {
     let icon = '○';
     let col = '#94a3b8';
     if (i < activeIdx) { icon = '✓'; col = '#16a34a'; }
@@ -256,6 +258,7 @@ export async function wonModalRetry() {
 }
 
 async function runSteps(f, startIdx) {
+  _w.steps = stepsFor(f);
   try {
     setFooterProgress(startIdx, null);
     if (startIdx <= 0) {
@@ -269,7 +272,7 @@ async function runSteps(f, startIdx) {
       // client, then removes it from `deals` — that is what clears the card.
       // The overlay lives on document.body, so it survives the render() this
       // triggers and the remaining steps keep reporting into it.
-      const { deleteDeal } = await import('./deals.js?v=20261013003200');
+      const { deleteDeal } = await import('./deals.js?v=20261014031643');
       await deleteDeal(_w.deal.id, 'Closed Won', f.name, { asOf: _w.closedDate || getToday() });
       _w.archived = true;
     }
@@ -288,7 +291,7 @@ async function runSteps(f, startIdx) {
       _w.tagsDone = true;
     }
     setFooterProgress(4, null);
-    if (startIdx <= 4 && !_w.portal) {
+    if (startIdx <= 4 && !_w.portal && _w.steps.length > 4) {
       // Their own Smartlead login, so they can read and reply to their leads.
       // Idempotent server-side, so a Retry re-attaches rather than duplicating —
       // which matters, because Smartlead has no way to delete a client portal.
@@ -353,7 +356,7 @@ export function wonPortalCopy() {
 export async function wonModalLink(existingName) {
   const dealId = _w.deal.id;
   wonModalDismiss();
-  const { deleteDeal } = await import('./deals.js?v=20261013003200');
+  const { deleteDeal } = await import('./deals.js?v=20261014031643');
   deleteDeal(dealId, 'Closed Won', existingName);
   showToast(`Deal linked to existing client "${existingName}"`, 'success');
 }
