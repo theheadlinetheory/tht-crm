@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // CALENDLY — Calendly popup/inline widget integration
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20261013151210';
-import { TZ_TO_IANA, ACQ_CALENDLY_URLS } from './config.js?v=20261013151210';
-import { render, refreshModal } from './render.js?v=20261013151210';
-import { sbUpdateDeal, sbCreateAppointment, sbDeleteAppointment, camelToSnake } from './api.js?v=20261013151210';
-import { esc, str, getToday, fmtTime12, uid } from './utils.js?v=20261013151210';
-import { lookupClientInfo, findClientForDeal } from './client-info.js?v=20261013151210';
+import { state, store, pendingWrites } from './app.js?v=20261014043648';
+import { TZ_TO_IANA, ACQ_CALENDLY_URLS } from './config.js?v=20261014043648';
+import { render, refreshModal } from './render.js?v=20261014043648';
+import { sbUpdateDeal, sbCreateAppointment, sbDeleteAppointment, camelToSnake, showToast } from './api.js?v=20261014043648';
+import { esc, str, getToday, fmtTime12, uid } from './utils.js?v=20261014043648';
+import { lookupClientInfo, findClientForDeal } from './client-info.js?v=20261014043648';
 
 export function buildCalendlyUrl(baseUrl, deal){
   if(!baseUrl) return '';
@@ -156,6 +156,10 @@ window.addEventListener('message',function(e){
       }
     }
     calendlyBookingDealId=null;
+    // Calendly leaves its popup open on the confirmation screen until someone finds
+    // its X — close it ourselves so the booking never looks stuck.
+    showToast('Meeting booked — closing Calendly…','success');
+    setTimeout(()=>{try{window.Calendly&&window.Calendly.closePopupWidget();}catch(ex){}},2000);
   }
 });
 
