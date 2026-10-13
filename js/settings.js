@@ -2,21 +2,21 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20261014031643';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20261014031643';
-import { render } from './render.js?v=20261014031643';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20261014031643';
-import { renderRoutingRules } from './routing-rules.js?v=20261014031643';
-import { esc, str, svgIcon } from './utils.js?v=20261014031643';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20261014031643';
-import { lookupClientInfo } from './client-info.js?v=20261014031643';
-import { findPolygonForClient, invalidateServiceAreaCache } from './maps.js?v=20261014031643';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20261014031643';
-import { DEFAULT_BOOKING_SMS_TEMPLATE } from './booking-sms.js?v=20261014031643';
-import { renderRetainerBilling } from './retainer-billing.js?v=20261014031643';
-import { renderAutoChargeToggle } from './auto-charge.js?v=20261014031643';
-import { showClientEndPicker, clearClientEnd } from './client-end.js?v=20261014031643';
-import { setupBadge, setupBanner } from './client-setup-status.js?v=20261014031643';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20261014033246';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20261014033246';
+import { render } from './render.js?v=20261014033246';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20261014033246';
+import { renderRoutingRules } from './routing-rules.js?v=20261014033246';
+import { esc, str, svgIcon } from './utils.js?v=20261014033246';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20261014033246';
+import { lookupClientInfo } from './client-info.js?v=20261014033246';
+import { findPolygonForClient, invalidateServiceAreaCache } from './maps.js?v=20261014033246';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20261014033246';
+import { DEFAULT_BOOKING_SMS_TEMPLATE } from './booking-sms.js?v=20261014033246';
+import { renderRetainerBilling } from './retainer-billing.js?v=20261014033246';
+import { renderAutoChargeToggle } from './auto-charge.js?v=20261014033246';
+import { showClientEndPicker, clearClientEnd } from './client-end.js?v=20261014033246';
+import { setupBadge, setupBanner } from './client-setup-status.js?v=20261014033246';
 
 export function getDefaultSettings(){
   return {
@@ -308,7 +308,7 @@ export function refreshSettingsBody(){
       window._dialerFieldsLoaded = true;
       supabase.from('crm_settings').select('value').eq('key','dialer_default_fields').single()
         .then(({ data }) => { window._dialerDefaultFields = data?.value ? JSON.parse(data.value) : []; refreshSettingsBody(); });
-      import('./number-health.js?v=20261014031643').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
+      import('./number-health.js?v=20261014033246').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
     }
     h=renderDialerSettings();
   }
@@ -659,6 +659,12 @@ function renderClientsSettings(){
           </div>
         </div>`;
       })()}
+
+      ${isAdmin()?`<div style="margin-bottom:8px;padding:10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px">
+        <div style="font-size:10px;font-weight:700;color:#0369a1;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">SmartLead Tags</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${esc(c.name)} Group A / Group B. Safe to press any time — existing tags are reused, never duplicated.</div>
+        <button onclick="createClientTags('${esc(c.id)}', this)" style="padding:6px 12px;background:#0369a1;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">Create SmartLead tags</button>
+      </div>`:''}
 
       ${isAdmin()?(()=>{
         // The client's own Smartlead login. Created automatically when a deal is
@@ -1669,7 +1675,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20261014031643');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20261014033246');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);
@@ -1941,7 +1947,7 @@ window.restoreClient = async function(clientId) {
   }
   showToast(`${c.name} restored — rebuilding their Smartlead portal…`, 'success');
   try {
-    const { createSmartleadPortal } = await import('./smartlead-portal.js?v=20261014031643');
+    const { createSmartleadPortal } = await import('./smartlead-portal.js?v=20261014033246');
     const r = await createSmartleadPortal(c);
     render();
     // crm-smartlead-client writes the id onto the clients row itself, with a
@@ -1969,7 +1975,7 @@ window.restoreClient = async function(clientId) {
 window.createClientPortal = async function(clientId) {
   const c = state.clients.find(x => str(x.id) === str(clientId));
   if (!c) return;
-  const { portalEmail, createSmartleadPortal } = await import('./smartlead-portal.js?v=20261014031643');
+  const { portalEmail, createSmartleadPortal } = await import('./smartlead-portal.js?v=20261014033246');
   const email = portalEmail(c);
   if (!email) { showToast('Add a contact email for this client first', 'error'); return; }
   if (!confirm(`Create a Smartlead portal for ${c.name}?\n\nLogin: ${email}\n\nSmartlead has no way to delete a client portal, so this cannot be undone.`)) return;
@@ -1980,6 +1986,23 @@ window.createClientPortal = async function(clientId) {
     else showToast(`Portal created for ${c.name} — password is on their Settings row and in Slack`, 'success');
   } catch (e) {
     showToast('Portal failed: ' + (e?.message || e), 'error');
+  }
+};
+
+// Manual tag creation — the Won modal's tags step, for when it failed and the
+// modal was closed. Idempotent server-side (matches before it creates).
+window.createClientTags = async function(clientId, btn) {
+  const c = state.clients.find(x => str(x.id) === str(clientId));
+  if (!c) return;
+  if (btn) { btn.disabled = true; btn.textContent = 'Working…'; }
+  try {
+    const r = await invokeEdgeFunction('create-smartlead-tags', { clientName: c.name });
+    if (r?.error) throw new Error(r.error);
+    showToast(`SmartLead tags ready: ${(r.tags || []).map(t => t.name).join(', ')}`, 'success');
+  } catch (e) {
+    showToast('SmartLead tags failed: ' + (e?.message || e), 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Create SmartLead tags'; }
   }
 };
 

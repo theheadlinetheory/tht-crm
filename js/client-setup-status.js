@@ -9,14 +9,16 @@
 // exist for each piece.
 //
 // Only DB-backed pieces are listed. Smartlead tags leave no column to check, and
-// the tag function fuzzy-matches before creating, so re-running it is harmless.
-import { str } from './utils.js?v=20261014031643';
+// the tag function fuzzy-matches before creating, so the card's Create SmartLead
+// tags button is safe to press whenever in doubt.
+import { str } from './utils.js?v=20261014033246';
 
 // Each gap names the button further down the client card that fixes it.
 export function setupGaps(client) {
   const gaps = [];
   if (!str(client.clientSheetId).trim()) gaps.push({ label: 'Lead Tracker sheet', fix: 'Create Lead Tracker' });
-  if (!str(client.smartleadClientId).trim()) gaps.push({ label: 'Smartlead portal', fix: 'Create portal' });
+  // PPL clients don't get a portal (we work their leads), so only retainers are missing one.
+  if (str(client.billingModel) === 'retainer' && !str(client.smartleadClientId).trim()) gaps.push({ label: 'Smartlead portal', fix: 'Create portal' });
   return gaps;
 }
 
