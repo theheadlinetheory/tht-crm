@@ -1,9 +1,9 @@
-import { state, pendingWrites } from './app.js?v=20261014123223';
-import { sbUpdatePassOff, sbDeletePassOff, camelToSnake, normalizeRow, showToast } from './api.js?v=20261014123223';
-import { isAdmin, isEmployee } from './auth.js?v=20261014123223';
-import { esc, escAttr, str } from './utils.js?v=20261014123223';
-import { leadCardId } from './lead-card.js?v=20261014123223';
-import { render } from './render.js?v=20261014123223';
+import { state, pendingWrites } from './app.js?v=20261014145359';
+import { sbUpdatePassOff, sbDeletePassOff, camelToSnake, normalizeRow, showToast } from './api.js?v=20261014145359';
+import { isAdmin, isEmployee } from './auth.js?v=20261014145359';
+import { esc, escAttr, str } from './utils.js?v=20261014145359';
+import { leadCardId } from './lead-card.js?v=20261014145359';
+import { render } from './render.js?v=20261014145359';
 
 // The billing month ('July/26') is deliberately not a column — the sheet shows
 // the exact date the lead was passed off instead.
@@ -36,6 +36,17 @@ function isoDate(iso) {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '';
   return d.toISOString().slice(0, 10);
+}
+
+// Retainer leads passed off with a booked appointment (pass_offs.appt_date,
+// copied from the deal on insert) get a badge after the company name.
+function bookedApptBadge(entry) {
+  if (!entry.apptDate) return '';
+  const d = new Date(str(entry.apptDate).slice(0, 10) + 'T' + (str(entry.apptTime) || '12:00:00'));
+  if (isNaN(d.getTime())) return '';
+  const when = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+    (entry.apptTime ? ' ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '');
+  return ` <span title="Booked appointment ${esc(when)}" style="display:inline-block;margin-left:6px;padding:1px 6px;border-radius:4px;background:#dcfce7;color:#166534;font-size:10px;font-weight:700;white-space:nowrap;vertical-align:middle">📅 Booked appt · ${esc(when)}</span>`;
 }
 
 function getFilteredPassOffs() {
@@ -162,7 +173,7 @@ export function renderPassOffs() {
         html += `<td>${formatDate(entry.datePassed) || '<span style="color:#d1d5db">—</span>'}</td>`;
       } else if (col.key === 'company' && leadCardId(entry)) {
         // The company opens the lead's deal card — archived (Passed Off) cards open read-only (lead-card.js).
-        html += `<td><a href="#" onclick="event.preventDefault();openLeadCard('${escAttr(leadCardId(entry))}')" title="Open the deal card" style="color:#1e1b4b;font-weight:600;text-decoration:underline dotted">${esc(str(entry.company) || str(entry.contact) || str(entry.email) || 'Open card')}</a></td>`;
+        html += `<td><a href="#" onclick="event.preventDefault();openLeadCard('${escAttr(leadCardId(entry))}')" title="Open the deal card" style="color:#1e1b4b;font-weight:600;text-decoration:underline dotted">${esc(str(entry.company) || str(entry.contact) || str(entry.email) || 'Open card')}</a>${bookedApptBadge(entry)}</td>`;
       } else if (col.key === 'clientName' && clientColor) {
         html += `<td style="color:${clientColor};font-weight:600">${esc(str(entry[col.key]))}</td>`;
       } else if (col.key === 'notes' && isEditing) {
@@ -170,7 +181,7 @@ export function renderPassOffs() {
       } else if (col.key === 'notes') {
         html += `<td onclick="state._passOffEditing='${entry.id}';render()" style="cursor:pointer;min-width:80px" title="Click to edit">${esc(str(entry.notes)) || '<span style="color:var(--text-muted);font-style:italic">—</span>'}</td>`;
       } else {
-        html += `<td>${esc(str(entry[col.key]))}</td>`;
+        html += `<td>${esc(str(entry[col.key]))}${col.key === 'company' ? bookedApptBadge(entry) : ''}</td>`;
       }
     }
     if (canDelete) {
