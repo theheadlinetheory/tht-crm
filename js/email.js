@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // EMAIL — Forward to client, lead tracker push, send to thread
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20261015002938';
-import { render, refreshModal } from './render.js?v=20261015002938';
-import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20261015002938';
-import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20261015002938';
-import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20261015002938';
-import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20261015002938';
-import { CRM_BASE_URL, GEOCODIO_KEY } from './config.js?v=20261015002938';
+import { state, pendingWrites } from './app.js?v=20261014123223';
+import { render, refreshModal } from './render.js?v=20261014123223';
+import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20261014123223';
+import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20261014123223';
+import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20261014123223';
+import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20261014123223';
+import { CRM_BASE_URL, GEOCODIO_KEY } from './config.js?v=20261014123223';
 
 function formatEmailBody(html){
   if(!html) return '';
@@ -226,7 +226,7 @@ export async function autoPushToTracker(deal){
   const month = `${months[billingDate.getMonth()]}/${String(billingDate.getFullYear()).slice(-2)}`;
 
   // Insert into lead_tracker table
-  const { sbCreateTrackerEntry, normalizeRow } = await import('./api.js?v=20261015002938');
+  const { sbCreateTrackerEntry, normalizeRow } = await import('./api.js?v=20261014123223');
   const entry = await sbCreateTrackerEntry({
     deal_id: deal.id,
     client_name: clientName,
@@ -237,6 +237,7 @@ export async function autoPushToTracker(deal){
     lead_cost: leadCost,
     appt_time: apptTime,
     appt_date: apptDate,
+    lead_source: deal.leadSource || null, // channel → setter pay rate (lead-payout.js)
   });
 
   // Update deal
@@ -403,7 +404,7 @@ export async function executePassOff(dealId, clientName){
     }
 
     if(btn) btn.textContent='Archiving...';
-    const { deleteDeal }=await import('./deals.js?v=20261015002938');
+    const { deleteDeal }=await import('./deals.js?v=20261014123223');
     await deleteDeal(dealId,'Passed Off',clientName);
 
     document.getElementById('passoff-preview-overlay')?.remove();

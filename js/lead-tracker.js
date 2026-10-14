@@ -1,12 +1,14 @@
 // ═══════════════════════════════════════════════════════════
 // LEAD TRACKER — Editable grid view for lead billing & status
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20261015002938';
-import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20261015002938';
-import { isAdmin, isEmployee } from './auth.js?v=20261015002938';
-import { esc, svgIcon, str } from './utils.js?v=20261015002938';
-import { render } from './render.js?v=20261015002938';
-import { leadCardId, leadCardIcon, matchLeadCards } from './lead-card.js?v=20261015002938';
+import { state, store, pendingWrites } from './app.js?v=20261014123223';
+import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20261014123223';
+import { isAdmin, isEmployee } from './auth.js?v=20261014123223';
+import { esc, svgIcon, str } from './utils.js?v=20261014123223';
+import { render } from './render.js?v=20261014123223';
+import { leadCardId, leadCardIcon, matchLeadCards } from './lead-card.js?v=20261014123223';
+import { dealChannel } from './acquisition-channel.js?v=20261014123223';
+import { EMAIL_LEAD_PAY, COLD_CALL_LEAD_PAY, isColdCallLead, leadPayout } from './lead-payout.js?v=20261014123223';
 
 // ─── Column Definitions ───
 // The billing "Month" ('July/26') is deliberately not a column — the sheet shows
@@ -15,6 +17,7 @@ import { leadCardId, leadCardIcon, matchLeadCards } from './lead-card.js?v=20261
 const COLUMNS = [
   { key: 'clientName',      label: 'Client',         editable: true,      adminOnly: false },
   { key: 'leadName',        label: 'Lead Name',      editable: true,      adminOnly: false },
+  { key: 'leadSource',      label: 'Source',          editable: false,     adminOnly: false },
   { key: 'leadEmail',       label: 'Email',           editable: true,      adminOnly: false },
   { key: 'dateAdded',       label: 'Booked',          editable: true,      adminOnly: false },
   { key: 'apptDate',        label: 'Appt Date',       editable: true,      adminOnly: false },
@@ -408,7 +411,7 @@ export function renderLeadTracker() {
       html += `<td style="text-align:center"><input type="checkbox" ${sel.has(entry.id) ? 'checked' : ''} onchange="trackerToggleSelect('${entry.id}')"></td>`;
     }
     for (const col of cols) {
-      const val = str(entry[col.key]);
+      const val = col.key === 'leadSource' ? dealChannel(entry) : str(entry[col.key]);
       const isEditing = state.trackerEditingCell && state.trackerEditingCell.id === entry.id && state.trackerEditingCell.field === col.key;
       // Color the client name cell with client color
       // Lead Name is click-to-edit, so the card opens from a small icon in front of it (lead-card.js).
@@ -643,7 +646,6 @@ window.trackerFillDown = async (fromId, field, value) => {
 };
 
 // ─── Payout Report ───
-const PAYOUT_PER_LEAD = 27;
 const BIWEEKLY_BASE = 250;
 const MONTHLY_BASE = BIWEEKLY_BASE * 2;
 const IOANNIS_PAYPAL = 'ioannis.serafeim@gmail.com';
@@ -669,6 +671,9 @@ function getPayoutData(month, year) {
   const total = entries.length;
   const calledBack = entries.filter(e => str(e.callbackStatus).toLowerCase() === 'called back');
   const good = total - calledBack.length;
+  const goodEntries = entries.filter(e => !calledBack.includes(e));
+  const coldCall = goodEntries.filter(isColdCallLead).length;
+  const commission = goodEntries.reduce((sum, e) => sum + leadPayout(e), 0);
 
   const byClient = {};
   for (const e of entries) {
@@ -679,7 +684,7 @@ function getPayoutData(month, year) {
     else byClient[client].good++;
   }
 
-  return { total, calledBack: calledBack.length, good, commission: good * PAYOUT_PER_LEAD, base: MONTHLY_BASE, grandTotal: (good * PAYOUT_PER_LEAD) + MONTHLY_BASE, byClient };
+  return { total, calledBack: calledBack.length, good, coldCall, email: good - coldCall, commission, base: MONTHLY_BASE, grandTotal: commission + MONTHLY_BASE, byClient };
 }
 
 function renderPayoutModal() {
@@ -733,7 +738,10 @@ function renderPayoutModal() {
 
       <div style="background:#f9fafb;border:1px solid var(--border);border-radius:8px;padding:16px">
         <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px">
-          <span>Good leads × $${PAYOUT_PER_LEAD}</span><span>${data.good} × $${PAYOUT_PER_LEAD} = <b>$${data.commission}</b></span>
+          <span>Email leads × $${EMAIL_LEAD_PAY}</span><span>${data.email} × $${EMAIL_LEAD_PAY} = <b>$${data.email * EMAIL_LEAD_PAY}</b></span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px">
+          <span>Cold call leads × $${COLD_CALL_LEAD_PAY}</span><span>${data.coldCall} × $${COLD_CALL_LEAD_PAY} = <b>$${data.coldCall * COLD_CALL_LEAD_PAY}</b></span>
         </div>
         <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px">
           <span>Base pay ($${BIWEEKLY_BASE} × 2)</span><span><b>$${data.base}</b></span>
@@ -822,7 +830,7 @@ window.payoutSendPayPal = async (goodLeads, month, year) => {
       employee_name: 'Ioannis',
       base_amount: BIWEEKLY_BASE * 2,
       booked_meetings: goodLeads,
-      rate_per_meeting: PAYOUT_PER_LEAD,
+      rate_per_meeting: EMAIL_LEAD_PAY,
       subtotal: amount,
       total: amount,
       payment_date: new Date().toISOString().split('T')[0],
