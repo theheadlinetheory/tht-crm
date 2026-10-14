@@ -1,14 +1,14 @@
 // ═══════════════════════════════════════════════════════════
 // ARCHIVE — Admin archive (Deals sheet archive), load/render
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, deletedDealIds } from './app.js?v=20261014145359';
-import { render } from './render.js?v=20261014145359';
-import { sbGetArchive, sbRestoreFromArchive, normalizeRow, supabase } from './api.js?v=20261014145359';
-import { esc, str, fmtDate } from './utils.js?v=20261014145359';
-import { registerActions } from './delegate.js?v=20261014145359';
-import { openDeal } from './deal-modal.js?v=20261014145359';
-import { filterSelect } from './html-helpers.js?v=20261014145359';
-import { loadJourneys, journeyFor, LEFT_AT_OPTIONS, WHY_OPTIONS } from './archive-journey.js?v=20261014145359';
+import { state, store, pendingWrites, deletedDealIds } from './app.js?v=20261014150146';
+import { render } from './render.js?v=20261014150146';
+import { sbGetArchive, sbRestoreFromArchive, normalizeRow, supabase } from './api.js?v=20261014150146';
+import { esc, str, fmtDate } from './utils.js?v=20261014150146';
+import { registerActions } from './delegate.js?v=20261014150146';
+import { openDeal } from './deal-modal.js?v=20261014150146';
+import { filterSelect } from './html-helpers.js?v=20261014150146';
+import { loadJourneys, journeyFor, LEFT_AT_OPTIONS, WHY_OPTIONS } from './archive-journey.js?v=20261014150146';
 
 export async function loadArchive(silent){
   if(!silent){
@@ -109,6 +109,7 @@ export function renderArchiveTab(){
           <select data-action="updateArchiveStatus" data-id="${esc(d.id)}" style="padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:var(--font)">
             <option value="Deleted/Lost" ${d.archiveStatus==='Deleted/Lost'?'selected':''}>Deleted/Lost</option>
             <option value="Closed Won" ${d.archiveStatus==='Closed Won'?'selected':''}>Closed Won</option>
+            <option value="Meeting Booked" ${d.archiveStatus==='Meeting Booked'?'selected':''}>Meeting Booked</option>
             <option value="Passed Off" ${d.archiveStatus==='Passed Off'?'selected':''}>Passed Off</option>
           </select>
         </td>
@@ -184,7 +185,7 @@ export async function restoreFromArchive(id){
     return;
   } finally { pendingWrites.value--; }
   store.removeArchiveItem(id);
-  const { initialSync } = await import('./api.js?v=20261014145359');
+  const { initialSync } = await import('./api.js?v=20261014150146');
   await initialSync();
 }
 
