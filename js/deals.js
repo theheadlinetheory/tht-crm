@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // DEALS — CRUD operations, bulk actions, drag-drop
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, pendingDealFields, deletedDealIds } from './app.js?v=20261014043648';
-import { render } from './render.js?v=20261014043648';
-import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbPurgeDeal, sbArchiveDeal, sbRestoreFromArchive, sbCreateActivity, camelToSnake, invokeEdgeFunction } from './api.js?v=20261014043648';
-import { showAcquisitionRemovalPicker, recordWonOnTimeline } from './removal-reason.js?v=20261014043648';
-import { uid, getToday, str } from './utils.js?v=20261014043648';
+import { state, store, pendingWrites, pendingDealFields, deletedDealIds } from './app.js?v=20261015002938';
+import { render } from './render.js?v=20261015002938';
+import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbPurgeDeal, sbArchiveDeal, sbRestoreFromArchive, sbCreateActivity, camelToSnake, invokeEdgeFunction } from './api.js?v=20261015002938';
+import { showAcquisitionRemovalPicker, recordWonOnTimeline } from './removal-reason.js?v=20261015002938';
+import { uid, getToday, str } from './utils.js?v=20261015002938';
 
 const TODAY = getToday;
 
@@ -32,6 +32,12 @@ export async function deleteDeal(id, archiveStatus, clientName, opts){
   if(status==='Closed Won' && deal && deal.pipeline==='Acquisition') recordWonOnTimeline(id, opts); // opts.asOf: the date closed (Won modal)
   const cName=clientName||(deal?deal.stage:'');
   const pipeline=deal?deal.pipeline:'';
+  // A won client moves on to the Renewal board rather than leaving the CRM. The archive row below still
+  // records the win (every won metric reads it); the Renewal card is a new deal (renewal-pipeline.js).
+  if(status==='Closed Won' && deal && deal.pipeline==='Acquisition'){
+    import('./renewal-pipeline.js?v=20261015002938').then(m=>m.createRenewalCard(deal, clientName||deal.company))
+      .catch(e=>console.error('[deleteDeal] renewal card not created:', e));
+  }
   deletedDealIds.add(id);
   localStorage.setItem('tht_deletedDeals',JSON.stringify([...deletedDealIds]));
   store.removeDeal(id, {silent: true});
@@ -73,18 +79,18 @@ export async function moveDeal(dealId,newStage){
     if(pending && Object.keys(pending).length===0) delete pendingDealFields[String(dealId)];
   } finally { pendingWrites.value--; }
   if(d && (newStage==='Discovery Scheduled' || newStage==='Demo Scheduled') && d.bookedDate && /^\d{4}-\d{2}-\d{2}$/.test(d.bookedDate)){
-    const { generateAppointmentSequence } = await import('./activities.js?v=20261014043648');
+    const { generateAppointmentSequence } = await import('./activities.js?v=20261015002938');
     generateAppointmentSequence(d);
   }
   if(d && newStage==='No Show'){
-    const { assignNoShowSequence } = await import('./activities.js?v=20261014043648');
+    const { assignNoShowSequence } = await import('./activities.js?v=20261015002938');
     assignNoShowSequence(d);
     // The stage is overwritten the moment the card moves on; the Timeline is not. Write the no-show as the mark
     // the outcome dropdown would have written, dated at the booked day, so the sales pipeline keeps it after the lead
     // rebooks (Cole McRae, 2026-10-09: no-show on 10-05, rebooked, card moved to Under Review — the no-show vanished
     // and the ledger read the missed slot as the held demo).
     try {
-      const { markDemo, markDisco } = await import('./disco-outcome.js?v=20261014043648');
+      const { markDemo, markDisco } = await import('./disco-outcome.js?v=20261015002938');
       const asOf = /^\d{4}-\d{2}-\d{2}$/.test(String(d.bookedDate||'')) ? d.bookedDate : undefined;
       const opts = asOf ? { asOf } : undefined;
       if (['Demo Scheduled','Under Review','Waiting for Payment/Contract'].includes(fromStage)) await markDemo(dealId, 'No-Show', opts);
@@ -145,7 +151,7 @@ export async function bulkAddActivity(){
   if(!dueDate||!dueDate.match(/^\d{4}-\d{2}-\d{2}$/)) return;
   const ids=[...state.bulkSelected];
   if(!confirm('Add "'+subject+'" activity to '+ids.length+' deal'+(ids.length!==1?'s':'')+'?')) return;
-  const { addActivity } = await import('./activities.js?v=20261014043648');
+  const { addActivity } = await import('./activities.js?v=20261015002938');
   for(const dealId of ids){
     addActivity(dealId,{type,subject,dueDate,dayLabel:''});
   }
@@ -222,7 +228,7 @@ export async function bulkRestoreFromArchive(){
     for(const id of ids){
       await sbRestoreFromArchive(id);
     }
-    const { initialSync } = await import('./api.js?v=20261014043648');
+    const { initialSync } = await import('./api.js?v=20261015002938');
     initialSync();
   }finally{ pendingWrites.value--; }
 }

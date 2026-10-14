@@ -40,6 +40,18 @@ export const NURTURE_STAGES = [
   { id: "Service Area Taken", label: "Service Area Taken", color: "#f97316" },
 ];
 
+// Renewal pipeline (Aidan, 2026-10-14): won clients, from onboarding to the renewal.
+// An Acquisition deal closed Won lands here at Onboarded (renewal-pipeline.js).
+// Stage ids are also named in the renewal_stage_dates view — rename both together.
+export const RENEWAL_STAGES = [
+  { id: "Onboarded", label: "Onboarded", color: "#64748b" },
+  { id: "Campaigns Started", label: "Campaigns Started", color: "#2563eb" },
+  { id: "Activation Point", label: "Activation Point", color: "#8b5cf6" },
+  { id: "Renewal Call Booked", label: "Renewal Call Booked", color: "#0891b2" },
+  { id: "Renewal Offered", label: "Renewal Offered", color: "#d97706" },
+  { id: "Renewal Closed", label: "Renewal Closed", color: "#059669" },
+];
+
 export const ALL_PIPELINES = [
   { id: "dashboard", label: "Dashboard" },
   { id: "funnel", label: "Funnel" },

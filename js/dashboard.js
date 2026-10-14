@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // DASHBOARD — Dashboard rendering (client fulfillment + acquisition)
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261014043648';
-import { ACQUISITION_STAGES, NURTURE_STAGES, DEFAULT_CLIENT_STAGES, ALL_PIPELINES } from './config.js?v=20261014043648';
-import { render } from './render.js?v=20261014043648';
-import { esc, fmt$ } from './utils.js?v=20261014043648';
-import { isAdmin, isEmployee } from './auth.js?v=20261014043648';
-import { getOverdueActivities } from './activities.js?v=20261014043648';
-import { funnelMonths, funnelMonth, acquisitionCounts, conversionLevels, retentionLevel } from './dashboard-funnel.js?v=20261014043648';
+import { state } from './app.js?v=20261015002938';
+import { ACQUISITION_STAGES, NURTURE_STAGES, RENEWAL_STAGES, DEFAULT_CLIENT_STAGES, ALL_PIPELINES } from './config.js?v=20261015002938';
+import { render } from './render.js?v=20261015002938';
+import { esc, fmt$ } from './utils.js?v=20261015002938';
+import { isAdmin, isEmployee } from './auth.js?v=20261015002938';
+import { getOverdueActivities } from './activities.js?v=20261015002938';
+import { funnelMonths, funnelMonth, acquisitionCounts, conversionLevels, retentionLevel } from './dashboard-funnel.js?v=20261015002938';
 
 function dateAddedToDate(dateAdded) {
   if (!dateAdded) return null;
@@ -78,6 +78,7 @@ function passOffWeekKey(datePassed) {
 export function getStagesForPipeline(pip){
   if(pip==='Acquisition') return ACQUISITION_STAGES;
   if(pip==='Nurture') return NURTURE_STAGES;
+  if(pip==='Renewal') return RENEWAL_STAGES;
   if(pip==='Client'){
     const clientCols=state.clients.map(c=>({id:c.name,label:c.name,color:c.color||'#6b7280'}));
     return [{id:'Client Not Distributed',label:'Not Distributed',color:'#6b7280'},...clientCols];

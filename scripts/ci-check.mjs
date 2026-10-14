@@ -128,6 +128,9 @@ const REQUIRED_FEATURES = [
   { file: 'api.js',              needle: "initial_term_length: 'initialTermLength'", feature: 'Client terms: initial_term_length field mapping' },
   { file: 'settings.js',         needle: 'initialTermLength:str(c.initialTermLength', feature: 'Settings → Clients: initial term saved with the client' },
   { file: 'renewals.js',         needle: 'function termCell',                     feature: 'Renewals: Term ends column + Extend button' },
+  // A won Acquisition deal must land on the Renewal board, not just disappear into the archive (Aidan, 2026-10-14).
+  { file: 'deals.js',            needle: 'm.createRenewalCard(deal',              feature: 'Renewal pipeline: Closed Won hands the client to the Renewal board' },
+  { file: 'render.js',           needle: 'renderRenewalPipeline()',               feature: 'Renewal pipeline: board rendered on the Renewals tab' },
   { file: 'term-extensions.js',  needle: 'export async function saveTermExtension', feature: 'Renewals: save a term extension' },
   // Acquisition booking — one list per call type, shared by the deal modal and
   // the power dialer. Dropping a person here silently removes their calendar.
