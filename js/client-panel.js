@@ -17,13 +17,14 @@
 // mid-edit. Edits save straight to Supabase (debounced) and patch the affected
 // DOM nodes in place — the panel is never wholesale re-rendered while open.
 
-import { state } from './app.js?v=20261014150146';
-import { esc, str, getToday, isValidDate, svgIcon } from './utils.js?v=20261014150146';
-import { isAdmin } from './auth.js?v=20261014150146';
-import { lookupClientInfo } from './client-info.js?v=20261014150146';
-import { sbUpdateClient, sbGetWonAcquisitionCards } from './api.js?v=20261014150146';
-import { registerActions } from './delegate.js?v=20261014150146';
-import { buildAcquisitionCard, indexWonCards, matchCardForClient, answeredQuestions } from './client-acquisition.js?v=20261014150146';
+import { state } from './app.js?v=20261016040031';
+import { esc, str, getToday, isValidDate, svgIcon } from './utils.js?v=20261016040031';
+import { isAdmin } from './auth.js?v=20261016040031';
+import { lookupClientInfo } from './client-info.js?v=20261016040031';
+import { sbUpdateClient, sbGetWonAcquisitionCards } from './api.js?v=20261016040031';
+import { registerActions } from './delegate.js?v=20261016040031';
+import { buildAcquisitionCard, indexWonCards, matchCardForClient, answeredQuestions } from './client-acquisition.js?v=20261016040031';
+import { parseProperties } from './client-properties.js?v=20261016040031';
 
 const OVERLAY_ID = 'client-info-overlay';
 
@@ -66,6 +67,14 @@ const EDITABLE = {
     toText: v => str(v),
     toValue: text => text.replace(/\n{3,}/g, '\n\n').trim(),
     view: v => { const l = str(v).split('\n').map(x => x.trim()).filter(Boolean); return l.length ? '<ul style="margin:0;padding-left:18px">' + l.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : ''; },
+  },
+  // Same list the deal card's "Properties" button opens (client-properties.js).
+  managedProperties: {
+    label: 'Properties They Service', column: 'managed_properties', multiline: true,
+    placeholder: 'One per line: Name, Address — or paste name + address columns from a sheet',
+    toText: v => str(v),
+    toValue: text => text.replace(/\n{3,}/g, '\n\n').trim(),
+    view: v => { const l = parseProperties(v); return l.length ? `<div style="font-size:12px;color:#64748b;margin-bottom:4px">${l.length} on file</div><ul style="margin:0;padding-left:18px">` + l.map(p => '<li>' + esc(p.name || p.address) + (p.name && p.address ? ' <span style="color:#94a3b8">— ' + esc(p.address) + '</span>' : '') + '</li>').join('') + '</ul>' : ''; },
   },
   location: {
     label: 'Home Base', column: 'location', multiline: false,
@@ -295,6 +304,7 @@ export function openClientInfoPanel(clientName) {
   }
   h += editableBlock('location', cl) + `<div id="cp-loc-hint" style="margin:-12px 0 16px"></div>`;
   h += editableBlock('warmCallNotesText', cl, { tone: { wrap: 'padding:12px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0', label: '#166534' } });
+  h += editableBlock('managedProperties', cl, { tone: { wrap: 'padding:12px;background:#f0fdfa;border-radius:8px;border:1px solid #99f6e4', label: '#0f766e' } });
 
   h += `<div style="margin-bottom:16px">
     <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Common Questions</div>
