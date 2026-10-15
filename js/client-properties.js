@@ -16,12 +16,12 @@
 // The overlay is appended to <body>, NOT inside the deal modal, so a render()
 // while it is open cannot wipe it.
 
-import { state } from './app.js?v=20261016040031';
-import { esc, escAttr, str } from './utils.js?v=20261016040031';
-import { isAdmin, isEmployee } from './auth.js?v=20261016040031';
-import { sbUpdateClient } from './api.js?v=20261016040031';
-import { registerActions } from './delegate.js?v=20261016040031';
-import { findClientForDeal } from './client-info.js?v=20261016040031';
+import { state } from './app.js?v=20261016042212';
+import { esc, escAttr, str } from './utils.js?v=20261016042212';
+import { isAdmin, isEmployee } from './auth.js?v=20261016042212';
+import { sbUpdateClient } from './api.js?v=20261016042212';
+import { registerActions } from './delegate.js?v=20261016042212';
+import { findClientForDeal } from './client-info.js?v=20261016042212';
 
 const OVERLAY_ID = 'client-props-overlay';
 const HEADER_RE = /^(?!.*\d)(?=.*\b(property|name|site|building)\b)(?=.*\b(address|street|city)\b)/i;
@@ -42,18 +42,19 @@ export function parseProperties(text) {
       const cols = line.split('\t').map(c => c.trim()).filter(Boolean);
       name = cols.shift() || '';
       address = cols.join(', ').replace(/, (\d{5}(-\d{4})?)$/, ' $1');   // "FL, 32801" → "FL 32801"
+      // First column is really a street ("123 Main St<TAB>Orlando FL"). Sheet pastes only:
+      // a typed "7 Brew Coffee | Houston" is a name.
+      if (/^\d+\s+\S/.test(name) && address && !/^\d/.test(address)) { address = name + ', ' + address; name = ''; }
     } else if (line.includes(' | ')) {
       const [a, ...b] = line.split(' | ');
       name = a.trim(); address = b.join(' | ').trim();
-    } else if (/^\d/.test(line)) {
+    } else if (/^\d+\s/.test(line)) {
       address = line;                                // "123 Main St, Orlando, FL" — no name
     } else {
       const k = line.indexOf(',');
       if (k === -1) name = line;
       else { name = line.slice(0, k).trim(); address = line.slice(k + 1).trim(); }
     }
-    // A name that is really a street address ("123 Main St<TAB>Orlando FL").
-    if (name && /^\d+\s+\S/.test(name) && address && !/^\d/.test(address)) { address = name + ', ' + address; name = ''; }
     out.push({ name, address });
   });
   return out;

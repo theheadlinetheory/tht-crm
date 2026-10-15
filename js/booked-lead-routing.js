@@ -5,15 +5,15 @@
 // ("Closed Won" is acquisition-only — a client we signed).
 // Retainer clients: the Pass Off flow → Retainer Leads (pass_offs, with a
 // "Booked appt" badge when the deal has a booking), deal archived Passed Off.
-import { isRetainerClient } from './client-info.js?v=20261016040031';
+import { isRetainerClient } from './client-info.js?v=20261016042212';
 
 export async function deliverBookedLead(deal, clientName) {
   if (isRetainerClient(deal)) {
-    const { openPassOffPreview } = await import('./email.js?v=20261016040031');
+    const { openPassOffPreview } = await import('./email.js?v=20261016042212');
     return openPassOffPreview(deal.id, clientName);
   }
-  const { autoPushToTracker } = await import('./email.js?v=20261016040031');
+  const { autoPushToTracker } = await import('./email.js?v=20261016042212');
   await autoPushToTracker(deal);
-  const { deleteDeal } = await import('./deals.js?v=20261016040031');
+  const { deleteDeal } = await import('./deals.js?v=20261016042212');
   deleteDeal(deal.id, 'Meeting Booked', clientName);
 }

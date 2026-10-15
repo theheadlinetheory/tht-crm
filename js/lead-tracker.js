@@ -1,14 +1,14 @@
 // ═══════════════════════════════════════════════════════════
 // LEAD TRACKER — Editable grid view for lead billing & status
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20261016040031';
-import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20261016040031';
-import { isAdmin, isEmployee } from './auth.js?v=20261016040031';
-import { esc, svgIcon, str } from './utils.js?v=20261016040031';
-import { render } from './render.js?v=20261016040031';
-import { leadCardId, leadCardIcon, matchLeadCards } from './lead-card.js?v=20261016040031';
-import { dealChannel } from './acquisition-channel.js?v=20261016040031';
-import { EMAIL_LEAD_PAY, COLD_CALL_LEAD_PAY, isColdCallLead, leadPayout } from './lead-payout.js?v=20261016040031';
+import { state, store, pendingWrites } from './app.js?v=20261016042212';
+import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20261016042212';
+import { isAdmin, isEmployee } from './auth.js?v=20261016042212';
+import { esc, svgIcon, str } from './utils.js?v=20261016042212';
+import { render } from './render.js?v=20261016042212';
+import { leadCardId, leadCardIcon, matchLeadCards } from './lead-card.js?v=20261016042212';
+import { dealChannel } from './acquisition-channel.js?v=20261016042212';
+import { EMAIL_LEAD_PAY, COLD_CALL_LEAD_PAY, isColdCallLead, leadPayout } from './lead-payout.js?v=20261016042212';
 
 // ─── Column Definitions ───
 // The billing "Month" ('July/26') is deliberately not a column — the sheet shows
