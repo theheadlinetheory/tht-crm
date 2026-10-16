@@ -8,8 +8,8 @@
 // Nothing sensitive travels without auth — every call carries the operator's own
 // CRM session, which the function verifies before reading anything.
 
-import { supabase } from './supabase-client.js?v=20261017001121';
-import { buildSnapshot, offerOf, makeAttributor } from './triage-score.js?v=20261017001121';
+import { supabase } from './supabase-client.js?v=20261017005555';
+import { buildSnapshot, offerOf, makeAttributor } from './triage-score.js?v=20261017005555';
 
 const FN = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/client-triage';
 const BATCH = 100;               // the function refuses batches over 120
@@ -49,21 +49,6 @@ export async function runTriage({ today, prior, onProgress }) {
   const boot = await call('bootstrap');
   const attribute = makeAttributor(boot.crmClients);
 
-  // Booked meetings straight out of the client sheets — this is what keeps
-  // pay-per-lead scoring honest. A missing sheet is reported, not swallowed.
-  const wanted = boot.crmClients
-    .filter(c => c.status === 'active' && c.billing_model === 'per_lead' && c.client_sheet_id)
-    .map(c => ({ client: c.name, sheetId: c.client_sheet_id }));
-  say(`Reading ${wanted.length} client sheets for booked meetings…`);
-  let sheetBookings = {}, sheetErrors = {};
-  try {
-    const r = await call('sheets', { sheets: wanted });
-    sheetBookings = r.bookings || {};
-    sheetErrors = r.errors || {};
-  } catch (e) {
-    sheetErrors = { _all: String(e.message || e) };
-  }
-
   const jobs = weekJobs(boot.campaigns, attribute, today);
   say(`Fetching ${jobs.length.toLocaleString()} campaign-weeks from Smartlead — this is the slow part…`);
   const weeks = [];
@@ -76,13 +61,10 @@ export async function runTriage({ today, prior, onProgress }) {
   }
 
   say('Scoring…');
-  const snap = buildSnapshot({ boot, weeks, sheetBookings, prior, today });
+  const snap = buildSnapshot({ boot, weeks, prior, today });
 
   if (failed) {
     snap.META.warnings.push(`${failed} campaign-week Smartlead calls failed after retries; those weeks count as zero send and understate rates.`);
-  }
-  for (const [client, err] of Object.entries(sheetErrors)) {
-    snap.META.warnings.push(`Could not read ${client === '_all' ? 'any client sheet' : client + "'s sheet"} (${err}) — its booked meetings are missing, which reads as underperformance.`);
   }
   if (snap.META.replyMiningDate) {
     const age = Math.round((Date.parse(today) - Date.parse(snap.META.replyMiningDate)) / 86400000);

@@ -11,7 +11,8 @@
 // different list, so averaging them together hides both.
 //
 // The numbers are weekly SNAPSHOTS, not live. Computing them needs the CRM and
-// fulfillment-dashboard databases, the Smartlead API and the client sheets —
+// fulfillment-dashboard databases (meetings come from the CRM lead tracker,
+// cold email only) and the Smartlead API —
 // none of which this frontend may reach. They are produced by
 // `fulfillment-dashboard/client-triage/run_triage.py`, which writes one file per
 // week into js/triage/ and refreshes js/triage-index.js. Never hand-edit those.
@@ -23,12 +24,12 @@
 // Underperforming week uses the SAME bar as the Weekly KPI:
 // RETAINER_WEEKLY_TARGET = 5 positive replies, PPM_WEEKLY_TARGET = 1 meeting.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261017001121';
-import { render } from './render.js?v=20261017001121';
-import { esc, str } from './utils.js?v=20261017001121';
-import { isAdmin } from './auth.js?v=20261017001121';
-import { WEEKS, LATEST } from './triage-index.js?v=20261017001121';
-import { runTriage, listSavedWeeks, getSavedWeek } from './triage-run.js?v=20261017001121';
+import { state } from './app.js?v=20261017005555';
+import { render } from './render.js?v=20261017005555';
+import { esc, str } from './utils.js?v=20261017005555';
+import { isAdmin } from './auth.js?v=20261017005555';
+import { WEEKS, LATEST } from './triage-index.js?v=20261017005555';
+import { runTriage, listSavedWeeks, getSavedWeek } from './triage-run.js?v=20261017005555';
 
 const BAND_COLOR = { green: '#16a34a', yellow: '#ca8a04', red: '#dc2626' };
 const BAND_BG    = { green: '#dcfce7', yellow: '#fef9c3', red: '#fee2e2' };
@@ -71,7 +72,7 @@ function ensureSavedList() {
 function loadWeek(week) {
   if (!week || CACHE[week] || PENDING[week]) return;
   PENDING[week] = true;
-  import(`./triage/${week}.js?v=20261017001121`)
+  import(`./triage/${week}.js?v=20261017005555`)
     .then(m => ({ META: m.META, ROWS: m.ROWS }))
     // Not bundled — it was produced by a Run and lives server-side only.
     .catch(() => getSavedWeek(week))
@@ -312,7 +313,7 @@ export function renderTriage() {
     </div>
     ${ws.running ? `<div style="margin-top:6px;font-size:11px;color:var(--purple);text-align:right">
         ${esc(ws.progress || 'Working…')}
-        <div style="font-size:10px;color:var(--text-muted);margin-top:2px">Pulls the CRM, the dashboard, the client sheets and live Smartlead volume — usually 2–5 minutes. Leave this tab open.</div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:2px">Pulls the CRM (incl. the lead tracker for meetings), the dashboard and live Smartlead volume — usually 2–5 minutes. Leave this tab open.</div>
       </div>` : ''}
     ${ws.error ? `<div style="margin-top:6px;font-size:11px;color:#b91c1c;text-align:right;max-width:520px">
         Run failed: ${esc(ws.error)}</div>` : ''}`;
@@ -343,7 +344,7 @@ export function renderTriage() {
     </div>
     <div style="text-align:right">${picker}
       <div style="font-size:10px;color:var(--text-muted);margin-top:5px">
-        objections ${esc(META.replyMiningDate || 'n/a')} · sheets ${esc(META.sheetMeetingsAsOf || 'never')}
+        objections ${esc(META.replyMiningDate || 'n/a')} · ${META.meetingsSource ? 'meetings: CRM lead tracker, cold email only' : 'sheets ' + esc(META.sheetMeetingsAsOf || 'never')}
       </div>
     </div>
   </div>`;

@@ -12,9 +12,11 @@
 // known buckets forward and keeps reporting their real date. Re-running triage
 // does not silently re-date stale objection data.
 
+import { emailMeetings, isEmailDeal } from './triage-meetings.js?v=20261017005555';
+
 export const VERTICALS = ['Landscaping', 'HVAC', 'Snow Removal', 'Holiday Lighting'];
 export const RETAINER_WEEKLY_TARGET = 5;   // positive replies  — mirrors dashboard.js
-export const PPM_WEEKLY_TARGET = 1;        // booked meetings   — mirrors dashboard.js
+export const PPM_WEEKLY_TARGET = 1;        // booked meetings, cold email only — mirrors dashboard.js
 
 const TOUCHED = new Set(['completed', 'running', 'cleaned', 'scraped', 'uploaded']);
 
@@ -171,7 +173,7 @@ export const bandOf = (h) => h === null ? null : (h >= 70 ? 'green' : h >= 40 ? 
 // Port of build.py. Produces exactly the row shape js/triage/<date>.js holds,
 // so a snapshot computed here and one computed by the Python pipeline render
 // identically.
-export function buildSnapshot({ boot, weeks, sheetBookings, prior, today }) {
+export function buildSnapshot({ boot, weeks, prior, today }) {
   const warnings = [];
   const dashByName = new Map(boot.dashClients.map(c => [c.name, c]));
   const dashById = new Map(boot.dashClients.map(c => [c.id, c]));
@@ -215,7 +217,7 @@ export function buildSnapshot({ boot, weeks, sheetBookings, prior, today }) {
 
   // weekly sends, keyed client|offer
   const key = (c, o) => c + '|' + o;
-  const sent = new Map(), posw = new Map(), mtgw = new Map();
+  const sent = new Map(), posw = new Map();
   const bump = (m, k, w, n) => { if (!m.has(k)) m.set(k, new Map()); const x = m.get(k); x.set(w, (x.get(w) || 0) + n); };
 
   for (const r of weeks) {
@@ -243,23 +245,37 @@ export function buildSnapshot({ boot, weeks, sheetBookings, prior, today }) {
   }
 
   for (const d of boot.deals) {
+    if (!isEmailDeal(d)) continue;   // a cold-call deal is not an email positive
     const who = attribute(d.campaign_name);
     if (!who) continue;
     const k = key(who, offerOf(d.campaign_name));
     const w = monday(d.created_at);
     bump(posw, k, w, 1);
-    if (d.booked_date) bump(mtgw, k, w, 1);   // meeting_status is 'booked' on ALL rows
     const day = String(d.created_at).slice(0, 10);
     if (!firstPos.has(k) || day < firstPos.get(k)) firstPos.set(k, day);
   }
 
-  // client-level totals — the weekly KPI is a client commitment, and the sheet
-  // does not record which offer a booking belongs to
+  // client-level totals — the weekly KPI is a client commitment
   const clSent = new Map(), clPos = new Map(), clMtg = new Map();
   const roll = (src, dst) => { for (const [k, m] of src) { const c = k.split('|')[0]; for (const [w, n] of m) bump(dst, c, w, n); } };
-  roll(sent, clSent); roll(posw, clPos); roll(mtgw, clMtg);
-  for (const [c, dates] of Object.entries(sheetBookings || {})) {
-    for (const ds of dates) bump(clMtg, c, monday(ds), 1);
+  roll(sent, clSent); roll(posw, clPos);
+
+  // Booked meetings: CRM lead tracker, cold-email rows only (js/triage-meetings.js).
+  // No client Google Sheets and no deals.booked_date.
+  if (!Array.isArray(boot.tracker)) {
+    throw new Error('The client-triage function did not return the CRM lead tracker — it is an older deploy. Meetings cannot be counted without it, so the run was stopped rather than scoring every pay-per-lead client as missing.');
+  }
+  const mtg = emailMeetings(boot.tracker, boot.deals);
+  for (const [c, dates] of mtg.byClient) for (const ds of dates) bump(clMtg, c, monday(ds), 1);
+  const lastWin = addDays(monday(today), -7 * 8);
+  const recentCold = mtg.excluded.filter(x => x.date >= lastWin);
+  if (recentCold.length) {
+    const per = {}; for (const x of recentCold) per[x.client] = (per[x.client] || 0) + 1;
+    warnings.push(`Excluded ${recentCold.length} non-email meeting(s) in the scoring window (cold call etc.): ${Object.entries(per).map(([c, n]) => `${c} ${n}`).join(', ')}. Pay-per-lead scoring counts cold-email meetings only.`);
+  }
+  const recentUnv = mtg.unverified.filter(x => x.date >= lastWin);
+  if (recentUnv.length) {
+    warnings.push(`Not counted — ${recentUnv.length} untagged lead-tracker meeting(s) that cannot be traced to a SmartLead campaign, so they may be cold calls: ${recentUnv.map(x => `${x.client} / ${x.lead} (${x.date})`).join('; ')}. Set the deal's channel in the CRM and re-run if they came from email.`);
   }
 
   // objections carried forward — see the note at the top of this file
@@ -365,7 +381,7 @@ export function buildSnapshot({ boot, weeks, sheetBookings, prior, today }) {
       d2: s2, d2raw: g2, up: flags.length, act8: aw.length,
       upDef: r.billing === 'retainer'
         ? `<${RETAINER_WEEKLY_TARGET} positive replies/wk`
-        : `<${PPM_WEEKLY_TARGET} meeting booked/wk (CRM or client sheet)`,
+        : `<${PPM_WEEKLY_TARGET} cold-email meeting booked/wk (CRM lead tracker)`,
       triage: s1x2(r.d1) + (s2 || 0) + s1x2(r.d3) + r.d4 + (r.d5 || 0),
       health: h, hp, hh, hr, band: bandOf(h),
       medFloor: round(medFloor[r.vertical]), medRate4: round(medRate4[r.vertical]),
@@ -387,8 +403,8 @@ export function buildSnapshot({ boot, weeks, sheetBookings, prior, today }) {
       asOf: today, generated: new Date().toISOString().slice(0, 19),
       verticals: VERTICALS,
       replyMiningDate: priorMeta.replyMiningDate || null,
-      sheetMeetingsAsOf: today,
-      underperfDef: `Retainer: a week with fewer than ${RETAINER_WEEKLY_TARGET} positive replies. Pay-per-lead: a week with fewer than ${PPM_WEEKLY_TARGET} booked meeting, counting only meetings logged in the CRM (deals.booked_date) or the client's Google Sheet. Scored per client, since the weekly KPI is a client commitment.`,
+      meetingsSource: 'CRM lead_tracker, cold email only',
+      underperfDef: `Retainer: a week with fewer than ${RETAINER_WEEKLY_TARGET} positive replies. Pay-per-lead: a week with fewer than ${PPM_WEEKLY_TARGET} booked meeting, counting only cold-email meetings in the CRM lead tracker — cold-call meetings are excluded. Scored per client, since the weekly KPI is a client commitment.`,
       tierNote: priorMeta.tierNote || 'Vertical = industry_batches.offer in the fulfillment dashboard, not the client\'s trade.',
       floorNote: priorMeta.floorNote || 'FLOOR is the 20th percentile of a client\'s active weekly positive-reply rates over the last 8 weeks.',
       warnings, tier34: priorMeta.tier34 || null,
