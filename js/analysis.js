@@ -11,18 +11,18 @@
 // /sequence-analytics endpoint the Weekly Updates tab uses, so the two tabs
 // can never report different numbers for the same week.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261017005555';
-import { render } from './render.js?v=20261017005555';
-import { esc, escAttr, str } from './utils.js?v=20261017005555';
-import { isAdmin } from './auth.js?v=20261017005555';
-import { showToast } from './api.js?v=20261017005555';
+import { state } from './app.js?v=20261017010539';
+import { render } from './render.js?v=20261017010539';
+import { esc, escAttr, str } from './utils.js?v=20261017010539';
+import { isAdmin } from './auth.js?v=20261017010539';
+import { showToast } from './api.js?v=20261017010539';
 import {
   currentWeekKey, weekLabel, shiftWeeks, ymd, weekStartOf,
   getWeeklyKpiStatus, getPpmClients, getRetainerClients,
   PPM_WEEKLY_TARGET, RETAINER_WEEKLY_TARGET,
   PPM_TRAILING_WEEKS, PPM_STALE_DAYS,
   trailingWeeklyDelivery, weekLabelShort,
-} from './dashboard.js?v=20261017005555';
+} from './dashboard.js?v=20261017010539';
 
 // Lives on the fulfillment-dashboard Supabase project (verify_jwt=false),
 // same as the Weekly Updates stats proxy.
@@ -627,7 +627,7 @@ export function renderAnalysis() {
       <div style="font-size:11.5px;color:var(--text-muted);margin-top:3px;max-width:760px">
         Every campaign belonging to a client who fell short this week, with the week's sending diagnostics side by side.
         The bar is ≥ ${RETAINER_WEEKLY_TARGET} positive replies per week for retainer clients, ≥ ${PPM_WEEKLY_TARGET} booked meeting per week for pay-per-meeting.
-        <b>Last ${PPM_TRAILING_WEEKS} weeks</b> is what the client is billed on, week by week — booked meetings for pay-per-meeting, positive replies for retainer — so you can see whether this week was typical.
+        <b>Last ${PPM_TRAILING_WEEKS} weeks</b> is what the client is billed on, week by week — booked meetings for pay-per-meeting, positive replies for retainer — so you can see whether this week was typical. Meetings come from the CRM Lead Tracker and count <b>cold email only</b>: cold-call meetings are excluded.
         Sent / replies / positives come from the same Smartlead endpoint as the Weekly Updates tab.
         Bounce rate is bounces ÷ emails sent in the week; reply categories cover replies to those sends.
       </div>

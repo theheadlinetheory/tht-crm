@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // DASHBOARD — Dashboard rendering (client fulfillment + acquisition)
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261017005555';
-import { ACQUISITION_STAGES, NURTURE_STAGES, RENEWAL_STAGES, DEFAULT_CLIENT_STAGES, ALL_PIPELINES } from './config.js?v=20261017005555';
-import { render } from './render.js?v=20261017005555';
-import { esc, fmt$ } from './utils.js?v=20261017005555';
-import { isAdmin, isEmployee } from './auth.js?v=20261017005555';
-import { getOverdueActivities } from './activities.js?v=20261017005555';
-import { funnelMonths, funnelMonth, acquisitionCounts, conversionLevels, retentionLevel } from './dashboard-funnel.js?v=20261017005555';
+import { state } from './app.js?v=20261017010539';
+import { ACQUISITION_STAGES, NURTURE_STAGES, RENEWAL_STAGES, DEFAULT_CLIENT_STAGES, ALL_PIPELINES } from './config.js?v=20261017010539';
+import { render } from './render.js?v=20261017010539';
+import { esc, fmt$ } from './utils.js?v=20261017010539';
+import { isAdmin, isEmployee } from './auth.js?v=20261017010539';
+import { getOverdueActivities } from './activities.js?v=20261017010539';
+import { funnelMonths, funnelMonth, acquisitionCounts, conversionLevels, retentionLevel } from './dashboard-funnel.js?v=20261017010539';
 
 function dateAddedToDate(dateAdded) {
   if (!dateAdded) return null;
@@ -252,6 +252,27 @@ export const PPM_TRAILING_TARGET = 4;      // >=1/wk sustained over 4 weeks
 export const PPM_STALE_DAYS = 14;          // no booked meeting in 2 weeks (PPM only)
 export const RETAINER_TRAILING_TARGET = 20; // >=5/wk sustained over 4 weeks
 
+// Cold-email meetings only. The weekly KPI and the Analysis tab measure how a
+// client's EMAIL campaigns perform, so a meeting booked by cold calling must not
+// count — it would make a weak campaign look like it is delivering (Aidan,
+// 2026-10-17: Woody's got three cold-call meetings while email produced none).
+// The tracker row carries the deal's lead_source (copied at push, and setter pay
+// depends on it — lead-payout.js); the deal itself is checked as a backstop.
+const COLD_CALL_CAMPAIGN = /cold[\s_-]*call/i;
+const isEmailSource = (s) => !s || s === 'smartlead';
+let _dealIndex = { deals: null, map: null };
+function dealById(id) {
+  if (_dealIndex.deals !== state.deals) {
+    _dealIndex = { deals: state.deals, map: new Map((state.deals || []).map(d => [d.id, d])) };
+  }
+  return _dealIndex.map.get(id);
+}
+export function isEmailMeeting(e) {
+  if (!isEmailSource(e.leadSource)) return false;
+  const d = e.dealId ? dealById(e.dealId) : null;
+  return !d || (isEmailSource(d.leadSource) && !COLD_CALL_CAMPAIGN.test(d.campaignName || ''));
+}
+
 // The trailing window ENDS at the selected week (inclusive), so it reads the
 // same whether you are looking at this week or auditing an earlier one.
 function trailingWeekKeys(weekKey, n = PPM_TRAILING_WEEKS) {
@@ -265,7 +286,7 @@ function trailingBookedByClient(weekKey) {
   const keys = new Set(trailingWeekKeys(weekKey));
   const map = {};
   for (const e of state.trackerEntries) {
-    if (!keys.has(trackerWeekKey(e.dateAdded))) continue;
+    if (!keys.has(trackerWeekKey(e.dateAdded)) || !isEmailMeeting(e)) continue;
     const cn = resolveClientName(e.clientName);
     if (!cn) continue;
     map[cn] = (map[cn] || 0) + 1;
@@ -301,7 +322,7 @@ export function trailingWeeklyDelivery(weekKey, weeks = PPM_TRAILING_WEEKS) {
   };
   for (const e of state.trackerEntries) {
     const wk = trackerWeekKey(e.dateAdded);
-    if (!inWindow.has(wk)) continue;
+    if (!inWindow.has(wk) || !isEmailMeeting(e)) continue;
     const cn = resolveClientName(e.clientName);
     if (cn) bump(meetings, cn, wk);
   }
@@ -321,6 +342,7 @@ export function trailingWeeklyDelivery(weekKey, weeks = PPM_TRAILING_WEEKS) {
 function lastMeetingByClient() {
   const map = {};
   for (const e of state.trackerEntries) {
+    if (!isEmailMeeting(e)) continue;
     const cn = resolveClientName(e.clientName);
     if (!cn) continue;
     const dt = dateAddedToDate(e.dateAdded);
@@ -367,11 +389,11 @@ export function daysSince(dt, today = new Date()) {
   return Math.floor((b - a) / 86400000);
 }
 
-// clientName → booked meetings (Lead Tracker entries) in the given week
+// clientName → cold-email booked meetings (Lead Tracker entries) in the given week
 function bookedMeetingsByClient(weekKey) {
   const map = {};
   for (const e of state.trackerEntries) {
-    if (trackerWeekKey(e.dateAdded) !== weekKey) continue;
+    if (trackerWeekKey(e.dateAdded) !== weekKey || !isEmailMeeting(e)) continue;
     const cn = resolveClientName(e.clientName);
     if (!cn) continue;
     map[cn] = (map[cn] || 0) + 1;
@@ -488,7 +510,7 @@ export function renderKpiTargetBar(weekKey, opts = {}) {
       <div style="font-size:11px;color:var(--text-muted)">${isCurrent ? 'This week' : 'Week of'} · ${weekLabel(wk)}</div>
     </div>
     <div style="display:flex;gap:12px;flex-wrap:wrap">
-      ${kpiTargetCard('Pay-per-meeting clients', `≥ ${PPM_WEEKLY_TARGET} booked meeting per week`, 'Bare minimum — ~4/month keeps margins. Counts Lead Tracker entries booked in the week.', ppm, '#2563eb')}
+      ${kpiTargetCard('Pay-per-meeting clients', `≥ ${PPM_WEEKLY_TARGET} booked meeting per week`, 'Bare minimum — ~4/month keeps margins. Counts Lead Tracker entries booked in the week, cold email only (cold-call meetings excluded).', ppm, '#2563eb')}
       ${kpiTargetCard('Retainer clients', `≥ ${RETAINER_WEEKLY_TARGET} positive replies per week`, `The standing bar — under ${RETAINER_WEEKLY_TARGET} means the campaigns need work. Counts retainer leads passed off in the week.`, retainer, '#7c3aed')}
     </div>
   </div>`;
