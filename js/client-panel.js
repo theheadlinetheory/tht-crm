@@ -17,14 +17,14 @@
 // mid-edit. Edits save straight to Supabase (debounced) and patch the affected
 // DOM nodes in place — the panel is never wholesale re-rendered while open.
 
-import { state } from './app.js?v=20261016233350';
-import { esc, str, getToday, isValidDate, svgIcon } from './utils.js?v=20261016233350';
-import { isAdmin } from './auth.js?v=20261016233350';
-import { lookupClientInfo } from './client-info.js?v=20261016233350';
-import { sbUpdateClient, sbGetWonAcquisitionCards } from './api.js?v=20261016233350';
-import { registerActions } from './delegate.js?v=20261016233350';
-import { buildAcquisitionCard, indexWonCards, matchCardForClient, answeredQuestions } from './client-acquisition.js?v=20261016233350';
-import { parseProperties } from './client-properties.js?v=20261016233350';
+import { state } from './app.js?v=20261017001121';
+import { esc, str, getToday, isValidDate, svgIcon } from './utils.js?v=20261017001121';
+import { isAdmin } from './auth.js?v=20261017001121';
+import { lookupClientInfo } from './client-info.js?v=20261017001121';
+import { sbUpdateClient, sbGetWonAcquisitionCards } from './api.js?v=20261017001121';
+import { registerActions } from './delegate.js?v=20261017001121';
+import { buildAcquisitionCard, indexWonCards, matchCardForClient, answeredQuestions } from './client-acquisition.js?v=20261017001121';
+import { parseProperties, areaOf } from './client-properties.js?v=20261017001121';
 
 const OVERLAY_ID = 'client-info-overlay';
 
@@ -74,7 +74,7 @@ const EDITABLE = {
     placeholder: 'One per line: Name, Address — or paste name + address columns from a sheet',
     toText: v => str(v),
     toValue: text => text.replace(/\n{3,}/g, '\n\n').trim(),
-    view: v => { const l = parseProperties(v); return l.length ? `<div style="font-size:12px;color:#64748b;margin-bottom:4px">${l.length} on file</div><ul style="margin:0;padding-left:18px">` + l.map(p => '<li>' + esc(p.name || p.address) + (p.name && p.address ? ' <span style="color:#94a3b8">— ' + esc(p.address) + '</span>' : '') + '</li>').join('') + '</ul>' : ''; },
+    view: v => { const l = parseProperties(v); return l.length ? `<div style="font-size:12px;color:#64748b;margin-bottom:4px">${l.length} on file</div><ul style="margin:0;padding-left:18px">` + l.map(p => '<li>' + esc(p.name || areaOf(p.address)) + (p.name && areaOf(p.address) ? ' <span style="color:#94a3b8">— ' + esc(areaOf(p.address)) + '</span>' : '') + '</li>').join('') + '</ul>' : ''; },
   },
   location: {
     label: 'Home Base', column: 'location', multiline: false,

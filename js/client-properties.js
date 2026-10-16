@@ -16,12 +16,12 @@
 // The overlay is appended to <body>, NOT inside the deal modal, so a render()
 // while it is open cannot wipe it.
 
-import { state } from './app.js?v=20261016233350';
-import { esc, escAttr, str } from './utils.js?v=20261016233350';
-import { isAdmin, isEmployee } from './auth.js?v=20261016233350';
-import { sbUpdateClient } from './api.js?v=20261016233350';
-import { registerActions } from './delegate.js?v=20261016233350';
-import { findClientForDeal } from './client-info.js?v=20261016233350';
+import { state } from './app.js?v=20261017001121';
+import { esc, escAttr, str } from './utils.js?v=20261017001121';
+import { isAdmin, isEmployee } from './auth.js?v=20261017001121';
+import { sbUpdateClient } from './api.js?v=20261017001121';
+import { registerActions } from './delegate.js?v=20261017001121';
+import { findClientForDeal } from './client-info.js?v=20261017001121';
 
 const OVERLAY_ID = 'client-props-overlay';
 const HEADER_RE = /^(?!.*\d)(?=.*\b(property|name|site|building)\b)(?=.*\b(address|street|city)\b)/i;
@@ -67,6 +67,16 @@ function mapsUrl(p, client) {
   return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
 }
 
+// "1310 26th St, Sacramento, CA 95816" -> "Sacramento". Falls back to the text as
+// given when there is no state part ("Houston-area locations", "Upper West Side").
+export function areaOf(address) {
+  const parts = str(address).split(',').map(x => x.trim()).filter(Boolean);
+  const st = parts.findIndex(x => /^[A-Z]{2}(\s+[A-Z0-9]{3}\s?[A-Z0-9]{3}|\s+\d{5}(-\d{4})?)?$/.test(x));
+  if (st > 0) return parts[st - 1].replace(/\s*\(.*\)$/, '');
+  if (parts.length > 1 && /^\d/.test(parts[0])) return parts.slice(1).join(', ');
+  return /^\d+\s/.test(str(address)) ? '' : str(address).trim();
+}
+
 export function propertyCount(client) {
   return client ? parseProperties(client.managedProperties).length : 0;
 }
@@ -101,17 +111,16 @@ function rowsHtml(client, filter) {
   const f = str(filter).trim().toLowerCase();
   const shown = f ? props.filter(p => (p.name + ' ' + p.address).toLowerCase().includes(f)) : props;
   if (!shown.length) return '<div style="padding:16px 0;color:#94a3b8;font-size:12px">No match for “' + esc(filter) + '”.</div>';
+  // Callers say "the Hilton off Harvard St in Sacramento", never "2200 Harvard St":
+  // the name is the Maps link, only the area shows, the street stays in the link.
   return shown.map(p => {
-    let h = '<div style="padding:10px 0;border-bottom:1px solid #f1f5f9">';
-    if (p.name) {
-      h += '<div style="display:flex;align-items:center;gap:8px;justify-content:space-between">'
-        + '<span style="font-size:13px;font-weight:600;color:#1e293b;user-select:all">' + esc(p.name) + '</span>' + copyBtn(p.name) + '</div>';
-    }
-    h += '<div style="display:flex;align-items:center;gap:8px;justify-content:space-between;margin-top:' + (p.name ? '3px' : '0') + '">'
-      + '<a href="' + escAttr(mapsUrl(p, client)) + '" target="_blank" rel="noopener" style="font-size:12px;color:#2563eb;text-decoration:none">📍 '
-      + esc(p.address || 'Search on Google Maps') + '</a>'
-      + (p.address ? copyBtn(p.address) : '') + '</div>';
-    return h + '</div>';
+    const label = p.name || areaOf(p.address) || 'Unnamed property';
+    const area = p.name ? areaOf(p.address) : '';
+    return '<div style="padding:10px 0;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:8px;justify-content:space-between">'
+      + '<div style="min-width:0">'
+      + '<a href="' + escAttr(mapsUrl(p, client)) + '" target="_blank" rel="noopener" title="Open in Google Maps" style="font-size:13px;font-weight:600;color:#1d4ed8;text-decoration:none">📍 ' + esc(label) + '</a>'
+      + (area ? '<div style="font-size:12px;color:#64748b;margin-top:2px">' + esc(area) + '</div>' : '')
+      + '</div>' + copyBtn(label) + '</div>';
   }).join('');
 }
 
