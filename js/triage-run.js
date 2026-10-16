@@ -8,8 +8,8 @@
 // Nothing sensitive travels without auth — every call carries the operator's own
 // CRM session, which the function verifies before reading anything.
 
-import { supabase } from './supabase-client.js?v=20261016102710';
-import { buildSnapshot, offerOf, makeAttributor } from './triage-score.js?v=20261016102710';
+import { supabase } from './supabase-client.js?v=20261016233350';
+import { buildSnapshot, offerOf, makeAttributor } from './triage-score.js?v=20261016233350';
 
 const FN = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/client-triage';
 const BATCH = 100;               // the function refuses batches over 120

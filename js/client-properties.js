@@ -16,12 +16,12 @@
 // The overlay is appended to <body>, NOT inside the deal modal, so a render()
 // while it is open cannot wipe it.
 
-import { state } from './app.js?v=20261016102710';
-import { esc, escAttr, str } from './utils.js?v=20261016102710';
-import { isAdmin, isEmployee } from './auth.js?v=20261016102710';
-import { sbUpdateClient } from './api.js?v=20261016102710';
-import { registerActions } from './delegate.js?v=20261016102710';
-import { findClientForDeal } from './client-info.js?v=20261016102710';
+import { state } from './app.js?v=20261016233350';
+import { esc, escAttr, str } from './utils.js?v=20261016233350';
+import { isAdmin, isEmployee } from './auth.js?v=20261016233350';
+import { sbUpdateClient } from './api.js?v=20261016233350';
+import { registerActions } from './delegate.js?v=20261016233350';
+import { findClientForDeal } from './client-info.js?v=20261016233350';
 
 const OVERLAY_ID = 'client-props-overlay';
 const HEADER_RE = /^(?!.*\d)(?=.*\b(property|name|site|building)\b)(?=.*\b(address|street|city)\b)/i;
@@ -82,7 +82,9 @@ export function renderClientPropertiesButton(deal) {
     ? 'background:#0f766e;color:#fff;border-color:#0f766e'
     : 'background:#f9fafb;color:#6b7280;border-color:#d1d5db';
   return '<div class="form-group form-span2" style="margin-top:0">'
-    + '<button data-action="cpropsOpen" data-client-id="' + escAttr(str(client.id)) + '" class="imessage-btn" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-weight:600;' + style + '">'
+    // Inline onclick, not data-action: the deal modal's .modal stops propagation, so a
+    // click inside it never reaches delegate.js's body listener (the button did nothing).
+    + '<button onclick="openClientProperties(\'' + escAttr(str(client.id)) + '\');event.stopPropagation()" class="imessage-btn" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-weight:600;' + style + '">'
     + '🏢 ' + esc(client.name) + '\'s Properties' + (n ? ' (' + n + ')' : ' — none on file') + '</button></div>';
 }
 
@@ -179,7 +181,6 @@ async function saveList() {
 }
 
 registerActions({
-  cpropsOpen(el) { openClientProperties(el.dataset.clientId); },
   cpropsClose() { closeClientProperties(); },
   cpropsCopy(el, e) {
     e?.stopPropagation();
