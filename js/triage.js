@@ -24,12 +24,12 @@
 // Underperforming week uses the SAME bar as the Weekly KPI:
 // RETAINER_WEEKLY_TARGET = 5 positive replies, PPM_WEEKLY_TARGET = 1 meeting.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261017010539';
-import { render } from './render.js?v=20261017010539';
-import { esc, str } from './utils.js?v=20261017010539';
-import { isAdmin } from './auth.js?v=20261017010539';
-import { WEEKS, LATEST } from './triage-index.js?v=20261017010539';
-import { runTriage, listSavedWeeks, getSavedWeek } from './triage-run.js?v=20261017010539';
+import { state } from './app.js?v=20261021030539';
+import { render } from './render.js?v=20261021030539';
+import { esc, str } from './utils.js?v=20261021030539';
+import { isAdmin } from './auth.js?v=20261021030539';
+import { WEEKS, LATEST } from './triage-index.js?v=20261021030539';
+import { runTriage, listSavedWeeks, getSavedWeek } from './triage-run.js?v=20261021030539';
 
 const BAND_COLOR = { green: '#16a34a', yellow: '#ca8a04', red: '#dc2626' };
 const BAND_BG    = { green: '#dcfce7', yellow: '#fef9c3', red: '#fee2e2' };
@@ -72,7 +72,7 @@ function ensureSavedList() {
 function loadWeek(week) {
   if (!week || CACHE[week] || PENDING[week]) return;
   PENDING[week] = true;
-  import(`./triage/${week}.js?v=20261017010539`)
+  import(`./triage/${week}.js?v=20261021030539`)
     .then(m => ({ META: m.META, ROWS: m.ROWS }))
     // Not bundled — it was produced by a Run and lives server-side only.
     .catch(() => getSavedWeek(week))
