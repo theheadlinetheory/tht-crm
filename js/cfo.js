@@ -7,13 +7,13 @@
 //   one tab instead of three (Aidan, 2026-09-29: essential numbers only,
 //   limited noise; add more later).
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20261021030539';
-import { state } from './app.js?v=20261021030539';
-import { render } from './render.js?v=20261021030539';
-import { esc } from './utils.js?v=20261021030539';
-import { renderCacTab } from './cac.js?v=20261021030539';
-import { renderMarginsTab } from './margins.js?v=20261021030539';
-import { renderOverheadTab } from './overhead.js?v=20261021030539';
+import { supabase } from './supabase-client.js?v=20261022133338';
+import { state } from './app.js?v=20261022133338';
+import { render } from './render.js?v=20261022133338';
+import { esc } from './utils.js?v=20261022133338';
+import { renderCacTab } from './cac.js?v=20261022133338';
+import { renderMarginsTab } from './margins.js?v=20261022133338';
+import { renderOverheadTab } from './overhead.js?v=20261022133338';
 
 const FN_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/cfo-report';
 
@@ -61,9 +61,18 @@ function overviewHtml(){
     return `<div style="padding:40px;text-align:center;color:var(--text-muted);font-size:13px">Loading the numbers…</div>`;
 
   const r = state.cfoReport, k = r.metrics;
+  // Double-count guard (Lars, 2026-10-22): the daily cash-vs-capture audit
+  // writes its findings to cost_audit_findings; any for the latest run show
+  // here, above the numbers they would distort. A clean run shows nothing.
+  const audit = r.audit || {};
+  const findings = audit.findings || [];
+  const auditHtml = findings.length ? `<div style="padding:12px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#b91c1c;font-size:12px;margin-bottom:12px">
+      <div style="font-weight:700;margin-bottom:4px">Double-count guard: ${findings.length} finding${findings.length===1?'':'s'} (${esc(audit.as_of||'')}) — these numbers include dollars booked twice</div>
+      ${findings.map(f=>`<div style="margin-top:3px"><b>${esc(f.kind)}</b> ${esc(f.vendor)}${f.month?' '+esc(f.month):''} — ${fmtUsd(f.amount_usd)} <span style="color:#991b1b">· ${esc(f.detail)}</span></div>`).join('')}
+    </div>` : '';
   const ratioColor = k.ltv_cac === null ? undefined : k.ltv_cac >= 3 ? '#047857' : k.ltv_cac >= 2 ? '#b45309' : '#b91c1c';
   const paybackColor = k.cac_payback_months === null ? undefined : k.cac_payback_months <= 12 ? '#047857' : '#b45309';
-  let html = `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+  let html = auditHtml + `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
     ${metricCard('Revenue run rate', fmtUsd0(k.revenue_run_rate)+'/mo', 'avg of last 3 complete months')}
     ${metricCard('Net margin', k.net_margin_pct===null?'—':k.net_margin_pct.toFixed(1)+'%', 'after every cost, last 3 months', posNeg(k.net_margin_pct||0))}
     ${metricCard('Gross margin', k.gross_margin_pct===null?'—':k.gross_margin_pct.toFixed(1)+'%', 'revenue minus delivery costs')}
