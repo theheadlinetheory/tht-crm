@@ -21,16 +21,16 @@
 // mid-edit. Edits save straight to Supabase (debounced) and patch the affected
 // DOM nodes in place — the panel is never wholesale re-rendered while open.
 
-import { state } from './app.js?v=20261023015037';
-import { esc, str, getToday, isValidDate, svgIcon } from './utils.js?v=20261023015037';
-import { isAdmin } from './auth.js?v=20261023015037';
-import { lookupClientInfo } from './client-info.js?v=20261023015037';
-import { sbUpdateClient, sbGetWonAcquisitionCards } from './api.js?v=20261023015037';
-import { registerActions } from './delegate.js?v=20261023015037';
-import { buildAcquisitionCard, indexWonCards, matchCardForClient, answeredQuestions } from './client-acquisition.js?v=20261023015037';
-import { parseProperties, areaOf } from './client-properties.js?v=20261023015037';
-import { findPolygonForClient, renderServiceAreaMap } from './maps.js?v=20261023015037';
-import { coldCallsSectionHtml, fillColdCallsSection } from './client-cold-calls.js?v=20261023015037';
+import { state } from './app.js?v=20261022133810';
+import { esc, str, getToday, isValidDate, svgIcon } from './utils.js?v=20261022133810';
+import { isAdmin } from './auth.js?v=20261022133810';
+import { lookupClientInfo } from './client-info.js?v=20261022133810';
+import { sbUpdateClient, sbGetWonAcquisitionCards } from './api.js?v=20261022133810';
+import { registerActions } from './delegate.js?v=20261022133810';
+import { buildAcquisitionCard, indexWonCards, matchCardForClient, answeredQuestions } from './client-acquisition.js?v=20261022133810';
+import { parseProperties, areaOf } from './client-properties.js?v=20261022133810';
+import { findPolygonForClient, renderServiceAreaMap } from './maps.js?v=20261022133810';
+import { coldCallsSectionHtml, fillColdCallsSection } from './client-cold-calls.js?v=20261022133810';
 
 const OVERLAY_ID = 'client-info-overlay';
 const MAP_KEY = 'client-panel'; // activeMapInstances key for the panel's map (no deal behind it)

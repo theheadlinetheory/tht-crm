@@ -23,10 +23,10 @@
 // acquisition deals here (deal-modal.js, deals.js). Everything is read from the
 // deal's Timeline at click time — nothing new is stored.
 
-import { state } from './app.js?v=20261023015037';
-import { esc } from './utils.js?v=20261023015037';
-import { sbCreateInteraction, sbGetInteractions, showToast } from './api.js?v=20261023015037';
-import { markDisco, markDemo, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20261023015037';
+import { state } from './app.js?v=20261022133810';
+import { esc } from './utils.js?v=20261022133810';
+import { sbCreateInteraction, sbGetInteractions, showToast } from './api.js?v=20261022133810';
+import { markDisco, markDemo, openNurture, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20261022133810';
 
 export const REMOVAL_PREFIX = 'Removed — ';
 
@@ -142,15 +142,20 @@ export async function leadStage(dealId) {
     if (!cancelled && when.replace(' ', 'T') + ':00Z' < now) pendingFor = pendingFor || when;
   }
   const stage = demo ? 'demo' : disco ? 'disco' : pendingFor ? 'disco_pending' : 'pre';
-  return { stage, when: pendingFor, discoMark, demoMark, phoneDq, phoneNo };
+  // A "Not right now" answer moves the deal to Nurture. If it is still on the
+  // Acquisition board, that move never finished (the Nurture modal was closed),
+  // so the answer must not archive it silently (Antioquia, 2026-10-22).
+  const nurtureUnfinished = !!(deal && deal.pipeline === 'Acquisition');
+  return { stage, when: pendingFor, discoMark, demoMark, phoneDq, phoneNo, nurtureUnfinished };
 }
 
 /** The archive status a recorded answer maps to, or null when nothing is recorded. */
 function recordedStatus(info) {
+  const unfinished = (mark) => info.nurtureUnfinished && NURTURE_ANSWERS.has(mark);
   // Any final demo answer counts as recorded (older words included); a
   // "Qualified — Pending" mark is not final, so the rep is asked.
-  if (info.stage === 'demo' && info.demoMark && !/Pending/i.test(info.demoMark)) return DEMO_STATUS(info.demoMark.split(': ')[0]);
-  if ((info.stage === 'disco' || info.stage === 'disco_pending') && info.discoMark) {
+  if (info.stage === 'demo' && info.demoMark && !/Pending/i.test(info.demoMark) && !unfinished(info.demoMark)) return DEMO_STATUS(info.demoMark.split(': ')[0]);
+  if ((info.stage === 'disco' || info.stage === 'disco_pending') && info.discoMark && !unfinished(info.discoMark)) {
     if (info.discoMark === 'held') return DISCO_STATUS('held');
     if (DISCO_OUTCOMES.includes(info.discoMark)) return DISCO_STATUS(info.discoMark);
   }
@@ -190,7 +195,7 @@ export async function showAcquisitionRemovalPicker(dealIds, { onPick, onNurture,
     // Mixed: fall through with the pre-disco list for the rest; the answered
     // ones archive under the same status label (their mark is on the timeline).
   }
-  const { stage, when } = infos[0];
+  const { stage, when, demoMark, discoMark } = infos[0];
   const dealId = dealIds[0];
 
   const div = document.createElement('div');
@@ -222,17 +227,20 @@ export async function showAcquisitionRemovalPicker(dealIds, { onPick, onNurture,
     if (ok && label !== null) onPick(label);
   };
   const toneFor = (o) => DQ_ANSWERS.has(o) ? 'dq' : KEEP_ANSWERS.has(o) ? 'keep' : 'lost';
+  // Re-picking the "Not right now" already on the Timeline reopens the Nurture
+  // modal instead of writing the same mark twice.
+  const answer = (o, mark, write) => NURTURE_ANSWERS.has(o) && o === mark ? () => openNurture(dealId, stage === 'demo') : write;
 
   if (stage === 'demo') {
     heading('This lead had a demo. How did it end?', 'The same answers as the demo dropdown on the Timeline — recorded once, there.');
     // Exactly DEMO_OUTCOMES. markDemo writes the mark; "Not right now" opens the
     // Move to Nurture modal itself, so no archive follows it.
-    DEMO_OUTCOMES.forEach(o => button(o, toneFor(o), () => finish(NURTURE_ANSWERS.has(o) ? null : DEMO_STATUS(o), () => markDemo(dealId, o))));
+    DEMO_OUTCOMES.forEach(o => button(o, toneFor(o), () => finish(NURTURE_ANSWERS.has(o) ? null : DEMO_STATUS(o), answer(o, demoMark, () => markDemo(dealId, o)))));
   } else if (stage === 'disco' || stage === 'disco_pending') {
     heading(stage === 'disco' ? 'This lead had a discovery call. How did it end?' : `A discovery call was booked for ${when}. What happened?`,
             'The same answers as the outcome dropdown on the Timeline — recorded once, there.');
     // Exactly DISCO_OUTCOMES, same rule for "Not right now".
-    DISCO_OUTCOMES.forEach(o => button(o, toneFor(o), () => finish(NURTURE_ANSWERS.has(o) ? null : DISCO_STATUS(o), () => markDisco(dealId, o))));
+    DISCO_OUTCOMES.forEach(o => button(o, toneFor(o), () => finish(NURTURE_ANSWERS.has(o) ? null : DISCO_STATUS(o), answer(o, discoMark, () => markDisco(dealId, o)))));
   } else {
     const n = dealIds.length;
     heading(`Why is ${n === 1 ? 'this lead' : n + ' leads'} being removed?`, 'Feeds level 02 of the sales pipeline. Desk DQ / Miscategorized / Duplicate = we removed them. Lost = they dropped.');
