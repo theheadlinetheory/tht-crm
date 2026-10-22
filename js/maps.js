@@ -7,11 +7,11 @@
 // moved to a separate data file (e.g., service_area_data.js).
 // This module provides the functions that operate on that data.
 
-import { state, pendingWrites } from './app.js?v=20261022135136';
-import { GEOCODIO_KEY, CA_PROVINCES, CA_POSTAL, CA_CITIES, detectCountry, isInternationalAddress } from './config.js?v=20261022135136';
-import { render, refreshModal } from './render.js?v=20261022135136';
-import { str, esc } from './utils.js?v=20261022135136';
-import { findClientForDeal, lookupClientInfo } from './client-info.js?v=20261022135136';
+import { state, pendingWrites } from './app.js?v=20261023015037';
+import { GEOCODIO_KEY, CA_PROVINCES, CA_POSTAL, CA_CITIES, detectCountry, isInternationalAddress } from './config.js?v=20261023015037';
+import { render, refreshModal } from './render.js?v=20261023015037';
+import { str, esc } from './utils.js?v=20261023015037';
+import { findClientForDeal, lookupClientInfo } from './client-info.js?v=20261023015037';
 
 let SERVICE_AREA_POLYGONS = {};
 let POLYGON_ALIASES = {};
@@ -485,7 +485,8 @@ export function renderServiceAreaMap(containerId, dealId, opts){
 let enlargedMapState = null;
 
 export function openEnlargedMap(dealId, clientName){
-  // Full-screen map overlay
+  // Full-screen map overlay. dealId is optional: the client panel opens it with none, and then
+  // the view fits the client's polygon instead of centring on a deal's pin.
   enlargedMapState={dealId,clientName};
   const overlay=document.createElement('div');
   overlay.id='enlarged-map-overlay';
@@ -506,14 +507,21 @@ export function openEnlargedMap(dealId, clientName){
   setTimeout(()=>{
     const container=document.getElementById('enlarged-map-container');
     if(!container) return;
-    const result=serviceAreaResults[dealId];
+    const result=dealId?serviceAreaResults[dealId]:null;
     const lat=result?result.lat:39.8;
     const lng=result?result.lng:-98.5;
     const map=L.map(container).setView([lat,lng],result?10:4);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(map);
     const pm=findPolygonForClient(clientName);
     const polygon=pm?pm.polygon:null;
-    drawPolygonLayers(map, polygon);
+    const polyLayers=drawPolygonLayers(map, polygon);
+    if(!result && polyLayers.length){
+      try { map.fitBounds(L.featureGroup(polyLayers).getBounds().pad(0.1)); } catch(e){}
+    }
+    if(!polygon){
+      const el=document.getElementById('enlarged-map-result');
+      if(el) el.textContent='No service area polygon for '+clientName+' yet, so addresses cannot be checked.';
+    }
     if(result){
       L.marker([result.lat,result.lng],{icon:makePinIcon(result.inArea?'#22c55e':'#ef4444')}).addTo(map);
     }
@@ -534,6 +542,7 @@ export async function searchEnlargedMap(){
   if(!cached){resultEl.textContent='Could not geocode address.';return;}
   const {lat,lng}=cached;
   const inArea=checkPointInServiceArea(lat,lng,enlargedMapState.polygon);
+  if(inArea===null){resultEl.textContent='No service area polygon to check against.';return;}
   if(enlargedMapState.map){
     enlargedMapState.map.setView([lat,lng],12);
     L.marker([lat,lng],{icon:makePinIcon(inArea?'#22c55e':'#ef4444')}).addTo(enlargedMapState.map);

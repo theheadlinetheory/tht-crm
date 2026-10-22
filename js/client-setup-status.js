@@ -11,7 +11,7 @@
 // Only DB-backed pieces are listed. Smartlead tags leave no column to check, and
 // the tag function fuzzy-matches before creating, so the card's Create SmartLead
 // tags button is safe to press whenever in doubt.
-import { str } from './utils.js?v=20261022135136';
+import { str } from './utils.js?v=20261023015037';
 
 // Each gap names the button further down the client card that fixes it.
 export function setupGaps(client) {
