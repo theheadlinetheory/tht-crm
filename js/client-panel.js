@@ -21,16 +21,16 @@
 // mid-edit. Edits save straight to Supabase (debounced) and patch the affected
 // DOM nodes in place — the panel is never wholesale re-rendered while open.
 
-import { state } from './app.js?v=20261022133810';
-import { esc, str, getToday, isValidDate, svgIcon } from './utils.js?v=20261022133810';
-import { isAdmin } from './auth.js?v=20261022133810';
-import { lookupClientInfo } from './client-info.js?v=20261022133810';
-import { sbUpdateClient, sbGetWonAcquisitionCards } from './api.js?v=20261022133810';
-import { registerActions } from './delegate.js?v=20261022133810';
-import { buildAcquisitionCard, indexWonCards, matchCardForClient, answeredQuestions } from './client-acquisition.js?v=20261022133810';
-import { parseProperties, areaOf } from './client-properties.js?v=20261022133810';
-import { findPolygonForClient, renderServiceAreaMap } from './maps.js?v=20261022133810';
-import { coldCallsSectionHtml, fillColdCallsSection } from './client-cold-calls.js?v=20261022133810';
+import { state } from './app.js?v=20261023031057';
+import { esc, str, getToday, isValidDate, svgIcon } from './utils.js?v=20261023031057';
+import { isAdmin } from './auth.js?v=20261023031057';
+import { lookupClientInfo } from './client-info.js?v=20261023031057';
+import { sbUpdateClient, sbGetWonAcquisitionCards } from './api.js?v=20261023031057';
+import { registerActions } from './delegate.js?v=20261023031057';
+import { buildAcquisitionCard, indexWonCards, matchCardForClient, answeredQuestions } from './client-acquisition.js?v=20261023031057';
+import { parseProperties, areaOf } from './client-properties.js?v=20261023031057';
+import { findPolygonForClient, renderServiceAreaMap } from './maps.js?v=20261023031057';
+import { coldCallsSectionHtml, fillColdCallsSection } from './client-cold-calls.js?v=20261023031057';
 
 const OVERLAY_ID = 'client-info-overlay';
 const MAP_KEY = 'client-panel'; // activeMapInstances key for the panel's map (no deal behind it)
@@ -289,6 +289,13 @@ export function openClientInfoPanel(clientName) {
       </div>
       <div style="padding:20px 24px;max-height:70vh;overflow-y:auto">`;
 
+  // The Check-ins tab's brief for this client (admin-only, like the tab itself).
+  if (isAdmin()) {
+    h += `<button class="btn btn-primary" data-action="cpCheckin" style="width:100%;justify-content:center;gap:6px;font-size:13px;margin-bottom:16px">
+      ${svgIcon('clipboard', 14)} Pre-call brief
+    </button>`;
+  }
+
   if (info.primaryContact || info.primaryEmail || info.phone) {
     h += `<div style="margin-bottom:16px;padding:12px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
       <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Contact</div>`;
@@ -397,6 +404,16 @@ export function closeClientInfoPanel() {
 
 registerActions({
   cpClose() { closeClientInfoPanel(); },
+  // Lives here, not in checkins.js: that module is only loaded once the tab is opened.
+  cpCheckin() {
+    const name = _openFor;
+    closeClientInfoPanel();
+    state.pipeline = 'client_leads';
+    state.clientLeadsSubTab = 'checkins';
+    state.checkinClient = name;
+    location.hash = 'client_leads/checkins/' + encodeURIComponent(name);
+    if (window.render) window.render();
+  },
   cpEdit(el) {
     const field = el.dataset.field;
     const box = document.getElementById(`cp-edit-${field}`);
