@@ -12,10 +12,10 @@
 //   payouts (selling labor); signed = clients created that month (any
 //   status); CAC = spend ÷ signed, shown as an em-dash when 0 signed.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20261022133338';
-import { state } from './app.js?v=20261022133338';
-import { render } from './render.js?v=20261022133338';
-import { esc } from './utils.js?v=20261022133338';
+import { supabase } from './supabase-client.js?v=20261022134300';
+import { state } from './app.js?v=20261022134300';
+import { render } from './render.js?v=20261022134300';
+import { esc } from './utils.js?v=20261022134300';
 
 // Fulfillment-dashboard Supabase project (verify_jwt=false; same
 // session-token contract as weekly-update-send — see js/weekly-updates.js).
@@ -95,8 +95,15 @@ function renderComponentRows(m, colspan){
     <div style="${COMP_ROW_GRID};padding:0 0 4px;border-bottom:1px solid #e5e7eb;font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">
       <span>Item</span><span>Date</span><span style="text-align:right">Amount</span>
     </div>` : '';
+  // Who signed that month (first payment landed) — the CAC's denominator,
+  // named (Lars, 2026-10-22: show the clients, not just the costs).
+  const signed = (m.signed_clients||[]);
+  const signedHtml = `<div style="margin-bottom:10px">
+      <div style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;padding-bottom:4px;border-bottom:1px solid #e5e7eb">Clients signed · ${m.signed}</div>
+      <div style="padding:4px 0">${signed.length ? signed.map(n=>`<span style="display:inline-block;margin:2px 6px 2px 0;padding:2px 8px;border:1px solid var(--border);border-radius:999px;background:#fff">${esc(n)}</span>`).join('') : '<span style="color:var(--text-muted)">None this month.</span>'}</div>
+    </div>`;
   return `<tr><td colspan="${colspan}" style="padding:8px 24px 12px;background:#fafafa;border-bottom:1px solid var(--border)">
-    <div style="max-width:560px;font-size:12px;color:#374151">${header}${rows || '<span style="color:var(--text-muted)">No spend recorded.</span>'}</div>
+    <div style="max-width:560px;font-size:12px;color:#374151">${signedHtml}${header}${rows || '<span style="color:var(--text-muted)">No spend recorded.</span>'}</div>
   </td></tr>`;
 }
 
@@ -158,7 +165,7 @@ export function renderCacTab(){
       <td style="${td};text-align:left;font-weight:600">${esc(m.label)}${m.to_date?' <span style="font-weight:500;color:var(--text-muted)">(to date)</span>':''}</td>
       <td style="${td}">${fmtUsd(m.cash_spend)}</td>
       <td style="${td}">${fmtUsd(m.loaded_spend)}</td>
-      <td style="${td}">${m.signed}</td>
+      <td style="${td}">${m.signed}${(m.signed_clients||[]).length?`<div style="font-size:10px;font-weight:500;color:var(--text-muted);white-space:normal;max-width:220px;line-height:1.35">${m.signed_clients.map(esc).join(', ')}</div>`:''}</td>
       <td style="${td};font-weight:700">${fmtCac(m.cash_cac)}</td>
       <td style="${td};font-weight:700">${fmtCac(m.loaded_cac)}</td>
       <td style="${td};color:var(--text-muted)">${open?'▾':'▸'}</td>

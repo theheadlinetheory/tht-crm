@@ -3,14 +3,14 @@
 // Admin-only. One live invoice per deal. Body-level overlay so render()
 // cannot destroy it. Nothing is emailed except via diDoSend().
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261022133338';
-import { str, esc, escAttr } from './utils.js?v=20261022133338';
-import { showToast } from './api.js?v=20261022133338';
-import { isAdmin } from './auth.js?v=20261022133338';
-import { render } from './render.js?v=20261022133338';
-import { newDraft, addLineItem, removeLineItem, addCustomField, centsFromInput, normalizePriceText, formatCents, toPayload } from './deal-invoice-state.js?v=20261022133338';
-import { renderComposeStep, renderReviewStep, renderDraftStep, renderSentStep, renderConfirmSend } from './deal-invoice-form.js?v=20261022133338';
-import * as api from './deal-invoice-api.js?v=20261022133338';
+import { state } from './app.js?v=20261022134300';
+import { str, esc, escAttr } from './utils.js?v=20261022134300';
+import { showToast } from './api.js?v=20261022134300';
+import { isAdmin } from './auth.js?v=20261022134300';
+import { render } from './render.js?v=20261022134300';
+import { newDraft, addLineItem, removeLineItem, addCustomField, centsFromInput, normalizePriceText, formatCents, toPayload } from './deal-invoice-state.js?v=20261022134300';
+import { renderComposeStep, renderReviewStep, renderDraftStep, renderSentStep, renderConfirmSend } from './deal-invoice-form.js?v=20261022134300';
+import * as api from './deal-invoice-api.js?v=20261022134300';
 
 const INVOICE_STAGES = ['Under Review', 'Waiting for Payment/Contract'];
 const LIVE = ['draft', 'open', 'paid'];

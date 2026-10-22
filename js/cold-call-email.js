@@ -6,7 +6,7 @@
 // client CC'd. It opens Gmail compose already filled in, in that inbox (signed
 // in on the caller's browser), and the caller reviews it and hits Send.
 
-import { esc, str, applyTemplate, svgIcon } from './utils.js?v=20261022133338';
+import { esc, str, applyTemplate, svgIcon } from './utils.js?v=20261022134300';
 
 const SUBJECT = 'Your meeting with {CLIENT}';
 const BODY = `Hi {FIRST_NAME},
