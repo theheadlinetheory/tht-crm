@@ -12,10 +12,10 @@
 //   payouts (selling labor); signed = clients created that month (any
 //   status); CAC = spend ÷ signed, shown as an em-dash when 0 signed.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20261022134300';
-import { state } from './app.js?v=20261022134300';
-import { render } from './render.js?v=20261022134300';
-import { esc } from './utils.js?v=20261022134300';
+import { supabase } from './supabase-client.js?v=20261022135136';
+import { state } from './app.js?v=20261022135136';
+import { render } from './render.js?v=20261022135136';
+import { esc } from './utils.js?v=20261022135136';
 
 // Fulfillment-dashboard Supabase project (verify_jwt=false; same
 // session-token contract as weekly-update-send — see js/weekly-updates.js).
@@ -165,7 +165,7 @@ export function renderCacTab(){
       <td style="${td};text-align:left;font-weight:600">${esc(m.label)}${m.to_date?' <span style="font-weight:500;color:var(--text-muted)">(to date)</span>':''}</td>
       <td style="${td}">${fmtUsd(m.cash_spend)}</td>
       <td style="${td}">${fmtUsd(m.loaded_spend)}</td>
-      <td style="${td}">${m.signed}${(m.signed_clients||[]).length?`<div style="font-size:10px;font-weight:500;color:var(--text-muted);white-space:normal;max-width:220px;line-height:1.35">${m.signed_clients.map(esc).join(', ')}</div>`:''}</td>
+      <td style="${td}">${m.signed}</td>
       <td style="${td};font-weight:700">${fmtCac(m.cash_cac)}</td>
       <td style="${td};font-weight:700">${fmtCac(m.loaded_cac)}</td>
       <td style="${td};color:var(--text-muted)">${open?'▾':'▸'}</td>
