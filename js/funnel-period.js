@@ -12,7 +12,7 @@
 // Nothing is written: the functions answer from the per-lead ledger and the
 // daily send snapshots. The "All" view keeps reading pipeline_latest.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261023110227';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261023122749';
 
 export const TZ = 'America/Los_Angeles';
 
