@@ -7,10 +7,11 @@
 // quietly doubles is visible the month it happens. * = computed/estimated,
 // no star = vendor-billed actual.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20261023031057';
-import { state } from './app.js?v=20261023031057';
-import { render } from './render.js?v=20261023031057';
-import { esc } from './utils.js?v=20261023031057';
+import { supabase } from './supabase-client.js?v=20261023110227';
+import { state } from './app.js?v=20261023110227';
+import { render } from './render.js?v=20261023110227';
+import { esc } from './utils.js?v=20261023110227';
+import { stackedColumns, SERIES, INK } from './charts.js?v=20261023110227';
 
 const FN_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/overhead-report';
 
@@ -76,6 +77,19 @@ export function renderOverheadTab(){
     ${statCard('Run rate', fmtUsd(r.run_rate)+'/mo', 'average of the last 3 complete months')}
     ${statCard('This month so far', fmtUsd(cur?cur.total:0), monthLabel(r.current_month))}
     ${statCard('All-time recorded', fmtUsd(r.total), (r.months||[]).length+' months')}
+  </div>`;
+
+  // One chart (Lars, 2026-10-23): overhead per month, one series, with the
+  // run rate as a flat dashed reference so a creeping month stands out.
+  const om = (r.months||[]).slice().sort((a,b)=>a.month<b.month?-1:1);
+  html += `<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 16px 8px;margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap">
+      <div style="font-size:12px;font-weight:600;color:#374151">Overhead per month</div>
+      <div style="font-size:11px;color:var(--text-muted)">dashed = run rate (avg of last 3 complete months); the to-date month is partial</div>
+    </div>
+    ${stackedColumns({ labels: om.map(m=>monthLabel(m.month)), series: [
+      { name:'Overhead', color:SERIES[2], values: om.map(m=>m.total) },
+    ], line: { name:'Run rate', color:INK.secondary, values: om.map(()=>r.run_rate) }, fmt: fmtUsd })}
   </div>`;
 
   const expanded = state.overheadExpanded || (state.overheadExpanded = {});

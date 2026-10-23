@@ -12,10 +12,11 @@
 //   payouts (selling labor); signed = clients created that month (any
 //   status); CAC = spend ÷ signed, shown as an em-dash when 0 signed.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20261023031057';
-import { state } from './app.js?v=20261023031057';
-import { render } from './render.js?v=20261023031057';
-import { esc } from './utils.js?v=20261023031057';
+import { supabase } from './supabase-client.js?v=20261023110227';
+import { state } from './app.js?v=20261023110227';
+import { render } from './render.js?v=20261023110227';
+import { esc } from './utils.js?v=20261023110227';
+import { lineChart, SERIES } from './charts.js?v=20261023110227';
 
 // Fulfillment-dashboard Supabase project (verify_jwt=false; same
 // session-token contract as weekly-update-send — see js/weekly-updates.js).
@@ -142,6 +143,20 @@ export function renderCacTab(){
       ${renderStatCard('Loaded CAC — All-time · since '+sinceLabel, fmtCac(allTime.loaded_cac), fmtUsd(allTime.loaded_spend)+' spend / '+allTime.signed+' signed')}
     </div>`;
   }
+
+  // One chart (Lars, 2026-10-23): is it getting cheaper or dearer to sign a
+  // client? Cash and loaded CAC per month; a month with 0 signings has no point.
+  const cm = months.slice().reverse(); // oldest first
+  html += `<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 16px 8px;margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap">
+      <div style="font-size:12px;font-weight:600;color:#374151">CAC per month</div>
+      <div style="font-size:11px;color:var(--text-muted)">cash = tools and data; loaded = plus selling labor; months with no signing are gaps</div>
+    </div>
+    ${lineChart({ labels: cm.map(m=>m.label), series: [
+      { name:'Cash CAC', color:SERIES[0], values: cm.map(m=>m.cash_cac) },
+      { name:'Loaded CAC', color:SERIES[1], values: cm.map(m=>m.loaded_cac) },
+    ], fmt: v => fmtCac(v) })}
+  </div>`;
 
   // Monthly table
   const th = 'padding:8px 10px;text-align:right;font-weight:600;white-space:nowrap';

@@ -7,11 +7,12 @@
 // Net-30 clients read low in the latest month until their payment lands —
 // that is the service-month attribution being honest, footnoted below.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20261023031057';
-import { state } from './app.js?v=20261023031057';
-import { render } from './render.js?v=20261023031057';
-import { esc } from './utils.js?v=20261023031057';
-import { costBreakdown } from './margin-costs.js?v=20261023031057';
+import { supabase } from './supabase-client.js?v=20261023110227';
+import { state } from './app.js?v=20261023110227';
+import { render } from './render.js?v=20261023110227';
+import { esc } from './utils.js?v=20261023110227';
+import { costBreakdown } from './margin-costs.js?v=20261023110227';
+import { hBars, SERIES } from './charts.js?v=20261023110227';
 
 const MARGIN_FN_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/margin-report';
 
@@ -119,6 +120,19 @@ export function renderMarginsTab(){
     ${statCard(viewLabel+' costs', fmtUsd(sCost), 'client-scoped — CAC and overhead excluded')}
     ${statCard(viewLabel+' margin', fmtUsd(sMar),
       sRev>0 ? (100*sMar/sRev).toFixed(1)+'% of revenue' : '')}
+  </div>`;
+
+  // One chart (Lars, 2026-10-23): margin % per client in the current view,
+  // best to worst, losses to the left of zero. Clients without revenue are
+  // left out of the chart (nothing to express as a %) but stay in the table.
+  const bars = shown.filter(c => c.margin_pct !== null && c.margin_pct !== undefined)
+    .map(c => ({ name: c.name, value: Math.round(c.margin_pct*1000)/10 }));
+  if(bars.length) html += `<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 16px 8px;margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap">
+      <div style="font-size:12px;font-weight:600;color:#374151">Margin % by client — ${esc(viewLabel.toLowerCase())}</div>
+      <div style="font-size:11px;color:var(--text-muted)">margin ÷ revenue since ${esc(sinceLabel)}; revenue-less clients omitted</div>
+    </div>
+    ${hBars({ rows: bars, colors: { pos: SERIES[0], neg: SERIES[1] }, fmt: v => v.toFixed(1)+'%' })}
   </div>`;
 
   const th = 'padding:9px 12px;text-align:right;font-weight:600;white-space:nowrap';

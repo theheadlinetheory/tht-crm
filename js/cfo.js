@@ -7,13 +7,14 @@
 //   one tab instead of three (Aidan, 2026-09-29: essential numbers only,
 //   limited noise; add more later).
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20261023031057';
-import { state } from './app.js?v=20261023031057';
-import { render } from './render.js?v=20261023031057';
-import { esc } from './utils.js?v=20261023031057';
-import { renderCacTab } from './cac.js?v=20261023031057';
-import { renderMarginsTab } from './margins.js?v=20261023031057';
-import { renderOverheadTab } from './overhead.js?v=20261023031057';
+import { supabase } from './supabase-client.js?v=20261023110227';
+import { state } from './app.js?v=20261023110227';
+import { render } from './render.js?v=20261023110227';
+import { esc } from './utils.js?v=20261023110227';
+import { renderCacTab } from './cac.js?v=20261023110227';
+import { renderMarginsTab } from './margins.js?v=20261023110227';
+import { renderOverheadTab } from './overhead.js?v=20261023110227';
+import { stackedColumns, SERIES, INK } from './charts.js?v=20261023110227';
 
 const FN_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/cfo-report';
 
@@ -81,6 +82,22 @@ function overviewHtml(){
     ${metricCard('LTV : CAC', k.ltv_cac===null?'—':k.ltv_cac.toFixed(1)+'x', `realized lifetime LTV ${fmtUsd0(k.ltv)} vs loaded CAC ${k.blended_cac===null?'—':fmtUsd0(k.blended_cac)} (SDR labor incl.) · 3x+ good`, ratioColor)}
     ${metricCard('CAC payback', k.cac_payback_months===null?'—':k.cac_payback_months.toFixed(1)+' mo', 'months of gross profit to earn back a client · under 12 is strong', paybackColor)}
     ${metricCard('Avg lifetime revenue / client', fmtUsd0(k.avg_ltv_revenue), `every client ever (${k.clients_lifetime}) · × ${k.gross_margin_pct===null?'—':k.gross_margin_pct.toFixed(0)+'%'} gross margin = ${fmtUsd0(k.ltv)} LTV · ARPA ${fmtUsd0(k.arpa)}/mo`)}
+  </div>`;
+
+  // One chart (Lars, 2026-10-23: costs over time, keep it simple): monthly
+  // costs stacked by bucket, revenue as a dashed line on the same $ axis.
+  const cm = r.months.slice().sort((a,b)=>a.month<b.month?-1:1);
+  html += `<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 16px 8px;margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap">
+      <div style="font-size:12px;font-weight:600;color:#374151">Costs by month vs revenue</div>
+      <div style="font-size:11px;color:var(--text-muted)">stacked = Delivery · CAC · Overhead · Reserve; dashed = revenue (to-date month is partial)</div>
+    </div>
+    ${stackedColumns({ labels: cm.map(m=>monthLabel(m.month)), series: [
+      { name:'Delivery', color:SERIES[0], values: cm.map(m=>m.delivery) },
+      { name:'CAC', color:SERIES[1], values: cm.map(m=>m.cac) },
+      { name:'Overhead', color:SERIES[2], values: cm.map(m=>m.overhead) },
+      { name:'Reserve', color:SERIES[3], values: cm.map(m=>m.reserve) },
+    ], line: { name:'Revenue', color:INK.primary, values: cm.map(m=>m.revenue) }, fmt: fmtUsd0 })}
   </div>`;
 
   const th = 'padding:8px 10px;text-align:right;font-weight:600;white-space:nowrap';
