@@ -23,10 +23,10 @@
 // acquisition deals here (deal-modal.js, deals.js). Everything is read from the
 // deal's Timeline at click time — nothing new is stored.
 
-import { state } from './app.js?v=20261027210958';
-import { esc } from './utils.js?v=20261027210958';
-import { sbCreateInteraction, sbGetInteractions, showToast } from './api.js?v=20261027210958';
-import { markDisco, markDemo, openNurture, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20261027210958';
+import { state } from './app.js?v=20261028023937';
+import { esc } from './utils.js?v=20261028023937';
+import { sbCreateInteraction, sbGetInteractions, showToast } from './api.js?v=20261028023937';
+import { markDisco, markDemo, openNurture, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20261028023937';
 
 export const REMOVAL_PREFIX = 'Removed — ';
 

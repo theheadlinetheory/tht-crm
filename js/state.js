@@ -4,7 +4,7 @@
 // All mutations go through store.* methods to prevent direct
 // state tampering and ensure consistent re-renders.
 
-import { render, refreshModal } from './render.js?v=20261027210958';
+import { render, refreshModal } from './render.js?v=20261028023937';
 
 // ─── Raw State (private — modules should use store.*) ───
 export const state = {
@@ -69,6 +69,9 @@ export const state = {
   // Check-ins tab: the client whose pre-call brief is open, mirrored in #client_leads/checkins/<name>.
   checkinClient: (() => { try { const parts = location.hash.replace('#','').split('/'); return parts[0] === 'client_leads' && parts[1] === 'checkins' && parts[2] ? decodeURIComponent(parts[2]) : ''; } catch { return ''; } })(),
   clientLeadsSubTab: (() => { try { const parts = location.hash.replace('#','').split('/'); if (parts[0] === 'client_leads' && parts[1]) { const valid = ['pipeline','checkins','lead_tracker','weekly_updates','monthly_updates','followups','analysis','triage']; return valid.includes(parts[1]) ? parts[1] : 'pipeline'; } return 'pipeline'; } catch { return 'pipeline'; } })(),
+  // Cold Calling tab: 'queue' | 'pipeline' | 'tracker' | 'manager', mirrored in #cold_calling/<sub>.
+  coldCallSubTab: (() => { try { const parts = location.hash.replace('#','').split('/'); return parts[0] === 'cold_calling' && ['pipeline','tracker','manager'].includes(parts[1]) ? parts[1] : 'queue'; } catch { return 'queue'; } })(),
+  ccAllLeads: false, // manager toggle on the Cold Calling board: every lead in those client columns, not only cold-call ones
   analysis: null, // Analysis tab run state — see analysis.js getA()
   triage: null,   // Client Triage tab — snapshot only, see triage.js
   assignableUsers: [],

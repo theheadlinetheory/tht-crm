@@ -2,11 +2,11 @@
 // PASSOFF — Passoff instructions generator + transcript polling
 // ═══════════════════════════════════════════════════════════
 
-import { state, pendingWrites } from './app.js?v=20261027210958';
-import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20261027210958';
-import { esc, str } from './utils.js?v=20261027210958';
-import { refreshModal } from './render.js?v=20261027210958';
-import { isAdmin, isEmployee } from './auth.js?v=20261027210958';
+import { state, pendingWrites } from './app.js?v=20261028023937';
+import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20261028023937';
+import { esc, str } from './utils.js?v=20261028023937';
+import { refreshModal } from './render.js?v=20261028023937';
+import { isAdmin, isEmployee } from './auth.js?v=20261028023937';
 
 // ─── Transcript Polling ───
 
@@ -64,7 +64,7 @@ async function generatePassoff(dealId, clientName) {
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000);
+    const timeout = setTimeout(() => controller.abort(), 60000);
     const resp = await invokeEdgeFunction('generate-passoff', { dealId, clientName }, controller.signal);
     clearTimeout(timeout);
     if (resp.error) throw new Error(resp.error);
@@ -72,7 +72,9 @@ async function generatePassoff(dealId, clientName) {
     const deal = state.deals.find(d => d.id === dealId);
     if (deal) {
       deal.passoffInstructions = resp.instructions;
-      if (state.selectedDeal === dealId) refreshModal();
+      if (resp.leadMessage !== undefined) deal.passoffLeadMessage = resp.leadMessage;
+      // refreshModal() alone only swaps the activity/meeting/reply boxes, never this panel.
+      if (state.selectedDeal && String(state.selectedDeal.id) === String(dealId)) refreshModal(true);
     }
   } catch (e) {
     const msg = e.name === 'AbortError' ? 'Request timed out — try again' : e.message;
@@ -103,6 +105,52 @@ function savePassoffText(dealId, text) {
   }, 1500);
 }
 
+let leadSaveTimer = null;
+
+function saveLeadMessage(dealId, text) {
+  const deal = state.deals.find(d => d.id === dealId);
+  if (deal) deal.passoffLeadMessage = text;
+  clearTimeout(leadSaveTimer);
+  leadSaveTimer = setTimeout(() => {
+    pendingWrites.value++;
+    sbUpdateDeal(dealId, camelToSnake({ passoffLeadMessage: text }))
+      .finally(() => { pendingWrites.value--; });
+  }, 1500);
+}
+
+// ─── Chat with Claude about the drafts (cold-call leads) ───
+// The caller types what to change; generate-passoff (mode 'revise') rewrites both drafts on THT's key.
+const chatLog = new Map(); // deal id → [{role, content}] for this session
+
+async function reviseWithClaude(dealId, clientName) {
+  const input = document.getElementById('passoff-chat-input');
+  const instruction = (input && input.value || '').trim();
+  if (!instruction) return;
+  const log = chatLog.get(dealId) || [];
+  const btn = document.getElementById('passoff-chat-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Claude is rewriting…'; }
+  if (input) input.disabled = true;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
+    const resp = await invokeEdgeFunction('generate-passoff', { dealId, clientName, mode: 'revise', instruction, history: log }, controller.signal);
+    clearTimeout(timeout);
+    if (resp.error) throw new Error(resp.error);
+    log.push({ role: 'user', content: instruction });
+    chatLog.set(dealId, log);
+    const deal = state.deals.find(d => d.id === dealId);
+    if (deal) {
+      deal.passoffInstructions = resp.instructions;
+      deal.passoffLeadMessage = resp.leadMessage;
+    }
+    refreshModal(true);
+  } catch (e) {
+    alert('Claude could not apply that: ' + (e.name === 'AbortError' ? 'timed out, try again' : e.message));
+    if (btn) { btn.disabled = false; btn.textContent = 'Ask Claude'; }
+    if (input) input.disabled = false;
+  }
+}
+
 // ─── Send Passoff to Client ───
 
 async function sendPassoffToClient(dealId, clientName) {
@@ -125,7 +173,7 @@ async function sendPassoffToClient(dealId, clientName) {
     sbUpdateDeal(dealId, camelToSnake({ passoffSentAt: deal.passoffSentAt }))
       .finally(() => { pendingWrites.value--; });
 
-    if (state.selectedDeal === dealId) refreshModal();
+    if (state.selectedDeal && String(state.selectedDeal.id) === String(dealId)) refreshModal(true);
   } catch (e) {
     alert('Failed to send passoff: ' + e.message);
     if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send to Client →'; }
@@ -156,14 +204,42 @@ export function renderPassoffSection(deal, clientName) {
       ${hasSent ? `<div style="font-size:10px;color:#059669;font-weight:600">✓ Sent ${fmtSentDate(deal.passoffSentAt)}</div>` : ''}
     </div>`;
 
-  if (!hasInstructions) {
+  const coldCall = str(deal.leadSource) === 'cold_call';
+  if (coldCall && hasInstructions) {
+    const log = chatLog.get(deal.id) || [];
+    const box = 'width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);resize:vertical;margin-bottom:8px';
+    h += `<div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:4px">1. Pass-off to ${esc(clientName)}</div>
+    <textarea id="passoff-text" rows="9" oninput="savePassoffTextClick('${esc(deal.id)}',this.value)" style="${box}">${esc(deal.passoffInstructions)}</textarea>
+    <div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:4px">2. Confirmation to the lead (goes out with "Email lead + client" below, from the client's cold-call inbox)</div>
+    <textarea id="passoff-lead-text" rows="6" oninput="saveLeadMessageClick('${esc(deal.id)}',this.value)" style="${box}">${esc(deal.passoffLeadMessage)}</textarea>
+    <div style="background:#fff;border:1px solid #e9d5ff;border-radius:6px;padding:8px;margin-bottom:8px">
+      <div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:4px">Ask Claude to change something</div>
+      ${log.length ? `<div style="font-size:11px;color:#6b7280;margin-bottom:6px">${log.map(m => '✓ ' + esc(m.content)).join('<br>')}</div>` : ''}
+      <div style="display:flex;gap:6px">
+        <input id="passoff-chat-input" type="text" placeholder="e.g. The meeting is Thursday at 10am, and mention the gate code 4411"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();reviseWithClaudeClick('${esc(deal.id)}','${esc(clientName)}')}"
+          style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+        <button id="passoff-chat-btn" class="btn btn-primary" style="font-size:12px;background:#7c3aed;border-color:#7c3aed"
+          onclick="reviseWithClaudeClick('${esc(deal.id)}','${esc(clientName)}')">Ask Claude</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-ghost" style="flex:1;justify-content:center;font-size:12px"
+        onclick="regeneratePassoffClick('${esc(deal.id)}','${esc(clientName)}')">Start over</button>
+      <button id="passoff-send-btn" class="btn btn-primary" style="flex:1;justify-content:center;font-size:12px;background:#7c3aed;border-color:#7c3aed"
+        onclick="sendPassoffClick('${esc(deal.id)}','${esc(clientName)}')">
+        ${hasSent ? 'Resend pass-off to client' : 'Send pass-off to client'}
+      </button>
+    </div>`;
+  } else if (!hasInstructions) {
     h += `<button id="passoff-generate-btn" class="btn btn-primary"
       style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#7c3aed;border-color:#7c3aed"
       onclick="generatePassoffClick('${esc(deal.id)}','${esc(clientName)}')">
-      Generate Passoff Instructions
+      ${coldCall ? 'Draft pass-off + lead confirmation with Claude' : 'Generate Passoff Instructions'}
     </button>
     <div style="font-size:10px;color:var(--text-muted);margin-top:6px">
-      Call transcript: ${hasTranscript ? '<span style="color:#059669">Available</span>' : '<span style="color:#d97706">Pending</span>'}
+      ${coldCall ? 'Claude reads the call (your JustCall notes, and the transcript when there is one) and drafts both emails. Set the meeting time on the card first.'
+        : `Call transcript: ${hasTranscript ? '<span style="color:#059669">Available</span>' : '<span style="color:#d97706">Pending</span>'}`}
     </div>`;
   } else {
     h += `<textarea id="passoff-text" rows="8"
@@ -205,6 +281,12 @@ window.regeneratePassoffClick = function(dealId, clientName) {
 };
 window.savePassoffTextClick = function(dealId, text) {
   savePassoffText(dealId, text);
+};
+window.saveLeadMessageClick = function(dealId, text) {
+  saveLeadMessage(dealId, text);
+};
+window.reviseWithClaudeClick = function(dealId, clientName) {
+  reviseWithClaude(dealId, clientName);
 };
 window.sendPassoffClick = function(dealId, clientName) {
   sendPassoffToClient(dealId, clientName);

@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // CLIENT-INFO — Client data, thread IDs, lookup functions
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20261027210958';
-import { CLIENT_PALETTE } from './config.js?v=20261027210958';
-import { str, uid } from './utils.js?v=20261027210958';
-import { sbCreateClient, camelToSnake } from './api.js?v=20261027210958';
-import { answeredQuestions } from './client-acquisition.js?v=20261027210958';
+import { state, store, pendingWrites } from './app.js?v=20261028023937';
+import { CLIENT_PALETTE } from './config.js?v=20261028023937';
+import { str, uid } from './utils.js?v=20261028023937';
+import { sbCreateClient, camelToSnake } from './api.js?v=20261028023937';
+import { answeredQuestions } from './client-acquisition.js?v=20261028023937';
 
 // ─── Derive campaign keyword from client name ───
 const SKIP_PREFIXES = /^(the|a|an)\s+/i;
@@ -85,6 +85,9 @@ export function findClientForDeal(deal){
   if(deal.pipeline==='Client' && deal.stage){
     const stageClient=state.clients.find(c=>c.name===deal.stage);
     if(stageClient) return stageClient;
+    // A cold-call callback card sits in the Callbacks column; the client it was called for is on the card.
+    const ccClient=deal.coldCallClient&&state.clients.find(c=>c.name===deal.coldCallClient);
+    if(ccClient) return ccClient;
   }
   // The campaign keyword only decides WHICH client a client lead belongs to. It must
   // never turn an acquisition lead into a client lead: a one-word client keyword

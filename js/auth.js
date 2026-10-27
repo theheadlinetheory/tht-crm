@@ -1,18 +1,21 @@
 // ═══════════════════════════════════════════════════════════
 // AUTH — Supabase Auth (Google OAuth), roles, campaign assignments
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20261027210958';
-import { state } from './app.js?v=20261027210958';
-import { render } from './render.js?v=20261027210958';
-import { getVisiblePipelinesWithArchive } from './search.js?v=20261027210958';
-import { esc, svgIcon } from './utils.js?v=20261027210958';
-import { resolveRoutingOwner } from './routing-rules.js?v=20261027210958';
+import { supabase } from './supabase-client.js?v=20261028023937';
+import { state } from './app.js?v=20261028023937';
+import { render } from './render.js?v=20261028023937';
+import { getVisiblePipelinesWithArchive } from './search.js?v=20261028023937';
+import { esc, svgIcon } from './utils.js?v=20261028023937';
+import { resolveRoutingOwner } from './routing-rules.js?v=20261028023937';
 
 const ALLOWED_DOMAIN = 'theheadlinetheory.com';
 export let currentUser = null;
 
 export function isAdmin(){ return currentUser && currentUser.role === 'admin'; }
-export function isEmployee(){ return currentUser && currentUser.role === 'employee'; }
+// An SDR (cold caller) works like an employee on the cards they can reach, but their whole CRM is the
+// Cold Calling tab — search.js gives them no other tab.
+export function isEmployee(){ return currentUser && (currentUser.role === 'employee' || currentUser.role === 'sdr'); }
+export function isSdr(){ return currentUser && currentUser.role === 'sdr'; }
 
 // Founders only (Lars + Aidan) — gates the CAC view (company financials,
 // including selling-labor payouts). The fulfillment cac-report edge fn
@@ -102,7 +105,7 @@ export function setupAuthListener(onLogin){
       // Any tab this role can see survives a reload (Renewals, and Dashboard/Funnel
       // for employees, used to fall back to Client Leads).
       const visible = getVisiblePipelinesWithArchive().map(p => p.id);
-      state.pipeline = hash && (visible.includes(hash) || (isAdmin() && hash === 'nurture')) ? hash : 'client_leads';
+      state.pipeline = hash && (visible.includes(hash) || (isAdmin() && hash === 'nurture')) ? hash : isSdr() ? 'cold_calling' : 'client_leads';
 
       document.getElementById('app').style.display='block';
       try { await onLogin(); } catch(e){ console.error('initApp error:', e); }
@@ -146,7 +149,7 @@ export async function loadAllUsers(){
 export async function loadAssignableUsers(){
   if(state.assignableUsers.length > 0) return state.assignableUsers;
   const all = await loadAllUsers();
-  state.assignableUsers = all.filter(u => u.role === 'admin' || u.role === 'employee');
+  state.assignableUsers = all.filter(u => u.role === 'admin' || u.role === 'employee' || u.role === 'sdr');
   return state.assignableUsers;
 }
 export async function updateUserName(uid, name){

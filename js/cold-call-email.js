@@ -6,7 +6,7 @@
 // client CC'd. It opens Gmail compose already filled in, in that inbox (signed
 // in on the caller's browser), and the caller reviews it and hits Send.
 
-import { esc, str, applyTemplate, svgIcon } from './utils.js?v=20261027210958';
+import { esc, str, applyTemplate, svgIcon } from './utils.js?v=20261028023937';
 
 const SUBJECT = 'Your meeting with {CLIENT}';
 const BODY = `Hi {FIRST_NAME},
@@ -46,7 +46,8 @@ export function coldCallEmailUrl(deal, client) {
     to,
     cc: str(client.notifyEmails).trim(),
     su: fill(SUBJECT, deal, client),
-    body: fill(BODY, deal, client),
+    // Claude's draft from the pass-off panel (edited by the caller) wins over the fixed template.
+    body: str(deal.passoffLeadMessage).trim() || fill(BODY, deal, client),
   });
   return `https://mail.google.com/mail/u/0/?${params}`;
 }

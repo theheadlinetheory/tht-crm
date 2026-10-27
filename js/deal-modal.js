@@ -6,35 +6,36 @@
 // populated during the final migration. This module provides
 // the key functions other modules depend on.
 
-import { state, pendingWrites, pendingDealFields } from './app.js?v=20261027210958';
-import { flushRealtimeQueue, showToast } from './api.js?v=20261027210958';
-import { ACQUISITION_STAGES, NURTURE_STAGES, DEAL_VERTICALS, SOP_DAYS, REACTIVATION_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY, detectCountry, ACQ_STRATEGY_BOOKERS, ACQ_DEMO_BOOKERS } from './config.js?v=20261027210958';
-import { render, refreshModal } from './render.js?v=20261027210958';
-import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20261027210958';
-import { esc, str, getToday, TODAY, uid, svgIcon, brandIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20261027210958';
-import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20261027210958';
-import { renderBookingSmsButton } from './booking-sms.js?v=20261027210958';
-import { renderColdCallEmailButton } from './cold-call-email.js?v=20261027210958';
-import { JUSTCALL_DISPOSITIONS, applyDisposition, isCallTouchpoint } from './call-touchpoints.js?v=20261027210958';
-import { HELD, NO_SHOW, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, markDisco, markDemo, outcomeSelect, demoOutcomeSelect } from './disco-outcome.js?v=20261027210958';
-import { renderDealInvoiceButton } from './deal-invoice.js?v=20261027210958';
-import { isAdmin, isEmployee, loadAssignableUsers } from './auth.js?v=20261027210958';
-import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn, purgeDeal } from './deals.js?v=20261027210958';
-import { showAcquisitionRemovalPicker } from './removal-reason.js?v=20261027210958';
-import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, reschedulePreCallSequence, assignNoShowSequence } from './activities.js?v=20261027210958';
-import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js?v=20261027210958';
-import { getStagesForPipeline } from './dashboard.js?v=20261027210958';
-import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal, serviceAreaBannerHtml } from './maps.js?v=20261027210958';
-import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js?v=20261027210958';
-import { renderGmailSection } from './gmail-threads.js?v=20261027210958';
-import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js?v=20261027210958';
-import './blooio.js?v=20261027210958';
-import './google-task.js?v=20261027210958';
-import './demo-tracker.js?v=20261027210958';
-import { renderDealRetargetHistory } from './retargeting.js?v=20261027210958';
-import { renderClientPropertiesButton } from './client-properties.js?v=20261027210958';
-import { isAimfoxDeal, renderAimfoxSource } from './aimfox.js?v=20261027210958';
-import { isGhlSmsDeal, renderGhlSmsSource, renderGhlConversationLink } from './ghl-sms.js?v=20261027210958';
+import { state, pendingWrites, pendingDealFields } from './app.js?v=20261028023937';
+import { flushRealtimeQueue, showToast } from './api.js?v=20261028023937';
+import { ACQUISITION_STAGES, NURTURE_STAGES, DEAL_VERTICALS, SOP_DAYS, REACTIVATION_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY, detectCountry, ACQ_STRATEGY_BOOKERS, ACQ_DEMO_BOOKERS } from './config.js?v=20261028023937';
+import { render, refreshModal } from './render.js?v=20261028023937';
+import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20261028023937';
+import { esc, str, getToday, TODAY, uid, svgIcon, brandIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20261028023937';
+import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20261028023937';
+import { renderBookingSmsButton } from './booking-sms.js?v=20261028023937';
+import { renderColdCallEmailButton } from './cold-call-email.js?v=20261028023937';
+import { coldCallHistoryHtml } from './cold-calling-tab.js?v=20261028023937';
+import { JUSTCALL_DISPOSITIONS, applyDisposition, isCallTouchpoint } from './call-touchpoints.js?v=20261028023937';
+import { HELD, NO_SHOW, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, markDisco, markDemo, outcomeSelect, demoOutcomeSelect } from './disco-outcome.js?v=20261028023937';
+import { renderDealInvoiceButton } from './deal-invoice.js?v=20261028023937';
+import { isAdmin, isEmployee, loadAssignableUsers } from './auth.js?v=20261028023937';
+import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn, purgeDeal } from './deals.js?v=20261028023937';
+import { showAcquisitionRemovalPicker } from './removal-reason.js?v=20261028023937';
+import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, reschedulePreCallSequence, assignNoShowSequence } from './activities.js?v=20261028023937';
+import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js?v=20261028023937';
+import { getStagesForPipeline } from './dashboard.js?v=20261028023937';
+import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal, serviceAreaBannerHtml } from './maps.js?v=20261028023937';
+import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js?v=20261028023937';
+import { renderGmailSection } from './gmail-threads.js?v=20261028023937';
+import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js?v=20261028023937';
+import './blooio.js?v=20261028023937';
+import './google-task.js?v=20261028023937';
+import './demo-tracker.js?v=20261028023937';
+import { renderDealRetargetHistory } from './retargeting.js?v=20261028023937';
+import { renderClientPropertiesButton } from './client-properties.js?v=20261028023937';
+import { isAimfoxDeal, renderAimfoxSource } from './aimfox.js?v=20261028023937';
+import { isGhlSmsDeal, renderGhlSmsSource, renderGhlConversationLink } from './ghl-sms.js?v=20261028023937';
 
 function actTypeClass(type){
   const t=(type||'').toLowerCase();
@@ -521,17 +522,17 @@ export async function doWonDrop(){
   // Client Won → push to Lead Tracker
   if(deal.pipeline==='Acquisition'){
     // Won-drop modal handles create + archive on success (or leaves the card in place on cancel)
-    const { openWonModal } = await import('./won-modal.js?v=20261027210958');
+    const { openWonModal } = await import('./won-modal.js?v=20261028023937');
     openWonModal(deal);
     return;
   }
 
   try {
-    const { deliverBookedLead } = await import('./booked-lead-routing.js?v=20261027210958');
+    const { deliverBookedLead } = await import('./booked-lead-routing.js?v=20261028023937');
     await deliverBookedLead(deal, clientName);
   } catch(e){
     console.error('Won drop action failed:', e);
-    const { showToast } = await import('./api.js?v=20261027210958');
+    const { showToast } = await import('./api.js?v=20261028023937');
     showToast('Won action failed: ' + e.message, 'error');
   }
 }
@@ -640,7 +641,7 @@ async function confirmPhoneAssign() {
   try { await sbUpdateDeal(dealId, snakeUpdates); }
   finally { pendingWrites.value--; }
 
-  const { showToast } = await import('./api.js?v=20261027210958');
+  const { showToast } = await import('./api.js?v=20261028023937');
   showToast('Phone number(s) saved', 'success');
 }
 
@@ -655,7 +656,7 @@ let _interactionsCache = {};
 
 async function loadInteractions(dealId) {
   try {
-    const { sbGetInteractions } = await import('./api.js?v=20261027210958');
+    const { sbGetInteractions } = await import('./api.js?v=20261028023937');
     const rows = await sbGetInteractions(dealId);
     _interactionsCache[dealId] = (rows || []).map(r => ({
       id: r.id, dealId: r.deal_id, type: r.type, content: r.content,
@@ -874,7 +875,7 @@ async function attachRecording(interactionId, dealId) {
   const input = document.getElementById('rec-' + interactionId);
   const url = input && input.value.trim();
   if (!url) return;
-  const { sbUpdateInteraction, showToast } = await import('./api.js?v=20261027210958');
+  const { sbUpdateInteraction, showToast } = await import('./api.js?v=20261028023937');
   if (!/^https?:\/\/\S+$/i.test(url)) {
     showToast('That does not look like a link — paste the full https:// URL.', 'warn');
     return;
@@ -1001,7 +1002,7 @@ async function addInteraction(dealId) {
 
   contentEl.value = '';
   if (dateEl) dateEl.value = '';
-  const { sbCreateInteraction } = await import('./api.js?v=20261027210958');
+  const { sbCreateInteraction } = await import('./api.js?v=20261028023937');
   const row = await sbCreateInteraction(fields);
   if (row) {
     if (!_interactionsCache[dealId]) _interactionsCache[dealId] = [];
@@ -1014,7 +1015,7 @@ async function addInteraction(dealId) {
 }
 
 async function deleteInteraction(id, dealId) {
-  const { sbDeleteInteraction } = await import('./api.js?v=20261027210958');
+  const { sbDeleteInteraction } = await import('./api.js?v=20261028023937');
   await sbDeleteInteraction(id);
   if (_interactionsCache[dealId]) {
     _interactionsCache[dealId] = _interactionsCache[dealId].filter(i => i.id !== id);
@@ -1035,7 +1036,7 @@ async function editInteractionDate(id, dealId) {
   const parsed = new Date(input);
   if (isNaN(parsed.getTime())) return;
 
-  const { sbUpdateInteraction } = await import('./api.js?v=20261027210958');
+  const { sbUpdateInteraction } = await import('./api.js?v=20261028023937');
   await sbUpdateInteraction(id, { created_at: parsed.toISOString() });
   item.createdAt = parsed.toISOString();
   closeTimelinePanel();
@@ -1064,7 +1065,7 @@ async function enrichLead(dealId) {
   const canEnrich = hasLinkedin || (hasContact && hasWebsite);
 
   if (!canEnrich) {
-    const { showToast } = await import('./api.js?v=20261027210958');
+    const { showToast } = await import('./api.js?v=20261028023937');
     showToast('Needs a LinkedIn URL or company name + website to enrich', 'warning');
     return;
   }
@@ -1076,7 +1077,7 @@ async function enrichLead(dealId) {
 
   try {
     const result = await invokeEdgeFunction('enrich-lead', { dealId });
-    const { showToast } = await import('./api.js?v=20261027210958');
+    const { showToast } = await import('./api.js?v=20261028023937');
     console.log('[enrich-lead] Response:', JSON.stringify(result));
 
     if (result.ok && result.phones && result.phones.length > 0) {
@@ -1092,7 +1093,7 @@ async function enrichLead(dealId) {
     }
   } catch (e) {
     showEnrichOverlay(false);
-    const { showToast } = await import('./api.js?v=20261027210958');
+    const { showToast } = await import('./api.js?v=20261028023937');
     console.error('[enrich-lead] Exception:', e);
     showToast('Enrichment failed: ' + e.message, 'error');
   }
@@ -1108,7 +1109,7 @@ async function enrichContact(dealId, contactIndex) {
   const hasDomain = website || email.includes('@');
 
   if (!name || !hasDomain) {
-    const { showToast } = await import('./api.js?v=20261027210958');
+    const { showToast } = await import('./api.js?v=20261028023937');
     showToast('Need contact name + company website or email to enrich', 'warning');
     return;
   }
@@ -1119,7 +1120,7 @@ async function enrichContact(dealId, contactIndex) {
 
   try {
     const result = await invokeEdgeFunction('enrich-lead', { dealId, contactIndex });
-    const { showToast } = await import('./api.js?v=20261027210958');
+    const { showToast } = await import('./api.js?v=20261028023937');
 
     if (result.ok && result.phones && result.phones.length > 0) {
       showEnrichOverlay(false);
@@ -1133,7 +1134,7 @@ async function enrichContact(dealId, contactIndex) {
     }
   } catch (e) {
     showEnrichOverlay(false);
-    const { showToast } = await import('./api.js?v=20261027210958');
+    const { showToast } = await import('./api.js?v=20261028023937');
     showToast('Enrichment failed: ' + e.message, 'error');
   }
 }
@@ -1155,7 +1156,7 @@ window.markAtYourConvenience = async (dealId) => {
   await updateDealField('bookedFor', 'AYC');
   const dateInput = document.getElementById('deal-bookedDate');
   if (dateInput) dateInput.value = today;
-  const { showToast: toast } = await import('./api.js?v=20261027210958');
+  const { showToast: toast } = await import('./api.js?v=20261028023937');
   toast('Marked as At Your Convenience', 'success');
   refreshModal();
 };
@@ -1325,6 +1326,7 @@ export function renderDealModal(deal){
           }
           return '';
         })()}
+        ${deal.pipeline==='Client'?coldCallHistoryHtml(deal):''}
         <div class="form-group form-span2" style="margin-bottom:16px">
           <label>${svgIcon('calendar',14)} Meeting Date & Time</label>
           <div style="display:flex;gap:8px">
@@ -1958,7 +1960,7 @@ export function confirmScheduleAndCopy(){
   sbUpdateDeal(dealId, camelToSnake({bookedDate:dateVal,bookedTime:timeVal})).catch(e=>console.error('Update deal failed:',e)).finally(()=>{pendingWrites.value--;});
   const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
   if(client && dateVal){
-    import('./calendly.js?v=20261027210958').then(mod=>{
+    import('./calendly.js?v=20261028023937').then(mod=>{
       const apptAddr=(deal.address||deal.location||'').trim();
       mod.saveAppointment(client.name, deal.company||deal.contact||'Unknown', dateVal, timeVal, '', apptAddr);
     });
@@ -2107,14 +2109,14 @@ window.pushToClientSheet = async function(dealId) {
     btn.innerHTML = svgIcon('check',14)+' Pushed to Client Sheet';
     btn.className = 'btn btn-ghost';
     btn.style.cssText = 'width:100%;justify-content:center;gap:6px;font-size:13px';
-    const { showToast: toast } = await import('./api.js?v=20261027210958');
+    const { showToast: toast } = await import('./api.js?v=20261028023937');
     toast('Pushed to ' + (result.client || 'client') + "'s sheet", 'success');
     setTimeout(() => refreshModal(true), 800);
   } catch (e) {
     const msg = e.name === 'AbortError' ? 'Request timed out' : (e.message || 'Unknown error');
     btn.innerHTML = origText;
     btn.disabled = false;
-    const { showToast: toast2 } = await import('./api.js?v=20261027210958');
+    const { showToast: toast2 } = await import('./api.js?v=20261028023937');
     toast2('Push failed: ' + msg, 'error');
     alert('Client sheet push failed: ' + msg);
   }
@@ -2148,7 +2150,7 @@ window.pushToGhl = async function(dealId) {
     }
     btn.innerHTML = '<span style="color:#059669">✓ Pushed to GHL</span>';
     btn.disabled = true;
-    const { showToast: toast } = await import('./api.js?v=20261027210958');
+    const { showToast: toast } = await import('./api.js?v=20261028023937');
     const client = findClientForDeal(d) || {};
     toast('Pushed to ' + (client.name || 'GHL'), 'success');
     setTimeout(() => refreshModal(true), 800);

@@ -57,6 +57,7 @@ export const ALL_PIPELINES = [
   { id: "funnel", label: "Funnel" },
   { id: "acquisition", label: "Acquisition" },
   { id: "client_leads", label: "Client Leads" },
+  { id: "cold_calling", label: "Cold Calling" },
   { id: "renewals", label: "Renewals" },
 ];
 

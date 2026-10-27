@@ -1,13 +1,14 @@
 // ═══════════════════════════════════════════════════════════
 // SEARCH — Global search, activity badges, pipeline helpers
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261027210958';
-import { ACQUISITION_STAGES, NURTURE_STAGES, CLIENT_PALETTE, ALL_PIPELINES } from './config.js?v=20261027210958';
-import { render } from './render.js?v=20261027210958';
-import { getToday } from './utils.js?v=20261027210958';
-import { isEmployee, isAdmin, getOwnerNameForDeal } from './auth.js?v=20261027210958';
-import { lookupClientInfo } from './client-info.js?v=20261027210958';
-import { dealChannel } from './acquisition-channel.js?v=20261027210958';
+import { state } from './app.js?v=20261028023937';
+import { ACQUISITION_STAGES, NURTURE_STAGES, CLIENT_PALETTE, ALL_PIPELINES } from './config.js?v=20261028023937';
+import { render } from './render.js?v=20261028023937';
+import { getToday } from './utils.js?v=20261028023937';
+import { isEmployee, isAdmin, isSdr, getOwnerNameForDeal } from './auth.js?v=20261028023937';
+import { lookupClientInfo } from './client-info.js?v=20261028023937';
+import { dealChannel } from './acquisition-channel.js?v=20261028023937';
+import { coldCallStages, coldCallDeals } from './cold-calling-tab.js?v=20261028023937';
 
 export function globalSearch(q){
   // Re-entrancy guard. restorePreserve() re-focuses the search input after
@@ -21,6 +22,7 @@ export function globalSearch(q){
   const digits=q.replace(/[^0-9]/g,'');
   const isDigitQuery=digits.length>=2 && digits.length===q.replace(/[\s\-\(\)\+]/g,'').length;
   state.searchResults=state.deals.filter(d=>{
+    if(isSdr() && d.leadSource!=='cold_call') return false; // an SDR's CRM is cold-call cards only
     if(isDigitQuery){
       const ph=(d.phone||'').replace(/[^0-9]/g,'');
       if(ph.includes(digits))return true;
@@ -55,6 +57,7 @@ export function getActivityBadge(dealId){
 export function getStages(){
   if(state.pipeline==="acquisition") return ACQUISITION_STAGES;
   if(state.pipeline==="nurture") return NURTURE_STAGES;
+  if(state.pipeline==="cold_calling") return coldCallStages();
   const TZ_ORDER={'EST':0,'CST':1,'MST':2,'PST':3};
   const activeClients=state.clients.filter(c=>c.status!=='inactive');
   const sorted=[...activeClients].sort((a,b)=>{
@@ -80,6 +83,7 @@ export function getPipelineDeals(){
     return acqDeals;
   }
   if(state.pipeline==="nurture") return state.deals.filter(d=>NURTURE_STAGES.some(s=>s.id===d.stage));
+  if(state.pipeline==="cold_calling") return coldCallDeals();
 
   const clientNames=state.clients.map(c=>c.name);
   return state.deals.filter(d=>d.stage==="Client Not Distributed"||clientNames.includes(d.stage));
@@ -87,16 +91,18 @@ export function getPipelineDeals(){
 
 // ─── Visible Pipelines ───
 export function getVisiblePipelines(){
+  if(isSdr()) return ALL_PIPELINES.filter(p => p.id === 'cold_calling');
   if(isEmployee()) return ALL_PIPELINES.filter(p => p.id === 'client_leads' || p.id === 'acquisition' || p.id === 'dashboard');
   return ALL_PIPELINES.filter(p => p.id !== 'archive');
 }
 
 export function getVisiblePipelinesWithArchive(){
-  if(isEmployee()) return ALL_PIPELINES.filter(p => ['client_leads','acquisition','dashboard','funnel'].includes(p.id));
+  if(isSdr()) return ALL_PIPELINES.filter(p => p.id === 'cold_calling');
+  if(isEmployee()) return ALL_PIPELINES.filter(p => ['client_leads','cold_calling','acquisition','dashboard','funnel'].includes(p.id));
   // Clients reach the CRM too. The funnel is our own acquisition performance and
   // must never be one of their tabs; Renewals carries retainer amounts, and
   // anything money is admin-only.
-  if(!isAdmin()) return ALL_PIPELINES.filter(p => p.id !== 'funnel' && p.id !== 'renewals');
+  if(!isAdmin()) return ALL_PIPELINES.filter(p => p.id !== 'funnel' && p.id !== 'renewals' && p.id !== 'cold_calling');
   return ALL_PIPELINES;
 }
 

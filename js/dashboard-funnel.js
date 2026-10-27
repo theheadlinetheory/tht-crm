@@ -12,8 +12,8 @@
 // The Client Fulfillment tab keeps its delivery numbers (the Funnel does not
 // track them) and adds level 07, retention past 90 days, from pipeline_latest.
 
-import { supabase } from './supabase-client.js?v=20261027210958';
-import { periodRange, fetchPeriod, todayYmdLA } from './funnel-period.js?v=20261027210958';
+import { supabase } from './supabase-client.js?v=20261028023937';
+import { periodRange, fetchPeriod, todayYmdLA } from './funnel-period.js?v=20261028023937';
 
 export const FUNNEL_FIRST_MONTH = '2026-05'; // the level functions' window opens 2026-05-04
 const CACHE_MS = 15 * 60 * 1000;             // the level functions cache 15 minutes themselves
