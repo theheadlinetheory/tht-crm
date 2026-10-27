@@ -21,16 +21,17 @@
 // mid-edit. Edits save straight to Supabase (debounced) and patch the affected
 // DOM nodes in place — the panel is never wholesale re-rendered while open.
 
-import { state } from './app.js?v=20261028025927';
-import { esc, str, getToday, isValidDate, svgIcon } from './utils.js?v=20261028025927';
-import { isAdmin } from './auth.js?v=20261028025927';
-import { lookupClientInfo } from './client-info.js?v=20261028025927';
-import { sbUpdateClient, sbGetWonAcquisitionCards } from './api.js?v=20261028025927';
-import { registerActions } from './delegate.js?v=20261028025927';
-import { buildAcquisitionCard, indexWonCards, matchCardForClient, answeredQuestions } from './client-acquisition.js?v=20261028025927';
-import { parseProperties, areaOf } from './client-properties.js?v=20261028025927';
-import { findPolygonForClient, renderServiceAreaMap } from './maps.js?v=20261028025927';
-import { coldCallsSectionHtml, fillColdCallsSection } from './client-cold-calls.js?v=20261028025927';
+import { state } from './app.js?v=20261028031451';
+import { esc, str, getToday, isValidDate, svgIcon } from './utils.js?v=20261028031451';
+import { isAdmin } from './auth.js?v=20261028031451';
+import { lookupClientInfo } from './client-info.js?v=20261028031451';
+import { sbUpdateClient, sbGetWonAcquisitionCards } from './api.js?v=20261028031451';
+import { registerActions } from './delegate.js?v=20261028031451';
+import { buildAcquisitionCard, indexWonCards, matchCardForClient, answeredQuestions } from './client-acquisition.js?v=20261028031451';
+import { parseProperties, areaOf } from './client-properties.js?v=20261028031451';
+import { renderCallSheetLink } from './call-sheet.js?v=20261028031451';
+import { findPolygonForClient, renderServiceAreaMap } from './maps.js?v=20261028031451';
+import { coldCallsSectionHtml, fillColdCallsSection } from './client-cold-calls.js?v=20261028031451';
 
 const OVERLAY_ID = 'client-info-overlay';
 const MAP_KEY = 'client-panel'; // activeMapInstances key for the panel's map (no deal behind it)
@@ -333,6 +334,7 @@ export function openClientInfoPanel(clientName) {
   h += editableBlock('location', cl) + `<div id="cp-loc-hint" style="margin:-12px 0 16px"></div>`;
   h += editableBlock('warmCallNotesText', cl, { tone: { wrap: 'padding:12px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0', label: '#166534' } });
   h += editableBlock('managedProperties', cl, { tone: { wrap: 'padding:12px;background:#f0fdfa;border-radius:8px;border:1px solid #99f6e4', label: '#0f766e' } });
+  h += renderCallSheetLink(cl);
 
   h += `<div style="margin-bottom:16px">
     <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Common Questions</div>
