@@ -10,6 +10,9 @@
 //                  moved on Client Leads too. Extra column: Callbacks (under contract / call me later).
 //   Lead Tracker — every meeting already booked for each client (so nobody double-books a property),
 //                  or only my own bookings.
+//   Industries   — which industry / property type books meetings, ranked from the dials themselves.
+//   Feedback     — the caller's notes on lists and industries (wrong property types, bad numbers, what works),
+//                  as a backlog for whoever builds the lists. Seeded with what Ioannis said on the Oct calls.
 //   Manager      — not for SDRs: client ranking against the weekly cap, every rep's numbers against
 //                  quota, show / no-show marking, quotas and which clients we cold call for.
 //
@@ -22,12 +25,12 @@
 //   Cap: 2 cold-call meetings per client per week (Mon–Sun), then that client's lists are closed.
 //   Order: retainer clients first, then pay-per-meeting; fewest meetings this week first.
 
-import { state } from './app.js?v=20261028031451';
-import { render } from './render.js?v=20261028031451';
-import { supabase } from './supabase-client.js?v=20261028031451';
-import { esc, str, svgIcon, getToday } from './utils.js?v=20261028031451';
-import { currentUser, isSdr, loadAssignableUsers } from './auth.js?v=20261028031451';
-import { registerActions } from './delegate.js?v=20261028031451';
+import { state } from './app.js?v=20261028033557';
+import { render } from './render.js?v=20261028033557';
+import { supabase } from './supabase-client.js?v=20261028033557';
+import { esc, str, svgIcon, getToday } from './utils.js?v=20261028033557';
+import { currentUser, isSdr, loadAssignableUsers } from './auth.js?v=20261028033557';
+import { registerActions } from './delegate.js?v=20261028033557';
 
 export const CALLBACK_STAGE = 'Cold Call Callback';
 const NO_CONNECTION = new Set(['no_answer', 'voicemail', 'bad_number', 'desk_dq']);
@@ -41,9 +44,11 @@ const SUBTABS = [
   { id: 'queue', label: 'Call Queue' },
   { id: 'pipeline', label: 'Pipeline' },
   { id: 'tracker', label: 'Lead Tracker' },
+  { id: 'industries', label: 'Industries' },
+  { id: 'feedback', label: 'Feedback' },
   { id: 'manager', label: 'Manager', managerOnly: true },
 ];
-const LOOKBACK_DAYS = 42;
+const LOOKBACK_DAYS = 365; // the Industries ranking wants every dial; the call log is small
 const POLL_MS = 120000;
 
 const cc = {
@@ -78,7 +83,7 @@ async function loadAll() {
     const rows = [];
     for (let from = 0; ; from += 1000) {
       const { data, error } = await supabase.from('cold_calls')
-        .select('call_id,campaign_name,client_name,phone10,contact_name,agent_email,agent_name,called_at,call_date,duration_sec,disposition,outcome,notes,recording_url,deal_id,show_status')
+        .select('call_id,campaign_name,client_name,phone10,contact_name,company,agent_email,agent_name,called_at,call_date,duration_sec,disposition,outcome,notes,recording_url,deal_id,show_status,industry,property_type')
         .gte('call_date', since).order('call_id', { ascending: true }).range(from, from + 999);
       if (error) throw error;
       rows.push(...(data || []));
@@ -479,6 +484,143 @@ function managerHtml() {
   return h;
 }
 
+// ─── Industries: which segment books meetings, ranked from the dials ───
+// Ranked on the cautious end of meetings per 100 dials (the 95% Wilson lower bound), so 1 booking in 3 dials can't
+// outrank 6 in 380. Ties (every segment at 0 booked) break on under-contract calls (future pipeline), then on the
+// share of dials that reached a person, then on the lowest desk-DQ rate (how well the list fits). Segments with
+// fewer than MIN_DIALS dials are listed after the rest: too early to rank against them.
+function wilsonLow(k, n, z = 1.96) {
+  if (!n) return 0;
+  const p = k / n, z2 = z * z;
+  return Math.max(0, (p + z2 / (2 * n) - z * Math.sqrt(p * (1 - p) / n + z2 / (4 * n * n))) / (1 + z2 / n));
+}
+const MIN_DIALS = 50; // below this a segment is shown but flagged as too early to judge
+
+function segmentRows(rows, keyOf) {
+  const groups = new Map();
+  for (const r of rows) {
+    const k = keyOf(r) || 'Unclassified';
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(r);
+  }
+  return [...groups.entries()].map(([name, rs]) => {
+    const t = tally(rs);
+    const n = (o) => rs.filter(r => r.outcome === o).length;
+    return {
+      name, dials: t.dials, connections: t.connections, booked: t.booked,
+      underContract: n('under_contract'), notInterested: n('not_interested'), deskDq: n('desk_dq'), badNumber: n('bad_number'),
+      clients: [...new Set(rs.map(r => r.client_name).filter(Boolean))],
+      per100: t.dials ? 100 * t.booked / t.dials : 0,
+      low: 100 * wilsonLow(t.booked, t.dials),
+      connectRate: t.dials ? t.connections / t.dials : 0,
+      dqRate: t.dials ? n('desk_dq') / t.dials : 0,
+    };
+  }).sort((a, b) => ((a.dials < MIN_DIALS) - (b.dials < MIN_DIALS)) || (b.low - a.low) || (b.underContract / (b.dials || 1) - a.underContract / (a.dials || 1)) ||
+    (b.connectRate - a.connectRate) || (a.dqRate - b.dqRate) || (b.dials - a.dials));
+}
+
+function rankingTable(segs, label) {
+  const pctTxt = v => Math.round(100 * v) + '%';
+  return `<table style="width:100%;border-collapse:collapse"><thead><tr>
+    <th style="${th}">#</th><th style="${th}">${label}</th><th style="${th}">Dials</th><th style="${th}">Reached a person</th>
+    <th style="${th}">Meetings</th><th style="${th}" title="Meetings booked per 100 dials">Per 100 dials</th>
+    <th style="${th}" title="Cautious estimate (95% lower bound): what the ranking uses">Ranked on</th>
+    <th style="${th}">Under contract</th><th style="${th}" title="Not a fit for this client (desk DQ)">Desk DQ</th><th style="${th}">Not interested</th></tr></thead><tbody>
+    ${segs.map((s, i) => {
+      const early = s.dials < MIN_DIALS;
+      return `<tr style="${early ? 'color:#94a3b8' : ''}">
+        <td style="${td};font-weight:800">${i + 1}</td>
+        <td style="${td}"><b style="color:${early ? '#94a3b8' : '#0f172a'}">${esc(s.name)}</b>${early ? ` <span style="font-size:9px;font-weight:700;background:#f1f5f9;color:#64748b;padding:1px 6px;border-radius:8px">TOO EARLY (&lt;${MIN_DIALS} dials)</span>` : ''}
+          <div style="font-size:10px;color:#94a3b8">${esc(s.clients.join(', '))}</div></td>
+        <td style="${td}">${s.dials}</td>
+        <td style="${td}">${pctTxt(s.connectRate)}</td>
+        <td style="${td};font-weight:800;color:${s.booked ? '#15803d' : 'inherit'}">${s.booked}</td>
+        <td style="${td}">${s.per100.toFixed(1)}</td>
+        <td style="${td}">≥ ${s.low.toFixed(1)}</td>
+        <td style="${td}">${s.underContract}</td>
+        <td style="${td};color:${s.dqRate >= 0.4 && !early ? '#dc2626' : 'inherit'}">${pctTxt(s.dqRate)}</td>
+        <td style="${td}">${s.dials ? pctTxt(s.notInterested / s.dials) : '—'}</td></tr>`;
+    }).join('')}</tbody></table>`;
+}
+
+function industriesHtml() {
+  const f = cc.industryFilter || { days: 0, client: '' };
+  const since = f.days ? new Date(Date.now() - f.days * 864e5).toISOString().slice(0, 10) : '';
+  const rows = cc.calls.filter(r => (!since || r.call_date >= since) && (!f.client || r.client_name === f.client));
+  const clients = [...new Set(cc.calls.map(r => r.client_name).filter(Boolean))].sort();
+  const controls = `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+    <select data-action="ccIndustryDays" style="padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px">
+      ${[[0, 'All dials'], [7, 'Last 7 days'], [30, 'Last 30 days'], [90, 'Last 90 days']].map(([d, l]) => `<option value="${d}" ${f.days === d ? 'selected' : ''}>${l}</option>`).join('')}
+    </select>
+    <select data-action="ccIndustryClient" style="padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px">
+      <option value="">All clients</option>${clients.map(n => `<option value="${esc(n)}" ${f.client === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}
+    </select>
+    <span style="font-size:11px;color:#94a3b8">${rows.length} dials</span></div>`;
+  const how = `<div style="font-size:11px;color:#94a3b8;margin-top:8px">Ranked on meetings per 100 dials, using the cautious end of the range (95% lower bound), so a lucky small sample can't outrank a proven one. Ties go to more under-contract calls, then more dials that reached a person, then fewer desk DQs. Segments under ${MIN_DIALS} dials are greyed and listed last: too early to judge. Industry = the list the property came from; property type = read from the property's name (a name with no telling word takes its list's segment).</div>`;
+  const ind = segmentRows(rows, r => r.industry);
+  const prop = segmentRows(rows, r => r.property_type);
+  const best = ind.find(s => s.dials >= MIN_DIALS && s.booked);
+  return section('Industries ranked by meetings booked', controls +
+      (best ? `<div style="font-size:12px;color:#334155;margin-bottom:10px">Best so far: <b>${esc(best.name)}</b>, ${best.booked} meeting${best.booked === 1 ? '' : 's'} in ${best.dials} dials (${best.per100.toFixed(1)} per 100).</div>` : '') +
+      (ind.length ? rankingTable(ind, 'Industry (list segment)') : '<div style="font-size:12px;color:#94a3b8">No dials yet.</div>') + how)
+    + section('Property types ranked by meetings booked', prop.length ? rankingTable(prop, 'Property type') : '<div style="font-size:12px;color:#94a3b8">No dials yet.</div>');
+}
+
+// ─── Feedback: the caller's notes on lists, for whoever builds them ───
+const FEEDBACK_KINDS = ['Wrong property type', 'Outside service area', 'Bad / wrong numbers', 'Segment that works', 'Idea for a list', 'Other'];
+
+async function loadFeedback() {
+  if (cc.feedbackLoading) return;
+  cc.feedbackLoading = true;
+  const { data, error } = await supabase.from('cold_call_feedback').select('*').order('created_at', { ascending: false }).limit(500);
+  cc.feedback = error ? { error: error.message } : (data || []);
+  cc.feedbackLoading = false;
+  render();
+}
+
+function feedbackHtml() {
+  if (!cc.feedback && !cc.feedbackLoading) loadFeedback();
+  const clients = coldCallClients().map(c => c.name).sort();
+  const lists = [...new Set(cc.calls.map(r => r.campaign_name).filter(Boolean))].sort();
+  const industries = [...new Set(cc.calls.map(r => r.industry).filter(Boolean))].sort();
+  const sel = (id, opts, blank) => `<select id="${id}" style="padding:6px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;max-width:240px"><option value="">${blank}</option>${opts.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>`;
+  const form = section('Give feedback on a list', `<div style="font-size:12px;color:#475569;margin-bottom:8px">Anything about the lists you're calling: wrong kinds of properties, bad numbers, what's working, an idea for the next list. It goes to whoever builds the lists, and you'll see here when it's been dealt with.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      ${sel('ccfb-kind', FEEDBACK_KINDS, 'What kind of feedback?')}
+      ${sel('ccfb-client', clients, 'Client (optional)')}
+      ${sel('ccfb-list', lists, 'List (optional)')}
+      ${sel('ccfb-industry', industries, 'Industry (optional)')}
+    </div>
+    <textarea id="ccfb-note" rows="3" placeholder="e.g. Most of this list are stores inside a bigger building. They don't control the landscaping." style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);margin-bottom:8px"></textarea>
+    <button class="btn btn-primary" data-action="ccFeedbackSubmit" style="font-size:12px">Send feedback</button>`);
+  if (!cc.feedback || cc.feedbackLoading) return form + section('Feedback', '<div style="font-size:12px;color:#94a3b8">Loading…</div>');
+  if (cc.feedback.error) return form + section('Feedback', `<div style="font-size:12px;color:#dc2626">${esc(cc.feedback.error)}</div>`);
+  const open = cc.feedback.filter(f => f.status === 'open');
+  const closed = cc.feedback.filter(f => f.status !== 'open');
+  const item = f => {
+    const meta = [f.client_name, f.campaign_name, f.industry].filter(Boolean).map(esc).join(' · ');
+    const fromCall = /^call (\d{4}-\d{2}-\d{2})/.exec(f.source || '');
+    const when = new Date(fromCall ? fromCall[1] + 'T12:00:00' : f.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + (fromCall ? ' call' : '');
+    const closedTxt = f.status === 'done' ? 'Done' : "Won't do";
+    return `<div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+        <div><span style="font-size:10px;font-weight:700;background:#f3e8ff;color:#7c3aed;padding:2px 7px;border-radius:8px">${esc(f.kind)}</span>
+          ${meta ? `<span style="font-size:11px;color:#64748b;margin-left:6px">${meta}</span>` : ''}</div>
+        <span style="font-size:11px;color:#94a3b8;white-space:nowrap">${esc(f.author_name || f.author_email || '')} · ${esc(when)}</span>
+      </div>
+      <div style="font-size:12px;color:#0f172a;margin-top:6px;white-space:pre-wrap">${esc(f.note)}</div>
+      ${f.status !== 'open' ? `<div style="font-size:11px;margin-top:6px;color:${f.status === 'done' ? '#15803d' : '#64748b'}"><b>${closedTxt}</b>${f.resolution ? ': ' + esc(f.resolution) : ''}${f.resolved_by ? ' (' + esc(f.resolved_by) + ')' : ''}</div>`
+        : !isSdr() ? `<div style="display:flex;gap:6px;margin-top:8px">
+          <input id="ccfb-res-${esc(f.id)}" placeholder="What changed (shown to the caller)" style="flex:1;padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px">
+          <button data-action="ccFeedbackResolve" data-id="${esc(f.id)}" data-status="done" style="font-size:11px;padding:4px 10px;border:1px solid #16a34a;background:#dcfce7;color:#15803d;border-radius:6px;cursor:pointer;font-weight:600">Done</button>
+          <button data-action="ccFeedbackResolve" data-id="${esc(f.id)}" data-status="wont_do" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);background:#fff;color:#64748b;border-radius:6px;cursor:pointer;font-weight:600">Won't do</button></div>`
+        : '<div style="font-size:11px;color:#b45309;margin-top:6px">Open</div>'}
+    </div>`;
+  };
+  return form + section(`Open (${open.length})`, open.length ? open.map(item).join('') : '<div style="font-size:12px;color:#94a3b8">Nothing open.</div>')
+    + (closed.length ? section(`Dealt with (${closed.length})`, closed.map(item).join('')) : '');
+}
+
 // ─── Sub-tab dispatcher (everything except the Pipeline board, which render.js draws) ───
 export function renderColdCallingView() {
   const sub = state.coldCallSubTab || 'queue';
@@ -487,6 +629,8 @@ export function renderColdCallingView() {
   else if (cc.error) body = section('Couldn\'t load the call log', `<div style="font-size:12px;color:#dc2626">${esc(cc.error)}</div>`);
   else if (sub === 'tracker') body = trackerHtml();
   else if (sub === 'manager' && !isSdr()) body = managerHtml();
+  else if (sub === 'industries') body = industriesHtml();
+  else if (sub === 'feedback') body = feedbackHtml();
   else body = queueHtml();
   return `<div style="padding:4px 20px 40px;max-width:1200px;margin:0 auto">${body}</div>`;
 }
@@ -535,13 +679,38 @@ registerActions({
     state.coldCallSubTab = el.dataset.tab;
     location.hash = 'cold_calling' + (el.dataset.tab === 'queue' ? '' : '/' + el.dataset.tab);
     if (el.dataset.tab === 'tracker') cc.tracker = null; // fresh on every visit
+    if (el.dataset.tab === 'feedback') cc.feedback = null;
     render();
   },
   ccToggleAllLeads() { state.ccAllLeads = !state.ccAllLeads; render(); },
+  ccIndustryDays(el, e) { if (e.type !== 'change') return; cc.industryFilter = { ...(cc.industryFilter || { client: '' }), days: Number(el.value) }; render(); },
+  ccIndustryClient(el, e) { if (e.type !== 'change') return; cc.industryFilter = { ...(cc.industryFilter || { days: 0 }), client: el.value }; render(); },
+  async ccFeedbackSubmit(el) {
+    const val = id => (document.getElementById(id)?.value || '').trim();
+    const note = val('ccfb-note'), kind = val('ccfb-kind');
+    if (!kind) { alert('Pick what kind of feedback it is.'); return; }
+    if (!note) { alert('Write what you noticed.'); return; }
+    el.disabled = true; el.textContent = 'Sending…';
+    const { error } = await supabase.from('cold_call_feedback').insert({
+      kind, note, client_name: val('ccfb-client') || null, campaign_name: val('ccfb-list') || null, industry: val('ccfb-industry') || null,
+      author_email: (currentUser && currentUser.email || '').toLowerCase(), author_name: currentUser && currentUser.name, source: 'crm',
+    });
+    if (error) { alert('Could not send: ' + error.message); el.disabled = false; el.textContent = 'Send feedback'; return; }
+    cc.feedback = null; render();
+  },
+  async ccFeedbackResolve(el) {
+    const id = el.dataset.id;
+    const resolution = (document.getElementById('ccfb-res-' + id)?.value || '').trim() || null;
+    const { error } = await supabase.from('cold_call_feedback').update({
+      status: el.dataset.status, resolution, resolved_by: currentUser && currentUser.name, resolved_at: new Date().toISOString(),
+    }).eq('id', id);
+    if (error) { alert('Could not save: ' + error.message); return; }
+    cc.feedback = null; render();
+  },
   async ccSync() {
     cc.syncing = true; cc.syncNote = ''; render();
     try {
-      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261028031451');
+      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261028033557');
       const out = await invokeEdgeFunctionAsUser('cold-call-sync', {});
       const made = (out.cards || []).filter(c => c.created).length;
       cc.syncNote = `${out.synced} dials pulled${made ? `, ${made} new card${made === 1 ? '' : 's'}` : ''}`;
@@ -555,7 +724,7 @@ registerActions({
   ccOpenDeal(el) {
     const id = el.dataset.id;
     if (!state.deals.some(d => String(d.id) === String(id))) { alert('That card is no longer on the board (delivered or archived).'); return; }
-    import('./deal-modal.js?v=20261028031451').then(m => m.openDeal(id));
+    import('./deal-modal.js?v=20261028033557').then(m => m.openDeal(id));
   },
   ccTrackerScope(el) { cc.trackerScope = el.dataset.scope; render(); },
   ccTrackerClient(el, e) { if (e.type !== 'change') return; cc.trackerClient = el.value; render(); },
@@ -594,7 +763,7 @@ registerActions({
   async ccTranscribe(el) {
     el.disabled = true; el.textContent = 'Transcribing…';
     try {
-      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261028031451');
+      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261028033557');
       const out = await invokeEdgeFunctionAsUser('cold-call-sync', { action: 'transcribe', call_id: Number(el.dataset.id) });
       const box = document.createElement('div');
       box.style.cssText = 'white-space:pre-wrap;font-size:11px;max-height:260px;overflow:auto;background:#fff;border-radius:6px;padding:8px;margin-top:4px';
