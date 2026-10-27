@@ -7,11 +7,11 @@
 // moved to a separate data file (e.g., service_area_data.js).
 // This module provides the functions that operate on that data.
 
-import { state, pendingWrites } from './app.js?v=20261027033031';
-import { GEOCODIO_KEY, CA_PROVINCES, CA_POSTAL, CA_CITIES, detectCountry, isInternationalAddress } from './config.js?v=20261027033031';
-import { render, refreshModal } from './render.js?v=20261027033031';
-import { str, esc } from './utils.js?v=20261027033031';
-import { findClientForDeal, lookupClientInfo } from './client-info.js?v=20261027033031';
+import { state, pendingWrites } from './app.js?v=20261027210958';
+import { GEOCODIO_KEY, CA_PROVINCES, CA_POSTAL, CA_CITIES, detectCountry, isInternationalAddress } from './config.js?v=20261027210958';
+import { render, refreshModal } from './render.js?v=20261027210958';
+import { str, esc } from './utils.js?v=20261027210958';
+import { findClientForDeal, lookupClientInfo } from './client-info.js?v=20261027210958';
 
 let SERVICE_AREA_POLYGONS = {};
 let POLYGON_ALIASES = {};
@@ -24,6 +24,8 @@ export function setServiceAreaData(polygons, aliases){
 export const serviceAreaResults = {};
 export let geocodeCache = {};
 const activeMapInstances = {};
+// dealId -> {containerId, clientName, opts}, so a service-area switch can redraw open maps.
+const _mapArgs = {};
 
 // ── Service-area geometry normalization ──────────────────────────────
 // A service area is a dissolved union of counties/ZIPs/FSAs, so it routinely
@@ -48,7 +50,100 @@ const activeMapInstances = {};
 const _polygonCache = new Map();
 
 export function invalidateServiceAreaCache(clientName){
-  if(clientName) _polygonCache.delete(clientName); else _polygonCache.clear();
+  if(!clientName){ _polygonCache.clear(); return; }
+  // Variant areas are cached under "<client>\u0000<index>" alongside the main one.
+  for(const k of [..._polygonCache.keys()]){
+    if(k === clientName || k.startsWith(clientName + '\u0000')) _polygonCache.delete(k);
+  }
+}
+
+// ── Per-offer service areas ──────────────────────────────────────────
+// A client whose offers cover different ground (Kinsley plows snow in 3 cities
+// but does irrigation across 16) carries extra named areas in
+// clients.service_area_variants: {primary_label, areas:[{label, polygon}]}.
+// The map shows a picker; the choice is per client, remembered in this browser,
+// and drives the in/out check, the banner and the pin colour, not just the
+// drawn outline. Index 0 is always service_area_polygons, the full area.
+const _areaChoice = new Map();
+try {
+  for(const [k,v] of Object.entries(JSON.parse(localStorage.getItem('tht_saChoice')||'{}'))) _areaChoice.set(k, v);
+} catch(e){}
+
+export function getServiceAreaOptions(clientName){
+  const client = state.clients.find(c => c.name === clientName);
+  let v = client && client.serviceAreaVariants;
+  if(typeof v === 'string'){ try { v = JSON.parse(v); } catch(e){ v = null; } }
+  if(!v || !Array.isArray(v.areas)) return [];
+  const opts = [{ label: v.primary_label || 'Full service area', polygon: null }];
+  for(const a of v.areas){
+    if(a && a.label && a.polygon && a.polygon.geometry) opts.push({ label: a.label, polygon: a.polygon });
+  }
+  return opts.length > 1 ? opts : [];
+}
+
+function selectedAreaIndex(clientName){
+  const i = _areaChoice.get(clientName) || 0;
+  return i < getServiceAreaOptions(clientName).length ? i : 0;
+}
+
+export function selectedAreaLabel(clientName){
+  const opts = getServiceAreaOptions(clientName);
+  return opts.length ? opts[selectedAreaIndex(clientName)].label : '';
+}
+
+export function serviceAreaBannerHtml(clientName, inArea){
+  const label = selectedAreaLabel(clientName);
+  const suffix = label ? ' — ' + esc(label) : '';
+  return inArea
+    ? `&#10003; In ${esc(clientName)}'s service area${suffix}`
+    : `&#10007; Outside ${esc(clientName)}'s service area${suffix}`;
+}
+
+export function setServiceAreaChoice(clientName, idx){
+  _areaChoice.set(clientName, idx);
+  try { localStorage.setItem('tht_saChoice', JSON.stringify(Object.fromEntries(_areaChoice))); } catch(e){}
+  const pm = findPolygonForClient(clientName);
+  for(const [dealId, r] of Object.entries(serviceAreaResults)){
+    if(r.clientName !== clientName || !r.lat) continue;
+    r.inArea = pm ? checkPointInServiceArea(r.lat, r.lng, pm.polygon) : undefined;
+    const banner = document.getElementById('sa-banner-' + dealId);
+    if(banner && r.inArea !== undefined && r.inArea !== null){
+      banner.className = 'sa-result-banner ' + (r.inArea ? 'sa-in-banner' : 'sa-out-banner');
+      banner.innerHTML = serviceAreaBannerHtml(clientName, r.inArea);
+    }
+  }
+  for(const [dealId, args] of Object.entries(_mapArgs)){
+    if(args.clientName !== clientName || !activeMapInstances[dealId]) continue;
+    const container = document.getElementById(args.containerId);
+    if(!container) continue;
+    try { activeMapInstances[dealId].remove(); } catch(e){}
+    delete activeMapInstances[dealId];
+    container.innerHTML = '';
+    renderServiceAreaMap(args.containerId, dealId, args.opts);
+  }
+  if(enlargedMapState && enlargedMapState.clientName === clientName) redrawEnlargedArea();
+}
+
+function addAreaPicker(map, clientName){
+  const options = getServiceAreaOptions(clientName);
+  if(options.length < 2) return;
+  const ctl = L.control({ position: 'bottomleft' });
+  ctl.onAdd = () => {
+    const sel = L.DomUtil.create('select', 'sa-area-picker');
+    sel.title = 'Which service area to show and check against';
+    options.forEach((o, i) => {
+      const opt = document.createElement('option');
+      opt.value = String(i);
+      opt.textContent = o.label;
+      sel.appendChild(opt);
+    });
+    sel.value = String(selectedAreaIndex(clientName));
+    L.DomEvent.disableClickPropagation(sel);
+    L.DomEvent.disableScrollPropagation(sel);
+    sel.addEventListener('change', () => setServiceAreaChoice(clientName, Number(sel.value)));
+    return sel;
+  };
+  ctl.addTo(map);
 }
 
 function ringBBox(ring){
@@ -164,12 +259,18 @@ try { geocodeCache = JSON.parse(localStorage.getItem('tht_geocodeCache')||'{}');
 
 export function findPolygonForClient(clientName){
   if(!clientName) return null;
-  if(_polygonCache.has(clientName)) return _polygonCache.get(clientName);
-  const found = resolvePolygonForClient(clientName);
+  // Returns the area currently picked for this client (the full area unless a
+  // per-offer variant was chosen on the map).
+  const idx = selectedAreaIndex(clientName);
+  const cacheKey = idx ? clientName + '\u0000' + idx : clientName;
+  if(_polygonCache.has(cacheKey)) return _polygonCache.get(cacheKey);
+  const found = idx
+    ? { key: clientName, polygon: getServiceAreaOptions(clientName)[idx].polygon }
+    : resolvePolygonForClient(clientName);
   // Normalize once per client — re-nesting is O(rings^2) and the biggest areas
   // run to a few hundred rings, so don't redo it on every deal render.
   const result = found ? { key: found.key, polygon: normalizeServiceAreaPolygon(found.polygon) } : null;
-  _polygonCache.set(clientName, result);
+  _polygonCache.set(cacheKey, result);
   return result;
 }
 
@@ -448,6 +549,8 @@ export function renderServiceAreaMap(containerId, dealId, opts){
   }
   const map=L.map(container,{zoomControl:true,attributionControl:false,scrollWheelZoom:true}).setView([lat,lng],defaultZoom);
   activeMapInstances[dealId]=map;
+  _mapArgs[dealId]={containerId, clientName, opts};
+  addAreaPicker(map, clientName);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(map);
 
   // Prevent modal scroll from intercepting map drag
@@ -512,22 +615,30 @@ export function openEnlargedMap(dealId, clientName){
     const lng=result?result.lng:-98.5;
     const map=L.map(container).setView([lat,lng],result?10:4);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(map);
-    const pm=findPolygonForClient(clientName);
-    const polygon=pm?pm.polygon:null;
-    const polyLayers=drawPolygonLayers(map, polygon);
-    if(!result && polyLayers.length){
-      try { map.fitBounds(L.featureGroup(polyLayers).getBounds().pad(0.1)); } catch(e){}
-    }
-    if(!polygon){
-      const el=document.getElementById('enlarged-map-result');
-      if(el) el.textContent='No service area polygon for '+clientName+' yet, so addresses cannot be checked.';
-    }
-    if(result){
-      L.marker([result.lat,result.lng],{icon:makePinIcon(result.inArea?'#22c55e':'#ef4444')}).addTo(map);
-    }
     enlargedMapState.map=map;
-    enlargedMapState.polygon=polygon;
+    enlargedMapState.result=result;
+    addAreaPicker(map, clientName);
+    redrawEnlargedArea();
+    if(!result && enlargedMapState.polyLayers.length){
+      try { map.fitBounds(L.featureGroup(enlargedMapState.polyLayers).getBounds().pad(0.1)); } catch(e){}
+    }
   },100);
+}
+
+// (Re)draws the enlarged map's polygon and deal pin for the client's currently
+// picked area. Pins dropped by "Check" stay; re-check them after switching.
+function redrawEnlargedArea(){
+  const st=enlargedMapState;
+  if(!st || !st.map) return;
+  for(const l of (st.polyLayers||[])) st.map.removeLayer(l);
+  if(st.dealPin) st.map.removeLayer(st.dealPin);
+  const pm=findPolygonForClient(st.clientName);
+  st.polygon=pm?pm.polygon:null;
+  st.polyLayers=drawPolygonLayers(st.map, st.polygon);
+  const el=document.getElementById('enlarged-map-result');
+  if(el) el.textContent=st.polygon ? '' : 'No service area polygon for '+st.clientName+' yet, so addresses cannot be checked.';
+  const r=st.dealId?serviceAreaResults[st.dealId]:null;
+  st.dealPin=r?L.marker([r.lat,r.lng],{icon:makePinIcon(r.inArea?'#22c55e':'#ef4444')}).addTo(st.map):null;
 }
 
 export async function searchEnlargedMap(){

@@ -415,3 +415,4 @@ details > summary::-webkit-details-marker { display:none; }
 .invoice-entry-row .entry-cost{color:#4a5568;font-weight:600;}
 .invoice-subtotal{display:flex;justify-content:space-between;padding:12px 0 4px;border-top:2px solid #e2e5e9;margin-top:8px;font-weight:700;font-size:14px;}
 .invoice-actions{display:flex;gap:8px;margin-top:16px;justify-content:flex-end;}
+.sa-area-picker { font-size:11px; font-weight:600; padding:3px 6px; border:1px solid var(--border, #d1d5db); border-radius:6px; background:white; color:#374151; box-shadow:0 1px 3px rgba(0,0,0,0.15); cursor:pointer; max-width:220px; }
