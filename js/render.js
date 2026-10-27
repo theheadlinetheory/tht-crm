@@ -2,40 +2,40 @@
 // RENDER — Main render loop, refreshModal, list view
 // ═══════════════════════════════════════════════════════════
 
-import { state, savedScrollLeft, setSavedScrollLeft } from './app.js?v=20261028024748';
-import { ACQUISITION_STAGES, NURTURE_STAGES, ACTIVITY_ICONS, DEAL_VERTICALS, detectCountry } from './config.js?v=20261028024748';
-import { esc, svgIcon, getToday, fmtDate, fmtTime12, str, stripHtml } from './utils.js?v=20261028024748';
-import { isAdmin, isEmployee, isSdr, currentUser, renderUserMenu, getOwnerForDeal, getOwnerNameForDeal, loadAssignableUsers } from './auth.js?v=20261028024748';
-import { initialSync as syncFromSheet } from './api.js?v=20261028024748';
-import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js?v=20261028024748';
-import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWonDrop, renderDealModal, renderNewDealModal, renderAddClientModal, toggleBadgeDropdown } from './deal-modal.js?v=20261028024748';
-import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from './activities.js?v=20261028024748';
-import { renderDashboard, renderKpiTargetBar } from './dashboard.js?v=20261028024748';
-import { loadFunnel, renderFunnel } from './funnel.js?v=20261028024748';
-import { journeyCell, loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js?v=20261028024748';
-import { journeyFor, LEFT_AT_OPTIONS, WHY_OPTIONS } from './archive-journey.js?v=20261028024748';
-import { toggleBulkMode, bulkMoveStage, bulkSelectAll, bulkArchive, bulkAddActivity, toggleBulkSelect } from './deals.js?v=20261028024748';
-import { openSettings } from './settings.js?v=20261028024748';
-import { serviceAreaResults } from './maps.js?v=20261028024748';
-import { lookupClientInfo, isRetainerClient, deriveTimezone } from './client-info.js?v=20261028024748';
-import { openClientInfoPanel } from './client-panel.js?v=20261028024748';
-import { openCalendlyEmbed, removeAppointment, addManualAppointment } from './calendly.js?v=20261028024748';
-import { capturePreserve, restorePreserve } from './render-preserve.js?v=20261028024748';
-import { doDragOver, doDragLeave, clearAllDragOver, doDrop } from './deals.js?v=20261028024748';
-import { loadDiscoOutcomes, renderDiscoOutcomeBanner } from './disco-outcome.js?v=20261028024748';
-import { renderDueTodayBanner, renderNurtureDropdown, renderNurtureTab, renderNurtureEntryModal, renderReactivateModal, renderSnoozeModal, loadNurtureData, clearNurtureDraft } from './rerun.js?v=20261028024748';
-import { renderDemoTracker } from './demo-tracker.js?v=20261028024748';
-import { renderColdCallingTab } from './cold-calling.js?v=20261028024748';
-import { renderColdCallingHeader, renderColdCallingView, coldCallColumnMeta } from './cold-calling-tab.js?v=20261028024748';
-import { renderRetargetingTab } from './retargeting.js?v=20261028024748';
-import { renderRenewals } from './renewals.js?v=20261028024748';
-import { renderRenewalPipeline, renderRenewalsSubTabs } from './renewal-pipeline.js?v=20261028024748';
-import { isPowerDialerActive } from './power-dialer.js?v=20261028024748';
+import { state, savedScrollLeft, setSavedScrollLeft } from './app.js?v=20261028025725';
+import { ACQUISITION_STAGES, NURTURE_STAGES, ACTIVITY_ICONS, DEAL_VERTICALS, detectCountry } from './config.js?v=20261028025725';
+import { esc, svgIcon, getToday, fmtDate, fmtTime12, str, stripHtml } from './utils.js?v=20261028025725';
+import { isAdmin, isEmployee, isSdr, currentUser, renderUserMenu, getOwnerForDeal, getOwnerNameForDeal, loadAssignableUsers } from './auth.js?v=20261028025725';
+import { initialSync as syncFromSheet } from './api.js?v=20261028025725';
+import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js?v=20261028025725';
+import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWonDrop, renderDealModal, renderNewDealModal, renderAddClientModal, toggleBadgeDropdown } from './deal-modal.js?v=20261028025725';
+import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from './activities.js?v=20261028025725';
+import { renderDashboard, renderKpiTargetBar } from './dashboard.js?v=20261028025725';
+import { loadFunnel, renderFunnel } from './funnel.js?v=20261028025725';
+import { journeyCell, loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js?v=20261028025725';
+import { journeyFor, LEFT_AT_OPTIONS, WHY_OPTIONS } from './archive-journey.js?v=20261028025725';
+import { toggleBulkMode, bulkMoveStage, bulkSelectAll, bulkArchive, bulkAddActivity, toggleBulkSelect } from './deals.js?v=20261028025725';
+import { openSettings } from './settings.js?v=20261028025725';
+import { serviceAreaResults } from './maps.js?v=20261028025725';
+import { lookupClientInfo, isRetainerClient, deriveTimezone } from './client-info.js?v=20261028025725';
+import { openClientInfoPanel } from './client-panel.js?v=20261028025725';
+import { openCalendlyEmbed, removeAppointment, addManualAppointment } from './calendly.js?v=20261028025725';
+import { capturePreserve, restorePreserve } from './render-preserve.js?v=20261028025725';
+import { doDragOver, doDragLeave, clearAllDragOver, doDrop } from './deals.js?v=20261028025725';
+import { loadDiscoOutcomes, renderDiscoOutcomeBanner } from './disco-outcome.js?v=20261028025725';
+import { renderDueTodayBanner, renderNurtureDropdown, renderNurtureTab, renderNurtureEntryModal, renderReactivateModal, renderSnoozeModal, loadNurtureData, clearNurtureDraft } from './rerun.js?v=20261028025725';
+import { renderDemoTracker } from './demo-tracker.js?v=20261028025725';
+import { renderColdCallingTab } from './cold-calling.js?v=20261028025725';
+import { renderColdCallingHeader, renderColdCallingView, coldCallColumnMeta } from './cold-calling-tab.js?v=20261028025725';
+import { renderRetargetingTab } from './retargeting.js?v=20261028025725';
+import { renderRenewals } from './renewals.js?v=20261028025725';
+import { renderRenewalPipeline, renderRenewalsSubTabs } from './renewal-pipeline.js?v=20261028025725';
+import { isPowerDialerActive } from './power-dialer.js?v=20261028025725';
 
 const CFO_HUB_URL = 'https://theheadlinetheory.github.io/tht-payroll-site/#cfo';
-import { multiFilterDropdown } from './html-helpers.js?v=20261028024748';
-import { isAimfoxDeal } from './aimfox.js?v=20261028024748';
-import { ACQUISITION_CHANNELS, channelCardBadge } from './acquisition-channel.js?v=20261028024748';
+import { multiFilterDropdown } from './html-helpers.js?v=20261028025725';
+import { isAimfoxDeal } from './aimfox.js?v=20261028025725';
+import { ACQUISITION_CHANNELS, channelCardBadge } from './acquisition-channel.js?v=20261028025725';
 
 // ─── Multi-select filter toggle (used by multiFilterDropdown options) ───
 function toggleMultiFilter(key,value){
@@ -459,10 +459,8 @@ function renderInternal(){
         ${isAdmin()?`<button onclick="switchClientLeadsTab('checkins')" style="${subCs};background:${clSubTab==='checkins'?'var(--purple)':'#f3f4f6'};color:${clSubTab==='checkins'?'#fff':'var(--text-muted)'}">Check-ins</button>`:''}
         ${isAdmin()||isEmployee()?`<button onclick="switchClientLeadsTab('lead_tracker')" style="${subCs};background:${clSubTab==='lead_tracker'?'var(--purple)':'#f3f4f6'};color:${clSubTab==='lead_tracker'?'#fff':'var(--text-muted)'}">Lead Tracker</button>`:''}
         ${isAdmin()?`<button onclick="switchClientLeadsTab('weekly_updates')" style="${subCs};background:${clSubTab==='weekly_updates'?'var(--purple)':'#f3f4f6'};color:${clSubTab==='weekly_updates'?'#fff':'var(--text-muted)'}">Weekly Updates</button>`:''}
-        ${isAdmin()?`<button onclick="switchClientLeadsTab('monthly_updates')" style="${subCs};background:${clSubTab==='monthly_updates'?'var(--purple)':'#f3f4f6'};color:${clSubTab==='monthly_updates'?'#fff':'var(--text-muted)'}">Monthly Updates</button>`:''}
         ${isAdmin()?`<button onclick="switchClientLeadsTab('followups')" style="${subCs};background:${clSubTab==='followups'?'var(--purple)':'#f3f4f6'};color:${clSubTab==='followups'?'#fff':'var(--text-muted)'}">Follow-Ups</button>`:''}
         ${isAdmin()||isEmployee()?`<button onclick="switchClientLeadsTab('analysis')" style="${subCs};background:${clSubTab==='analysis'?'var(--purple)':'#f3f4f6'};color:${clSubTab==='analysis'?'#fff':'var(--text-muted)'}">Analysis</button>`:''}
-        ${isAdmin()?`<button onclick="switchClientLeadsTab('triage')" style="${subCs};background:${clSubTab==='triage'?'var(--purple)':'#f3f4f6'};color:${clSubTab==='triage'?'#fff':'var(--text-muted)'}">Client Triage</button>`:''}
       </div>
     </div>`;
 
@@ -491,7 +489,7 @@ function renderInternal(){
         html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading analysis...</div>';
         if(!window._analysisLoading){
           window._analysisLoading=true;
-          import('./analysis.js?v=20261028024748').then(m=>{ window._analysisModule=m; render(); }).catch(()=>{ window._analysisLoading=false; });
+          import('./analysis.js?v=20261028025725').then(m=>{ window._analysisModule=m; render(); }).catch(()=>{ window._analysisLoading=false; });
         }
       }
       // The grid is long and wide, and every render replaces the DOM wholesale.
@@ -506,39 +504,6 @@ function renderInternal(){
       return;
     }
 
-    // Client Triage — snapshot of triage + health-score inputs, sectioned by
-    // the four business categories. Admin-only: it shows retainer amounts and
-    // renewal dates. Same fail-inside-the-tab pattern as Analysis above, so a
-    // bad snapshot shows an error here instead of silently bouncing to Pipeline.
-    if(clSubTab === 'triage' && isAdmin()){
-      if(window._triageModule){
-        let triageHtml;
-        try{
-          triageHtml = window._triageModule.renderTriage();
-        }catch(err){
-          console.error('Client Triage render failed:', err);
-          triageHtml = `<div class="tracker-container"><div style="padding:32px;text-align:center">
-            <div style="font-size:14px;font-weight:700;color:#b91c1c;margin-bottom:6px">The Client Triage tab hit an error</div>
-            <div style="font-size:12px;color:var(--text-muted);max-width:560px;margin:0 auto">${esc(str(err&&err.message)||'Unknown error')}</div>
-          </div></div>`;
-        }
-        html+='<div style="--tracker-top:96px">'+triageHtml+'</div>';
-      } else {
-        html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading client triage...</div>';
-        if(!window._triageLoading){
-          window._triageLoading=true;
-          import('./triage.js?v=20261028024748').then(m=>{ window._triageModule=m; render(); }).catch(()=>{ window._triageLoading=false; });
-        }
-      }
-      const tWrap=document.querySelector('.tracker-table-wrap');
-      const tTop=tWrap?tWrap.scrollTop:0;
-      const tLeft=tWrap?tWrap.scrollLeft:0;
-      app.innerHTML=html;
-      const newTWrap=document.querySelector('.tracker-table-wrap');
-      if(newTWrap){ newTWrap.scrollTop=tTop; newTWrap.scrollLeft=tLeft; }
-      return;
-    }
-
     // Check-ins — the pre-call brief (checkins.js). Admin-only: retainer amounts
     // and three founder inboxes. Returns before the modals below, so a lead's
     // card opened from the brief is added here.
@@ -550,7 +515,7 @@ function renderInternal(){
         html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading check-ins...</div>';
         if(!window._checkinsLoading){
           window._checkinsLoading=true;
-          import('./checkins.js?v=20261028024748').then(m=>{ window._checkinsModule=m; render(); }).catch(()=>{ window._checkinsLoading=false; });
+          import('./checkins.js?v=20261028025725').then(m=>{ window._checkinsModule=m; render(); }).catch(()=>{ window._checkinsLoading=false; });
         }
       }
       if(state.selectedDeal) html+=renderDealModal(state.selectedDeal);
@@ -568,7 +533,7 @@ function renderInternal(){
         html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading follow-up reminders...</div>';
         if(!window._followupLoading){
           window._followupLoading=true;
-          import('./followup-reminders.js?v=20261028024748').then(m=>{ window._followupModule=m; render(); }).catch(()=>{ window._followupLoading=false; });
+          import('./followup-reminders.js?v=20261028025725').then(m=>{ window._followupModule=m; render(); }).catch(()=>{ window._followupLoading=false; });
         }
       }
       app.innerHTML=html;
@@ -582,26 +547,13 @@ function renderInternal(){
         html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading weekly updates...</div>';
         if(!window._weeklyLoading){
           window._weeklyLoading=true;
-          import('./weekly-updates.js?v=20261028024748').then(m=>{ window._weeklyModule=m; render(); }).catch(()=>{ window._weeklyLoading=false; });
+          import('./weekly-updates.js?v=20261028025725').then(m=>{ window._weeklyModule=m; render(); }).catch(()=>{ window._weeklyLoading=false; });
         }
       }
       app.innerHTML=html;
       return;
     }
 
-    if(clSubTab === 'monthly_updates' && isAdmin()){
-      if(window._monthlyModule){
-        html+=window._monthlyModule.renderMonthlyUpdates();
-      } else {
-        html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading monthly updates...</div>';
-        if(!window._monthlyLoading){
-          window._monthlyLoading=true;
-          import('./monthly-updates.js?v=20261028024748').then(m=>{ window._monthlyModule=m; render(); }).catch(()=>{ window._monthlyLoading=false; });
-        }
-      }
-      app.innerHTML=html;
-      return;
-    }
 
     if(clSubTab === 'lead_tracker' && (isAdmin()||isEmployee())){
       // Weekly KPI targets, kept at the top so they are always visible. The
@@ -623,11 +575,11 @@ function renderInternal(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading trends...</div>';
           if(!window._trendsLoading){
             window._trendsLoading=true;
-            import('./trends.js?v=20261028024748').then(m=>{ window._trendsModule=m; render(); }).catch(()=>{ window._trendsLoading=false; });
+            import('./trends.js?v=20261028025725').then(m=>{ window._trendsModule=m; render(); }).catch(()=>{ window._trendsLoading=false; });
           }
           if(!state.trackerLoaded && !window._trackerLoading){
             window._trackerLoading=true;
-            import('./lead-tracker.js?v=20261028024748').then(m=>{
+            import('./lead-tracker.js?v=20261028025725').then(m=>{
               window._trackerModule=m;
               m.loadTrackerEntries().then(()=>render()).catch(()=>render());
             }).catch(()=>{ window._trackerLoading=false; });
@@ -640,7 +592,7 @@ function renderInternal(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading retainer leads...</div>';
           if(!window._passOffsLoading){
             window._passOffsLoading=true;
-            import('./pass-offs.js?v=20261028024748').then(m=>{ window._passOffsModule=m; render(); }).catch(()=>{ window._passOffsLoading=false; });
+            import('./pass-offs.js?v=20261028025725').then(m=>{ window._passOffsModule=m; render(); }).catch(()=>{ window._passOffsLoading=false; });
           }
         }
       } else {
@@ -650,14 +602,14 @@ function renderInternal(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading tracker...</div>';
           if(!window._trackerLoading){
             window._trackerLoading=true;
-            import('./lead-tracker.js?v=20261028024748').then(m=>{
+            import('./lead-tracker.js?v=20261028025725').then(m=>{
               window._trackerModule=m;
               if(!state.trackerLoaded){ m.loadTrackerEntries().then(()=>render()).catch(()=>render()); }
               else render();
             }).catch(()=>{ window._trackerLoading=false; });
             if(!window._invoiceLoading){
               window._invoiceLoading=true;
-              import('./invoice.js?v=20261028024748').then(m=>{ window._invoiceModule=m; }).catch(()=>{ window._invoiceLoading=false; });
+              import('./invoice.js?v=20261028025725').then(m=>{ window._invoiceModule=m; }).catch(()=>{ window._invoiceLoading=false; });
             }
           }
         }
@@ -665,7 +617,7 @@ function renderInternal(){
           html+=window._invoiceModule.renderInvoiceModal();
         } else if(state.invoiceModal && !window._invoiceLoading){
           window._invoiceLoading=true;
-          import('./invoice.js?v=20261028024748').then(m=>{ window._invoiceModule=m; render(); });
+          import('./invoice.js?v=20261028025725').then(m=>{ window._invoiceModule=m; render(); });
         }
       }
       html+=`</div>`; // close the --tracker-top wrapper
@@ -1063,7 +1015,7 @@ window.switchAcqSubTab = switchAcqSubTab;
 // that other tab instead of the Sales Pipeline (Lars, 2026-10-05). Follow the
 // hash so the URL and the screen never disagree.
 const ACQ_SUBTABS = ['pipeline','nurture','demo_tracker','cold_calls','retargeting'];
-const CL_SUBTABS = ['pipeline','checkins','lead_tracker','weekly_updates','monthly_updates','followups','analysis','triage'];
+const CL_SUBTABS = ['pipeline','checkins','lead_tracker','weekly_updates','followups','analysis'];
 window.addEventListener('hashchange', () => {
   const [p, sub, ciName] = location.hash.replace('#','').split('/');
   if (!getVisiblePipelinesWithArchive().some(x => x.id === p)) return;
