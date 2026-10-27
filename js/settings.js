@@ -2,21 +2,21 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20261028025725';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20261028025725';
-import { render } from './render.js?v=20261028025725';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20261028025725';
-import { renderRoutingRules } from './routing-rules.js?v=20261028025725';
-import { esc, str, svgIcon } from './utils.js?v=20261028025725';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20261028025725';
-import { lookupClientInfo } from './client-info.js?v=20261028025725';
-import { findPolygonForClient, invalidateServiceAreaCache } from './maps.js?v=20261028025725';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20261028025725';
-import { DEFAULT_BOOKING_SMS_TEMPLATE } from './booking-sms.js?v=20261028025725';
-import { renderRetainerBilling } from './retainer-billing.js?v=20261028025725';
-import { renderAutoChargeToggle } from './auto-charge.js?v=20261028025725';
-import { showClientEndPicker, clearClientEnd } from './client-end.js?v=20261028025725';
-import { setupBadge, setupBanner } from './client-setup-status.js?v=20261028025725';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20261028025927';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20261028025927';
+import { render } from './render.js?v=20261028025927';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20261028025927';
+import { renderRoutingRules } from './routing-rules.js?v=20261028025927';
+import { esc, str, svgIcon } from './utils.js?v=20261028025927';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20261028025927';
+import { lookupClientInfo } from './client-info.js?v=20261028025927';
+import { findPolygonForClient, invalidateServiceAreaCache } from './maps.js?v=20261028025927';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20261028025927';
+import { DEFAULT_BOOKING_SMS_TEMPLATE } from './booking-sms.js?v=20261028025927';
+import { renderRetainerBilling } from './retainer-billing.js?v=20261028025927';
+import { renderAutoChargeToggle } from './auto-charge.js?v=20261028025927';
+import { showClientEndPicker, clearClientEnd } from './client-end.js?v=20261028025927';
+import { setupBadge, setupBanner } from './client-setup-status.js?v=20261028025927';
 
 export function getDefaultSettings(){
   return {
@@ -309,7 +309,7 @@ export function refreshSettingsBody(){
       window._dialerFieldsLoaded = true;
       supabase.from('crm_settings').select('value').eq('key','dialer_default_fields').single()
         .then(({ data }) => { window._dialerDefaultFields = data?.value ? JSON.parse(data.value) : []; refreshSettingsBody(); });
-      import('./number-health.js?v=20261028025725').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
+      import('./number-health.js?v=20261028025927').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
     }
     h=renderDialerSettings();
   }
@@ -889,9 +889,23 @@ function renderUsersSettings(){
     <h4>User Management</h4>
     <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Manage who can access the CRM and what they can see.</p>
     <div id="users-list-container"><div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px">Loading users...</div></div>
-    <p style="font-size:11px;color:var(--text-muted);margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">Users are added automatically on first Google sign-in (as Employee). Promote to Admin below.</p>
+    <p style="font-size:11px;color:var(--text-muted);margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">Users are added automatically on first Google sign-in (as Employee, unless invited below with another role). Change anyone's role above.</p>
+  </div>
+  <div class="settings-section">
+    <h4>Invite someone</h4>
+    <p style="font-size:11px;color:var(--text-muted);margin-bottom:10px">Set a new person's role <b>before</b> their first sign-in, so an SDR lands on the Cold Calling tab and never sees the rest of the CRM. They need an @theheadlinetheory.com Google account.</p>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <input id="invite-email" type="email" placeholder="name@theheadlinetheory.com" style="flex:1;min-width:220px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+      <select id="invite-role" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+        <option value="sdr" selected>SDR (cold calling only)</option>
+        <option value="employee">Employee</option>
+        <option value="admin">Admin</option>
+      </select>
+      <button class="btn btn-primary" onclick="inviteUser()" style="font-size:12px">Invite</button>
+    </div>
+    <div id="invites-list" style="margin-top:10px"></div>
   </div>`;
-  setTimeout(()=>loadUsersIntoPanel(), 50);
+  setTimeout(()=>{ loadUsersIntoPanel(); loadInvites(); }, 50);
   return h;
 }
 
@@ -944,6 +958,52 @@ async function loadUsersIntoPanel(){
   }
   container.innerHTML = h;
 }
+
+// ─── Role invites (role_invites, read by the handle_new_user sign-up trigger) ───
+const ROLE_LABEL = { sdr: 'SDR', employee: 'Employee', admin: 'Admin' };
+async function loadInvites(){
+  const el = document.getElementById('invites-list');
+  if(!el) return;
+  const [{ data, error }, users] = await Promise.all([
+    supabase.from('role_invites').select('email,role,created_at').order('created_at', { ascending: false }),
+    usersListCache ? Promise.resolve(usersListCache) : loadAllUsers(),
+  ]);
+  if(error){ el.innerHTML = `<div style="font-size:11px;color:#dc2626">Couldn't load invites: ${esc(error.message)}</div>`; return; }
+  const signedUp = new Set((users||[]).map(u => (u.email||'').toLowerCase()));
+  const pending = (data||[]).filter(i => !signedUp.has(i.email));
+  el.innerHTML = pending.length
+    ? `<div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px">Waiting for first sign-in</div>` + pending.map(i => `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px;font-size:12px">
+        <span>${esc(i.email)} · <b>${esc(ROLE_LABEL[i.role]||i.role)}</b></span>
+        <button onclick="removeInvite('${esc(i.email)}')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:11px">Remove</button></div>`).join('')
+    : '';
+}
+async function inviteUser(){
+  const email = (document.getElementById('invite-email')?.value || '').trim().toLowerCase();
+  const role = document.getElementById('invite-role')?.value || 'sdr';
+  if(!/^[^@\s]+@theheadlinetheory\.com$/.test(email)){ alert('Use their @theheadlinetheory.com address — the CRM only accepts company Google accounts.'); return; }
+  // Already signed in once: the invite would never be read, so change their role directly.
+  const users = usersListCache || await loadAllUsers();
+  const existing = users.find(u => (u.email||'').toLowerCase() === email);
+  try {
+    if(existing){
+      await updateUserRole(existing.uid, role);
+      alert(`${email} already has a CRM account, so their role is now ${ROLE_LABEL[role]}. They see it on their next page load.`);
+      loadUsersIntoPanel();
+    } else {
+      const { error } = await supabase.from('role_invites').upsert({ email, role }, { onConflict: 'email' });
+      if(error) throw error;
+    }
+    const input = document.getElementById('invite-email'); if(input) input.value = '';
+    loadInvites();
+  } catch(e){ alert('Invite failed: ' + e.message); }
+}
+async function removeInvite(email){
+  const { error } = await supabase.from('role_invites').delete().eq('email', email);
+  if(error) alert('Could not remove: ' + error.message);
+  loadInvites();
+}
+window.inviteUser = inviteUser;
+window.removeInvite = removeInvite;
 
 async function changeUserRole(uid, role){
   try { await updateUserRole(uid, role); loadUsersIntoPanel(); }
@@ -1684,7 +1744,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20261028025725');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20261028025927');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);
@@ -1956,7 +2016,7 @@ window.restoreClient = async function(clientId) {
   }
   showToast(`${c.name} restored — rebuilding their Smartlead portal…`, 'success');
   try {
-    const { createSmartleadPortal } = await import('./smartlead-portal.js?v=20261028025725');
+    const { createSmartleadPortal } = await import('./smartlead-portal.js?v=20261028025927');
     const r = await createSmartleadPortal(c);
     render();
     // crm-smartlead-client writes the id onto the clients row itself, with a
@@ -1984,7 +2044,7 @@ window.restoreClient = async function(clientId) {
 window.createClientPortal = async function(clientId) {
   const c = state.clients.find(x => str(x.id) === str(clientId));
   if (!c) return;
-  const { portalEmail, createSmartleadPortal } = await import('./smartlead-portal.js?v=20261028025725');
+  const { portalEmail, createSmartleadPortal } = await import('./smartlead-portal.js?v=20261028025927');
   const email = portalEmail(c);
   if (!email) { showToast('Add a contact email for this client first', 'error'); return; }
   if (!confirm(`Create a Smartlead portal for ${c.name}?\n\nLogin: ${email}\n\nSmartlead has no way to delete a client portal, so this cannot be undone.`)) return;
