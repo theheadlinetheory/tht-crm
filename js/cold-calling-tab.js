@@ -22,12 +22,12 @@
 //   Cap: 2 cold-call meetings per client per week (Mon–Sun), then that client's lists are closed.
 //   Order: retainer clients first, then pay-per-meeting; fewest meetings this week first.
 
-import { state } from './app.js?v=20261028023937';
-import { render } from './render.js?v=20261028023937';
-import { supabase } from './supabase-client.js?v=20261028023937';
-import { esc, str, svgIcon, getToday } from './utils.js?v=20261028023937';
-import { currentUser, isSdr, loadAssignableUsers } from './auth.js?v=20261028023937';
-import { registerActions } from './delegate.js?v=20261028023937';
+import { state } from './app.js?v=20261028024748';
+import { render } from './render.js?v=20261028024748';
+import { supabase } from './supabase-client.js?v=20261028024748';
+import { esc, str, svgIcon, getToday } from './utils.js?v=20261028024748';
+import { currentUser, isSdr, loadAssignableUsers } from './auth.js?v=20261028024748';
+import { registerActions } from './delegate.js?v=20261028024748';
 
 export const CALLBACK_STAGE = 'Cold Call Callback';
 const NO_CONNECTION = new Set(['no_answer', 'voicemail', 'bad_number', 'desk_dq']);
@@ -444,6 +444,17 @@ function managerHtml() {
       <div style="font-size:11px;color:#94a3b8;margin-top:6px">Green = on quota, amber = within 60%, red = behind. The week's targets count ${days} of 5 working days so far. Show rate is over the last ${LOOKBACK_DAYS} days (it needs the meetings to have happened).</div>`
     : '<div style="font-size:12px;color:#94a3b8">No dials this week yet.</div>');
 
+  // Dispositions this week, per client: where the dials go (list quality shows up in bad number / desk DQ).
+  const order = ['booked', 'under_contract', 'not_interested', 'manager_not_around', 'picked_up', 'no_answer', 'voicemail', 'bad_number', 'desk_dq'];
+  const byClient = ranked.map(r => ({ name: r.name, rows: week.filter(x => x.client_name === r.name) })).filter(x => x.rows.length);
+  h += section('Dispositions this week', byClient.length ? `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="${th}">Client</th>
+      ${order.map(o => `<th style="${th}">${esc(OUTCOME_LABEL[o])}</th>`).join('')}<th style="${th}">Dials</th></tr></thead><tbody>
+      ${[...byClient, { name: 'All clients', rows: week }].map(x => `<tr${x.name === 'All clients' ? ' style="font-weight:700;background:#f1f5f9"' : ''}><td style="${td}">${esc(x.name)}</td>
+        ${order.map(o => { const n = x.rows.filter(r => r.outcome === o).length; return `<td style="${td};color:${n ? '#0f172a' : '#cbd5e1'}">${n}${n && x.rows.length ? `<span style="color:#94a3b8;font-size:10px"> ${Math.round(100 * n / x.rows.length)}%</span>` : ''}</td>`; }).join('')}
+        <td style="${td};font-weight:700">${x.rows.length}</td></tr>`).join('')}</tbody></table></div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:6px">"Picked up (no disposition)" = JustCall connected the call but no outcome was picked. Every call should get one.</div>`
+    : '<div style="font-size:12px;color:#94a3b8">No dials this week yet.</div>');
+
   const booked = cc.calls.filter(r => r.outcome === 'booked').sort((a, b) => (b.called_at || '').localeCompare(a.called_at || ''));
   h += section('Booked meetings: did they show?', booked.length ? `<div style="font-size:12px;color:#475569;margin-bottom:8px">The client tells us in their reply to the pass-off (within 24 hours of the meeting). Mark it here; it drives every show rate.</div>
     <table style="width:100%;border-collapse:collapse"><thead><tr><th style="${th}">Booked</th><th style="${th}">Client</th><th style="${th}">Contact</th><th style="${th}">Rep</th><th style="${th}">Showed?</th></tr></thead><tbody>
@@ -530,7 +541,7 @@ registerActions({
   async ccSync() {
     cc.syncing = true; cc.syncNote = ''; render();
     try {
-      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261028023937');
+      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261028024748');
       const out = await invokeEdgeFunctionAsUser('cold-call-sync', {});
       const made = (out.cards || []).filter(c => c.created).length;
       cc.syncNote = `${out.synced} dials pulled${made ? `, ${made} new card${made === 1 ? '' : 's'}` : ''}`;
@@ -544,7 +555,7 @@ registerActions({
   ccOpenDeal(el) {
     const id = el.dataset.id;
     if (!state.deals.some(d => String(d.id) === String(id))) { alert('That card is no longer on the board (delivered or archived).'); return; }
-    import('./deal-modal.js?v=20261028023937').then(m => m.openDeal(id));
+    import('./deal-modal.js?v=20261028024748').then(m => m.openDeal(id));
   },
   ccTrackerScope(el) { cc.trackerScope = el.dataset.scope; render(); },
   ccTrackerClient(el, e) { if (e.type !== 'change') return; cc.trackerClient = el.value; render(); },
@@ -583,7 +594,7 @@ registerActions({
   async ccTranscribe(el) {
     el.disabled = true; el.textContent = 'Transcribing…';
     try {
-      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261028023937');
+      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261028024748');
       const out = await invokeEdgeFunctionAsUser('cold-call-sync', { action: 'transcribe', call_id: Number(el.dataset.id) });
       const box = document.createElement('div');
       box.style.cssText = 'white-space:pre-wrap;font-size:11px;max-height:260px;overflow:auto;background:#fff;border-radius:6px;padding:8px;margin-top:4px';
