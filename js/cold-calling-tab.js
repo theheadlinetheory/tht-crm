@@ -25,12 +25,12 @@
 //   Cap: 2 cold-call meetings per client per week (Mon–Sun), then that client's lists are closed.
 //   Order: retainer clients first, then pay-per-meeting; fewest meetings this week first.
 
-import { state } from './app.js?v=20261028231446';
-import { render } from './render.js?v=20261028231446';
-import { supabase } from './supabase-client.js?v=20261028231446';
-import { esc, str, svgIcon, getToday } from './utils.js?v=20261028231446';
-import { currentUser, isSdr, loadAssignableUsers } from './auth.js?v=20261028231446';
-import { registerActions } from './delegate.js?v=20261028231446';
+import { state } from './app.js?v=20261028233137';
+import { render } from './render.js?v=20261028233137';
+import { supabase } from './supabase-client.js?v=20261028233137';
+import { esc, str, svgIcon, getToday } from './utils.js?v=20261028233137';
+import { currentUser, isSdr, loadAssignableUsers } from './auth.js?v=20261028233137';
+import { registerActions } from './delegate.js?v=20261028233137';
 
 export const CALLBACK_STAGE = 'Cold Call Callback';
 const NO_CONNECTION = new Set(['no_answer', 'voicemail', 'bad_number', 'desk_dq']);
@@ -39,6 +39,9 @@ const OUTCOME_LABEL = {
   manager_not_around: 'Manager not around', no_answer: 'No answer', voicemail: 'Voicemail',
   bad_number: 'Bad number', desk_dq: 'Desk DQ', picked_up: 'Picked up (no disposition)',
 };
+// A dial's industry as the fulfillment dashboard names it (the lead list its phone came from, stamped by
+// cold-call-sync); a phone in no fulfillment list falls back to the JustCall list's own segment name.
+const industryOf = r => r.fulfillment_industry || r.industry || 'Unclassified';
 const DEFAULT_QUOTAS = { dialsPerDay: 100, connectionsPerDay: 30, bookedPerWeek: 10, showRate: 80, capPerClient: 2 };
 const SUBTABS = [
   { id: 'queue', label: 'Call Queue' },
@@ -83,7 +86,7 @@ async function loadAll() {
     const rows = [];
     for (let from = 0; ; from += 1000) {
       const { data, error } = await supabase.from('cold_calls')
-        .select('call_id,campaign_name,client_name,phone10,contact_name,company,agent_email,agent_name,called_at,call_date,duration_sec,disposition,outcome,notes,recording_url,deal_id,show_status,industry,property_type')
+        .select('call_id,campaign_name,client_name,phone10,contact_name,company,agent_email,agent_name,called_at,call_date,duration_sec,disposition,outcome,notes,recording_url,deal_id,show_status,industry,fulfillment_industry,property_type')
         .gte('call_date', since).order('call_id', { ascending: true }).range(from, from + 999);
       if (error) throw error;
       rows.push(...(data || []));
@@ -572,7 +575,7 @@ function industryVerdictTable() {
   const week = callsOn(thisWeek());
   const total = tally(cc.calls);
   const avg = total.dials ? total.booked / total.dials : 0;
-  const segs = segmentRows(cc.calls, r => r.industry);
+  const segs = segmentRows(cc.calls, industryOf);
   if (!segs.length) return '<div style="font-size:12px;color:#94a3b8">No dials yet.</div>';
   const pctTxt = v => v == null ? '—' : v + '%';
   return `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead>
@@ -581,8 +584,8 @@ function industryVerdictTable() {
       <th style="${th};border-left:1px solid #e2e8f0">Dials</th><th style="${th}">Connections</th><th style="${th}">Connect %</th><th style="${th}">Meetings</th>
       <th style="${th};border-left:1px solid #e2e8f0">Dials</th><th style="${th}">Connections</th><th style="${th}">Connect %</th><th style="${th}">Meetings</th><th style="${th}">Dials / meeting</th><th style="${th}">Showed / no-show</th><th style="${th}">Verdict</th></tr></thead><tbody>
     ${segs.map((s, i) => {
-      const rows = cc.calls.filter(r => (r.industry || 'Unclassified') === s.name);
-      const w = tally(week.filter(r => (r.industry || 'Unclassified') === s.name));
+      const rows = cc.calls.filter(r => industryOf(r) === s.name);
+      const w = tally(week.filter(r => industryOf(r) === s.name));
       const a = tally(rows);
       const v = industryVerdict(s, avg);
       return `<tr>
@@ -605,7 +608,7 @@ export function clientColdCallStatsHtml(clientName) {
   const mine = cc.calls.filter(x => x.client_name === clientName);
   const w = tally(callsOn(thisWeek()).filter(x => x.client_name === clientName));
   const a = tally(mine);
-  const segs = segmentRows(mine, x => x.industry);
+  const segs = segmentRows(mine, industryOf);
   const cap = r ? r.cap : (Number(cc.quotas.capPerClient) || 2);
   const box = (label, v) => `<div style="flex:1;min-width:90px"><div style="font-size:10px;color:#64748b;font-weight:600;text-transform:uppercase">${label}</div><div style="font-size:18px;font-weight:800;color:#0f172a">${v}</div></div>`;
   return `<div style="margin-bottom:16px;padding:12px;background:#f5f3ff;border-radius:8px;border:1px solid #ddd6fe">
@@ -631,13 +634,13 @@ function industriesHtml() {
       <option value="">All clients</option>${clients.map(n => `<option value="${esc(n)}" ${f.client === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}
     </select>
     <span style="font-size:11px;color:#94a3b8">${rows.length} dials</span></div>`;
-  const how = `<div style="font-size:11px;color:#94a3b8;margin-top:8px">Ranked on meetings per 100 dials, using the cautious end of the range (95% lower bound), so a lucky small sample can't outrank a proven one. Ties go to more under-contract calls, then more dials that reached a person, then fewer desk DQs. Segments under ${MIN_DIALS} dials are greyed and listed last: too early to judge. Industry = the list the property came from; property type = read from the property's name (a name with no telling word takes its list's segment).</div>`;
-  const ind = segmentRows(rows, r => r.industry);
+  const how = `<div style="font-size:11px;color:#94a3b8;margin-top:8px">Ranked on meetings per 100 dials, using the cautious end of the range (95% lower bound), so a lucky small sample can't outrank a proven one. Ties go to more under-contract calls, then more dials that reached a person, then fewer desk DQs. Segments under ${MIN_DIALS} dials are greyed and listed last: too early to judge. Industry = as the fulfillment dashboard names it: the lead list the dialed phone was built from (a phone in no fulfillment list uses the JustCall list's name); property type = read from the property's name (a name with no telling word takes its list's segment).</div>`;
+  const ind = segmentRows(rows, industryOf);
   const prop = segmentRows(rows, r => r.property_type);
   const best = ind.find(s => s.dials >= MIN_DIALS && s.booked);
   return section('Industries ranked by meetings booked', controls +
       (best ? `<div style="font-size:12px;color:#334155;margin-bottom:10px">Best so far: <b>${esc(best.name)}</b>, ${best.booked} meeting${best.booked === 1 ? '' : 's'} in ${best.dials} dials (${best.per100.toFixed(1)} per 100).</div>` : '') +
-      (ind.length ? rankingTable(ind, 'Industry (list segment)') : '<div style="font-size:12px;color:#94a3b8">No dials yet.</div>') + how)
+      (ind.length ? rankingTable(ind, 'Industry') : '<div style="font-size:12px;color:#94a3b8">No dials yet.</div>') + how)
     + section('Property types ranked by meetings booked', prop.length ? rankingTable(prop, 'Property type') : '<div style="font-size:12px;color:#94a3b8">No dials yet.</div>');
 }
 
@@ -657,7 +660,7 @@ function feedbackHtml() {
   if (!cc.feedback && !cc.feedbackLoading) loadFeedback();
   const clients = coldCallClients().map(c => c.name).sort();
   const lists = [...new Set(cc.calls.map(r => r.campaign_name).filter(Boolean))].sort();
-  const industries = [...new Set(cc.calls.map(r => r.industry).filter(Boolean))].sort();
+  const industries = [...new Set(cc.calls.map(industryOf))].filter(i => i !== 'Unclassified').sort();
   const sel = (id, opts, blank) => `<select id="${id}" style="padding:6px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;max-width:240px"><option value="">${blank}</option>${opts.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>`;
   const form = section('Give feedback on a list', `<div style="font-size:12px;color:#475569;margin-bottom:8px">Anything about the lists you're calling: wrong kinds of properties, bad numbers, what's working, an idea for the next list. It goes to whoever builds the lists, and you'll see here when it's been dealt with.</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
@@ -785,7 +788,7 @@ registerActions({
   async ccSync() {
     cc.syncing = true; cc.syncNote = ''; render();
     try {
-      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261028231446');
+      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261028233137');
       const out = await invokeEdgeFunctionAsUser('cold-call-sync', {});
       const made = (out.cards || []).filter(c => c.created).length;
       cc.syncNote = `${out.synced} dials pulled${made ? `, ${made} new card${made === 1 ? '' : 's'}` : ''}`;
@@ -799,7 +802,7 @@ registerActions({
   ccOpenDeal(el) {
     const id = el.dataset.id;
     if (!state.deals.some(d => String(d.id) === String(id))) { alert('That card is no longer on the board (delivered or archived).'); return; }
-    import('./deal-modal.js?v=20261028231446').then(m => m.openDeal(id));
+    import('./deal-modal.js?v=20261028233137').then(m => m.openDeal(id));
   },
   ccTrackerScope(el) { cc.trackerScope = el.dataset.scope; render(); },
   ccTrackerClient(el, e) { if (e.type !== 'change') return; cc.trackerClient = el.value; render(); },
@@ -838,7 +841,7 @@ registerActions({
   async ccTranscribe(el) {
     el.disabled = true; el.textContent = 'Transcribing…';
     try {
-      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261028231446');
+      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261028233137');
       const out = await invokeEdgeFunctionAsUser('cold-call-sync', { action: 'transcribe', call_id: Number(el.dataset.id) });
       const box = document.createElement('div');
       box.style.cssText = 'white-space:pre-wrap;font-size:11px;max-height:260px;overflow:auto;background:#fff;border-radius:6px;padding:8px;margin-top:4px';
