@@ -12,8 +12,10 @@
 //   2. Inline editing for Services, Service Area and warm-call notes. Nothing in
 //      the app could edit those, which is why 17 of 22 active clients had no
 //      services and the Common Questions answered with boilerplate.
-//   3. The service area map with the address check, and the client's cold-calling
-//      campaigns with a Redial button (client-cold-calls.js). The map used to be
+//   3. The service area map with the address check. On the Cold Calling board the panel
+//      is the caller's version instead: this week against the cap, what each industry has
+//      booked for the client, the map, and the JustCall campaigns with a Redial button
+//      (client-cold-calls.js), and no acquisition history. The map used to be
 //      reachable only from a deal card, so a client with no deals meant dragging
 //      another client's deal onto it just to see the map.
 //
@@ -21,17 +23,18 @@
 // mid-edit. Edits save straight to Supabase (debounced) and patch the affected
 // DOM nodes in place — the panel is never wholesale re-rendered while open.
 
-import { state } from './app.js?v=20261028231241';
-import { esc, str, getToday, isValidDate, svgIcon } from './utils.js?v=20261028231241';
-import { isAdmin } from './auth.js?v=20261028231241';
-import { lookupClientInfo } from './client-info.js?v=20261028231241';
-import { sbUpdateClient, sbGetWonAcquisitionCards } from './api.js?v=20261028231241';
-import { registerActions } from './delegate.js?v=20261028231241';
-import { buildAcquisitionCard, indexWonCards, matchCardForClient, answeredQuestions } from './client-acquisition.js?v=20261028231241';
-import { parseProperties, areaOf } from './client-properties.js?v=20261028231241';
-import { renderCallSheetLink } from './call-sheet.js?v=20261028231241';
-import { findPolygonForClient, renderServiceAreaMap } from './maps.js?v=20261028231241';
-import { coldCallsSectionHtml, fillColdCallsSection } from './client-cold-calls.js?v=20261028231241';
+import { state } from './app.js?v=20261028231446';
+import { esc, str, getToday, isValidDate, svgIcon } from './utils.js?v=20261028231446';
+import { isAdmin } from './auth.js?v=20261028231446';
+import { lookupClientInfo } from './client-info.js?v=20261028231446';
+import { sbUpdateClient, sbGetWonAcquisitionCards } from './api.js?v=20261028231446';
+import { registerActions } from './delegate.js?v=20261028231446';
+import { buildAcquisitionCard, indexWonCards, matchCardForClient, answeredQuestions } from './client-acquisition.js?v=20261028231446';
+import { parseProperties, areaOf } from './client-properties.js?v=20261028231446';
+import { renderCallSheetLink } from './call-sheet.js?v=20261028231446';
+import { findPolygonForClient, renderServiceAreaMap } from './maps.js?v=20261028231446';
+import { coldCallsSectionHtml, fillColdCallsSection } from './client-cold-calls.js?v=20261028231446';
+import { clientColdCallStatsHtml } from './cold-calling-tab.js?v=20261028231446';
 
 const OVERLAY_ID = 'client-info-overlay';
 const MAP_KEY = 'client-panel'; // activeMapInstances key for the panel's map (no deal behind it)
@@ -258,7 +261,9 @@ function saveField(field, text) {
 }
 
 // ─── Panel ───
-export function openClientInfoPanel(clientName) {
+/** `mode` 'cold_calling' = opened from the Cold Calling board (see the header). */
+export function openClientInfoPanel(clientName, mode = 'client_leads') {
+  const coldCalling = mode === 'cold_calling';
   const cl = state.clients.find(c => c.name === clientName);
   if (!cl) return;
   _openFor = clientName;
@@ -291,7 +296,7 @@ export function openClientInfoPanel(clientName) {
       <div style="padding:20px 24px;max-height:70vh;overflow-y:auto">`;
 
   // The Check-ins tab's brief for this client (admin-only, like the tab itself).
-  if (isAdmin()) {
+  if (isAdmin() && !coldCalling) {
     h += `<button class="btn btn-primary" data-action="cpCheckin" style="width:100%;justify-content:center;gap:6px;font-size:13px;margin-bottom:16px">
       ${svgIcon('clipboard', 14)} Pre-call brief
     </button>`;
@@ -306,6 +311,8 @@ export function openClientInfoPanel(clientName) {
     h += `</div>`;
   }
 
+  if (coldCalling) h += clientColdCallStatsHtml(clientName);
+
   // Service area: the client's polygon, and "Check an address" opens the full map with the in-area check.
   const hasPolygon = !!findPolygonForClient(clientName);
   h += `<div style="margin-bottom:16px;padding:12px;background:#eff6ff;border-radius:8px;border:1px solid #bfdbfe">
@@ -318,10 +325,10 @@ export function openClientInfoPanel(clientName) {
       : `<div style="font-size:12px;color:#64748b">No service area polygon for this client yet.</div>`}
   </div>`;
 
-  h += coldCallsSectionHtml();
+  if (coldCalling) h += coldCallsSectionHtml();
 
   // Everything the acquisition card still remembers. Filled in asynchronously.
-  h += `<details open style="margin-bottom:16px;padding:12px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
+  if (!coldCalling) h += `<details open style="margin-bottom:16px;padding:12px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
     <summary style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;list-style:none">From Acquisition</summary>
     <div id="cp-acq" style="margin-top:4px"><div style="font-size:12px;color:#94a3b8">Loading acquisition card…</div></div>
   </details>`;
@@ -381,8 +388,8 @@ export function openClientInfoPanel(clientName) {
   h += `</div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', h);
   if (hasPolygon) setTimeout(() => renderServiceAreaMap('cp-sa-map', MAP_KEY, { clientName, defaultZoom: 9 }), 0);
-  fillAcquisitionSection(clientName);
-  fillColdCallsSection(clientName);
+  if (coldCalling) fillColdCallsSection(clientName);
+  else fillAcquisitionSection(clientName);
 }
 
 export function closeClientInfoPanel() {

@@ -25,12 +25,12 @@
 //   Cap: 2 cold-call meetings per client per week (Mon–Sun), then that client's lists are closed.
 //   Order: retainer clients first, then pay-per-meeting; fewest meetings this week first.
 
-import { state } from './app.js?v=20261028231241';
-import { render } from './render.js?v=20261028231241';
-import { supabase } from './supabase-client.js?v=20261028231241';
-import { esc, str, svgIcon, getToday } from './utils.js?v=20261028231241';
-import { currentUser, isSdr, loadAssignableUsers } from './auth.js?v=20261028231241';
-import { registerActions } from './delegate.js?v=20261028231241';
+import { state } from './app.js?v=20261028231446';
+import { render } from './render.js?v=20261028231446';
+import { supabase } from './supabase-client.js?v=20261028231446';
+import { esc, str, svgIcon, getToday } from './utils.js?v=20261028231446';
+import { currentUser, isSdr, loadAssignableUsers } from './auth.js?v=20261028231446';
+import { registerActions } from './delegate.js?v=20261028231446';
 
 export const CALLBACK_STAGE = 'Cold Call Callback';
 const NO_CONNECTION = new Set(['no_answer', 'voicemail', 'bad_number', 'desk_dq']);
@@ -432,6 +432,8 @@ function managerHtml() {
     return `<td style="${td};font-weight:700;color:${color}" title="target ${target}${suffix}">${v == null ? '—' : v + suffix}</td>`;
   };
   const reps = [...new Set(cc.calls.filter(r => r.call_date >= thisWeek() || r.call_date === today()).map(r => r.agent_email).filter(Boolean))].sort();
+  h += section('Industries', industryVerdictTable(), `<span style="font-size:11px;color:#94a3b8">${cc.calls.length} dials in the last ${LOOKBACK_DAYS} days</span>`);
+
   h += section('Reps', reps.length ? `<table style="width:100%;border-collapse:collapse"><thead>
       <tr><th style="${th}"></th><th style="${th};border-left:1px solid #e2e8f0" colspan="3">Today</th><th style="${th};border-left:1px solid #e2e8f0" colspan="5">This week</th></tr>
       <tr><th style="${th}">Rep</th><th style="${th};border-left:1px solid #e2e8f0">Dials</th><th style="${th}">Connections</th><th style="${th}">Booked</th>
@@ -541,6 +543,79 @@ function rankingTable(segs, label) {
         <td style="${td};color:${s.dqRate >= 0.4 && !early ? '#dc2626' : 'inherit'}">${pctTxt(s.dqRate)}</td>
         <td style="${td}">${s.dials ? pctTxt(s.notInterested / s.dials) : '—'}</td></tr>`;
     }).join('')}</tbody></table>`;
+}
+
+// ─── Manager: the per-client numbers again, per industry, with a keep / cut call ───
+// The verdict asks one question: at the average booking rate across every industry, how likely is it that this
+// industry would have booked this few meetings or fewer in this many dials? Under 10% = it is genuinely worse, cut it.
+// Or the list doesn't fit: 0 meetings in CUT_MIN_DIALS+ dials with over half the properties disqualified at the desk.
+const CUT_BELOW = 0.1;
+const CUT_MIN_DIALS = 100, CUT_DQ = 0.5;
+function binomCdf(k, n, p) {
+  let term = Math.pow(1 - p, n), sum = term;
+  for (let i = 1; i <= k; i++) { term *= (n - i + 1) / i * p / (1 - p); sum += term; }
+  return Math.min(1, sum);
+}
+function industryVerdict(s, avg) {
+  if (s.dials < MIN_DIALS) return { label: 'Too early', color: '#64748b', bg: '#f1f5f9', why: `Under ${MIN_DIALS} dials` };
+  if (s.booked / s.dials >= avg) return { label: 'Keep', color: '#15803d', bg: '#dcfce7', why: 'Books at or above the average rate' };
+  const expected = avg * s.dials;
+  const chance = binomCdf(s.booked, s.dials, avg);
+  const why = `${s.booked} booked in ${s.dials} dials; the average rate would give ${expected.toFixed(1)}. Chance it's just bad luck: ${Math.round(100 * chance)}%`;
+  const misfit = !s.booked && s.dials >= CUT_MIN_DIALS && s.dqRate > CUT_DQ;
+  if (chance < CUT_BELOW || misfit) {
+    return { label: 'Cut', color: '#fff', bg: '#dc2626', why: misfit ? `0 meetings in ${s.dials} dials and ${Math.round(100 * s.dqRate)}% of properties disqualified at the desk: the list doesn't fit. ${why}` : why };
+  }
+  return { label: 'Watch', color: '#b45309', bg: '#fef3c7', why };
+}
+function industryVerdictTable() {
+  const week = callsOn(thisWeek());
+  const total = tally(cc.calls);
+  const avg = total.dials ? total.booked / total.dials : 0;
+  const segs = segmentRows(cc.calls, r => r.industry);
+  if (!segs.length) return '<div style="font-size:12px;color:#94a3b8">No dials yet.</div>';
+  const pctTxt = v => v == null ? '—' : v + '%';
+  return `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead>
+    <tr><th style="${th}" colspan="2"></th><th style="${th};border-left:1px solid #e2e8f0" colspan="4">This week</th><th style="${th};border-left:1px solid #e2e8f0" colspan="7">All dials</th></tr>
+    <tr><th style="${th}">#</th><th style="${th}">Industry</th>
+      <th style="${th};border-left:1px solid #e2e8f0">Dials</th><th style="${th}">Connections</th><th style="${th}">Connect %</th><th style="${th}">Meetings</th>
+      <th style="${th};border-left:1px solid #e2e8f0">Dials</th><th style="${th}">Connections</th><th style="${th}">Connect %</th><th style="${th}">Meetings</th><th style="${th}">Dials / meeting</th><th style="${th}">Showed / no-show</th><th style="${th}">Verdict</th></tr></thead><tbody>
+    ${segs.map((s, i) => {
+      const rows = cc.calls.filter(r => (r.industry || 'Unclassified') === s.name);
+      const w = tally(week.filter(r => (r.industry || 'Unclassified') === s.name));
+      const a = tally(rows);
+      const v = industryVerdict(s, avg);
+      return `<tr>
+        <td style="${td};font-weight:800">${i + 1}</td>
+        <td style="${td}"><b>${esc(s.name)}</b><div style="font-size:10px;color:#94a3b8">${esc(s.clients.join(', '))}</div></td>
+        <td style="${td};border-left:1px solid #e2e8f0">${w.dials}</td><td style="${td}">${w.connections}</td><td style="${td}">${pctTxt(w.connectRate)}</td><td style="${td};font-weight:700">${w.booked}</td>
+        <td style="${td};border-left:1px solid #e2e8f0">${a.dials}</td><td style="${td}">${a.connections}</td><td style="${td}">${pctTxt(a.connectRate)}</td>
+        <td style="${td};font-weight:800;color:${a.booked ? '#15803d' : 'inherit'}">${a.booked}</td>
+        <td style="${td}">${a.booked ? Math.round(a.dials / a.booked) : '—'}</td>
+        <td style="${td}">${a.showed} / ${a.noShow}</td>
+        <td style="${td}"><span title="${esc(v.why)}" style="font-size:10px;font-weight:800;color:${v.color};background:${v.bg};padding:2px 8px;border-radius:8px;cursor:help;white-space:nowrap">${v.label}</span></td></tr>`;
+    }).join('')}</tbody></table></div>
+    <div style="font-size:11px;color:#94a3b8;margin-top:6px">Average across every industry: ${total.booked} meetings in ${total.dials} dials (1 per ${total.booked ? Math.round(total.dials / total.booked) : '—'}).
+      <b>Cut</b> = it books so far below that average that bad luck explains it less than ${Math.round(100 * CUT_BELOW)}% of the time, or it has 0 meetings in ${CUT_MIN_DIALS}+ dials with over ${Math.round(100 * CUT_DQ)}% desk DQ (the properties aren't a fit). <b>Watch</b> = below average but too few dials to be sure. Hover a verdict for the numbers.</div>`;
+}
+
+/** The client panel's top section on the Cold Calling board: this week against the cap, and what has worked for them. */
+export function clientColdCallStatsHtml(clientName) {
+  const r = rankedClients().find(x => x.name === clientName);
+  const mine = cc.calls.filter(x => x.client_name === clientName);
+  const w = tally(callsOn(thisWeek()).filter(x => x.client_name === clientName));
+  const a = tally(mine);
+  const segs = segmentRows(mine, x => x.industry);
+  const cap = r ? r.cap : (Number(cc.quotas.capPerClient) || 2);
+  const box = (label, v) => `<div style="flex:1;min-width:90px"><div style="font-size:10px;color:#64748b;font-weight:600;text-transform:uppercase">${label}</div><div style="font-size:18px;font-weight:800;color:#0f172a">${v}</div></div>`;
+  return `<div style="margin-bottom:16px;padding:12px;background:#f5f3ff;border-radius:8px;border:1px solid #ddd6fe">
+    <div style="font-size:11px;font-weight:700;color:#6d28d9;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Cold calling this week${r && r.capped ? ' · <span style="color:#fff;background:#6b7280;padding:1px 6px;border-radius:8px;font-size:9px">CAPPED</span>' : ''}</div>
+    <div style="margin-bottom:10px">${bar(w.booked, cap, { cap: true })}<div style="font-size:10px;color:#94a3b8;margin-top:2px">meetings this week / weekly cap</div></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">${box('Dials', w.dials)}${box('Connections', w.connections)}${box('Connect %', w.connectRate == null ? '—' : w.connectRate + '%')}${box('All-time meetings', `${a.booked}<span style="font-size:11px;color:#64748b;font-weight:600"> / ${a.dials} dials</span>`)}</div>
+    ${segs.length ? `<table style="width:100%;border-collapse:collapse"><thead><tr><th style="${th}">Industry</th><th style="${th}">Dials</th><th style="${th}">Reached a person</th><th style="${th}">Meetings</th><th style="${th}">Desk DQ</th></tr></thead><tbody>
+      ${segs.map(s => `<tr><td style="${td}">${esc(s.name)}</td><td style="${td}">${s.dials}</td><td style="${td}">${Math.round(100 * s.connectRate)}%</td><td style="${td};font-weight:700;color:${s.booked ? '#15803d' : 'inherit'}">${s.booked}</td><td style="${td}">${Math.round(100 * s.dqRate)}%</td></tr>`).join('')}
+    </tbody></table>` : '<div style="font-size:12px;color:#94a3b8">No dials for this client yet.</div>'}
+  </div>`;
 }
 
 function industriesHtml() {
@@ -710,7 +785,7 @@ registerActions({
   async ccSync() {
     cc.syncing = true; cc.syncNote = ''; render();
     try {
-      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261028231241');
+      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261028231446');
       const out = await invokeEdgeFunctionAsUser('cold-call-sync', {});
       const made = (out.cards || []).filter(c => c.created).length;
       cc.syncNote = `${out.synced} dials pulled${made ? `, ${made} new card${made === 1 ? '' : 's'}` : ''}`;
@@ -724,7 +799,7 @@ registerActions({
   ccOpenDeal(el) {
     const id = el.dataset.id;
     if (!state.deals.some(d => String(d.id) === String(id))) { alert('That card is no longer on the board (delivered or archived).'); return; }
-    import('./deal-modal.js?v=20261028231241').then(m => m.openDeal(id));
+    import('./deal-modal.js?v=20261028231446').then(m => m.openDeal(id));
   },
   ccTrackerScope(el) { cc.trackerScope = el.dataset.scope; render(); },
   ccTrackerClient(el, e) { if (e.type !== 'change') return; cc.trackerClient = el.value; render(); },
@@ -763,7 +838,7 @@ registerActions({
   async ccTranscribe(el) {
     el.disabled = true; el.textContent = 'Transcribing…';
     try {
-      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261028231241');
+      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261028231446');
       const out = await invokeEdgeFunctionAsUser('cold-call-sync', { action: 'transcribe', call_id: Number(el.dataset.id) });
       const box = document.createElement('div');
       box.style.cssText = 'white-space:pre-wrap;font-size:11px;max-height:260px;overflow:auto;background:#fff;border-radius:6px;padding:8px;margin-top:4px';

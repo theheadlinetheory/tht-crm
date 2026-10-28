@@ -8,9 +8,9 @@
 // Exception: a retainer client we also set appointments for (Lead Tracker on,
 // Pass-Off off in Settings — e.g. Kinsley) goes the PPM route at its $0 lead cost,
 // so the meeting is logged without changing how the client is billed.
-import { isRetainerClient, findClientForDeal } from './client-info.js?v=20261028231241';
-import { str } from './utils.js?v=20261028231241';
-import { state } from './app.js?v=20261028231241';
+import { isRetainerClient, findClientForDeal } from './client-info.js?v=20261028231446';
+import { str } from './utils.js?v=20261028231446';
+import { state } from './app.js?v=20261028231446';
 
 function tracksMeetings(deal) {
   const c = findClientForDeal(deal) || state.clients.find(x => x.name === deal.stage);
@@ -20,11 +20,11 @@ function tracksMeetings(deal) {
 
 export async function deliverBookedLead(deal, clientName) {
   if (isRetainerClient(deal) && !tracksMeetings(deal)) {
-    const { openPassOffPreview } = await import('./email.js?v=20261028231241');
+    const { openPassOffPreview } = await import('./email.js?v=20261028231446');
     return openPassOffPreview(deal.id, clientName);
   }
-  const { autoPushToTracker } = await import('./email.js?v=20261028231241');
+  const { autoPushToTracker } = await import('./email.js?v=20261028231446');
   await autoPushToTracker(deal);
-  const { deleteDeal } = await import('./deals.js?v=20261028231241');
+  const { deleteDeal } = await import('./deals.js?v=20261028231446');
   deleteDeal(deal.id, 'Meeting Booked', clientName);
 }
