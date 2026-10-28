@@ -6,9 +6,10 @@
 // Left: the check-ins on lars@'s calendar for the next week (the same calendar
 // the Slack brief in #client-correspondence is built from — its "Open pre-call
 // brief" link lands here, on #client_leads/checkins/<client>). Right: the
-// brief for the selected client — who is on the call, the account (renewal),
-// what they have been emailing Tim / Aidan / Lars about with disputes flagged,
-// the numbers, and the recent leads.
+// brief for the selected client — which campaigns are sending, what is built to
+// go out next and roughly when, who is on the call, the account (renewal), what
+// they have been emailing Tim / Aidan / Lars about with disputes flagged, the
+// numbers, and the recent leads.
 //
 // Admin-only: it shows retainer amounts and reads three founder inboxes.
 // Data and caches live in checkins-data.js.
@@ -19,7 +20,7 @@ import { buildRenewalRow, money } from './renewals.js?v=20261028233137';
 import { prettyDate } from './retainer-billing.js?v=20261028233137';
 import { extensionsFor, extensionsStatus, loadTermExtensions } from './term-extensions.js?v=20261028233137';
 import {
-  CALL_DAYS, callsState, statsState, emailsState, loadCalls, loadStats, loadEmails,
+  CALL_DAYS, callsState, statsState, emailsState, campaignsState, loadCalls, loadStats, loadEmails, loadCampaigns,
   callClientName, defaultCall, knownContacts, lastHeardFrom, recentLeads,
 } from './checkins-data.js?v=20261028233137';
 
@@ -210,6 +211,97 @@ function numbersCard(name) {
     + (errs.length ? `<div style="font-size:11px;color:#b45309;margin-top:8px">Could not read: ${esc(errs.join('; '))}</div>` : ''), extra);
 }
 
+// ─── Campaigns: now, next, before ───
+
+const num = (x) => Math.round(Number(x || 0)).toLocaleString('en-US');
+// "Nov 17", with the year only when it isn't this one. Estimates get a "~".
+const when = (iso) => {
+  if (!iso) return '';
+  const d = new Date(iso.slice(0, 10) + 'T12:00:00Z');
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC',
+    ...(d.getUTCFullYear() !== new Date().getFullYear() ? { year: 'numeric' } : {}) });
+};
+const QUEUE_KIND = {
+  drafted: ['Loaded in Smartlead', '#dbeafe', '#1e40af'],
+  cleaned: ['Built, not uploaded', '#f1f5f9', '#475569'],
+  deep_list: ['Deep list, not uploaded', '#f1f5f9', '#475569'],
+};
+const STATUS_CHIP = {
+  ACTIVE: ['Sending', '#dcfce7', '#166534'], PAUSED: ['Paused', '#fef9c3', '#854d0e'],
+  COMPLETED: ['Finished', '#f1f5f9', '#475569'], STOPPED: ['Stopped', '#fee2e2', '#991b1b'],
+};
+const subhead = (t) => `<div style="font-size:12px;font-weight:700;color:#1e293b;margin:14px 0 6px">${t}</div>`;
+
+function liveRow(c) {
+  const done = Math.max(0, c.leads - c.notStarted);
+  const pct = c.leads ? Math.round((done / c.leads) * 100) : 0;
+  const status = c.notStarted <= 0
+    ? `All ${num(c.leads)} leads emailed${c.wrapsUp ? ` · follow-ups finish ~${esc(when(c.wrapsUp))}` : ''}`
+    : c.newLeadsRunOut
+      ? `${num(c.notStarted)} of ${num(c.leads)} still to email · new leads run out ~${esc(when(c.newLeadsRunOut))} · follow-ups finish ~${esc(when(c.wrapsUp))}`
+      : `${num(c.notStarted)} of ${num(c.leads)} still to email · just started, too early to estimate`;
+  return `<div style="padding:8px 0;border-top:1px solid #f1f5f9">
+    <div style="font-size:13px;color:#1e293b"><strong>${esc(c.list)}</strong></div>
+    <div style="display:flex;align-items:center;gap:8px;margin:4px 0 2px">
+      <div style="flex:1;height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden"><div style="width:${pct}%;height:100%;background:#16a34a"></div></div>
+      <span style="font-size:11px;color:#64748b;white-space:nowrap">${pct}% emailed</span>
+    </div>
+    <div style="font-size:12px;color:#475569">${status}</div>
+  </div>`;
+}
+
+function campaignsCard(name) {
+  const s = campaignsState(name);
+  const extra = refreshBtn('ciRefreshCampaigns', name);
+  if (s.loading || (!s.data && !s.error)) return card('Campaigns · now and next', muted('Reading Smartlead and the list builds…'), extra);
+  if (s.error) return card('Campaigns · now and next', errBox(s.error), extra);
+  const d = s.data;
+  let body = '';
+
+  // The headline: how long what we have built will last.
+  if (!d.live.length) body += `<div style="font-size:13px;color:#b45309;margin-bottom:4px">Nothing is sending right now.</div>`;
+  else if (d.runwayEnds) {
+    body += `<div style="font-size:13px;color:#1e293b;margin-bottom:4px">${d.queue.length
+      ? `Built lists keep new leads going until <strong>~${esc(when(d.runwayEnds))}</strong>`
+      : `<span style="color:#b45309">Nothing built after the live lists</span> — they run out of new leads <strong>~${esc(when(d.runwayEnds))}</strong>`}
+      <span style="color:#64748b;font-size:12px">· at ~${num(d.pace)} new leads a day${d.inboxes ? ` on ${d.inboxes} inboxes` : ''}</span></div>`;
+  }
+
+  body += subhead(`Sending now · ${d.live.length}`);
+  body += d.live.length ? d.live.map(liveRow).join('') : muted('No live campaign.');
+
+  body += subhead(`Up next · ${d.queue.length}${d.queue.length > 1 ? ' · likely order' : ''}`);
+  body += d.queue.length ? d.queue.map(q => {
+    const [label, bg, fg] = QUEUE_KIND[q.kind] || QUEUE_KIND.cleaned;
+    return `<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid #f1f5f9;font-size:13px">
+      <span>${chip(label, bg, fg)}<strong>${esc(q.list)}</strong> <span style="color:#64748b;font-size:12px">${num(q.leads)} leads</span></span>
+      <span style="white-space:nowrap;font-size:12px;color:#475569">${q.estLaunch ? `${q.estLaunch <= d.today ? 'now' : '~' + esc(when(q.estLaunch))} → ~${esc(when(q.estNewLeadsRunOut))}` : 'no estimate'}</span>
+    </div>`;
+  }).join('') : muted('Nothing built and waiting.');
+
+  if (d.building.length) body += subhead('Being built') + d.building.map(b => `<div style="font-size:12px;padding:2px 0">${esc(b.list)} <span style="color:#94a3b8">(${esc(b.stage)})</span></div>`).join('');
+  if (d.notBuilt.length) body += subhead('Not built yet') + d.notBuilt.map(n => `<div style="font-size:12px;padding:2px 0"><strong>${esc(n.offer)}:</strong> ${esc(n.segments.join(', '))}</div>`).join('');
+  if (d.pausedWithLeads.length) {
+    body += subhead('Paused with leads never emailed') + d.pausedWithLeads.map(p => `<div style="font-size:12px;padding:2px 0">${esc(p.list)} <span style="color:#64748b">· ${num(p.notStarted)} of ${num(p.leads)} not emailed · started ${esc(when(p.created))}</span></div>`).join('');
+  }
+
+  if (d.history.length) {
+    body += `<details data-key="campaign-history" ontoggle="ciToggle(this)" ${openThreads.has('campaign-history') ? 'open' : ''} style="margin-top:12px"><summary style="cursor:pointer;font-size:12px;font-weight:700;color:#1e293b">All campaigns · ${d.history.length}</summary>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:6px">
+        <tr style="color:#64748b;font-size:11px"><th style="text-align:left;font-weight:600">Started</th><th style="text-align:left;font-weight:600">List</th><th></th><th style="text-align:right;font-weight:600">Leads</th><th style="text-align:right;font-weight:600">Replies</th></tr>
+        ${d.history.map(h => {
+          const [label, bg, fg] = STATUS_CHIP[h.status] || [h.status || '?', '#f1f5f9', '#475569'];
+          return `<tr style="border-top:1px solid #f1f5f9"><td style="padding:4px 6px 4px 0;white-space:nowrap">${esc(when(h.created))}</td><td style="padding:4px 6px 4px 0">${esc(h.list)}</td><td>${chip(label, bg, fg)}</td><td style="text-align:right">${num(h.leads)}</td><td style="text-align:right">${num(h.replies)}</td></tr>`;
+        }).join('')}
+      </table></details>`;
+  }
+
+  const asOf = d.syncedAt ? new Date(d.syncedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+  body += `<div style="font-size:11px;color:#94a3b8;margin-top:10px">Dates are estimates: each list goes out when the one before it runs out of new leads, at last week's sending pace (or half the inboxes' daily limit, if higher). Uploads lose some leads to dedup, and Lars reorders lists by hand.${asOf ? ` Smartlead as of ${esc(asOf)}.` : ''}</div>`;
+  if ((d.errors || []).length) body += `<div style="font-size:11px;color:#b45309;margin-top:6px">Could not read: ${esc(d.errors.join('; '))}</div>`;
+  return card('Campaigns · now and next', body, extra);
+}
+
 function leadsCard(name) {
   const leads = recentLeads({
     clientName: name, sinceIso: isoDaysAgo(30), passOffs: state.passOffs, trackerEntries: state.trackerEntries,
@@ -234,7 +326,7 @@ function leadsCard(name) {
 function brief(name, call) {
   const cl = (state.clients || []).find(c => c.name === name);
   if (!cl) return `<div style="padding:40px;text-align:center;color:var(--text-muted)">Pick a check-in on the left, or any client from the list.</div>`;
-  setTimeout(() => { loadStats(name, paint); loadEmails(str(cl.id), paint); }, 0);
+  setTimeout(() => { loadStats(name, paint); loadCampaigns(name, paint); loadEmails(str(cl.id), paint); }, 0);
   const s = emailsState(str(cl.id));
   const header = `<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
     <div><h2 style="margin:0;font-size:20px;color:#1e293b">${esc(name)}</h2>
@@ -244,6 +336,7 @@ function brief(name, call) {
       <button class="btn btn-ghost" style="font-size:12px" onclick="openClientInfoPanel(atob('${b64(name)}'))">Client info</button>
     </div></div>`;
   return header
+    + campaignsCard(name)
     + `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:0 14px;align-items:start">
         <div>${peopleCard(cl, call, s.data)}${accountCard(cl)}${numbersCard(name)}</div>
         <div>${emailCard(cl)}${leadsCard(name)}</div>
@@ -288,4 +381,5 @@ window.ciSelect = (name) => {
 window.ciToggle = (el) => { const k = el.dataset.key; if (el.open) openThreads.add(k); else openThreads.delete(k); };
 window.ciRefreshCalls = () => loadCalls(paint, true);
 window.ciRefreshStats = (name) => loadStats(name, paint, true);
+window.ciRefreshCampaigns = (name) => loadCampaigns(name, paint, true);
 window.ciRefreshEmails = (id) => loadEmails(id, paint, true);

@@ -5,8 +5,8 @@
 // Three sources, all fetched lazily and cached for the session (closing the
 // tab forgets them; the Refresh buttons drop them):
 //   - checkin-call-brief (fulfillment project): the check-ins on lars@'s
-//     calendar with attendees, and the 2-week / 30-day numbers. The same
-//     function posts the Slack brief, so the two can never disagree.
+//     calendar with attendees, the 2-week / 30-day numbers, and the client's
+//     campaigns — live now, built and waiting (with estimated dates), and past.
 //   - checkin-emails (CRM project): the client's threads with Tim, Aidan and
 //     Lars, plus a Claude summary that flags disputes.
 //   - CRM state already in memory: renewal, contacts, pass-offs, meetings.
@@ -22,10 +22,12 @@ export const CALL_DAYS = 7;
 const _calls = { loading: false, error: '', data: null };
 const _stats = {};    // CRM client name -> { loading, error, data }
 const _emails = {};   // client id -> { loading, error, data }
+const _campaigns = {};   // CRM client name -> { loading, error, data }
 
 export const callsState = () => _calls;
 export const statsState = (name) => _stats[name] || {};
 export const emailsState = (id) => _emails[id] || {};
+export const campaignsState = (name) => _campaigns[name] || {};
 
 // The fulfillment project can't verify a CRM session at the platform level, so
 // the function introspects it itself (verifyCrmUser) — same as client-week-recap.
@@ -63,6 +65,16 @@ export async function loadStats(name, paint, force = false) {
   paint();
   try { _stats[name] = { loading: false, error: '', data: await briefCall({ action: 'stats', client: name }) }; }
   catch (e) { _stats[name] = { loading: false, error: e.message || 'Could not load the numbers', data: null }; }
+  paint();
+}
+
+export async function loadCampaigns(name, paint, force = false) {
+  const cur = _campaigns[name];
+  if (!name || cur?.loading || ((cur?.data || cur?.error) && !force)) return;
+  _campaigns[name] = { loading: true, error: '', data: null };
+  paint();
+  try { _campaigns[name] = { loading: false, error: '', data: await briefCall({ action: 'campaigns', client: name }) }; }
+  catch (e) { _campaigns[name] = { loading: false, error: e.message || 'Could not load the campaigns', data: null }; }
   paint();
 }
 
