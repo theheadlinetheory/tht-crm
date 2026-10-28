@@ -7,10 +7,10 @@
 //
 // It sends the caller's Supabase session token so the function can prove the
 // request came from a signed-in @theheadlinetheory.com user. Same reasoning as
-// weekly-updates.js and followup-reminders.js: this repo is public, so the
+// weekly-updates.js: this repo is public, so the
 // function's URL is published, and without the header anyone could POST it.
-import { supabase } from './supabase-client.js?v=20261028233137';
-import { str } from './utils.js?v=20261028233137';
+import { supabase } from './supabase-client.js?v=20261029024530';
+import { str } from './utils.js?v=20261029024530';
 
 // Lives on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const FN_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/crm-smartlead-client';
