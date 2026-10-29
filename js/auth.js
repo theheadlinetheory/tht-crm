@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // AUTH — Supabase Auth (Google OAuth), roles, campaign assignments
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20261030000401';
-import { state } from './app.js?v=20261030000401';
-import { render } from './render.js?v=20261030000401';
-import { getVisiblePipelinesWithArchive } from './search.js?v=20261030000401';
-import { esc, svgIcon } from './utils.js?v=20261030000401';
-import { resolveRoutingOwner } from './routing-rules.js?v=20261030000401';
+import { supabase } from './supabase-client.js?v=20261030042402';
+import { state } from './app.js?v=20261030042402';
+import { render } from './render.js?v=20261030042402';
+import { getVisiblePipelinesWithArchive } from './search.js?v=20261030042402';
+import { esc, svgIcon } from './utils.js?v=20261030042402';
+import { resolveRoutingOwner } from './routing-rules.js?v=20261030042402';
 
 const ALLOWED_DOMAIN = 'theheadlinetheory.com';
 export let currentUser = null;
