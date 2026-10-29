@@ -23,18 +23,18 @@
 // mid-edit. Edits save straight to Supabase (debounced) and patch the affected
 // DOM nodes in place — the panel is never wholesale re-rendered while open.
 
-import { state } from './app.js?v=20261029081943';
-import { esc, str, getToday, isValidDate, svgIcon } from './utils.js?v=20261029081943';
-import { isAdmin } from './auth.js?v=20261029081943';
-import { lookupClientInfo } from './client-info.js?v=20261029081943';
-import { sbUpdateClient, sbGetWonAcquisitionCards } from './api.js?v=20261029081943';
-import { registerActions } from './delegate.js?v=20261029081943';
-import { buildAcquisitionCard, indexWonCards, matchCardForClient, answeredQuestions } from './client-acquisition.js?v=20261029081943';
-import { parseProperties, areaOf } from './client-properties.js?v=20261029081943';
-import { renderCallSheetLink } from './call-sheet.js?v=20261029081943';
-import { findPolygonForClient, renderServiceAreaMap } from './maps.js?v=20261029081943';
-import { coldCallsSectionHtml, fillColdCallsSection } from './client-cold-calls.js?v=20261029081943';
-import { clientColdCallStatsHtml } from './cold-calling-tab.js?v=20261029081943';
+import { state } from './app.js?v=20261030000401';
+import { esc, str, getToday, isValidDate, svgIcon } from './utils.js?v=20261030000401';
+import { isAdmin } from './auth.js?v=20261030000401';
+import { lookupClientInfo } from './client-info.js?v=20261030000401';
+import { sbUpdateClient, sbGetWonAcquisitionCards } from './api.js?v=20261030000401';
+import { registerActions } from './delegate.js?v=20261030000401';
+import { buildAcquisitionCard, indexWonCards, matchCardForClient, answeredQuestions } from './client-acquisition.js?v=20261030000401';
+import { parseProperties, areaOf } from './client-properties.js?v=20261030000401';
+import { renderCallSheetLink } from './call-sheet.js?v=20261030000401';
+import { findPolygonForClient, renderServiceAreaMap } from './maps.js?v=20261030000401';
+import { coldCallsSectionHtml, fillColdCallsSection } from './client-cold-calls.js?v=20261030000401';
+import { clientColdCallStatsHtml } from './cold-calling-tab.js?v=20261030000401';
 
 const OVERLAY_ID = 'client-info-overlay';
 const MAP_KEY = 'client-panel'; // activeMapInstances key for the panel's map (no deal behind it)

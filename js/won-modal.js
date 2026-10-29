@@ -4,15 +4,15 @@
 // SmartLead tags + SmartLead client portal. Ordered, with Retry.
 // Body-level overlay (survives render()).
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261029081943';
-import { str, esc, getToday } from './utils.js?v=20261029081943';
-import { createClientRecord, deriveTimezone } from './client-info.js?v=20261029081943';
-import { ensureLeadTrackerSheet } from './lead-tracker-sheet.js?v=20261029081943';
-import { invokeEdgeFunction, showToast } from './api.js?v=20261029081943';
-import { isAdmin } from './auth.js?v=20261029081943';
-import { prepaidNote } from './retainer-billing.js?v=20261029081943';
-import { createSmartleadPortal } from './smartlead-portal.js?v=20261029081943';
-import { PAYMENT_CADENCES, TERM_UNITS } from './client-terms.js?v=20261029081943';
+import { state } from './app.js?v=20261030000401';
+import { str, esc, getToday } from './utils.js?v=20261030000401';
+import { createClientRecord, deriveTimezone } from './client-info.js?v=20261030000401';
+import { ensureLeadTrackerSheet } from './lead-tracker-sheet.js?v=20261030000401';
+import { invokeEdgeFunction, showToast } from './api.js?v=20261030000401';
+import { isAdmin } from './auth.js?v=20261030000401';
+import { prepaidNote } from './retainer-billing.js?v=20261030000401';
+import { createSmartleadPortal } from './smartlead-portal.js?v=20261030000401';
+import { PAYMENT_CADENCES, TERM_UNITS } from './client-terms.js?v=20261030000401';
 
 let _w = null; // { deal, clientId, archived, sheetId, tagsDone, portal }
 const CURRENCIES = ['USD', 'AUD', 'CAD'];
@@ -272,7 +272,7 @@ async function runSteps(f, startIdx) {
       // client, then removes it from `deals` — that is what clears the card.
       // The overlay lives on document.body, so it survives the render() this
       // triggers and the remaining steps keep reporting into it.
-      const { deleteDeal } = await import('./deals.js?v=20261029081943');
+      const { deleteDeal } = await import('./deals.js?v=20261030000401');
       await deleteDeal(_w.deal.id, 'Closed Won', f.name, { asOf: _w.closedDate || getToday() });
       _w.archived = true;
     }
@@ -356,7 +356,7 @@ export function wonPortalCopy() {
 export async function wonModalLink(existingName) {
   const dealId = _w.deal.id;
   wonModalDismiss();
-  const { deleteDeal } = await import('./deals.js?v=20261029081943');
+  const { deleteDeal } = await import('./deals.js?v=20261030000401');
   deleteDeal(dealId, 'Closed Won', existingName);
   showToast(`Deal linked to existing client "${existingName}"`, 'success');
 }
