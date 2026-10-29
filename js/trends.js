@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // TRENDS — All-time billable meetings + revenue per client, per month
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261029025017';
-import { esc, str } from './utils.js?v=20261029025017';
-import { multiFilterDropdown } from './html-helpers.js?v=20261029025017';
-import { isAdmin } from './auth.js?v=20261029025017';
-import { computeSetupFeeMap } from './lead-tracker.js?v=20261029025017';
+import { state } from './app.js?v=20261029081943';
+import { esc, str } from './utils.js?v=20261029081943';
+import { multiFilterDropdown } from './html-helpers.js?v=20261029081943';
+import { isAdmin } from './auth.js?v=20261029081943';
+import { computeSetupFeeMap } from './lead-tracker.js?v=20261029081943';
 
 // ─── All time: every month, per client ───
 // A lead counts in its appointment month by default — the billing rule, falling

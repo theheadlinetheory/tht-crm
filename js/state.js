@@ -4,7 +4,7 @@
 // All mutations go through store.* methods to prevent direct
 // state tampering and ensure consistent re-renders.
 
-import { render, refreshModal } from './render.js?v=20261029025017';
+import { render, refreshModal } from './render.js?v=20261029081943';
 
 // ─── Raw State (private — modules should use store.*) ───
 export const state = {
@@ -30,6 +30,7 @@ export const state = {
   dashboardTab: 'client_leads',
   dashboardMonth: new Date().toISOString().slice(0,7),
   dashboardWeek: null, // Monday of the selected week, 'YYYY-MM-DD' (null = current week)
+  setterChannel: 'all', // Setter Performance channel: 'all' | 'email' | 'cold_call'
   rerunQueue: [],
   rerunLoading: false,
   nurtureFilterCampaign: '',
