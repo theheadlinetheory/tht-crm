@@ -1,20 +1,22 @@
 // ═══════════════════════════════════════════════════════════
 // WON-MODAL — Closed-Won drop (Acquisition): route retainer/PPL,
 // create client, pull the deal out of the pipeline, then lead sheet +
-// SmartLead tags + SmartLead client portal. Ordered, with Retry.
+// SmartLead tags + SmartLead client portal (+ the cold-calling contact@
+// inbox when ticked). Ordered, with Retry.
 // Body-level overlay (survives render()).
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261030042402';
-import { str, esc, getToday } from './utils.js?v=20261030042402';
-import { createClientRecord, deriveTimezone } from './client-info.js?v=20261030042402';
-import { ensureLeadTrackerSheet } from './lead-tracker-sheet.js?v=20261030042402';
-import { invokeEdgeFunction, showToast } from './api.js?v=20261030042402';
-import { isAdmin } from './auth.js?v=20261030042402';
-import { prepaidNote } from './retainer-billing.js?v=20261030042402';
-import { createSmartleadPortal } from './smartlead-portal.js?v=20261030042402';
-import { PAYMENT_CADENCES, TERM_UNITS } from './client-terms.js?v=20261030042402';
+import { state } from './app.js?v=20261031025129';
+import { str, esc, getToday } from './utils.js?v=20261031025129';
+import { createClientRecord, deriveTimezone } from './client-info.js?v=20261031025129';
+import { ensureLeadTrackerSheet } from './lead-tracker-sheet.js?v=20261031025129';
+import { invokeEdgeFunction, showToast } from './api.js?v=20261031025129';
+import { isAdmin } from './auth.js?v=20261031025129';
+import { prepaidNote } from './retainer-billing.js?v=20261031025129';
+import { createSmartleadPortal } from './smartlead-portal.js?v=20261031025129';
+import { createColdCallInbox } from './cold-call-inbox.js?v=20261031025129';
+import { PAYMENT_CADENCES, TERM_UNITS } from './client-terms.js?v=20261031025129';
 
-let _w = null; // { deal, clientId, archived, sheetId, tagsDone, portal }
+let _w = null; // { deal, clientId, archived, sheetId, tagsDone, portal, coldInbox }
 const CURRENCIES = ['USD', 'AUD', 'CAD'];
 const TERMS_PPL = ['Net 7', 'Net 15', 'Net 30'];
 
@@ -73,6 +75,10 @@ export function openWonModal(deal) {
           <div style="grid-column:1/3">${lbl('Date closed')}
             <input type="date" id="won-closed" value="${getToday()}" max="${getToday()}" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;margin-top:3px">
             <div style="font-size:11px;color:#64748b;margin-top:3px">The day they said yes. Defaults to today — change it if you are logging this late, so the pipeline counts the close on the right day (Lars, 2026-09-18).</div>
+          </div>
+          <div style="grid-column:1/3">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#1e293b"><input type="checkbox" id="won-cold-calling"> Include cold calling</label>
+            <div style="font-size:11px;color:#64748b;margin-top:3px">Buys a contact@ .info inbox for their cold-call follow-ups (Zapmail → SmartLead, warm-up on). Needs the website above — the new domain forwards there.</div>
           </div>
         </div>
         <div id="won-billing-fields" style="margin-top:14px"></div>
@@ -183,6 +189,7 @@ function buildFields() {
     status: 'active',
     activatedDate: closedDate, // createClientRecord spreads every field into the clients insert — nothing else goes in here
     billingModel: type,
+    coldCalling: !!document.getElementById('won-cold-calling')?.checked, // puts them on the Cold Calling tab
   };
   if (type === 'retainer') {
     f.monthlyRetainer = parseFloat(val('won-amount')) || null;
@@ -214,13 +221,19 @@ function buildFields() {
 // finished later from Settings; before, a failed sheet or portal left the deal
 // sitting in Acquisition forever, and re-dragging it hit the duplicate block
 // against the client the first attempt had already made.
-const STEPS = ['Create client record', 'Remove deal from pipeline', 'Create Lead Tracker sheet', 'Create SmartLead tags', 'Create SmartLead client portal'];
+const STEPS = ['Create client record', 'Remove deal from pipeline', 'Create Lead Tracker sheet', 'Create SmartLead tags'];
+const STEP_PORTAL = 'Create SmartLead client portal';
+const STEP_COLD_INBOX = 'Order cold-calling inbox (contact@ .info)';
 // PPL clients don't get a Smartlead portal — we work their leads, they don't log in.
-const stepsFor = (f) => f.billingModel === 'retainer' ? STEPS : STEPS.slice(0, 4);
+const stepsFor = (f) => [...STEPS,
+  ...(f.billingModel === 'retainer' ? [STEP_PORTAL] : []),
+  ...(f.coldCalling ? [STEP_COLD_INBOX] : [])];
 
 // Which step to resume from — the first one that hasn't completed. Every step is
 // idempotent, so re-running the failed one is always safe.
-const nextStep = () => !_w.clientId ? 0 : !_w.archived ? 1 : !_w.sheetId ? 2 : !_w.tagsDone ? 3 : 4;
+const nextStep = () => !_w.clientId ? 0 : !_w.archived ? 1 : !_w.sheetId ? 2 : !_w.tagsDone ? 3
+  : (_w.steps.includes(STEP_PORTAL) && !_w.portal) ? _w.steps.indexOf(STEP_PORTAL)
+  : _w.steps.indexOf(STEP_COLD_INBOX);
 
 function setFooterProgress(activeIdx, failedIdx) {
   const f = document.getElementById('won-footer');
@@ -272,7 +285,7 @@ async function runSteps(f, startIdx) {
       // client, then removes it from `deals` — that is what clears the card.
       // The overlay lives on document.body, so it survives the render() this
       // triggers and the remaining steps keep reporting into it.
-      const { deleteDeal } = await import('./deals.js?v=20261030042402');
+      const { deleteDeal } = await import('./deals.js?v=20261031025129');
       await deleteDeal(_w.deal.id, 'Closed Won', f.name, { asOf: _w.closedDate || getToday() });
       _w.archived = true;
     }
@@ -290,8 +303,9 @@ async function runSteps(f, startIdx) {
       if (r?.error) throw new Error('SmartLead tags: ' + r.error);
       _w.tagsDone = true;
     }
-    setFooterProgress(4, null);
-    if (startIdx <= 4 && !_w.portal && _w.steps.length > 4) {
+    const iPortal = _w.steps.indexOf(STEP_PORTAL);
+    if (iPortal >= 0) setFooterProgress(iPortal, null);
+    if (iPortal >= 0 && startIdx <= iPortal && !_w.portal) {
       // Their own Smartlead login, so they can read and reply to their leads.
       // Idempotent server-side, so a Retry re-attaches rather than duplicating —
       // which matters, because Smartlead has no way to delete a client portal.
@@ -301,10 +315,22 @@ async function runSteps(f, startIdx) {
         || { id: _w.clientId, name: f.name, notifyEmail: f.notifyEmail };
       _w.portal = await createSmartleadPortal(row);
     }
-    setFooterProgress(5, null);
+    const iCold = _w.steps.indexOf(STEP_COLD_INBOX);
+    if (iCold >= 0) setFooterProgress(iCold, null);
+    if (iCold >= 0 && startIdx <= iCold && !_w.coldInbox) {
+      // Spends (~$4 domain + $3/mo mailbox); the tick is the approval. Only the
+      // purchase happens here — email-infra finishes the mailbox on its own.
+      const row = _w.client || state.clients.find(c => str(c.id) === str(_w.clientId))
+        || { id: _w.clientId, name: f.name };
+      if (!str(row.website)) row.website = f.website;
+      _w.coldInbox = await createColdCallInbox(row);
+    }
+    setFooterProgress(_w.steps.length, null);
     const clientName = f.name;
     const portal = _w.portal;
+    const coldInbox = _w.coldInbox;
     wonModalDismiss();
+    if (coldInbox?.email) showToast(`Cold-calling inbox ${coldInbox.email} ordered — live in ~1–3h, then warming up`, 'success');
     // Shown to whoever closed the deal so they can pass it on straight away.
     // This is a transient display only — the password is never written to the
     // clients row, which is readable with this repo's public anon key. Slack is
@@ -356,7 +382,7 @@ export function wonPortalCopy() {
 export async function wonModalLink(existingName) {
   const dealId = _w.deal.id;
   wonModalDismiss();
-  const { deleteDeal } = await import('./deals.js?v=20261030042402');
+  const { deleteDeal } = await import('./deals.js?v=20261031025129');
   deleteDeal(dealId, 'Closed Won', existingName);
   showToast(`Deal linked to existing client "${existingName}"`, 'success');
 }
