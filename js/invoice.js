@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // INVOICE — Stripe invoice generation from Lead Tracker
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20261031025129';
-import { invokeEdgeFunction } from './api.js?v=20261031025129';
-import { esc, str } from './utils.js?v=20261031025129';
-import { render } from './render.js?v=20261031025129';
-import { renderTimeline } from './invoice-timeline.js?v=20261031025129';
+import { state, pendingWrites } from './app.js?v=20261101103027';
+import { invokeEdgeFunction } from './api.js?v=20261101103027';
+import { esc, str } from './utils.js?v=20261101103027';
+import { render } from './render.js?v=20261101103027';
+import { renderTimeline } from './invoice-timeline.js?v=20261101103027';
 
 // ─── Month helpers ───
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -13,6 +13,15 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 function getCurrentMonth() {
   const d = new Date();
   return `${MONTHS[d.getMonth()]}/${String(d.getFullYear()).slice(-2)}`;
+}
+
+// Billing runs at month end or in the first days of the next month, so early in
+// a month the invoice being generated is for last month.
+function getDefaultBillingMonth() {
+  const d = new Date();
+  if (d.getDate() >= 25) return getCurrentMonth();
+  const last = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+  return `${MONTHS[last.getMonth()]}/${String(last.getFullYear()).slice(-2)}`;
 }
 
 function getAvailableMonths() {
@@ -78,14 +87,55 @@ function getExistingInvoices(client, month) {
   return Object.values(byInvoice);
 }
 
+// Invoices created in Stripe whose email never went out. Lives in the tracker
+// rows, so closing the modal or reloading the page can't lose the queue.
+function getUnsentInvoices(month) {
+  const byInvoice = {};
+  for (const e of state.trackerEntries) {
+    const invoiceId = str(e.stripeInvoiceId);
+    if (!invoiceId || str(e.invoiceEmailedAt) || billingMonth(e) !== month) continue;
+    if (str(e.paidStatus).toLowerCase() === 'paid') continue;
+    if (!byInvoice[invoiceId]) byInvoice[invoiceId] = { invoiceId, clientName: str(e.clientName), entries: [] };
+    byInvoice[invoiceId].entries.push(e);
+  }
+  return Object.values(byInvoice).sort((a, b) => a.clientName.localeCompare(b.clientName));
+}
+
+function markEmailed(invoiceId) {
+  const now = new Date().toISOString();
+  for (const e of state.trackerEntries) {
+    if (str(e.stripeInvoiceId) === invoiceId) e.invoiceEmailedAt = now;
+  }
+}
+
+function isRetainerClient(clientName) {
+  const client = state.clients.find(c => str(c.name) === clientName);
+  return str(client?.billingModel) === 'retainer';
+}
+
+function getClientCurrency(clientName) {
+  const client = state.clients.find(c => str(c.name) === clientName);
+  return str(client?.retainerCurrency).toLowerCase() || 'usd';
+}
+
 // ─── Parse lead cost to cents ───
 function parseCostCents(costStr) {
   const n = parseFloat(str(costStr).replace(/[^0-9.]/g, ''));
   return isNaN(n) ? 0 : Math.round(n * 100);
 }
 
-function formatDollars(cents) {
-  return `$${(cents / 100).toFixed(2)}`;
+function formatDollars(cents, currency = 'usd') {
+  return `${currency === 'cad' ? 'CA$' : '$'}${(cents / 100).toFixed(2)}`;
+}
+
+// A batch can mix currencies, which must never be added together.
+function formatTotals(items) {
+  const byCurrency = {};
+  for (const { clientName, total } of items) {
+    const currency = getClientCurrency(clientName);
+    byCurrency[currency] = (byCurrency[currency] || 0) + total;
+  }
+  return Object.entries(byCurrency).map(([currency, cents]) => formatDollars(cents, currency)).join(' + ') || formatDollars(0);
 }
 
 function getClientPaymentTerms(clientName) {
@@ -113,8 +163,9 @@ export function renderInvoiceModal() {
   const m = state.invoiceModal;
   if (!m) return '';
 
-  let html = `<div class="modal-overlay" onclick="closeInvoiceModal()">
-    <div class="invoice-modal" onclick="event.stopPropagation()">`;
+  // No click-outside-to-close: a stray click must not abandon a billing run.
+  let html = `<div class="modal-overlay">
+    <div class="invoice-modal">`;
 
   html += renderTimeline(TIMELINE_STEPS, getTimelineState(m.step));
 
@@ -138,8 +189,10 @@ export function renderInvoiceModal() {
     html += renderBulkSummaryStep(m);
   } else if (m.step === 'bulkLineItems') {
     html += renderBulkLineItemsStep(m);
+  } else if (m.step === 'bulkConfirm') {
+    html += renderBulkConfirmStep(m);
   } else if (m.step === 'bulkCreating') {
-    html += renderLoadingStep('Creating Invoices...', `Processing ${(m.bulkProgress || 0) + 1} of ${m.bulkIncluded.length} — ${esc(m.bulkIncluded[m.bulkProgress || 0]?.clientName || '')}...`);
+    html += renderLoadingStep(m.bulkResuming ? 'Loading Invoices...' : 'Creating Invoices...', `Processing ${(m.bulkProgress || 0) + 1} of ${m.bulkIncluded.length} — ${esc(m.bulkIncluded[m.bulkProgress || 0]?.clientName || '')}...`);
   } else if (m.step === 'bulkReview') {
     html += renderBulkReviewStep(m);
   } else if (m.step === 'bulkDone') {
@@ -151,7 +204,7 @@ export function renderInvoiceModal() {
 }
 
 function renderSelectStep(m) {
-  const clients = [...new Set(state.trackerEntries.map(e => str(e.clientName)))].filter(Boolean).sort();
+  const clients = [...new Set(state.trackerEntries.map(e => str(e.clientName)))].filter(c => c && !isRetainerClient(c)).sort();
   const months = getAvailableMonths();
   const currentMonth = getCurrentMonth();
 
@@ -183,14 +236,16 @@ function renderSelectStep(m) {
 
 function renderExistingInvoiceCard(inv) {
   const status = inv.paidStatus.toLowerCase();
+  const currency = getClientCurrency(str(inv.entries[0]?.clientName));
   const total = inv.entries.reduce((s, e) => s + parseCostCents(e.leadCost), 0);
+  const emailed = inv.entries.some(e => str(e.invoiceEmailedAt));
   const statusColor = status === 'paid' ? '#059669' : status === 'sent' ? '#4f46e5' : '#d97706';
-  const statusLabel = status === 'paid' ? 'Paid' : status === 'sent' ? 'Finalized' : 'Draft';
+  const statusLabel = status === 'paid' ? 'Paid' : status === 'sent' ? (emailed ? 'Emailed' : 'Finalized, not emailed') : 'Draft';
 
   let leadList = inv.entries.map(e =>
     `<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:12px">
       <span>${esc(str(e.leadName))}</span>
-      <span style="color:var(--text-muted)">${formatDollars(parseCostCents(e.leadCost))}</span>
+      <span style="color:var(--text-muted)">${formatDollars(parseCostCents(e.leadCost), currency)}</span>
     </div>`
   ).join('');
 
@@ -199,7 +254,7 @@ function renderExistingInvoiceCard(inv) {
     actions = `<button class="btn btn-primary" style="width:100%;margin-top:8px" onclick="invoiceResumeFlow('${inv.invoiceId}','finalize')">Finalize & Send Email</button>`;
   } else if (status === 'sent') {
     actions = `<div style="display:flex;gap:8px;margin-top:8px">
-      <button class="btn btn-primary" style="flex:2" onclick="invoiceResumeFlow('${inv.invoiceId}','email')">Send Email</button>
+      <button class="btn btn-primary" style="flex:2" onclick="invoiceResumeFlow('${inv.invoiceId}','email')">${emailed ? 'Send Again' : 'Send Email'}</button>
       <button class="btn btn-ghost" style="flex:1;color:#dc2626;border-color:#dc2626" onclick="invoiceVoid('${inv.invoiceId}')">Void</button>
     </div>`;
   } else if (status === 'paid') {
@@ -208,7 +263,7 @@ function renderExistingInvoiceCard(inv) {
 
   return `<div style="border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:12px;background:#fafafa">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <span style="font-size:12px;font-weight:600">${inv.entries.length} lead${inv.entries.length !== 1 ? 's' : ''} — ${formatDollars(total)}</span>
+      <span style="font-size:12px;font-weight:600">${inv.entries.length} lead${inv.entries.length !== 1 ? 's' : ''} — ${formatDollars(total, currency)}</span>
       <span style="font-size:11px;font-weight:600;color:${statusColor};background:${statusColor}15;padding:2px 8px;border-radius:4px">${statusLabel}</span>
     </div>
     ${leadList}
@@ -248,7 +303,7 @@ function getAllBillableClients(month) {
     if (str(e.callbackStatus).toLowerCase() === 'called back') continue;
     if (str(e.stripeInvoiceId)) continue;
     const client = state.clients.find(c => str(c.name) === name);
-    if (!client || !client.leadCost) continue;
+    if (!client || !client.leadCost || str(client.billingModel) === 'retainer') continue;
     if (!clientMap[name]) clientMap[name] = [];
     clientMap[name].push(e);
   }
@@ -278,6 +333,7 @@ function renderPreviewStep(m) {
   const included = entries.filter(e => !excluded.has(e.id));
   const subtotal = entries.reduce((sum, e, i) => sum + (excluded.has(e.id) ? 0 : entryCosts[i]), 0);
   const existing = getExistingInvoices(m.client, m.month);
+  const currency = getClientCurrency(m.client);
 
   let existingHtml = '';
   if (existing.length) {
@@ -298,7 +354,7 @@ function renderPreviewStep(m) {
       <td style="padding:6px 8px"><input type="checkbox" ${checked ? 'checked' : ''} onchange="invoiceToggleEntry('${e.id}')"></td>
       <td style="padding:6px 8px">${esc(str(e.leadName))}</td>
       <td style="padding:6px 8px;font-size:11px;color:var(--text-muted)">${esc(str(e.leadEmail))}</td>
-      <td style="padding:6px 8px;text-align:right">${formatDollars(cost)}${hasSurcharge ? `<div style="font-size:10px;color:#4f46e5">incl. ${formatDollars(cost - baseCost)} setup</div>` : ''}</td>
+      <td style="padding:6px 8px;text-align:right">${formatDollars(cost, currency)}${hasSurcharge ? `<div style="font-size:10px;color:#4f46e5">incl. ${formatDollars(cost - baseCost, currency)} setup</div>` : ''}</td>
     </tr>`;
   }
 
@@ -327,11 +383,11 @@ function renderPreviewStep(m) {
         </div>
         <div style="display:flex;justify-content:space-between;font-weight:700;font-size:15px;margin-top:8px">
           <span>Total</span>
-          <span>${formatDollars(subtotal)}</span>
+          <span>${formatDollars(subtotal, currency)}</span>
         </div>
       </div>
       <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="invoiceCreateDraft()" ${included.length === 0 ? 'disabled' : ''}>
-        Create Draft Invoice (${formatDollars(subtotal)})
+        Create Draft Invoice (${formatDollars(subtotal, currency)})
       </button>`;
 
   return `
@@ -367,13 +423,13 @@ function getClientInfo(clientName) {
   };
 }
 
-// Auto-charge clients get charged in Stripe the day this goes out, so their
-// copy is a heads-up rather than a request to pay.
+// Auto-charge clients gave us the OK and get charged in Stripe within a day or
+// so of this going out, so their copy is a heads-up rather than a request to pay.
 function defaultInvoiceBody(clientName, month) {
   const info = getClientInfo(clientName);
   const greeting = hasMultipleContacts(clientName) ? 'team' : (info.firstName || 'team');
   const headsUp = info.autoCharge
-    ? ' Just a heads up, it will be charged to the payment method on file today, so no need to respond.'
+    ? " Since you gave us the OK to auto-bill, there's no need to respond. It will be charged to your payment method on file in the next day or so."
     : '';
   return `Hey ${greeting},\n\nInvoice for ${formatMonthDisplay(month)} is attached below.${headsUp}\n\nLooking forward to keeping the momentum going.`;
 }
@@ -452,7 +508,7 @@ function renderEmailPreviewStep(m) {
       <textarea id="invoice-email-body" style="width:100%;min-height:140px;border:1px solid var(--border);border-radius:6px 6px 0 0;padding:12px;font-size:13px;line-height:1.6;font-family:var(--font);resize:vertical;border-bottom:none">${esc(bodyValue)}</textarea>
       <div style="border:1px solid var(--border);border-top:1px dashed var(--border);border-radius:0 0 6px 6px;padding:16px;background:#fafafa;font-size:13px;line-height:1.6">
         <div style="text-align:center;margin:0 0 16px">
-          <span style="display:inline-block;background:#4f46e5;color:#fff;padding:10px 28px;border-radius:6px;font-weight:600;font-size:13px">View & Pay Invoice</span>
+          <span style="display:inline-block;background:#4f46e5;color:#fff;padding:10px 28px;border-radius:6px;font-weight:600;font-size:13px">${info.autoCharge ? 'View Invoice' : 'View & Pay Invoice'}</span>
         </div>
         <div style="margin-top:12px;font-size:13px">Best,</div>
         <table cellpadding="0" cellspacing="0" border="0" style="font-family:Arial,sans-serif;color:#131820;margin-top:8px">
@@ -486,7 +542,7 @@ function renderEmailSentStep(m) {
       <div style="font-size:40px;margin:12px 0">✉️</div>
       <div style="font-size:14px;font-weight:600;margin-bottom:4px">Invoice email sent</div>
       <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Sent to ${esc(m.emailSentTo || '')} from aidan@theheadlinetheory.com</div>
-      ${getClientInfo(m.client).autoCharge ? `<div style="font-size:13px;font-weight:600;color:#7c3aed;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:6px;padding:8px 12px;margin-bottom:12px">💳 Auto-charge client: charge their payment method on file in Stripe now.</div>` : ''}
+      ${getClientInfo(m.client).autoCharge ? `<div style="font-size:13px;font-weight:600;color:#7c3aed;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:6px;padding:8px 12px;margin-bottom:12px">💳 Auto-charge client: charge their payment method on file in Stripe. A reminder card is in #client-payments.</div>` : ''}
       <a href="https://dashboard.stripe.com/invoices/${encodeURIComponent(m.result?.invoiceId || '')}" target="_blank" class="btn btn-ghost" style="margin-bottom:8px;display:inline-flex;align-items:center;gap:4px">
         ${getClientInfo(m.client).autoCharge ? 'Charge in Stripe' : 'View in Stripe'} ↗
       </a>
@@ -502,8 +558,14 @@ function renderBulkSummaryStep(m) {
   const clients = m.bulkClients;
   const excluded = m.bulkExcluded;
   const included = clients.filter(c => !excluded.has(c.clientName));
-  const grandTotal = included.reduce((sum, c) => sum + c.total, 0);
   const totalLeads = included.reduce((sum, c) => sum + c.entries.length, 0);
+  const unsent = m.bulkUnsent || [];
+  const unsentBanner = unsent.length ? `
+      <div style="border:1px solid #fcd34d;background:#fffbeb;border-radius:6px;padding:10px 12px;margin-bottom:12px;font-size:13px">
+        <div style="font-weight:600;margin-bottom:2px">${unsent.length} invoice${unsent.length !== 1 ? 's' : ''} created but not emailed yet</div>
+        <div style="color:var(--text-muted);font-size:12px;margin-bottom:8px">${unsent.map(u => esc(u.clientName)).join(', ')}</div>
+        <button class="btn btn-primary" style="width:100%" onclick="invoiceBulkResume()">Pick Up Where You Left Off →</button>
+      </div>` : '';
 
   const rows = clients.map(c => {
     const checked = !excluded.has(c.clientName);
@@ -514,7 +576,7 @@ function renderBulkSummaryStep(m) {
       <td style="padding:6px 8px;font-weight:500;font-size:13px">${esc(c.clientName)}</td>
       <td style="padding:6px 8px;text-align:center">${c.entries.length}</td>
       <td style="padding:6px 8px;text-align:right;font-size:12px;color:var(--text-muted)">${terms}</td>
-      <td style="padding:6px 8px;text-align:right;font-weight:600">${formatDollars(c.total)}${surcharge ? '<div style="font-size:10px;color:#4f46e5">+setup</div>' : ''}</td>
+      <td style="padding:6px 8px;text-align:right;font-weight:600">${formatDollars(c.total, getClientCurrency(c.clientName))}${surcharge ? '<div style="font-size:10px;color:#4f46e5">+setup</div>' : ''}</td>
     </tr>`;
   }).join('');
 
@@ -524,7 +586,9 @@ function renderBulkSummaryStep(m) {
       <button class="btn btn-ghost" onclick="closeInvoiceModal()" style="padding:4px 8px">✕</button>
     </div>
     <div class="invoice-body">
-      ${!clients.length ? '<div style="text-align:center;padding:24px;color:var(--text-muted)">No unbilled leads for this month.</div>' : `
+      ${unsentBanner}
+      ${!clients.length ? `<div style="text-align:center;padding:24px;color:var(--text-muted)">No unbilled leads for this month.</div>
+      <button class="btn btn-ghost" style="width:100%" onclick="invoiceBack()">← Back</button>` : `
       <div style="max-height:400px;overflow-y:auto">
       <table style="width:100%;border-collapse:collapse">
         <thead><tr style="border-bottom:2px solid var(--border);position:sticky;top:0;background:var(--card)">
@@ -540,7 +604,7 @@ function renderBulkSummaryStep(m) {
           <td style="padding:8px">${included.length} client${included.length !== 1 ? 's' : ''}</td>
           <td style="padding:8px;text-align:center">${totalLeads}</td>
           <td></td>
-          <td style="padding:8px;text-align:right">${formatDollars(grandTotal)}</td>
+          <td style="padding:8px;text-align:right">${formatTotals(included)}</td>
         </tr></tfoot>
       </table>
       </div>
@@ -568,6 +632,7 @@ function renderBulkLineItemsStep(m) {
   });
   const includedEntries = c.entries.filter(e => !excludedEntries.has(e.id));
   const subtotal = c.entries.reduce((sum, e, i) => sum + (excludedEntries.has(e.id) ? 0 : entryCosts[i]), 0);
+  const currency = getClientCurrency(c.clientName);
 
   const rows = c.entries.map((e, i) => {
     const checked = !excludedEntries.has(e.id);
@@ -578,7 +643,7 @@ function renderBulkLineItemsStep(m) {
       <td style="padding:5px 6px"><input type="checkbox" ${checked ? 'checked' : ''} onchange="invoiceBulkToggleEntry('${e.id}')"></td>
       <td style="padding:5px 6px;font-size:12px">${esc(str(e.leadName))}</td>
       <td style="padding:5px 6px;font-size:11px;color:var(--text-muted)">${esc(str(e.apptDate || e.appt_date || ''))}</td>
-      <td style="padding:5px 6px;text-align:right;font-size:12px">${formatDollars(cost)}${hasSurcharge ? '<div style="font-size:9px;color:#4f46e5">+setup</div>' : ''}</td>
+      <td style="padding:5px 6px;text-align:right;font-size:12px">${formatDollars(cost, currency)}${hasSurcharge ? '<div style="font-size:9px;color:#4f46e5">+setup</div>' : ''}</td>
     </tr>`;
   }).join('');
 
@@ -602,14 +667,45 @@ function renderBulkLineItemsStep(m) {
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0;padding:8px 0;border-top:2px solid var(--border)">
         <span style="font-weight:600">${includedEntries.length} lead${includedEntries.length !== 1 ? 's' : ''}</span>
-        <span style="font-weight:700;font-size:16px">${formatDollars(subtotal)}</span>
+        <span style="font-weight:700;font-size:16px">${formatDollars(subtotal, currency)}</span>
       </div>
       <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="invoiceBulkBackClient()">← Back</button>
         <button class="btn btn-ghost" style="flex:1" onclick="invoiceBulkSkipClient()">Skip Client</button>
         <button class="btn btn-primary" style="flex:2" onclick="invoiceBulkApproveClient()" ${!includedEntries.length ? 'disabled' : ''}>Approve & Next →</button>
       </div>
       <div style="margin-top:8px;display:flex;justify-content:center">
         <div style="display:flex;gap:4px">${clients.map((_, i) => `<div style="width:8px;height:8px;border-radius:50%;background:${i < idx ? '#059669' : i === idx ? '#4f46e5' : '#e5e7eb'}"></div>`).join('')}</div>
+      </div>
+    </div>`;
+}
+
+function renderBulkConfirmStep(m) {
+  const approved = m.bulkApproved;
+  const rows = approved.map(c => `<tr>
+      <td style="padding:6px 8px;font-size:13px">${esc(c.clientName)}</td>
+      <td style="padding:6px 8px;text-align:center">${c.entries.length}</td>
+      <td style="padding:6px 8px;text-align:right;font-weight:600">${formatDollars(c.total, getClientCurrency(c.clientName))}</td>
+    </tr>`).join('');
+
+  return `
+    <div class="invoice-header">
+      <h3 style="margin:0;font-size:16px">Ready to Create ${approved.length} Invoice${approved.length !== 1 ? 's' : ''}</h3>
+      <button class="btn btn-ghost" onclick="closeInvoiceModal()" style="padding:4px 8px">✕</button>
+    </div>
+    <div class="invoice-body">
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px">This creates and finalizes them in Stripe. No emails go out yet: you review each one next.</div>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
+        <tbody>${rows}</tbody>
+        <tfoot><tr style="border-top:2px solid var(--border);font-weight:700">
+          <td style="padding:8px">Total</td>
+          <td style="padding:8px;text-align:center">${approved.reduce((s, c) => s + c.entries.length, 0)}</td>
+          <td style="padding:8px;text-align:right">${formatTotals(approved)}</td>
+        </tr></tfoot>
+      </table>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" style="flex:1" onclick="invoiceBulkBackClient()">← Back</button>
+        <button class="btn btn-primary" style="flex:2" onclick="invoiceBulkCreateApproved()">Create Invoices →</button>
       </div>
     </div>`;
 }
@@ -648,7 +744,7 @@ function renderBulkReviewStep(m) {
           <div style="font-size:11px;color:var(--text-muted)">leads</div>
         </div>
         <div style="flex:1;padding:8px;background:#eef2ff;border-radius:6px;text-align:center">
-          <div style="font-size:20px;font-weight:700;color:#4f46e5">${formatDollars(r.totalCents)}</div>
+          <div style="font-size:20px;font-weight:700;color:#4f46e5">${formatDollars(r.totalCents, getClientCurrency(r.clientName))}</div>
           <div style="font-size:11px;color:var(--text-muted)">total</div>
         </div>
         <div style="flex:1;padding:8px;background:#faf5ff;border-radius:6px;text-align:center">
@@ -676,10 +772,12 @@ function renderBulkReviewStep(m) {
         </div>
         <div><strong>Subject:</strong> Invoice - Lead Generation Services - ${esc(formatMonthDisplay(m.month))}</div>
       </div>
+      ${r.emailSent ? '<div style="font-size:12px;font-weight:600;color:#059669;margin-bottom:8px">✓ Already sent</div>' : ''}
       <textarea id="invoice-email-body" style="width:100%;min-height:100px;border:1px solid var(--border);border-radius:6px;padding:12px;font-size:13px;line-height:1.6;font-family:var(--font);resize:vertical">${esc(m.emailBody || '')}</textarea>
       <div style="display:flex;gap:8px;margin-top:12px">
-        <button class="btn btn-ghost" style="flex:1" onclick="invoiceBulkSkipEmail()">Skip</button>
-        <button class="btn btn-primary" style="flex:2" onclick="invoiceBulkSendEmail()">Send & Next →</button>
+        ${idx > 0 ? `<button class="btn btn-ghost" onclick="invoiceBulkBackEmail()">← Back</button>` : ''}
+        <button class="btn btn-ghost" style="flex:1" onclick="invoiceBulkSkipEmail()">${r.emailSent ? 'Next' : 'Skip'}</button>
+        <button class="btn btn-primary" style="flex:2" onclick="invoiceBulkSendEmail()" ${m.bulkSending ? 'disabled' : ''}>${m.bulkSending ? 'Sending...' : r.emailSent ? 'Send Again' : 'Send & Next →'}</button>
       </div>
       <div style="margin-top:8px;display:flex;justify-content:center">
         <div style="display:flex;gap:4px">${results.map((_, i) => `<div style="width:8px;height:8px;border-radius:50%;background:${i < idx ? '#059669' : i === idx ? '#4f46e5' : '#e5e7eb'}"></div>`).join('')}</div>
@@ -693,18 +791,17 @@ function renderBulkDoneStep(m) {
   const sent = results.filter(r => r.emailSent);
   const skipped = created.filter(r => !r.emailSent);
   const failed = results.filter(r => r.error);
-  const grandTotal = created.reduce((sum, r) => sum + (r.totalCents || 0), 0);
 
   const rows = results.map(r => {
     const statusColor = r.error ? '#dc2626' : r.emailSent ? '#059669' : '#d97706';
-    const statusLabel = r.error ? 'Failed' : r.emailSent ? 'Sent' : 'Draft';
+    const statusLabel = r.error ? 'Failed' : r.emailSent ? 'Sent' : 'Not emailed';
     const charge = r.emailSent && getClientInfo(r.clientName).autoCharge
       ? ` <a href="https://dashboard.stripe.com/invoices/${encodeURIComponent(r.invoiceId || '')}" target="_blank" style="font-size:11px;font-weight:600;color:#7c3aed">💳 Charge in Stripe ↗</a>`
       : '';
     return `<tr>
       <td style="padding:6px 8px;font-size:13px">${esc(r.clientName)}${charge}</td>
       <td style="padding:6px 8px;text-align:center">${r.error ? '—' : r.lineItems}</td>
-      <td style="padding:6px 8px;text-align:right">${r.error ? '—' : formatDollars(r.totalCents)}</td>
+      <td style="padding:6px 8px;text-align:right">${r.error ? '—' : formatDollars(r.totalCents, getClientCurrency(r.clientName))}</td>
       <td style="padding:6px 8px;text-align:right"><span style="font-size:11px;font-weight:600;color:${statusColor};background:${statusColor}15;padding:2px 8px;border-radius:4px">${statusLabel}</span></td>
     </tr>`;
   }).join('');
@@ -722,7 +819,7 @@ function renderBulkDoneStep(m) {
         </div>
         <div style="flex:1;padding:10px;background:#fffbeb;border-radius:6px;text-align:center">
           <div style="font-size:22px;font-weight:700;color:#d97706">${skipped.length}</div>
-          <div style="font-size:11px;color:var(--text-muted)">drafts</div>
+          <div style="font-size:11px;color:var(--text-muted)">not emailed</div>
         </div>
         ${failed.length ? `<div style="flex:1;padding:10px;background:#fef2f2;border-radius:6px;text-align:center">
           <div style="font-size:22px;font-weight:700;color:#dc2626">${failed.length}</div>
@@ -740,10 +837,12 @@ function renderBulkDoneStep(m) {
         <tfoot><tr style="border-top:2px solid var(--border);font-weight:700">
           <td style="padding:8px">${created.length} invoices</td>
           <td style="padding:8px;text-align:center">${created.reduce((s, r) => s + r.lineItems, 0)}</td>
-          <td style="padding:8px;text-align:right">${formatDollars(grandTotal)}</td>
+          <td style="padding:8px;text-align:right">${formatTotals(created.map(r => ({ clientName: r.clientName, total: r.totalCents })))}</td>
           <td></td>
         </tr></tfoot>
       </table>
+      ${failed.map(r => `<div style="font-size:12px;color:#dc2626;margin-bottom:8px">${esc(r.clientName)}: ${esc(r.error)}</div>`).join('')}
+      ${skipped.length ? `<button class="btn btn-ghost" style="width:100%;margin-bottom:8px" onclick="invoiceBulkReviewUnsent()">← Back to Unsent Emails</button>` : ''}
       <button class="btn btn-primary" style="width:100%" onclick="closeInvoiceModal()">Done</button>
     </div>`;
 }
@@ -754,11 +853,15 @@ window.openInvoiceModal = () => {
   state.invoiceModal = {
     step: 'select',
     client: prefilledClient,
-    month: getCurrentMonth(),
+    month: getDefaultBillingMonth(),
     entries: [],
     excluded: new Set(),
     result: null,
   };
+  if (!prefilledClient && getUnsentInvoices(state.invoiceModal.month).length) {
+    window.invoiceBulkStart();
+    return;
+  }
   render();
 };
 
@@ -862,10 +965,17 @@ window.invoiceFinalizeAndEmail = async () => {
 };
 
 window.invoiceBackToDone = () => {
-  if (state.invoiceModal) {
-    state.invoiceModal.step = 'done';
-    render();
+  const m = state.invoiceModal;
+  if (!m) return;
+  // Only a draft made in this session has a Draft Created screen to return to.
+  if (m.result?.lineItems) {
+    m.step = 'done';
+  } else {
+    m.entries = getBillableEntries(m.client, m.month);
+    m.excluded = new Set();
+    m.step = 'preview';
   }
+  render();
 };
 
 window.invoiceSendAgain = () => {
@@ -917,12 +1027,16 @@ window.invoiceSendEmail = async () => {
       month: m.month,
       emailBody,
       paymentLink: m.finalized.hostedInvoiceUrl,
+      invoiceId: m.result.invoiceId,
+      amountDue: m.finalized.amountDue,
+      currency: m.finalized.currency,
     };
     if (emailTo) payload.toOverride = emailTo;
     if (emailCc) payload.ccOverride = emailCc;
 
     const result = await invokeEdgeFunction('send-email', payload);
 
+    markEmailed(m.result.invoiceId);
     m.emailSentTo = result.sentTo || emailTo;
     m.step = 'emailSent';
     render();
@@ -942,6 +1056,7 @@ window.invoiceResumeFlow = async (invoiceId, action) => {
   m.excluded = new Set();
   m.result = { invoiceId };
   m.subtotal = entries.reduce((s, e) => s + parseCostCents(e.leadCost), 0);
+  m._emailInit = false;
 
   if (action === 'finalize') {
     m.step = 'finalizing';
@@ -985,6 +1100,7 @@ window.invoiceVoid = async (invoiceId) => {
         e.stripeInvoiceId = '';
         e.invoice = '';
         e.paymentLink = '';
+        e.invoiceEmailedAt = '';
       }
     }
     if (m) { m.step = 'preview'; m.entries = getBillableEntries(m.client, m.month); m.excluded = new Set(); }
@@ -1001,6 +1117,7 @@ window.invoiceBulkStart = () => {
   const month = document.getElementById('invoice-month')?.value || m.month || getCurrentMonth();
   m.month = month;
   m.bulkClients = getAllBillableClients(month);
+  m.bulkUnsent = getUnsentInvoices(month);
   m.bulkExcluded = new Set();
   m.step = 'bulkSummary';
   render();
@@ -1059,40 +1176,91 @@ window.invoiceBulkApproveClient = () => {
     }
     m.bulkApproved.push({ clientName: c.clientName, entries: includedEntries, total });
   }
-  m.bulkItemsIndex++;
-  m.bulkEntryExcluded = new Set();
-  if (m.bulkItemsIndex >= m.bulkIncluded.length) {
-    if (m.bulkApproved.length) {
-      invoiceBulkCreateAllApproved();
-    } else {
-      m.step = 'bulkDone';
-      m.bulkResults = [];
-      render();
-    }
+  bulkAdvanceClient(m);
+};
+
+window.invoiceBulkBackClient = () => {
+  const m = state.invoiceModal;
+  if (!m) return;
+  m.bulkItemsIndex--;
+  if (m.bulkItemsIndex < 0) {
+    m.bulkItemsIndex = 0;
+    m.step = 'bulkSummary';
   } else {
-    render();
+    const clientName = m.bulkIncluded[m.bulkItemsIndex].clientName;
+    m.bulkApproved = m.bulkApproved.filter(c => c.clientName !== clientName);
+    m.step = 'bulkLineItems';
   }
+  render();
 };
 
 window.invoiceBulkSkipClient = () => {
   const m = state.invoiceModal;
   if (!m) return;
-  m.bulkItemsIndex++;
-  m.bulkEntryExcluded = new Set();
-  if (m.bulkItemsIndex >= m.bulkIncluded.length) {
-    if (m.bulkApproved.length) {
-      invoiceBulkCreateAllApproved();
-    } else {
-      m.step = 'bulkDone';
-      m.bulkResults = [];
-      render();
-    }
-  } else {
-    render();
-  }
+  bulkAdvanceClient(m);
 };
 
-async function invoiceBulkCreateAllApproved() {
+function bulkAdvanceClient(m) {
+  m.bulkItemsIndex++;
+  if (m.bulkItemsIndex < m.bulkIncluded.length) {
+    render();
+    return;
+  }
+  m.step = m.bulkApproved.length ? 'bulkConfirm' : 'bulkDone';
+  if (!m.bulkApproved.length) m.bulkResults = [];
+  render();
+}
+
+async function finalizeForBulk(m, clientName, invoiceId, entries, lineItems, paymentTerms) {
+  const finalized = await invokeEdgeFunction('finalize-stripe-invoice', { invoiceId });
+  for (const entry of entries) entry.paidStatus = 'Sent';
+  m.bulkResults.push({
+    clientName,
+    invoiceId,
+    lineItems,
+    totalCents: finalized.amountDue,
+    currency: finalized.currency,
+    paymentTerms,
+    hostedInvoiceUrl: finalized.hostedInvoiceUrl,
+  });
+}
+
+function startBulkReview(m) {
+  m.bulkReviewIndex = 0;
+  m._bulkEmailInit = false;
+  const hasSuccess = m.bulkResults.some(r => !r.error);
+  m.step = hasSuccess ? 'bulkReview' : 'bulkDone';
+  render();
+}
+
+window.invoiceBulkResume = async () => {
+  const m = state.invoiceModal;
+  if (!m) return;
+  const unsent = m.bulkUnsent;
+  m.bulkIncluded = unsent;
+  m.bulkResults = [];
+  m.bulkProgress = 0;
+  m.bulkResuming = true;
+  m.step = 'bulkCreating';
+  render();
+
+  for (let i = 0; i < unsent.length; i++) {
+    m.bulkProgress = i;
+    render();
+    const u = unsent[i];
+    try {
+      await finalizeForBulk(m, u.clientName, u.invoiceId, u.entries, u.entries.length, getClientPaymentTerms(u.clientName));
+    } catch (e) {
+      m.bulkResults.push({ clientName: u.clientName, error: e.message });
+    }
+  }
+
+  m.bulkResuming = false;
+  m.bulkUnsent = [];
+  startBulkReview(m);
+};
+
+window.invoiceBulkCreateApproved = async () => {
   const m = state.invoiceModal;
   if (!m) return;
   const approved = m.bulkApproved;
@@ -1117,38 +1285,53 @@ async function invoiceBulkCreateAllApproved() {
         entry.invoice = result.invoiceId || '';
         entry.stripeInvoiceId = result.invoiceId || '';
       }
-      const finalized = await invokeEdgeFunction('finalize-stripe-invoice', {
-        invoiceId: result.invoiceId,
-      });
-      for (const entry of c.entries) entry.paidStatus = 'Sent';
-      m.bulkResults.push({
-        clientName: c.clientName,
-        invoiceId: result.invoiceId,
-        lineItems: result.lineItems,
-        totalCents: c.total,
-        paymentTerms: result.paymentTerms || 'Net 7',
-        hostedInvoiceUrl: finalized.hostedInvoiceUrl,
-      });
+      await finalizeForBulk(m, c.clientName, result.invoiceId, c.entries, result.lineItems, result.paymentTerms || 'Net 7');
     } catch (e) {
       m.bulkResults.push({ clientName: c.clientName, error: e.message });
     }
   }
 
-  m.bulkReviewIndex = 0;
+  startBulkReview(m);
+};
+
+function bulkAdvanceEmail(m) {
+  const results = m.bulkResults.filter(r => !r.error);
+  m.bulkReviewIndex++;
   m._bulkEmailInit = false;
-  const hasSuccess = m.bulkResults.some(r => !r.error);
-  m.step = hasSuccess ? 'bulkReview' : 'bulkDone';
+  if (m.bulkReviewIndex >= results.length) {
+    m.step = 'bulkDone';
+  }
+  render();
+}
+
+window.invoiceBulkBackEmail = () => {
+  const m = state.invoiceModal;
+  if (!m) return;
+  m.bulkReviewIndex = Math.max(0, m.bulkReviewIndex - 1);
+  m._bulkEmailInit = false;
+  render();
+};
+
+window.invoiceBulkReviewUnsent = () => {
+  const m = state.invoiceModal;
+  if (!m) return;
+  const results = m.bulkResults.filter(r => !r.error);
+  m.bulkReviewIndex = Math.max(0, results.findIndex(r => !r.emailSent));
+  m._bulkEmailInit = false;
+  m.step = 'bulkReview';
   render();
 };
 
 window.invoiceBulkSendEmail = async () => {
   const m = state.invoiceModal;
-  if (!m) return;
+  if (!m || m.bulkSending) return;
   const results = m.bulkResults.filter(r => !r.error);
   const r = results[m.bulkReviewIndex];
   if (!r) return;
 
   m.emailBody = document.getElementById('invoice-email-body')?.value || m.emailBody || '';
+  m.bulkSending = true;
+  render();
 
   try {
     const payload = {
@@ -1157,31 +1340,29 @@ window.invoiceBulkSendEmail = async () => {
       month: m.month,
       emailBody: m.emailBody,
       paymentLink: r.hostedInvoiceUrl,
+      invoiceId: r.invoiceId,
+      amountDue: r.totalCents,
+      currency: r.currency,
     };
     if (m.emailTo) payload.toOverride = m.emailTo;
     if (m.emailCc) payload.ccOverride = m.emailCc;
     await invokeEdgeFunction('send-email', payload);
     r.emailSent = true;
+    markEmailed(r.invoiceId);
   } catch (e) {
+    // Stay on this client so the send can be retried or fixed.
     alert(`Email failed for ${r.clientName}: ${e.message}`);
+    m.bulkSending = false;
+    render();
+    return;
   }
 
-  m.bulkReviewIndex++;
-  m._bulkEmailInit = false;
-  if (m.bulkReviewIndex >= results.length) {
-    m.step = 'bulkDone';
-  }
-  render();
+  m.bulkSending = false;
+  bulkAdvanceEmail(m);
 };
 
 window.invoiceBulkSkipEmail = () => {
   const m = state.invoiceModal;
   if (!m) return;
-  const results = m.bulkResults.filter(r => !r.error);
-  m.bulkReviewIndex++;
-  m._bulkEmailInit = false;
-  if (m.bulkReviewIndex >= results.length) {
-    m.step = 'bulkDone';
-  }
-  render();
+  bulkAdvanceEmail(m);
 };

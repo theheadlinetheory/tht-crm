@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // API — API layer (Google Sheets calls + Supabase CRUD)
 // ═══════════════════════════════════════════════════════════
-import { API_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261031025129';
-import { supabase } from './supabase-client.js?v=20261031025129';
+import { API_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261101103027';
+import { supabase } from './supabase-client.js?v=20261101103027';
 export { supabase };
-import { state, store, pendingWrites, failedWriteQueue, pendingDealFields, deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds, inFlightActivityIds } from './app.js?v=20261031025129';
-import { render, refreshModal } from './render.js?v=20261031025129';
+import { state, store, pendingWrites, failedWriteQueue, pendingDealFields, deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds, inFlightActivityIds } from './app.js?v=20261101103027';
+import { render, refreshModal } from './render.js?v=20261101103027';
 
 // Cached auth check — populated lazily on first initialSync to avoid circular import
 let _cachedIsAdmin = null;
@@ -133,7 +133,7 @@ export async function syncFromSheet(){
       state.clients=data.clients.filter(c => !deletedClientIds.has(String(c.id)));
     }
     if(data.appointments && Array.isArray(data.appointments)){
-      const { getToday } = await import('./utils.js?v=20261031025129');
+      const { getToday } = await import('./utils.js?v=20261101103027');
       state.appointments=data.appointments;
       state.appointments.forEach(a=>{
         Object.keys(a).forEach(k=>{ if(a[k]!=null && typeof a[k]!=='string') a[k]=String(a[k]); });
@@ -188,16 +188,16 @@ export async function syncFromSheet(){
     state.loadFailed=false;
     // Run service area checks in background (all roles — clients need maps too)
     // Re-render after checks complete to show badges/maps
-    const { runServiceAreaChecks } = await import('./maps.js?v=20261031025129');
+    const { runServiceAreaChecks } = await import('./maps.js?v=20261101103027');
     runServiceAreaChecks().then(() => render()).catch(e => console.warn('Service area checks failed:', e));
     // Pre-load archive
     if((isAdmin()||isEmployee()) && !state.archiveLoaded){
-      const { loadArchive } = await import('./archive.js?v=20261031025129');
+      const { loadArchive } = await import('./archive.js?v=20261101103027');
       loadArchive(true);
     }
   } else {
     if(state.deals.length===0){
-      const { getTestData } = await import('./config.js?v=20261031025129');
+      const { getTestData } = await import('./config.js?v=20261101103027');
       const { TEST_DEALS, TEST_ACTIVITIES, TEST_CLIENTS } = getTestData();
       state.deals=[...TEST_DEALS];
       state.activities=[...TEST_ACTIVITIES];
@@ -352,6 +352,7 @@ const FIELD_MAP = {
   date_paid: 'datePaid',
   payment_link: 'paymentLink',
   callback_status: 'callbackStatus',
+  invoice_emailed_at: 'invoiceEmailedAt',
   sheet_row: 'sheetRow',
   stripe_customer_id: 'stripeCustomerId',
   stripe_invoice_id: 'stripeInvoiceId',
@@ -420,7 +421,7 @@ export function normalizeRow(row) {
 }
 
 // aimfox_lead_id has a unique index (where not null): a second '' collides, which is why archive restores failed.
-const NULLABLE_COLS = new Set(['completed_at','scheduled_time','created_at','updated_at','forwarded_at','pushed_to_tracker','pushed_to_client_sheet','pushed_to_ghl','queued_at','rerun_after','sent_at','archived_at','value','lead_cost','lead_email','rerun_days','booked_date','booked_time','appt_time','follow_up_date','blocked_by_client','onboarding_parsed_at','date_paid','paid_status','invoice','payment_link','callback_status','notes','sheet_row','stripe_customer_id','stripe_invoice_id','stripe_invoice_item_id','payment_terms','client_phone','auto_followup_started_at','booking_sms_sent_at','setup_fee_total','setup_fee_deposit','setup_fee_spread_count','setup_fee_leads_billed','monthly_retainer','launch_date','prepaid_months','renewal_day','initial_term_length','initial_term_unit','retainer_last_billed','activated_date','invoice_amount','invoiced_at','aimfox_lead_id']);
+const NULLABLE_COLS = new Set(['completed_at','invoice_emailed_at','scheduled_time','created_at','updated_at','forwarded_at','pushed_to_tracker','pushed_to_client_sheet','pushed_to_ghl','queued_at','rerun_after','sent_at','archived_at','value','lead_cost','lead_email','rerun_days','booked_date','booked_time','appt_time','follow_up_date','blocked_by_client','onboarding_parsed_at','date_paid','paid_status','invoice','payment_link','callback_status','notes','sheet_row','stripe_customer_id','stripe_invoice_id','stripe_invoice_item_id','payment_terms','client_phone','auto_followup_started_at','booking_sms_sent_at','setup_fee_total','setup_fee_deposit','setup_fee_spread_count','setup_fee_leads_billed','monthly_retainer','launch_date','prepaid_months','renewal_day','initial_term_length','initial_term_unit','retainer_last_billed','activated_date','invoice_amount','invoiced_at','aimfox_lead_id']);
 
 export function camelToSnake(obj) {
   const result = {};
@@ -454,7 +455,7 @@ export async function initialSync(isStartup) {
     }
     // Apply settings from Supabase if available
     if (savedSettings && Object.keys(savedSettings).length > 0) {
-      const { applySettings } = await import('./settings.js?v=20261031025129');
+      const { applySettings } = await import('./settings.js?v=20261101103027');
       applySettings(savedSettings);
     }
     state.deals = (deals || []).map(normalizeRow);
@@ -471,7 +472,7 @@ export async function initialSync(isStartup) {
     state.clients = clients.map(normalizeRow);
     // Cache isAdmin for use in synchronous realtime handler
     if (!_cachedIsAdmin) {
-      const { isAdmin: _isAdmin } = await import('./auth.js?v=20261031025129');
+      const { isAdmin: _isAdmin } = await import('./auth.js?v=20261101103027');
       _cachedIsAdmin = _isAdmin;
     }
     // Strip sensitive GHL credentials for non-admin users but preserve a flag
@@ -539,7 +540,7 @@ export async function initialSync(isStartup) {
 
     // Replay any pending activities from write-ahead log
     if (isStartup) {
-      import('./activities.js?v=20261031025129').then(m => m.replayPendingActivities && m.replayPendingActivities()).catch(() => {});
+      import('./activities.js?v=20261101103027').then(m => m.replayPendingActivities && m.replayPendingActivities()).catch(() => {});
     }
 
     state.synced = true;
@@ -548,7 +549,7 @@ export async function initialSync(isStartup) {
     if (isStartup || !selfManagedTabActive()) render();
 
     // Run service area checks in background, re-render when done
-    const { runServiceAreaChecks } = await import('./maps.js?v=20261031025129');
+    const { runServiceAreaChecks } = await import('./maps.js?v=20261101103027');
     runServiceAreaChecks().then(() => { if (isStartup || !selfManagedTabActive()) render(); }).catch(e => console.warn('Service area checks failed:', e));
   } catch (e) {
     console.error('Initial sync failed:', e);
