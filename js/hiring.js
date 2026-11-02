@@ -11,21 +11,33 @@
 // Landing an applicant on Interviewing emails the interview invite once
 // (hiring-invite), exactly as the old sheet script did.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261102071028';
-import { render } from './render.js?v=20261102071028';
-import { supabase } from './supabase-client.js?v=20261102071028';
-import { showToast } from './api.js?v=20261102071028';
-import { esc, str } from './utils.js?v=20261102071028';
+import { state } from './app.js?v=20261102085225';
+import { render } from './render.js?v=20261102085225';
+import { supabase } from './supabase-client.js?v=20261102085225';
+import { showToast } from './api.js?v=20261102085225';
+import { esc, str } from './utils.js?v=20261102085225';
 
-const STAGES = [
-  { id: 'Partner Replies', color: '#0891b2' },
-  { id: 'Applied', color: '#64748b' },
-  { id: 'Shortlist', color: '#8b5cf6' },
-  { id: 'Interviewing', color: '#2563eb' },
-  { id: 'Final Round', color: '#d97706' },
-  { id: 'Hired', color: '#059669' },
-  { id: 'Not a Fit', color: '#9ca3af' },
-];
+// Applicants want a job with us; partners are companies that hire (recruiting
+// partners who could send us candidates). Each gets its own board.
+// 'Partner Replies' is the stage smartlead-webhook files new replies under.
+const STAGES = {
+  applicant: [
+    { id: 'Applied', color: '#64748b' },
+    { id: 'Shortlist', color: '#8b5cf6' },
+    { id: 'Interviewing', color: '#2563eb' },
+    { id: 'Final Round', color: '#d97706' },
+    { id: 'Hired', color: '#059669' },
+    { id: 'Not a Fit', color: '#9ca3af' },
+  ],
+  partner: [
+    { id: 'Partner Replies', label: 'New Reply', color: '#0891b2' },
+    { id: 'In Talks', color: '#2563eb' },
+    { id: 'Partnered', color: '#059669' },
+    { id: 'Passed', color: '#9ca3af' },
+  ],
+};
+const KIND_LABELS = { applicant: 'Applicants', partner: 'Recruiting Partners' };
+const stageLabel = (s) => s.label || s.id;
 const INVITE_STAGE = 'Interviewing';
 const STALE_MS = 60000;
 
@@ -61,6 +73,7 @@ const find = (id) => _candidates.find(c => c.id === id);
 function visibleCandidates() {
   const q = str(state.hiringSearch).trim().toLowerCase();
   return _candidates.filter(c =>
+    c.kind === state.hiringKind &&
     (!state.hiringStarredOnly || c.starred) &&
     (!q || [c.name, c.email, c.company, c.location, c.source].some(v => str(v).toLowerCase().includes(q))));
 }
@@ -68,7 +81,6 @@ function visibleCandidates() {
 // ─── Board ───
 function cardHtml(c) {
   const tags = [
-    c.kind === 'partner' ? '<span class="deal-tag" style="background:#ecfeff;color:#0e7490">Partner</span>' : '',
     c.location ? `<span class="deal-tag">${esc(c.location)}</span>` : '',
     c.applied_at ? `<span class="deal-tag" style="background:#f1f5f9;color:#475569">${esc(shortDate(c.applied_at))}</span>` : '',
     c.invite_sent_at ? '<span class="deal-tag" style="background:#eff6ff;color:#1d4ed8">Invite sent</span>' : '',
@@ -87,9 +99,21 @@ function cardHtml(c) {
   </div>`;
 }
 
+function kindToggleHtml() {
+  return Object.entries(KIND_LABELS).map(([kind, label]) => {
+    const on = state.hiringKind === kind;
+    const n = _candidates.filter(c => c.kind === kind).length;
+    return `<button class="btn ${on ? 'btn-primary' : 'btn-ghost'}" style="font-size:12px;padding:5px 10px" onclick="hiringKind('${kind}')">${label} (${n})</button>`;
+  }).join('');
+}
+
 function toolbarHtml(total) {
+  const hint = state.hiringKind === 'partner'
+    ? 'companies that hire, replying to the Recruiting Partners campaigns'
+    : 'new form applications arrive every 15 min';
   return `<div style="padding:12px 20px 8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--text-muted)">
-    <span>${total} ${total === 1 ? 'person' : 'people'} · drag a card to move it · new form applications arrive every 15 min</span>
+    ${kindToggleHtml()}
+    <span>${total} ${total === 1 ? 'card' : 'cards'} · drag a card to move it · ${hint}</span>
     ${_status === 'error' ? '<span style="color:#b91c1c">Could not load the board.</span>' : ''}
     <span style="flex:1"></span>
     <input type="text" placeholder="Search name, email, country…" value="${esc(str(state.hiringSearch))}"
@@ -107,12 +131,12 @@ export function renderHiring() {
   }
   const list = visibleCandidates();
   let html = toolbarHtml(list.length) + '<div class="board">';
-  for (const stage of STAGES) {
+  for (const stage of STAGES[state.hiringKind]) {
     const sc = list.filter(c => c.stage === stage.id);
     const key = encodeURIComponent(stage.id);
     html += `<div class="column" ondragover="event.preventDefault();doDragOver(this)" ondragleave="doDragLeave(event,this)" ondrop="hiringDrop('${key}')">
       <div class="col-header" style="border-top-color:${stage.color}"><div>
-        <div class="col-title">${esc(stage.id)}</div>
+        <div class="col-title">${esc(stageLabel(stage))}</div>
         <div class="col-meta">${sc.length}</div>
       </div></div>
       <div class="col-body">${sc.length ? sc.map(cardHtml).join('') : '<div class="col-empty">Nobody here</div>'}</div>
@@ -147,7 +171,7 @@ function detailModalHtml() {
         <div style="font-size:12px;margin-bottom:10px">${contact}</div>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;font-size:12px">
           <select onchange="hiringMove('${esc(c.id)}', this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
-            ${STAGES.map(s => `<option ${s.id === c.stage ? 'selected' : ''}>${esc(s.id)}</option>`).join('')}
+            ${STAGES[c.kind].map(s => `<option value="${esc(s.id)}" ${s.id === c.stage ? 'selected' : ''}>${esc(stageLabel(s))}</option>`).join('')}
           </select>
           <button class="btn btn-ghost" style="font-size:12px;color:${c.starred ? '#f59e0b' : 'var(--text-muted)'}" onclick="hiringToggleStar('${esc(c.id)}')">★ ${c.starred ? 'Starred' : 'Star'}</button>
           <span style="color:var(--text-muted)">${c.invite_sent_at ? `Interview invite sent ${esc(shortDate(c.invite_sent_at))}` : ''}</span>
@@ -199,5 +223,6 @@ window.hiringOpen = (id) => { state.hiringOpenId = id; render(); };
 window.hiringClose = () => { state.hiringOpenId = null; render(); };
 window.hiringToggleStar = (id) => { const c = find(id); if (c) saveFields(c, { starred: !c.starred }); };
 window.hiringSaveNotes = (id, notes) => { const c = find(id); if (c && str(c.notes) !== notes) saveFields(c, { notes }); };
+window.hiringKind = (kind) => { state.hiringKind = kind; render(); };
 window.hiringSearch = (v) => { state.hiringSearch = v; render(); };
 window.hiringStarredOnly = (on) => { state.hiringStarredOnly = on; render(); };
