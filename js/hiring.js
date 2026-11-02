@@ -11,11 +11,11 @@
 // Landing an applicant on Interviewing emails the interview invite once
 // (hiring-invite), exactly as the old sheet script did.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261102085607';
-import { render } from './render.js?v=20261102085607';
-import { supabase } from './supabase-client.js?v=20261102085607';
-import { showToast } from './api.js?v=20261102085607';
-import { esc, str } from './utils.js?v=20261102085607';
+import { state } from './app.js?v=20261102094618';
+import { render } from './render.js?v=20261102094618';
+import { supabase } from './supabase-client.js?v=20261102094618';
+import { showToast } from './api.js?v=20261102094618';
+import { esc, str } from './utils.js?v=20261102094618';
 
 // Applicants want a job with us; partners are companies that hire (recruiting
 // partners who could send us candidates). Each gets its own board.
@@ -87,11 +87,62 @@ function visibleCandidates() {
     (!q || [c.name, c.email, c.company, c.location, c.source].some(v => str(v).toLowerCase().includes(q))));
 }
 
+// ─── Card content ───
+const FREE_MAIL = /@(gmail|googlemail|yahoo|hotmail|outlook|live|icloud|me|aol|proton(mail)?)\./i;
+
+// The reply as plain text: email HTML minus quoted history and signature.
+function replyText(raw) {
+  const s = str(raw);
+  if (!/<[a-z][\s\S]*>/i.test(s)) return s.trim();
+  const doc = new DOMParser().parseFromString(s.replace(/<br\b[^>]*>/gi, '\n').replace(/<\/(div|p)>/gi, '\n$&'), 'text/html');
+  doc.querySelectorAll('blockquote, .gmail_quote, .gmail_quote_container, .gmail_signature, [class*="quote"], style, head').forEach(n => n.remove());
+  return doc.body.textContent.split(/\n\s*On .{4,160}?wrote:|\n\s*--\s|\nSent from my /)[0].replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// Company, else the work email's domain, plus the LinkedIn headline title.
+function orgLine(c) {
+  const org = c.company || (c.email && !FREE_MAIL.test(c.email) ? c.email.split('@')[1] : '');
+  return [c.answers?.title, org].filter(Boolean).join(' · ');
+}
+
+const answerTo = (c, prefix) => str(Object.entries(c.answers || {}).find(([q]) => q.startsWith(prefix))?.[1]).trim();
+
+function yesNoTag(label, answer) {
+  if (!answer) return '';
+  const yes = /^y/i.test(answer);
+  return `<span class="deal-tag" style="background:${yes ? '#ecfdf5;color:#047857' : '#fef2f2;color:#b91c1c'}" title="${esc(answer)}">${yes ? '✓' : '✗'} ${label}</span>`;
+}
+
+function partnerTags(c) {
+  const t = contactType(c);
+  const linkedin = c.answers?.channel === 'LinkedIn';
+  return [
+    `<span class="deal-tag" style="${t.style}">${t.label}</span>`,
+    `<span class="deal-tag" style="background:#eff6ff;color:#0a66c2">${linkedin ? 'in LinkedIn' : '✉ Email'}</span>`,
+    c.answers?.category ? `<span class="deal-tag" style="background:#f5f3ff;color:#6d28d9">${esc(c.answers.category)}</span>` : '',
+  ];
+}
+
+function applicantTags(c) {
+  const start = answerTo(c, 'When are you free to start');
+  return [
+    start ? `<span class="deal-tag" style="background:#f1f5f9;color:#475569" title="Free to start">Start: ${esc(start.slice(0, 24))}</span>` : '',
+    yesNoTag('5 days', answerTo(c, 'Can you commit to working 5 days')),
+    yesNoTag('PST', answerTo(c, 'Are you able to work in Pacific')),
+    c.video_url ? `<a class="deal-tag" href="${esc(c.video_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="background:#fdf4ff;color:#a21caf;text-decoration:none">▶ Loom</a>` : '',
+  ];
+}
+
+function previewHtml(c) {
+  const text = c.kind === 'partner' ? replyText(c.answers?.reply).replace(/\s+/g, ' ') : '';
+  if (!text) return '';
+  return `<div style="font-size:12px;color:var(--text-muted);font-style:italic;margin:4px 0 6px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">“${esc(text)}”</div>`;
+}
+
 // ─── Board ───
 function cardHtml(c) {
   const tags = [
-    c.kind === 'partner' ? `<span class="deal-tag" style="${contactType(c).style}">${contactType(c).label}</span>` : '',
-    c.answers?.channel === 'LinkedIn' ? '<span class="deal-tag" style="background:#eff6ff;color:#0a66c2">in</span>' : '',
+    ...(c.kind === 'partner' ? partnerTags(c) : applicantTags(c)),
     c.location ? `<span class="deal-tag">${esc(c.location)}</span>` : '',
     c.applied_at ? `<span class="deal-tag" style="background:#f1f5f9;color:#475569">${esc(shortDate(c.applied_at))}</span>` : '',
     c.invite_sent_at ? '<span class="deal-tag" style="background:#eff6ff;color:#1d4ed8">Invite sent</span>' : '',
@@ -105,7 +156,8 @@ function cardHtml(c) {
       <div class="deal-company">${esc(c.name || c.email || 'Unknown')}</div>
       <span onclick="event.stopPropagation();hiringToggleStar('${esc(c.id)}')" title="Strong candidate" style="cursor:pointer;font-size:14px;color:${c.starred ? '#f59e0b' : '#d1d5db'}">★</span>
     </div>
-    ${c.company ? `<div class="deal-detail">${esc(c.company)}</div>` : ''}
+    ${orgLine(c) ? `<div class="deal-detail">${esc(orgLine(c))}</div>` : ''}
+    ${previewHtml(c)}
     <div class="deal-bottom"><span style="display:flex;gap:4px;flex-wrap:wrap">${tags}</span></div>
   </div>`;
 }
@@ -175,7 +227,9 @@ function linkify(v) {
 function detailModalHtml() {
   const c = state.hiringOpenId ? find(state.hiringOpenId) : null;
   if (!c) return '';
-  const answers = Object.entries(c.answers || {}).filter(([, v]) => str(v));
+  const answers = Object.entries(c.answers || {})
+    .map(([q, v]) => q === 'reply' ? ['Reply', replyText(v)] : [q, v])
+    .filter(([, v]) => str(v));
   const contact = [
     c.email ? `<a href="mailto:${esc(c.email)}" style="color:var(--purple)">${esc(c.email)}</a>` : '',
     c.phone ? esc(c.phone) : '',
