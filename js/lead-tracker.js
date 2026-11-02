@@ -1,14 +1,15 @@
 // ═══════════════════════════════════════════════════════════
 // LEAD TRACKER — Editable grid view for lead billing & status
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20261101103027';
-import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20261101103027';
-import { isAdmin, isEmployee } from './auth.js?v=20261101103027';
-import { esc, svgIcon, str } from './utils.js?v=20261101103027';
-import { render } from './render.js?v=20261101103027';
-import { leadCardId, leadCardIcon, matchLeadCards } from './lead-card.js?v=20261101103027';
-import { dealChannel } from './acquisition-channel.js?v=20261101103027';
-import { EMAIL_LEAD_PAY, COLD_CALL_LEAD_PAY, isColdCallLead, leadPayout } from './lead-payout.js?v=20261101103027';
+import { state, store, pendingWrites } from './app.js?v=20261102065929';
+import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20261102065929';
+import { isAdmin, isEmployee } from './auth.js?v=20261102065929';
+import { esc, svgIcon, str } from './utils.js?v=20261102065929';
+import { render } from './render.js?v=20261102065929';
+import { leadCardId, leadCardIcon, matchLeadCards } from './lead-card.js?v=20261102065929';
+import { dealChannel } from './acquisition-channel.js?v=20261102065929';
+import { renderDisputeButton, renderDisputeModal, isOpenDispute } from './lead-dispute.js?v=20261102065929';
+import { EMAIL_LEAD_PAY, COLD_CALL_LEAD_PAY, isColdCallLead, leadPayout } from './lead-payout.js?v=20261102065929';
 
 // ─── Column Definitions ───
 // The billing "Month" ('July/26') is deliberately not a column — the sheet shows
@@ -118,6 +119,8 @@ function getFilteredEntries() {
     entries = entries.filter(e => str(e.callbackStatus).toLowerCase() !== 'called back');
   } else if (f.leadQuality === 'callback') {
     entries = entries.filter(e => str(e.callbackStatus).toLowerCase() === 'called back');
+  } else if (f.leadQuality === 'disputed') {
+    entries = entries.filter(isOpenDispute);
   }
   // Which date the range applies to. 'appt' is the billing rule — a meeting
   // booked on 31 Aug for 4 Sep is a September lead — and falls back to the
@@ -331,6 +334,7 @@ export function renderLeadTracker() {
       <option value="" ${!f.leadQuality ? 'selected' : ''}>All Leads</option>
       <option value="good" ${f.leadQuality === 'good' ? 'selected' : ''}>Good Leads</option>
       <option value="callback" ${f.leadQuality === 'callback' ? 'selected' : ''}>Called Back</option>
+      <option value="disputed" ${f.leadQuality === 'disputed' ? 'selected' : ''}>Open Disputes (${state.trackerEntries.filter(isOpenDispute).length})</option>
     </select>
     <span style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden" title="Which date the From/To range (and Trends) measure">
       ${['appt','booked'].map(v => `<button type="button" onclick="trackerSetDateBasis('${v}')"
@@ -393,7 +397,7 @@ export function renderLeadTracker() {
     const arrow = isSorted ? (state.trackerSort.dir === 'asc' ? ' ↑' : ' ↓') : '';
     html += `<th onclick="trackerSort('${col.key}')" style="cursor:pointer;user-select:none">${esc(col.label)}${arrow}</th>`;
   }
-  html += `<th style="width:90px">Actions</th></tr></thead>`;
+  html += `<th style="width:150px">Actions</th></tr></thead>`;
 
   // Body
   html += `<tbody>`;
@@ -445,6 +449,7 @@ export function renderLeadTracker() {
       }
     }
     html += `<button class="tracker-action-btn ${isCalledBackStatus ? 'active' : ''}" onclick="trackerToggleCallback('${entry.id}')" title="${isCalledBackStatus ? 'Undo callback' : 'Flag as Bad Lead (not charged)'}">${isCalledBackStatus ? '↩ Undo' : '🚫 CB'}</button>`;
+    html += renderDisputeButton(entry);
     html += `</td></tr>`;
   }
 
@@ -473,6 +478,7 @@ export function renderLeadTracker() {
   }
 
   html += `</tbody></table></div></div>`;
+  html += renderDisputeModal();
 
   return html;
 }

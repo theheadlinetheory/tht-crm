@@ -1,11 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // INVOICE — Stripe invoice generation from Lead Tracker
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20261101103027';
-import { invokeEdgeFunction } from './api.js?v=20261101103027';
-import { esc, str } from './utils.js?v=20261101103027';
-import { render } from './render.js?v=20261101103027';
-import { renderTimeline } from './invoice-timeline.js?v=20261101103027';
+import { state, pendingWrites } from './app.js?v=20261102065929';
+import { invokeEdgeFunction } from './api.js?v=20261102065929';
+import { esc, str } from './utils.js?v=20261102065929';
+import { render } from './render.js?v=20261102065929';
+import { disputeNote } from './lead-dispute.js?v=20261102065929';
+import { renderTimeline } from './invoice-timeline.js?v=20261102065929';
 
 // ─── Month helpers ───
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -352,7 +353,7 @@ function renderPreviewStep(m) {
     const hasSurcharge = cost > baseCost;
     rows += `<tr style="${checked ? '' : 'opacity:0.4;text-decoration:line-through'}">
       <td style="padding:6px 8px"><input type="checkbox" ${checked ? 'checked' : ''} onchange="invoiceToggleEntry('${e.id}')"></td>
-      <td style="padding:6px 8px">${esc(str(e.leadName))}</td>
+      <td style="padding:6px 8px">${esc(str(e.leadName))}${disputeNote(e)}</td>
       <td style="padding:6px 8px;font-size:11px;color:var(--text-muted)">${esc(str(e.leadEmail))}</td>
       <td style="padding:6px 8px;text-align:right">${formatDollars(cost, currency)}${hasSurcharge ? `<div style="font-size:10px;color:#4f46e5">incl. ${formatDollars(cost - baseCost, currency)} setup</div>` : ''}</td>
     </tr>`;
@@ -641,7 +642,7 @@ function renderBulkLineItemsStep(m) {
     const hasSurcharge = cost > baseCost;
     return `<tr style="${checked ? '' : 'opacity:0.4;text-decoration:line-through'}">
       <td style="padding:5px 6px"><input type="checkbox" ${checked ? 'checked' : ''} onchange="invoiceBulkToggleEntry('${e.id}')"></td>
-      <td style="padding:5px 6px;font-size:12px">${esc(str(e.leadName))}</td>
+      <td style="padding:5px 6px;font-size:12px">${esc(str(e.leadName))}${disputeNote(e)}</td>
       <td style="padding:5px 6px;font-size:11px;color:var(--text-muted)">${esc(str(e.apptDate || e.appt_date || ''))}</td>
       <td style="padding:5px 6px;text-align:right;font-size:12px">${formatDollars(cost, currency)}${hasSurcharge ? '<div style="font-size:9px;color:#4f46e5">+setup</div>' : ''}</td>
     </tr>`;
