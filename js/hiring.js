@@ -11,11 +11,11 @@
 // Landing an applicant on Interviewing emails the interview invite once
 // (hiring-invite), exactly as the old sheet script did.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261102085225';
-import { render } from './render.js?v=20261102085225';
-import { supabase } from './supabase-client.js?v=20261102085225';
-import { showToast } from './api.js?v=20261102085225';
-import { esc, str } from './utils.js?v=20261102085225';
+import { state } from './app.js?v=20261102085607';
+import { render } from './render.js?v=20261102085607';
+import { supabase } from './supabase-client.js?v=20261102085607';
+import { showToast } from './api.js?v=20261102085607';
+import { esc, str } from './utils.js?v=20261102085607';
 
 // Applicants want a job with us; partners are companies that hire (recruiting
 // partners who could send us candidates). Each gets its own board.
@@ -37,6 +37,14 @@ const STAGES = {
   ],
 };
 const KIND_LABELS = { applicant: 'Applicants', partner: 'Recruiting Partners' };
+// Partner replies are either companies that could send us candidates or
+// individuals who want the job themselves (contact_type; null = not sorted yet).
+const CONTACT_TYPES = {
+  company: { label: '🏢 Company', style: 'background:#ecfdf5;color:#047857' },
+  individual: { label: '👤 Individual', style: 'background:#fef3c7;color:#92400e' },
+  '': { label: 'Unsorted', style: 'background:#fef2f2;color:#b91c1c' },
+};
+const contactType = (c) => CONTACT_TYPES[c.contact_type || ''];
 const stageLabel = (s) => s.label || s.id;
 const INVITE_STAGE = 'Interviewing';
 const STALE_MS = 60000;
@@ -75,12 +83,15 @@ function visibleCandidates() {
   return _candidates.filter(c =>
     c.kind === state.hiringKind &&
     (!state.hiringStarredOnly || c.starred) &&
+    (state.hiringContactType == null || (c.contact_type || '') === state.hiringContactType) &&
     (!q || [c.name, c.email, c.company, c.location, c.source].some(v => str(v).toLowerCase().includes(q))));
 }
 
 // ─── Board ───
 function cardHtml(c) {
   const tags = [
+    c.kind === 'partner' ? `<span class="deal-tag" style="${contactType(c).style}">${contactType(c).label}</span>` : '',
+    c.answers?.channel === 'LinkedIn' ? '<span class="deal-tag" style="background:#eff6ff;color:#0a66c2">in</span>' : '',
     c.location ? `<span class="deal-tag">${esc(c.location)}</span>` : '',
     c.applied_at ? `<span class="deal-tag" style="background:#f1f5f9;color:#475569">${esc(shortDate(c.applied_at))}</span>` : '',
     c.invite_sent_at ? '<span class="deal-tag" style="background:#eff6ff;color:#1d4ed8">Invite sent</span>' : '',
@@ -107,15 +118,25 @@ function kindToggleHtml() {
   }).join('');
 }
 
+function contactTypeFilterHtml() {
+  if (state.hiringKind !== 'partner') return '';
+  const opts = [['', 'All'], ...Object.entries(CONTACT_TYPES).map(([k, t]) => [k, t.label])];
+  const cur = state.hiringContactType == null ? 'all' : state.hiringContactType;
+  return `<select onchange="hiringContactType(this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+    ${opts.map(([k, label], i) => { const v = i === 0 ? 'all' : k; return `<option value="${v}" ${v === cur ? 'selected' : ''}>${esc(label)}</option>`; }).join('')}
+  </select>`;
+}
+
 function toolbarHtml(total) {
   const hint = state.hiringKind === 'partner'
-    ? 'companies that hire, replying to the Recruiting Partners campaigns'
+    ? 'email + LinkedIn replies to the Recruiting Partners campaigns'
     : 'new form applications arrive every 15 min';
   return `<div style="padding:12px 20px 8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--text-muted)">
     ${kindToggleHtml()}
     <span>${total} ${total === 1 ? 'card' : 'cards'} · drag a card to move it · ${hint}</span>
     ${_status === 'error' ? '<span style="color:#b91c1c">Could not load the board.</span>' : ''}
     <span style="flex:1"></span>
+    ${contactTypeFilterHtml()}
     <input type="text" placeholder="Search name, email, country…" value="${esc(str(state.hiringSearch))}"
       onchange="hiringSearch(this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);width:200px">
     <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer">
@@ -174,6 +195,9 @@ function detailModalHtml() {
             ${STAGES[c.kind].map(s => `<option value="${esc(s.id)}" ${s.id === c.stage ? 'selected' : ''}>${esc(stageLabel(s))}</option>`).join('')}
           </select>
           <button class="btn btn-ghost" style="font-size:12px;color:${c.starred ? '#f59e0b' : 'var(--text-muted)'}" onclick="hiringToggleStar('${esc(c.id)}')">★ ${c.starred ? 'Starred' : 'Star'}</button>
+          ${c.kind === 'partner' ? `<select onchange="hiringSetContactType('${esc(c.id)}', this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
+            ${Object.entries(CONTACT_TYPES).map(([k, t]) => `<option value="${k}" ${k === (c.contact_type || '') ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}
+          </select>` : ''}
           <span style="color:var(--text-muted)">${c.invite_sent_at ? `Interview invite sent ${esc(shortDate(c.invite_sent_at))}` : ''}</span>
         </div>
         <div style="max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:12px;font-size:12px;line-height:1.5">
@@ -224,5 +248,7 @@ window.hiringClose = () => { state.hiringOpenId = null; render(); };
 window.hiringToggleStar = (id) => { const c = find(id); if (c) saveFields(c, { starred: !c.starred }); };
 window.hiringSaveNotes = (id, notes) => { const c = find(id); if (c && str(c.notes) !== notes) saveFields(c, { notes }); };
 window.hiringKind = (kind) => { state.hiringKind = kind; render(); };
+window.hiringContactType = (v) => { state.hiringContactType = v === 'all' ? null : v; render(); };
+window.hiringSetContactType = (id, v) => { const c = find(id); if (c) saveFields(c, { contact_type: v || null }); };
 window.hiringSearch = (v) => { state.hiringSearch = v; render(); };
 window.hiringStarredOnly = (on) => { state.hiringStarredOnly = on; render(); };
