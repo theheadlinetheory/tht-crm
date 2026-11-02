@@ -1,14 +1,14 @@
 // ═══════════════════════════════════════════════════════════
 // SEARCH — Global search, activity badges, pipeline helpers
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261102065929';
-import { ACQUISITION_STAGES, NURTURE_STAGES, CLIENT_PALETTE, ALL_PIPELINES } from './config.js?v=20261102065929';
-import { render } from './render.js?v=20261102065929';
-import { getToday } from './utils.js?v=20261102065929';
-import { isEmployee, isAdmin, isSdr, getOwnerNameForDeal } from './auth.js?v=20261102065929';
-import { lookupClientInfo } from './client-info.js?v=20261102065929';
-import { dealChannel } from './acquisition-channel.js?v=20261102065929';
-import { coldCallStages, coldCallDeals } from './cold-calling-tab.js?v=20261102065929';
+import { state } from './app.js?v=20261102071028';
+import { ACQUISITION_STAGES, NURTURE_STAGES, CLIENT_PALETTE, ALL_PIPELINES } from './config.js?v=20261102071028';
+import { render } from './render.js?v=20261102071028';
+import { getToday } from './utils.js?v=20261102071028';
+import { isEmployee, isAdmin, isSdr, getOwnerNameForDeal } from './auth.js?v=20261102071028';
+import { lookupClientInfo } from './client-info.js?v=20261102071028';
+import { dealChannel } from './acquisition-channel.js?v=20261102071028';
+import { coldCallStages, coldCallDeals } from './cold-calling-tab.js?v=20261102071028';
 
 export function globalSearch(q){
   // Re-entrancy guard. restorePreserve() re-focuses the search input after
@@ -102,7 +102,8 @@ export function getVisiblePipelinesWithArchive(){
   // Clients reach the CRM too. The funnel is our own acquisition performance and
   // must never be one of their tabs; Renewals carries retainer amounts, and
   // anything money is admin-only.
-  if(!isAdmin()) return ALL_PIPELINES.filter(p => p.id !== 'funnel' && p.id !== 'renewals' && p.id !== 'cold_calling');
+  // Hiring is admin-only: candidates are not anyone else's business.
+  if(!isAdmin()) return ALL_PIPELINES.filter(p => p.id !== 'funnel' && p.id !== 'renewals' && p.id !== 'cold_calling' && p.id !== 'hiring');
   return ALL_PIPELINES;
 }
 

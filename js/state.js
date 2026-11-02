@@ -4,7 +4,7 @@
 // All mutations go through store.* methods to prevent direct
 // state tampering and ensure consistent re-renders.
 
-import { render, refreshModal } from './render.js?v=20261102065929';
+import { render, refreshModal } from './render.js?v=20261102071028';
 
 // ─── Raw State (private — modules should use store.*) ───
 export const state = {
@@ -82,6 +82,10 @@ export const state = {
   trackerSort: { field: 'dateAdded', dir: 'desc' }, // newest lead first
   trackerEditingCell: null,
   trackerDispute: null,
+  hiringOpenId: null,
+  hiringDragId: null,
+  hiringSearch: '',
+  hiringStarredOnly: false,
   trackerView: 'entries',
   trendsClients: [],           // Trends: clients picked in the filter (empty = all)
   showTrendsClientDropdown: false,
