@@ -11,11 +11,11 @@
 // Landing an applicant on Interviewing emails the interview invite once
 // (hiring-invite), exactly as the old sheet script did.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261102094618';
-import { render } from './render.js?v=20261102094618';
-import { supabase } from './supabase-client.js?v=20261102094618';
-import { showToast } from './api.js?v=20261102094618';
-import { esc, str } from './utils.js?v=20261102094618';
+import { state } from './app.js?v=20261102094923';
+import { render } from './render.js?v=20261102094923';
+import { supabase } from './supabase-client.js?v=20261102094923';
+import { showToast } from './api.js?v=20261102094923';
+import { esc, str } from './utils.js?v=20261102094923';
 
 // Applicants want a job with us; partners are companies that hire (recruiting
 // partners who could send us candidates). Each gets its own board.
@@ -143,6 +143,7 @@ function previewHtml(c) {
 function cardHtml(c) {
   const tags = [
     ...(c.kind === 'partner' ? partnerTags(c) : applicantTags(c)),
+    c.linkedin ? `<a class="deal-tag" href="${esc(withScheme(c.linkedin))}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="background:#eff6ff;color:#0a66c2;text-decoration:none">LinkedIn ↗</a>` : '',
     c.location ? `<span class="deal-tag">${esc(c.location)}</span>` : '',
     c.applied_at ? `<span class="deal-tag" style="background:#f1f5f9;color:#475569">${esc(shortDate(c.applied_at))}</span>` : '',
     c.invite_sent_at ? '<span class="deal-tag" style="background:#eff6ff;color:#1d4ed8">Invite sent</span>' : '',
@@ -219,9 +220,36 @@ export function renderHiring() {
 }
 
 // ─── Detail ───
+const LINK_STYLE = 'color:var(--purple);word-break:break-all';
+
+// Escapes text and makes every URL in it clickable.
 function linkify(v) {
-  const s = str(v);
-  return /^https?:\/\//i.test(s) ? `<a href="${esc(s)}" target="_blank" rel="noopener" style="color:var(--purple);word-break:break-all">${esc(s)}</a>` : esc(s).replace(/\n/g, '<br>');
+  return esc(str(v)).replace(/https?:\/\/[^\s<"]+/gi, (u) => `<a href="${u}" target="_blank" rel="noopener" style="${LINK_STYLE}">${u}</a>`).replace(/\n/g, '<br>');
+}
+
+// Editable contact fields; `href` turns a saved value into its link.
+const withScheme = (v) => /^https?:\/\//i.test(v) ? v : `https://${v}`;
+const DETAIL_FIELDS = [
+  { key: 'name', label: 'Name' },
+  { key: 'email', label: 'Email', href: (v) => `mailto:${v}` },
+  { key: 'phone', label: 'Phone / WhatsApp', href: (v) => `https://wa.me/${v.replace(/\D/g, '')}` },
+  { key: 'company', label: 'Company' },
+  { key: 'location', label: 'Location' },
+  { key: 'linkedin', label: 'LinkedIn', href: withScheme },
+  { key: 'video_url', label: 'Intro video', href: withScheme, kind: 'applicant' },
+];
+
+function detailFieldsHtml(c) {
+  const inputStyle = 'flex:1;min-width:0;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)';
+  return `<div style="display:grid;grid-template-columns:110px 1fr;gap:6px 10px;align-items:center;font-size:12px;margin-bottom:12px">
+    ${DETAIL_FIELDS.filter(f => !f.kind || f.kind === c.kind).map(f => {
+      const v = str(c[f.key]).trim();
+      const open = f.href && v ? `<a href="${esc(f.href(v))}" target="_blank" rel="noopener" title="Open" style="${LINK_STYLE};text-decoration:none;padding:0 4px">↗</a>` : '';
+      return `<label style="color:var(--text-muted);font-weight:600">${f.label}</label>
+        <div style="display:flex;align-items:center;gap:4px"><input type="text" data-keep-focus="1" value="${esc(v)}" placeholder="—"
+          onchange="hiringSaveField('${esc(c.id)}', '${f.key}', this.value)" onblur="setTimeout(hiringRefresh)" style="${inputStyle}">${open}</div>`;
+    }).join('')}
+  </div>`;
 }
 
 function detailModalHtml() {
@@ -230,12 +258,6 @@ function detailModalHtml() {
   const answers = Object.entries(c.answers || {})
     .map(([q, v]) => q === 'reply' ? ['Reply', replyText(v)] : [q, v])
     .filter(([, v]) => str(v));
-  const contact = [
-    c.email ? `<a href="mailto:${esc(c.email)}" style="color:var(--purple)">${esc(c.email)}</a>` : '',
-    c.phone ? esc(c.phone) : '',
-    c.linkedin ? `<a href="${esc(c.linkedin)}" target="_blank" rel="noopener" style="color:var(--purple)">LinkedIn</a>` : '',
-    c.video_url ? `<a href="${esc(c.video_url)}" target="_blank" rel="noopener" style="color:var(--purple)">Intro video</a>` : '',
-  ].filter(Boolean).join(' · ');
   return `<div class="modal-overlay">
     <div class="invoice-modal" style="max-width:620px">
       <div class="invoice-header">
@@ -243,7 +265,7 @@ function detailModalHtml() {
         <button class="btn btn-ghost" onclick="hiringClose()" style="padding:4px 8px">✕</button>
       </div>
       <div class="invoice-body">
-        <div style="font-size:12px;margin-bottom:10px">${contact}</div>
+        ${detailFieldsHtml(c)}
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;font-size:12px">
           <select onchange="hiringMove('${esc(c.id)}', this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
             ${STAGES[c.kind].map(s => `<option value="${esc(s.id)}" ${s.id === c.stage ? 'selected' : ''}>${esc(stageLabel(s))}</option>`).join('')}
@@ -257,7 +279,7 @@ function detailModalHtml() {
         <div style="max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:12px;font-size:12px;line-height:1.5">
           ${answers.length ? answers.map(([q, a]) => `<div style="margin-bottom:8px"><div style="font-weight:600;color:var(--text-muted)">${esc(q)}</div><div>${linkify(a)}</div></div>`).join('') : '<span style="color:var(--text-muted)">No answers on file.</span>'}
         </div>
-        <textarea placeholder="Notes" onblur="hiringSaveNotes('${esc(c.id)}', this.value)"
+        <textarea placeholder="Notes" data-keep-focus="1" onblur="hiringSaveNotes('${esc(c.id)}', this.value)"
           style="width:100%;min-height:70px;border:1px solid var(--border);border-radius:6px;padding:10px;font-size:13px;font-family:var(--font);resize:vertical">${esc(str(c.notes))}</textarea>
       </div>
     </div>
@@ -300,7 +322,13 @@ window.hiringMove = (id, stage) => moveCandidate(id, stage);
 window.hiringOpen = (id) => { state.hiringOpenId = id; render(); };
 window.hiringClose = () => { state.hiringOpenId = null; render(); };
 window.hiringToggleStar = (id) => { const c = find(id); if (c) saveFields(c, { starred: !c.starred }); };
-window.hiringSaveNotes = (id, notes) => { const c = find(id); if (c && str(c.notes) !== notes) saveFields(c, { notes }); };
+window.hiringRefresh = () => render();
+window.hiringSaveField = (id, key, value) => {
+  const c = find(id);
+  const v = key === 'email' ? value.trim().toLowerCase() : value.trim();
+  if (c && str(c[key]) !== v) saveFields(c, { [key]: v });
+};
+window.hiringSaveNotes =(id, notes) => { const c = find(id); if (c && str(c.notes) !== notes) saveFields(c, { notes }); };
 window.hiringKind = (kind) => { state.hiringKind = kind; render(); };
 window.hiringContactType = (v) => { state.hiringContactType = v === 'all' ? null : v; render(); };
 window.hiringSetContactType = (id, v) => { const c = find(id); if (c) saveFields(c, { contact_type: v || null }); };
