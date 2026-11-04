@@ -3,9 +3,9 @@
 // ═══════════════════════════════════════════════════════════
 // Derived from deals.lead_source. Everything without a source predates
 // multi-channel outreach and came from SmartLead, so it counts as Email.
-import { svgIcon } from './utils.js?v=20261105023420';
+import { svgIcon } from './utils.js?v=20261105031849';
 
-export const ACQUISITION_CHANNELS = ['Email', 'Cold Calling', 'SMS', 'LinkedIn', 'Other'];
+export const ACQUISITION_CHANNELS = ['Email', 'Cold Calling', 'SMS', 'LinkedIn', 'AEO/GEO', 'Other'];
 
 const SOURCE_TO_CHANNEL = {
   '': 'Email',
@@ -13,6 +13,7 @@ const SOURCE_TO_CHANNEL = {
   aimfox: 'LinkedIn',
   cold_call: 'Cold Calling',
   sms: 'SMS',
+  aeo: 'AEO/GEO', // inbound from AI search / website (AEO/GEO work)
   other: 'Other',
 };
 
@@ -27,6 +28,7 @@ const CHANNEL_BADGES = {
   Email: { title: 'Email lead (SmartLead)', bg: '#7c3aed', content: () => svgIcon('mail', 10, '#fff') },
   LinkedIn: { title: 'LinkedIn lead (Aimfox)', bg: '#0a66c2', content: () => 'in' },
   SMS: { title: 'SMS lead (GoHighLevel)', bg: '#16a34a', content: () => svgIcon('message-circle', 10, '#fff') },
+  'AEO/GEO': { title: 'AEO/GEO lead (AI search / website inbound)', bg: '#ea580c', content: () => svgIcon('globe', 10, '#fff') },
 };
 
 export function channelCardBadge(deal) {
