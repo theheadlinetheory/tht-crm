@@ -18,6 +18,8 @@
 //      (client-cold-calls.js), and no acquisition history. The map used to be
 //      reachable only from a deal card, so a client with no deals meant dragging
 //      another client's deal onto it just to see the map.
+//   4. On the Cold Calling board the panel is tabbed and carries the whole call sheet (client-call-card.js):
+//      Map, Services, Properties, Questions, Quick lines, Who we want, Client info, Appointments, Cold calling.
 //
 // The panel is appended to <body>, NOT to #app, so render() cannot destroy it
 // mid-edit. Edits save straight to Supabase (debounced) and patch the affected
@@ -35,6 +37,7 @@ import { renderCallSheetLink } from './call-sheet.js?v=20261102094923';
 import { findPolygonForClient, renderServiceAreaMap } from './maps.js?v=20261102094923';
 import { coldCallsSectionHtml, fillColdCallsSection } from './client-cold-calls.js?v=20261102094923';
 import { clientColdCallStatsHtml } from './cold-calling-tab.js?v=20261102094923';
+import { CALL_FIELDS, callCardHtml, onCallCardOpen, showPane } from './client-call-card.js?v=20261102094923';
 
 const OVERLAY_ID = 'client-info-overlay';
 const MAP_KEY = 'client-panel'; // activeMapInstances key for the panel's map (no deal behind it)
@@ -95,6 +98,8 @@ const EDITABLE = {
     view: v => esc(str(v)),
   },
 };
+
+Object.assign(EDITABLE, CALL_FIELDS);
 
 function currentClient() {
   return state.clients.find(c => c.name === _openFor) || null;
@@ -302,20 +307,19 @@ export function openClientInfoPanel(clientName, mode = 'client_leads') {
     </button>`;
   }
 
+  let contactHtml = '';
   if (info.primaryContact || info.primaryEmail || info.phone) {
-    h += `<div style="margin-bottom:16px;padding:12px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
+    contactHtml += `<div style="margin-bottom:16px;padding:12px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
       <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Contact</div>`;
-    if (info.primaryContact) h += `<div style="font-size:13px;color:#1e293b;margin-bottom:4px">${esc(info.primaryContact)}</div>`;
-    if (info.primaryEmail) h += `<div style="font-size:13px;margin-bottom:4px"><a href="mailto:${esc(info.primaryEmail)}" style="color:#2563eb">${esc(info.primaryEmail)}</a></div>`;
-    if (info.phone) h += `<div style="font-size:13px"><a href="tel:${esc(info.phone)}" style="color:#2563eb">${esc(info.phone)}</a></div>`;
-    h += `</div>`;
+    if (info.primaryContact) contactHtml += `<div style="font-size:13px;color:#1e293b;margin-bottom:4px">${esc(info.primaryContact)}</div>`;
+    if (info.primaryEmail) contactHtml += `<div style="font-size:13px;margin-bottom:4px"><a href="mailto:${esc(info.primaryEmail)}" style="color:#2563eb">${esc(info.primaryEmail)}</a></div>`;
+    if (info.phone) contactHtml += `<div style="font-size:13px"><a href="tel:${esc(info.phone)}" style="color:#2563eb">${esc(info.phone)}</a></div>`;
+    contactHtml += `</div>`;
   }
-
-  if (coldCalling) h += clientColdCallStatsHtml(clientName);
 
   // Service area: the client's polygon, and "Check an address" opens the full map with the in-area check.
   const hasPolygon = !!findPolygonForClient(clientName);
-  h += `<div style="margin-bottom:16px;padding:12px;background:#eff6ff;border-radius:8px;border:1px solid #bfdbfe">
+  const mapHtml = `<div style="margin-bottom:16px;padding:12px;background:#eff6ff;border-radius:8px;border:1px solid #bfdbfe">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
       <div style="font-size:11px;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:.5px">Service Area Map</div>
       ${hasPolygon ? `<button class="btn btn-primary" data-action="cpOpenMap" style="font-size:11px;padding:4px 10px">Check an address</button>` : ''}
@@ -324,37 +328,50 @@ export function openClientInfoPanel(clientName, mode = 'client_leads') {
       ? `<div id="cp-sa-map" style="height:220px;border-radius:6px;overflow:hidden"></div>`
       : `<div style="font-size:12px;color:#64748b">No service area polygon for this client yet.</div>`}
   </div>`;
+  const serviceAreaLink = str(cl.serviceAreaUrl).trim()
+    ? `<div style="margin:-8px 0 16px"><a href="${esc(str(cl.serviceAreaUrl))}" target="_blank" rel="noopener" style="font-size:12px;color:#2563eb;text-decoration:none;font-weight:600">Open Service Area Map ↗</a></div>` : '';
+  const calendlyHtml = cl.calendlyUrl ? `<div style="margin-bottom:16px">
+      <button class="btn btn-primary" data-action="cpCalendly" style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#818cf8;border-color:#818cf8">
+        ${svgIcon('calendar', 14)} Open ${esc(clientName)}'s Calendly
+      </button>
+    </div>` : '';
+  const billingHtml = info.billingModel && isAdmin()
+    ? `<div style="margin-bottom:16px;font-size:12px;color:#64748b"><strong>Billing:</strong> ${esc(info.billingModel)}</div>` : '';
+  const questionsBlock = `<div style="margin-bottom:16px">
+    <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Common Questions</div>
+    ${questionsHtml(cl)}
+  </div>`;
 
-  if (coldCalling) h += coldCallsSectionHtml();
+  if (coldCalling) {
+    h += callCardHtml(cl, {
+      editable: editableBlock, questions: questionsBlock, contact: contactHtml, map: mapHtml, serviceAreaLink,
+      calendly: calendlyHtml, billing: billingHtml, callSheetLink: renderCallSheetLink(cl),
+      stats: clientColdCallStatsHtml(clientName), coldCalls: coldCallsSectionHtml(),
+    });
+    h += `</div></div></div>`;
+    document.body.insertAdjacentHTML('beforeend', h);
+    onCallCardOpen(clientName, { renderMap: hasPolygon ? () => renderServiceAreaMap('cp-sa-map', MAP_KEY, { clientName, defaultZoom: 9 }) : null });
+    fillColdCallsSection(clientName);
+    return;
+  }
+
+  h += contactHtml + mapHtml;
 
   // Everything the acquisition card still remembers. Filled in asynchronously.
-  if (!coldCalling) h += `<details open style="margin-bottom:16px;padding:12px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
+  h += `<details open style="margin-bottom:16px;padding:12px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
     <summary style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;list-style:none">From Acquisition</summary>
     <div id="cp-acq" style="margin-top:4px"><div style="font-size:12px;color:#94a3b8">Loading acquisition card…</div></div>
   </details>`;
 
   h += editableBlock('services', cl);
   h += editableBlock('serviceAreaCities', cl, { tone: { wrap: 'padding:12px;background:#eff6ff;border-radius:8px;border:1px solid #bfdbfe', label: '#1e40af', text: '#1e3a5f' } });
-  if (str(cl.serviceAreaUrl).trim()) {
-    h += `<div style="margin:-8px 0 16px"><a href="${esc(str(cl.serviceAreaUrl))}" target="_blank" rel="noopener" style="font-size:12px;color:#2563eb;text-decoration:none;font-weight:600">Open Service Area Map ↗</a></div>`;
-  }
+  h += serviceAreaLink;
   h += editableBlock('location', cl) + `<div id="cp-loc-hint" style="margin:-12px 0 16px"></div>`;
   h += editableBlock('warmCallNotesText', cl, { tone: { wrap: 'padding:12px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0', label: '#166534' } });
   h += editableBlock('managedProperties', cl, { tone: { wrap: 'padding:12px;background:#f0fdfa;border-radius:8px;border:1px solid #99f6e4', label: '#0f766e' } });
   h += renderCallSheetLink(cl);
 
-  h += `<div style="margin-bottom:16px">
-    <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Common Questions</div>
-    ${questionsHtml(cl)}
-  </div>`;
-
-  if (cl.calendlyUrl) {
-    h += `<div style="margin-bottom:16px">
-      <button class="btn btn-primary" data-action="cpCalendly" style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#818cf8;border-color:#818cf8">
-        ${svgIcon('calendar', 14)} Open ${esc(clientName)}'s Calendly
-      </button>
-    </div>`;
-  }
+  h += questionsBlock + calendlyHtml;
 
   if (scheduled.length || appts.length) {
     h += `<div style="margin-bottom:16px;padding:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px">
@@ -381,15 +398,12 @@ export function openClientInfoPanel(clientName, mode = 'client_leads') {
     h += `</div>`;
   }
 
-  if (info.billingModel && isAdmin()) {
-    h += `<div style="margin-bottom:16px;font-size:12px;color:#64748b"><strong>Billing:</strong> ${esc(info.billingModel)}</div>`;
-  }
+  h += billingHtml;
 
   h += `</div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', h);
   if (hasPolygon) setTimeout(() => renderServiceAreaMap('cp-sa-map', MAP_KEY, { clientName, defaultZoom: 9 }), 0);
-  if (coldCalling) fillColdCallsSection(clientName);
-  else fillAcquisitionSection(clientName);
+  fillAcquisitionSection(clientName);
 }
 
 export function closeClientInfoPanel() {
@@ -427,6 +441,8 @@ registerActions({
     const field = el.dataset.field;
     const box = document.getElementById(`cp-edit-${field}`);
     if (!box) return;
+    const pane = box.closest('[data-cp-pane]'); // tabbed card: a Common Questions fix link opens the field's tab
+    if (pane) showPane(pane.dataset.cpPane);
     box.hidden = false;
     const input = document.getElementById(`cp-input-${field}`);
     if (input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }

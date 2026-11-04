@@ -17,8 +17,11 @@
 //                  quota, show / no-show marking, quotas and which clients we cold call for.
 //
 // The numbers come from cold_calls: one row per JustCall Sales Dialer dial, filled every 2 minutes by
-// the cold-call-sync edge function (which also creates the card for every "Appointment Booked" and
-// "Under Contract" call). A rep is the JustCall agent email = their CRM login.
+// the cold-call-sync edge function (which also creates the card for every "Appointment Booked", "Under Contract"
+// and "Follow Up" call). A rep is the JustCall agent email = their CRM login.
+// A meeting = a dial dispositioned "Appointment Booked", or the dial behind a card booked later from the card
+// (booked_on, stamped when the deal reaches the lead tracker / a pass-off), minus any a manager marked not_counted.
+// Meetings count on the day they were booked, dials on the day they were made.
 //
 // Rules from the 2026-10-27/28 calls (Aidan, Ioannis, Tim):
 //   connection = someone picked up: every dial except no answer, voicemail, bad number and desk DQ.
@@ -35,12 +38,14 @@ import { registerActions } from './delegate.js?v=20261102094923';
 export const CALLBACK_STAGE = 'Cold Call Callback';
 const NO_CONNECTION = new Set(['no_answer', 'voicemail', 'bad_number', 'desk_dq']);
 const OUTCOME_LABEL = {
-  booked: 'Appointment booked', not_interested: 'Not interested', under_contract: 'Under contract',
+  booked: 'Appointment booked', not_interested: 'Not interested', under_contract: 'Under contract', follow_up: 'Follow up',
   manager_not_around: 'Manager not around', no_answer: 'No answer', voicemail: 'Voicemail',
   bad_number: 'Bad number', desk_dq: 'Desk DQ', picked_up: 'Picked up (no disposition)',
 };
 // A dial's industry as the fulfillment dashboard names it (the lead list its phone came from, stamped by
 // cold-call-sync); a phone in no fulfillment list falls back to the JustCall list's own segment name.
+const isMeeting = r => !r.not_counted && (r.outcome === 'booked' || !!r.booked_on);
+const meetingDate = r => r.booked_on || r.call_date;
 const industryOf = r => r.fulfillment_industry || r.industry || 'Unclassified';
 const DEFAULT_QUOTAS = { dialsPerDay: 100, connectionsPerDay: 30, bookedPerWeek: 10, showRate: 80, capPerClient: 2 };
 const SUBTABS = [
@@ -86,7 +91,7 @@ async function loadAll() {
     const rows = [];
     for (let from = 0; ; from += 1000) {
       const { data, error } = await supabase.from('cold_calls')
-        .select('call_id,campaign_name,client_name,phone10,contact_name,company,agent_email,agent_name,called_at,call_date,duration_sec,disposition,outcome,notes,recording_url,deal_id,show_status,industry,fulfillment_industry,property_type')
+        .select('call_id,campaign_name,client_name,phone10,contact_name,company,agent_email,agent_name,called_at,call_date,duration_sec,disposition,outcome,notes,recording_url,deal_id,show_status,industry,fulfillment_industry,property_type,booked_on,not_counted')
         .gte('call_date', since).order('call_id', { ascending: true }).range(from, from + 999);
       if (error) throw error;
       rows.push(...(data || []));
@@ -131,10 +136,12 @@ async function saveSetting(key, value) {
 }
 
 // ─── Metrics ───
-function tally(rows) {
+/** Dials made and meetings booked between from and to (inclusive dates; no dates = all of rows). */
+function tally(all, from = '', to = '9999-12-31') {
+  const rows = all.filter(r => r.call_date >= from && r.call_date <= to);
   const dials = rows.length;
   const connections = rows.filter(r => !NO_CONNECTION.has(r.outcome)).length;
-  const booked = rows.filter(r => r.outcome === 'booked');
+  const booked = all.filter(r => isMeeting(r) && meetingDate(r) >= from && meetingDate(r) <= to);
   const showed = booked.filter(r => r.show_status === 'showed').length;
   const noShow = booked.filter(r => r.show_status === 'no_show').length;
   return {
@@ -165,7 +172,7 @@ export function rankedClients() {
   const week = callsOn(thisWeek());
   const cap = Number(cc.quotas.capPerClient) || 2;
   const rows = coldCallClients().map(c => {
-    const bookedWeek = week.filter(r => r.client_name === c.name && r.outcome === 'booked').length;
+    const bookedWeek = cc.calls.filter(r => r.client_name === c.name && isMeeting(r) && meetingDate(r) >= thisWeek()).length;
     return {
       client: c,
       name: c.name,
@@ -258,8 +265,8 @@ function weekdaysSoFar() {
 /** Today + this week for a set of dials, against quota (the week's target is pro-rated to today). */
 function repStatsHtml(rows) {
   const q = cc.quotas;
-  const d = tally(rows.filter(r => r.call_date === today()));
-  const w = tally(rows.filter(r => r.call_date >= thisWeek()));
+  const d = tally(rows, today(), today());
+  const w = tally(rows, thisWeek());
   const days = weekdaysSoFar();
   const row = (label, t, dials, conns, booked) => `<div style="margin-bottom:10px">
     <div style="font-size:12px;font-weight:700;color:#334155;margin-bottom:6px">${label}</div>
@@ -333,7 +340,7 @@ function queueHtml() {
           <td style="${td};color:#475569">${esc(d.coldCallClient || '')}</td>
           <td style="${td}">${esc(d.phone || '')}</td>
           <td style="${td};color:${due < today() ? '#dc2626' : '#15803d'};font-weight:600">${due < today() ? 'overdue since ' + esc(due) : 'due today'}</td></tr>`).join('')}</tbody></table>`
-      : `<div style="font-size:12px;color:#94a3b8">Nothing due. ${callbacks.length} callback${callbacks.length === 1 ? '' : 's'} scheduled later. "Under Contract" calls land in Pipeline → Callbacks with a reminder, and show up here when it turns green.</div>`);
+      : `<div style="font-size:12px;color:#94a3b8">Nothing due. ${callbacks.length} callback${callbacks.length === 1 ? '' : 's'} scheduled later. "Under Contract" and "Follow Up" calls land in Pipeline → Callbacks with a reminder, and show up here when it turns green.</div>`);
   return h;
 }
 
@@ -383,13 +390,13 @@ function trackerHtml() {
 
   if (cc.trackerScope === 'mine') {
     const me = (currentUser && currentUser.email || '').toLowerCase();
-    const mine = cc.calls.filter(r => r.agent_email === me && r.outcome === 'booked' &&
+    const mine = cc.calls.filter(r => r.agent_email === me && isMeeting(r) &&
       (!cc.trackerClient || r.client_name === cc.trackerClient) && match(r.contact_name, r.campaign_name, r.client_name))
-      .sort((a, b) => (b.called_at || '').localeCompare(a.called_at || ''));
+      .sort((a, b) => meetingDate(b).localeCompare(meetingDate(a)));
     return section('My bookings', controls + (mine.length
       ? `<table style="width:100%;border-collapse:collapse"><thead><tr><th style="${th}">Booked on</th><th style="${th}">Client</th><th style="${th}">Contact</th><th style="${th}">List</th><th style="${th}">Showed?</th></tr></thead><tbody>
         ${mine.map(r => `<tr ${r.deal_id && r.deal_id !== 'claiming' ? `style="cursor:pointer" data-action="ccOpenDeal" data-id="${esc(r.deal_id)}"` : ''}>
-          <td style="${td}">${esc(r.call_date)}</td><td style="${td}">${esc(r.client_name || '?')}</td><td style="${td}">${esc(r.contact_name || '')}</td>
+          <td style="${td}">${esc(meetingDate(r))}</td><td style="${td}">${esc(r.client_name || '?')}</td><td style="${td}">${esc(r.contact_name || '')}</td>
           <td style="${td};color:#64748b">${esc(r.campaign_name || '')}</td>
           <td style="${td}">${r.show_status === 'showed' ? '<b style="color:#15803d">Showed</b>' : r.show_status === 'no_show' ? '<b style="color:#dc2626">No-show</b>' : '<span style="color:#94a3b8">Pending</span>'}</td></tr>`).join('')}</tbody></table>`
       : `<div style="font-size:12px;color:#94a3b8">No meetings booked under ${esc(me)} in the last ${LOOKBACK_DAYS} days.</div>`));
@@ -414,7 +421,7 @@ function managerHtml() {
   h += section('Clients this week', ranked.length ? `<table style="width:100%;border-collapse:collapse"><thead><tr>
       <th style="${th}">#</th><th style="${th}">Client</th><th style="${th}">Model</th><th style="${th}">Meetings / cap</th><th style="${th}">Dials</th><th style="${th}">Connections</th><th style="${th}">Connect %</th><th style="${th}">Showed / no-show</th><th style="${th}"></th></tr></thead><tbody>
     ${ranked.map((r, i) => {
-      const t = tally(week.filter(x => x.client_name === r.name));
+      const t = tally(cc.calls.filter(x => x.client_name === r.name), thisWeek());
       const all = tally(cc.calls.filter(x => x.client_name === r.name));
       return `<tr style="${r.capped ? 'background:#f1f5f9' : ''}">
         <td style="${td};font-weight:800">${i + 1}</td>
@@ -443,8 +450,8 @@ function managerHtml() {
         <th style="${th};border-left:1px solid #e2e8f0">Dials</th><th style="${th}">Connections</th><th style="${th}">Connect %</th><th style="${th}">Booked</th><th style="${th}">Show rate</th></tr></thead><tbody>
       ${reps.map(email => {
         const mine = cc.calls.filter(r => r.agent_email === email);
-        const d = tally(mine.filter(r => r.call_date === today()));
-        const w = tally(mine.filter(r => r.call_date >= thisWeek()));
+        const d = tally(mine, today(), today());
+        const w = tally(mine, thisWeek());
         const all = tally(mine);
         return `<tr><td style="${td}"><b>${esc(repName(email))}</b><div style="font-size:10px;color:#94a3b8">${esc(email)}</div></td>
           ${cell(d.dials, rq.dialsPerDay)}${cell(d.connections, rq.connectionsPerDay)}${cell(d.booked, Math.max(1, Math.round(rq.bookedPerWeek / 5)))}
@@ -455,7 +462,7 @@ function managerHtml() {
     : '<div style="font-size:12px;color:#94a3b8">No dials this week yet.</div>');
 
   // Dispositions this week, per client: where the dials go (list quality shows up in bad number / desk DQ).
-  const order = ['booked', 'under_contract', 'not_interested', 'manager_not_around', 'picked_up', 'no_answer', 'voicemail', 'bad_number', 'desk_dq'];
+  const order = ['booked', 'under_contract', 'follow_up', 'not_interested', 'manager_not_around', 'picked_up', 'no_answer', 'voicemail', 'bad_number', 'desk_dq'];
   const byClient = ranked.map(r => ({ name: r.name, rows: week.filter(x => x.client_name === r.name) })).filter(x => x.rows.length);
   h += section('Dispositions this week', byClient.length ? `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="${th}">Client</th>
       ${order.map(o => `<th style="${th}">${esc(OUTCOME_LABEL[o])}</th>`).join('')}<th style="${th}">Dials</th></tr></thead><tbody>
@@ -465,10 +472,10 @@ function managerHtml() {
       <div style="font-size:11px;color:#94a3b8;margin-top:6px">"Picked up (no disposition)" = JustCall connected the call but no outcome was picked. Every call should get one.</div>`
     : '<div style="font-size:12px;color:#94a3b8">No dials this week yet.</div>');
 
-  const booked = cc.calls.filter(r => r.outcome === 'booked').sort((a, b) => (b.called_at || '').localeCompare(a.called_at || ''));
+  const booked = cc.calls.filter(isMeeting).sort((a, b) => meetingDate(b).localeCompare(meetingDate(a)));
   h += section('Booked meetings: did they show?', booked.length ? `<div style="font-size:12px;color:#475569;margin-bottom:8px">The client tells us in their reply to the pass-off (within 24 hours of the meeting). Mark it here; it drives every show rate.</div>
     <table style="width:100%;border-collapse:collapse"><thead><tr><th style="${th}">Booked</th><th style="${th}">Client</th><th style="${th}">Contact</th><th style="${th}">Rep</th><th style="${th}">Showed?</th></tr></thead><tbody>
-    ${booked.map(r => `<tr><td style="${td}">${esc(r.call_date)}</td><td style="${td}">${esc(r.client_name || '?')}</td><td style="${td}">${esc(r.contact_name || '')}</td><td style="${td}">${esc(repName(r.agent_email))}</td>
+    ${booked.map(r => `<tr><td style="${td}">${esc(meetingDate(r))}</td><td style="${td}">${esc(r.client_name || '?')}</td><td style="${td}">${esc(r.contact_name || '')}</td><td style="${td}">${esc(repName(r.agent_email))}</td>
       <td style="${td};white-space:nowrap">${['showed', 'no_show'].map(s => `<button data-action="ccShow" data-id="${r.call_id}" data-status="${s}" style="font-size:11px;padding:3px 9px;margin-right:4px;border-radius:6px;cursor:pointer;border:1px solid ${r.show_status === s ? (s === 'showed' ? '#16a34a' : '#dc2626') : 'var(--border)'};background:${r.show_status === s ? (s === 'showed' ? '#dcfce7' : '#fee2e2') : '#fff'};font-weight:600">${s === 'showed' ? 'Showed' : 'No-show'}</button>`).join('')}</td></tr>`).join('')}
     </tbody></table>` : `<div style="font-size:12px;color:#94a3b8">No booked meetings in the last ${LOOKBACK_DAYS} days.</div>`);
 
@@ -572,7 +579,6 @@ function industryVerdict(s, avg) {
   return { label: 'Watch', color: '#b45309', bg: '#fef3c7', why };
 }
 function industryVerdictTable() {
-  const week = callsOn(thisWeek());
   const total = tally(cc.calls);
   const avg = total.dials ? total.booked / total.dials : 0;
   const segs = segmentRows(cc.calls, industryOf);
@@ -585,7 +591,7 @@ function industryVerdictTable() {
       <th style="${th};border-left:1px solid #e2e8f0">Dials</th><th style="${th}">Connections</th><th style="${th}">Connect %</th><th style="${th}">Meetings</th><th style="${th}">Dials / meeting</th><th style="${th}">Showed / no-show</th><th style="${th}">Verdict</th></tr></thead><tbody>
     ${segs.map((s, i) => {
       const rows = cc.calls.filter(r => industryOf(r) === s.name);
-      const w = tally(week.filter(r => industryOf(r) === s.name));
+      const w = tally(rows, thisWeek());
       const a = tally(rows);
       const v = industryVerdict(s, avg);
       return `<tr>
@@ -606,7 +612,7 @@ function industryVerdictTable() {
 export function clientColdCallStatsHtml(clientName) {
   const r = rankedClients().find(x => x.name === clientName);
   const mine = cc.calls.filter(x => x.client_name === clientName);
-  const w = tally(callsOn(thisWeek()).filter(x => x.client_name === clientName));
+  const w = tally(mine, thisWeek());
   const a = tally(mine);
   const segs = segmentRows(mine, industryOf);
   const cap = r ? r.cap : (Number(cc.quotas.capPerClient) || 2);
@@ -721,7 +727,7 @@ export function coldCallHistoryHtml(deal) {
   const key = deal.id + '|' + phones.join(',');
   if (!_history.has(key)) {
     _history.set(key, '<div style="font-size:12px;color:#94a3b8">Loading calls…</div>');
-    supabase.from('cold_calls').select('call_id,called_at,agent_name,agent_email,disposition,outcome,duration_sec,notes,recording_url,transcript,transcript_status,campaign_name')
+    supabase.from('cold_calls').select('call_id,called_at,agent_name,agent_email,disposition,outcome,duration_sec,notes,recording_url,transcript,transcript_status,campaign_name,booked_on,not_counted')
       .in('phone10', phones).order('called_at', { ascending: false }).limit(20)
       .then(({ data, error }) => {
         _history.set(key, error ? `<div style="font-size:12px;color:#dc2626">${esc(error.message)}</div>` : historyRows(data || []));
@@ -741,7 +747,7 @@ function historyRows(calls) {
     const tx = str(c.transcript).trim();
     return `<div style="border-top:1px solid #e0f2fe;padding:8px 0">
       <div style="display:flex;justify-content:space-between;gap:8px;font-size:12px">
-        <span><b>${esc(OUTCOME_LABEL[c.outcome] || c.disposition || 'Call')}</b> · ${esc(c.agent_name || c.agent_email || '')} · ${Math.round((c.duration_sec || 0) / 60 * 10) / 10} min</span>
+        <span><b>${esc(OUTCOME_LABEL[c.outcome] || c.disposition || 'Call')}</b>${c.booked_on ? ` · <b style="color:#15803d">meeting booked ${esc(c.booked_on)}</b>` : ''}${c.not_counted ? ` · <span style="color:#94a3b8" title="${esc(c.not_counted)}">not counted</span>` : ''} · ${esc(c.agent_name || c.agent_email || '')} · ${Math.round((c.duration_sec || 0) / 60 * 10) / 10} min</span>
         <span style="color:#64748b;white-space:nowrap">${esc(when)}</span></div>
       ${c.notes ? `<div style="font-size:12px;color:#334155;margin-top:3px">Notes: ${esc(c.notes)}</div>` : ''}
       ${c.recording_url ? `<audio controls preload="none" src="${esc(c.recording_url)}" style="width:100%;height:32px;margin-top:6px"></audio>` : '<div style="font-size:11px;color:#94a3b8">No recording</div>'}
