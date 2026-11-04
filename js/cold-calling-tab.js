@@ -28,12 +28,12 @@
 //   Cap: 2 cold-call meetings per client per week (Mon–Sun), then that client's lists are closed.
 //   Order: retainer clients first, then pay-per-meeting; fewest meetings this week first.
 
-import { state } from './app.js?v=20261102094923';
-import { render } from './render.js?v=20261102094923';
-import { supabase } from './supabase-client.js?v=20261102094923';
-import { esc, str, svgIcon, getToday } from './utils.js?v=20261102094923';
-import { currentUser, isSdr, loadAssignableUsers } from './auth.js?v=20261102094923';
-import { registerActions } from './delegate.js?v=20261102094923';
+import { state } from './app.js?v=20261104221348';
+import { render } from './render.js?v=20261104221348';
+import { supabase } from './supabase-client.js?v=20261104221348';
+import { esc, str, svgIcon, getToday } from './utils.js?v=20261104221348';
+import { currentUser, isSdr, loadAssignableUsers } from './auth.js?v=20261104221348';
+import { registerActions } from './delegate.js?v=20261104221348';
 
 export const CALLBACK_STAGE = 'Cold Call Callback';
 const NO_CONNECTION = new Set(['no_answer', 'voicemail', 'bad_number', 'desk_dq']);
@@ -794,7 +794,7 @@ registerActions({
   async ccSync() {
     cc.syncing = true; cc.syncNote = ''; render();
     try {
-      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261102094923');
+      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261104221348');
       const out = await invokeEdgeFunctionAsUser('cold-call-sync', {});
       const made = (out.cards || []).filter(c => c.created).length;
       cc.syncNote = `${out.synced} dials pulled${made ? `, ${made} new card${made === 1 ? '' : 's'}` : ''}`;
@@ -808,7 +808,7 @@ registerActions({
   ccOpenDeal(el) {
     const id = el.dataset.id;
     if (!state.deals.some(d => String(d.id) === String(id))) { alert('That card is no longer on the board (delivered or archived).'); return; }
-    import('./deal-modal.js?v=20261102094923').then(m => m.openDeal(id));
+    import('./deal-modal.js?v=20261104221348').then(m => m.openDeal(id));
   },
   ccTrackerScope(el) { cc.trackerScope = el.dataset.scope; render(); },
   ccTrackerClient(el, e) { if (e.type !== 'change') return; cc.trackerClient = el.value; render(); },
@@ -847,7 +847,7 @@ registerActions({
   async ccTranscribe(el) {
     el.disabled = true; el.textContent = 'Transcribing…';
     try {
-      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261102094923');
+      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261104221348');
       const out = await invokeEdgeFunctionAsUser('cold-call-sync', { action: 'transcribe', call_id: Number(el.dataset.id) });
       const box = document.createElement('div');
       box.style.cssText = 'white-space:pre-wrap;font-size:11px;max-height:260px;overflow:auto;background:#fff;border-radius:6px;padding:8px;margin-top:4px';
