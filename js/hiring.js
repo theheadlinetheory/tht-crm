@@ -11,11 +11,11 @@
 // Landing an applicant on Interviewing emails the interview invite once
 // (hiring-invite), exactly as the old sheet script did.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261104221348';
-import { render } from './render.js?v=20261104221348';
-import { supabase } from './supabase-client.js?v=20261104221348';
-import { showToast } from './api.js?v=20261104221348';
-import { esc, str } from './utils.js?v=20261104221348';
+import { state } from './app.js?v=20261105023420';
+import { render } from './render.js?v=20261105023420';
+import { supabase } from './supabase-client.js?v=20261105023420';
+import { showToast } from './api.js?v=20261105023420';
+import { esc, str } from './utils.js?v=20261105023420';
 
 // Applicants want a job with us; partners are companies that hire (recruiting
 // partners who could send us candidates). Each gets its own board.
