@@ -26,6 +26,9 @@
 // Rules from the 2026-10-27/28 calls (Aidan, Ioannis, Tim):
 //   connection = someone picked up: every dial except no answer, voicemail, bad number and desk DQ.
 //   Cap: 2 cold-call meetings per client per week (Mon–Sun), then that client's lists are closed.
+//   Unlimited (Aidan, 2026-11-05): a manager can mark some clients (e.g. Lightning) unlimited. They still stop at 2
+//   like everyone else; only once EVERY cold-calling client has 2 this week do the unlimited ones reopen with no
+//   ceiling. Where the client sits in the order earns nothing: the whole list has to be finished first.
 //   Order: retainer clients first, then pay-per-meeting; fewest meetings this week first.
 
 import { state } from './app.js?v=20261104221348';
@@ -64,6 +67,7 @@ const cc = {
   calls: [],                 // cold_calls rows, last LOOKBACK_DAYS
   quotas: { ...DEFAULT_QUOTAS },
   pinned: [],                // client names the manager pinned to the top
+  unlimited: [],             // client names with no weekly ceiling once every client has hit the cap
   syncing: false, syncNote: '',
   tracker: null, trackerLoading: false,
   trackerScope: 'all', trackerClient: '', trackerSearch: '',
@@ -99,11 +103,12 @@ async function loadAll() {
     }
     cc.calls = rows;
     if (!(state.assignableUsers || []).length) await loadAssignableUsers().catch(() => null);
-    const { data: settings } = await supabase.from('crm_settings').select('key,value').in('key', ['cold_call_quotas', 'cold_call_pinned']);
+    const { data: settings } = await supabase.from('crm_settings').select('key,value').in('key', ['cold_call_quotas', 'cold_call_pinned', 'cold_call_unlimited']);
     for (const s of settings || []) {
       try {
         if (s.key === 'cold_call_quotas') cc.quotas = { ...DEFAULT_QUOTAS, ...JSON.parse(s.value) };
         if (s.key === 'cold_call_pinned') cc.pinned = JSON.parse(s.value) || [];
+        if (s.key === 'cold_call_unlimited') cc.unlimited = JSON.parse(s.value) || [];
       } catch (_) { /* a bad row keeps the defaults */ }
     }
     cc.error = '';
@@ -167,7 +172,8 @@ export function coldCallClients() {
   return (state.clients || []).filter(c => c.status !== 'inactive' && isOn(c.coldCalling));
 }
 
-/** Retainers first, then pay-per-meeting; pinned first within each; fewest meetings this week first; capped last. */
+/** Retainers first, then pay-per-meeting; pinned first within each; fewest meetings this week first; capped last.
+ *  An unlimited client reopens (unlocked) only once every client switched on has reached the cap this week. */
 export function rankedClients() {
   const week = callsOn(thisWeek());
   const cap = Number(cc.quotas.capPerClient) || 2;
@@ -178,12 +184,18 @@ export function rankedClients() {
       name: c.name,
       retainer: str(c.billingModel) === 'retainer',
       pinned: cc.pinned.includes(c.name),
+      unlimited: cc.unlimited.includes(c.name),
       bookedWeek,
       dialsWeek: week.filter(r => r.client_name === c.name).length,
-      capped: bookedWeek >= cap,
+      atCap: bookedWeek >= cap,
       cap,
     };
   });
+  const everyoneAtCap = rows.length > 0 && rows.every(r => r.atCap);
+  for (const r of rows) {
+    r.unlocked = r.unlimited && everyoneAtCap;
+    r.capped = r.atCap && !r.unlocked;
+  }
   rows.sort((a, b) =>
     (a.capped - b.capped) || (b.retainer - a.retainer) || (b.pinned - a.pinned) ||
     (a.bookedWeek - b.bookedWeek) || a.name.localeCompare(b.name));
@@ -225,13 +237,20 @@ export function coldCallColumnMeta(stageId) {
   }
   const r = rankedClients().find(x => x.name === stageId);
   if (!r) return '';
+  if (r.unlocked) return ` · <b style="color:#0f172a">${r.bookedWeek}</b> this week ${UNLIMITED_BADGE}`;
   const badge = r.capped
-    ? `<span title="Weekly cap reached. Do not call for this client until Monday." style="font-size:9px;font-weight:800;color:#fff;background:#6b7280;padding:1px 6px;border-radius:8px;letter-spacing:.3px">CAPPED</span>`
+    ? `<span title="${r.unlimited ? `Unlimited client: reopens once every client has ${r.cap} meetings this week.` : 'Weekly cap reached. Do not call for this client until Monday.'}" style="font-size:9px;font-weight:800;color:#fff;background:#6b7280;padding:1px 6px;border-radius:8px;letter-spacing:.3px">CAPPED</span>`
     : `<span style="font-size:9px;font-weight:700;color:${r.retainer ? '#1d4ed8' : '#047857'};background:${r.retainer ? '#dbeafe' : '#d1fae5'};padding:1px 6px;border-radius:8px">${r.retainer ? 'RETAINER' : 'PPM'}</span>`;
   return ` · <b style="color:${r.capped ? '#6b7280' : '#0f172a'}">${r.bookedWeek}/${r.cap}</b> this week ${badge}`;
 }
 
 // ─── Shared pieces ───
+const UNLIMITED_BADGE = `<span title="Every client has hit the weekly cap, so this client has no limit for the rest of the week." style="font-size:9px;font-weight:800;color:#fff;background:#7c3aed;padding:1px 6px;border-radius:8px;letter-spacing:.3px">UNLIMITED</span>`;
+/** Meetings this week against the cap, or a plain count once an unlimited client has reopened. */
+function capCell(r) {
+  if (r.unlocked) return `<span style="font-size:12px;font-weight:700;color:#6d28d9">${r.bookedWeek} this week · no limit</span>`;
+  return bar(r.bookedWeek, r.cap, { cap: true });
+}
 function pct(n, d) { return d ? Math.min(100, Math.round(100 * n / d)) : 0; }
 function bar(value, target, { suffix = '', higherIsBetter = true, cap = false } = {}) {
   const ok = value == null ? null : higherIsBetter ? value >= target : value <= target;
@@ -307,21 +326,23 @@ function queueHtml() {
   let h = '';
   const rows = ranked.map((r, i) => {
     const status = r.capped
-      ? `<span style="font-weight:800;color:#6b7280">CAPPED: do not call until Monday</span>`
+      ? (r.unlimited
+        ? `<span style="font-weight:800;color:#6b7280">AT ${r.cap}: unlimited once every client has ${r.cap}</span>`
+        : `<span style="font-weight:800;color:#6b7280">CAPPED: do not call until Monday</span>`)
       : r === firstOpen
         ? `<span style="font-weight:800;color:#15803d">CALL NOW</span>`
         : `<span style="color:#64748b">Next</span>`;
     return `<tr style="${r.capped ? 'opacity:.55' : ''}">
       <td style="${td};font-weight:800;color:#0f172a">${i + 1}</td>
-      <td style="${td}"><div style="font-weight:700;color:#0f172a">${esc(r.name)}${r.pinned ? ' <span title="Pinned by the sales manager">📌</span>' : ''}</div>
+      <td style="${td}"><div style="font-weight:700;color:#0f172a">${esc(r.name)}${r.pinned ? ' <span title="Pinned by the sales manager">📌</span>' : ''}${r.unlocked ? ' ' + UNLIMITED_BADGE : r.unlimited ? ' <span title="No weekly limit once every client has hit the cap" style="font-size:10px;color:#7c3aed;font-weight:700">∞</span>' : ''}</div>
         <div style="font-size:11px;color:#64748b">${r.retainer ? 'Retainer' : 'Pay per meeting'}${r.client.coldCallEmail ? ' · pass-offs from ' + esc(r.client.coldCallEmail) : ''}</div></td>
-      <td style="${td};min-width:160px">${bar(r.bookedWeek, r.cap, { cap: true })}</td>
+      <td style="${td};min-width:160px">${capCell(r)}</td>
       <td style="${td}">${status}</td>
     </tr>`;
   }).join('');
   h += section('Who to call, in this order',
     ranked.length
-      ? `<div style="font-size:12px;color:#475569;margin-bottom:8px">Stay on the client at the top until they have ${cc.quotas.capPerClient} meetings this week, then move down. Retainer clients come first. A capped client's lists are closed until Monday: those meetings don't get paid.</div>
+      ? `<div style="font-size:12px;color:#475569;margin-bottom:8px">Stay on the client at the top until they have ${cc.quotas.capPerClient} meetings this week, then move down. Retainer clients come first. A capped client's lists are closed until Monday: those meetings don't get paid.${ranked.some(r => r.unlimited) ? ` Clients marked ∞ have no limit, but only after <b>every</b> client on this list has ${cc.quotas.capPerClient}, including the ones below them.` : ''}</div>
         <table style="width:100%;border-collapse:collapse"><thead><tr><th style="${th}">#</th><th style="${th}">Client</th><th style="${th}">Meetings this week</th><th style="${th}">Status</th></tr></thead><tbody>${rows}</tbody></table>`
       : `<div style="font-size:12px;color:#94a3b8">No clients are switched on for cold calling. A manager turns them on in Manager → Clients.</div>`);
 
@@ -425,14 +446,15 @@ function managerHtml() {
       const all = tally(cc.calls.filter(x => x.client_name === r.name));
       return `<tr style="${r.capped ? 'background:#f1f5f9' : ''}">
         <td style="${td};font-weight:800">${i + 1}</td>
-        <td style="${td};font-weight:700">${esc(r.name)} ${r.capped ? '<span style="font-size:9px;font-weight:800;color:#fff;background:#6b7280;padding:1px 6px;border-radius:8px">CAPPED</span>' : ''}</td>
+        <td style="${td};font-weight:700">${esc(r.name)} ${r.unlocked ? UNLIMITED_BADGE : r.capped ? '<span style="font-size:9px;font-weight:800;color:#fff;background:#6b7280;padding:1px 6px;border-radius:8px">CAPPED</span>' : ''}</td>
         <td style="${td}">${r.retainer ? 'Retainer' : 'PPM'}</td>
-        <td style="${td};min-width:140px">${bar(r.bookedWeek, r.cap, { cap: true })}</td>
+        <td style="${td};min-width:140px">${capCell(r)}</td>
         <td style="${td}">${t.dials}</td><td style="${td}">${t.connections}</td><td style="${td}">${t.connectRate == null ? '—' : t.connectRate + '%'}</td>
         <td style="${td}" title="Last ${LOOKBACK_DAYS} days">${all.showed} / ${all.noShow}</td>
-        <td style="${td};white-space:nowrap"><button data-action="ccPin" data-name="${esc(r.name)}" style="font-size:11px;padding:3px 9px;border:1px solid var(--border);border-radius:6px;background:${r.pinned ? '#fef3c7' : '#fff'};color:#334155;cursor:pointer;font-weight:600">${r.pinned ? 'Unpin' : '📌 Pin'}</button></td></tr>`;
+        <td style="${td};white-space:nowrap"><button data-action="ccPin" data-name="${esc(r.name)}" style="font-size:11px;padding:3px 9px;border:1px solid var(--border);border-radius:6px;background:${r.pinned ? '#fef3c7' : '#fff'};color:#334155;cursor:pointer;font-weight:600">${r.pinned ? 'Unpin' : '📌 Pin'}</button>
+          <button data-action="ccUnlimited" data-name="${esc(r.name)}" title="No weekly limit for this client once every client has hit the cap" style="font-size:11px;padding:3px 9px;border:1px solid ${r.unlimited ? '#7c3aed' : 'var(--border)'};border-radius:6px;background:${r.unlimited ? '#f5f3ff' : '#fff'};color:${r.unlimited ? '#6d28d9' : '#334155'};cursor:pointer;font-weight:600">${r.unlimited ? '∞ Unlimited' : '∞ Make unlimited'}</button></td></tr>`;
     }).join('')}</tbody></table>
-    <div style="font-size:11px;color:#94a3b8;margin-top:6px">Order: open clients before capped ones, retainers before pay-per-meeting, pinned first, then fewest meetings this week. The week resets every Monday.</div>`
+    <div style="font-size:11px;color:#94a3b8;margin-top:6px">Order: open clients before capped ones, retainers before pay-per-meeting, pinned first, then fewest meetings this week. The week resets every Monday. ∞ Unlimited clients stop at the cap like everyone else, and reopen with no limit once every client has hit it.</div>`
     : '<div style="font-size:12px;color:#94a3b8">No clients switched on yet. Use the list below.</div>');
 
   // Reps: one row each, every number coloured against its quota (the week pro-rated to today).
@@ -618,8 +640,8 @@ export function clientColdCallStatsHtml(clientName) {
   const cap = r ? r.cap : (Number(cc.quotas.capPerClient) || 2);
   const box = (label, v) => `<div style="flex:1;min-width:90px"><div style="font-size:10px;color:#64748b;font-weight:600;text-transform:uppercase">${label}</div><div style="font-size:18px;font-weight:800;color:#0f172a">${v}</div></div>`;
   return `<div style="margin-bottom:16px;padding:12px;background:#f5f3ff;border-radius:8px;border:1px solid #ddd6fe">
-    <div style="font-size:11px;font-weight:700;color:#6d28d9;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Cold calling this week${r && r.capped ? ' · <span style="color:#fff;background:#6b7280;padding:1px 6px;border-radius:8px;font-size:9px">CAPPED</span>' : ''}</div>
-    <div style="margin-bottom:10px">${bar(w.booked, cap, { cap: true })}<div style="font-size:10px;color:#94a3b8;margin-top:2px">meetings this week / weekly cap</div></div>
+    <div style="font-size:11px;font-weight:700;color:#6d28d9;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Cold calling this week${r && r.unlocked ? ' · ' + UNLIMITED_BADGE : r && r.capped ? ' · <span style="color:#fff;background:#6b7280;padding:1px 6px;border-radius:8px;font-size:9px">CAPPED</span>' : ''}</div>
+    <div style="margin-bottom:10px">${r && r.unlocked ? capCell(r) : bar(w.booked, cap, { cap: true })}<div style="font-size:10px;color:#94a3b8;margin-top:2px">${r && r.unlimited ? `meetings this week / weekly cap (unlimited once every client has ${cap})` : 'meetings this week / weekly cap'}</div></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">${box('Dials', w.dials)}${box('Connections', w.connections)}${box('Connect %', w.connectRate == null ? '—' : w.connectRate + '%')}${box('All-time meetings', `${a.booked}<span style="font-size:11px;color:#64748b;font-weight:600"> / ${a.dials} dials</span>`)}</div>
     ${segs.length ? `<table style="width:100%;border-collapse:collapse"><thead><tr><th style="${th}">Industry</th><th style="${th}">Dials</th><th style="${th}">Reached a person</th><th style="${th}">Meetings</th><th style="${th}">Desk DQ</th></tr></thead><tbody>
       ${segs.map(s => `<tr><td style="${td}">${esc(s.name)}</td><td style="${td}">${s.dials}</td><td style="${td}">${Math.round(100 * s.connectRate)}%</td><td style="${td};font-weight:700;color:${s.booked ? '#15803d' : 'inherit'}">${s.booked}</td><td style="${td}">${Math.round(100 * s.dqRate)}%</td></tr>`).join('')}
@@ -818,6 +840,12 @@ registerActions({
     cc.pinned = cc.pinned.includes(name) ? cc.pinned.filter(n => n !== name) : [...cc.pinned, name];
     render();
     await saveSetting('cold_call_pinned', cc.pinned);
+  },
+  async ccUnlimited(el) {
+    const name = el.dataset.name;
+    cc.unlimited = cc.unlimited.includes(name) ? cc.unlimited.filter(n => n !== name) : [...cc.unlimited, name];
+    render();
+    await saveSetting('cold_call_unlimited', cc.unlimited);
   },
   async ccShow(el) {
     const id = Number(el.dataset.id);
