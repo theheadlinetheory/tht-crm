@@ -10,9 +10,9 @@
 //
 // Not the power dialer (cold-calling.js): that one is for warm inbound leads.
 
-import { supabase } from './supabase-client.js?v=20261104165754';
-import { esc } from './utils.js?v=20261104165754';
-import { registerActions } from './delegate.js?v=20261104165754';
+import { supabase } from './supabase-client.js?v=20261104174420';
+import { esc } from './utils.js?v=20261104174420';
+import { registerActions } from './delegate.js?v=20261104174420';
 
 const FN = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/justcall-cold-calls';
 const RATE_LIMIT_WAIT_MS = 15000; // JustCall's limit is account-wide: a script loading a list can exhaust it

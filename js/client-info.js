@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // CLIENT-INFO — Client data, thread IDs, lookup functions
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20261104165754';
-import { CLIENT_PALETTE } from './config.js?v=20261104165754';
-import { str, uid } from './utils.js?v=20261104165754';
-import { sbCreateClient, camelToSnake } from './api.js?v=20261104165754';
-import { answeredQuestions } from './client-acquisition.js?v=20261104165754';
+import { state, store, pendingWrites } from './app.js?v=20261104174420';
+import { CLIENT_PALETTE } from './config.js?v=20261104174420';
+import { str, uid } from './utils.js?v=20261104174420';
+import { sbCreateClient, camelToSnake } from './api.js?v=20261104174420';
+import { answeredQuestions } from './client-acquisition.js?v=20261104174420';
 
 // ─── Derive campaign keyword from client name ───
 const SKIP_PREFIXES = /^(the|a|an)\s+/i;

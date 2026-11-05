@@ -23,10 +23,10 @@
 // acquisition deals here (deal-modal.js, deals.js). Everything is read from the
 // deal's Timeline at click time — nothing new is stored.
 
-import { state } from './app.js?v=20261104165754';
-import { esc } from './utils.js?v=20261104165754';
-import { sbCreateInteraction, sbGetInteractions, showToast } from './api.js?v=20261104165754';
-import { markDisco, markDemo, openNurture, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20261104165754';
+import { state } from './app.js?v=20261104174420';
+import { esc } from './utils.js?v=20261104174420';
+import { sbCreateInteraction, sbGetInteractions, showToast } from './api.js?v=20261104174420';
+import { markDisco, markDemo, openNurture, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20261104174420';
 
 export const REMOVAL_PREFIX = 'Removed — ';
 
@@ -53,6 +53,15 @@ export const DESK_DQ_REASONS = [
   'Too small / not established',
 ];
 export const deskDqNote = (reason) => 'Desk DQ: ' + reason;
+
+// How a lead was lost (Aidan, 2026-11-04): "Lost" mixed up leads that went quiet with leads that said no, so a
+// follow-up email that stops converting (Ioannis: HVAC goes silent) was invisible. pipeline-leads still reads
+// "Lost: …" as a loss (they dropped); the text lands in removed_reason.
+export const LOST_REASONS = [
+  { reason: 'Went silent', hint: 'replied positive, we followed up, no answer' },
+  { reason: 'Said no',     hint: 'told us they are not interested' },
+];
+export const lostNote = (reason) => 'Lost: ' + reason;
 
 // Stages a deal cannot reach without a demo having been booked.
 const DEMO_STAGES = new Set(['Demo Scheduled', 'Under Review', 'No Show', 'Waiting for Payment/Contract', 'Closed Won']);
@@ -275,19 +284,25 @@ export async function showAcquisitionRemovalPicker(dealIds, { onPick, onNurture,
     heading(`Why is ${n === 1 ? 'this lead' : n + ' leads'} being removed?`, 'Feeds level 02 of the sales pipeline. Desk DQ / Miscategorized / Duplicate = we removed them. Lost = they dropped.');
     const preIds = dealIds.filter((_, i) => infos[i].stage === 'pre');
     const record = (label, note) => finish(label, () => Promise.all(preIds.map(id => writeRemovalNote(id, note))));
-    // Desk DQ asks one more question: which reason. Answers feed the list-quality trend at level 02.
-    const askDeskDq = () => {
+    // Desk DQ and Lost ask one more question; nothing is saved until it is answered.
+    const askSub = (title, sub, label, tone, options, toNote, otherPrompt) => () => {
       list.innerHTML = '';
-      heading('Why is it a desk DQ?', 'Tracked per list, so we can see which lists bring in leads we would never work.');
-      DESK_DQ_REASONS.forEach(reason => button(reason, 'dq', () => record('Desk DQ', deskDqNote(reason))));
-      button('Other…', 'other', () => {
-        const r = prompt('Desk DQ reason:');
-        if (r && r.trim()) record('Desk DQ', deskDqNote('Other: ' + r.trim()));
+      heading(title, sub);
+      options.forEach(o => button(o.reason, tone, () => record(label, toNote(o.reason)), o.hint));
+      if (otherPrompt) button('Other…', 'other', () => {
+        const r = prompt(otherPrompt);
+        if (r && r.trim()) record(label, toNote('Other: ' + r.trim()));
       });
       box.appendChild(list);
       box.appendChild(cancel); // heading() rebuilt the box
     };
-    ACQ_REMOVAL_REASONS.forEach(r => button(r.label, r.tone, r.note === 'Desk DQ' ? askDeskDq : () => record(r.label, r.note), r.hint));
+    const SUB_STEPS = {
+      'Desk DQ': askSub('Why is it a desk DQ?', 'Tracked per list, so we can see which lists bring in leads we would never work.',
+        'Desk DQ', 'dq', DESK_DQ_REASONS.map(reason => ({ reason })), deskDqNote, 'Desk DQ reason:'),
+      'Lost': askSub('How was it lost?', 'Tells a follow-up that goes quiet apart from a real no.',
+        'Lost', 'lost', LOST_REASONS, lostNote, null),
+    };
+    ACQ_REMOVAL_REASONS.forEach(r => button(r.label, r.tone, SUB_STEPS[r.note] || (() => record(r.label, r.note)), r.hint));
     if (onNurture) button('Move to Nurture', 'keep', () => { div.remove(); onNurture(); });
     button('Other…', 'other', () => {
       const r = prompt('Reason:');
