@@ -1,12 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // ACTIVITIES — Activity CRUD, SOP sequences, overdue tracking
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, completedActivityIds, deletedActivityIds, inFlightActivityIds } from './app.js?v=20261104174420';
-import { SOP_DAYS, CLIENT_SOP_DAYS, PRE_CALL_SEQUENCE, NO_SHOW_SEQUENCE, REACTIVATION_DAYS } from './config.js?v=20261104174420';
-import { render, refreshModal } from './render.js?v=20261104174420';
-import { sbCreateActivity, sbUpdateActivity, sbDeleteActivity, camelToSnake } from './api.js?v=20261104174420';
-import { uid, getToday, isValidDate, fmtTime12 } from './utils.js?v=20261104174420';
-import { findClientForDeal } from './client-info.js?v=20261104174420';
+import { state, store, pendingWrites, completedActivityIds, deletedActivityIds, inFlightActivityIds } from './app.js?v=20261104182615';
+import { SOP_DAYS, CLIENT_SOP_DAYS, PRE_CALL_SEQUENCE, NO_SHOW_SEQUENCE, REACTIVATION_DAYS } from './config.js?v=20261104182615';
+import { render, refreshModal } from './render.js?v=20261104182615';
+import { sbCreateActivity, sbUpdateActivity, sbDeleteActivity, camelToSnake } from './api.js?v=20261104182615';
+import { uid, getToday, isValidDate, fmtTime12 } from './utils.js?v=20261104182615';
+import { findClientForDeal } from './client-info.js?v=20261104182615';
+import { isDay1EmailTask, askEmailTemplate } from './email-template-pick.js?v=20261104182615';
 
 async function retryActivityWrite(fn, label, maxRetries=3){
   pendingWrites.value++;
@@ -189,6 +190,7 @@ export async function toggleActivity(actId){
   if(state.selectedDeal) refreshModal();
   else render();
   retryActivityWrite(() => sbUpdateActivity(actId, camelToSnake({done:act.done,completedAt:act.completedAt})), 'Toggle activity');
+  if(act.done && isDay1EmailTask(act)) askEmailTemplate(act.dealId); // which email went out (email-template-pick.js)
 }
 
 export async function deleteActivity(actId){

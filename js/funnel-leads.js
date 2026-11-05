@@ -9,22 +9,22 @@
 // the events of the period for leads from any cohort. Temporary by intent —
 // the tables stay small while the window is a week.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261104174420';
-import { esc, escAttr } from './utils.js?v=20261104174420';
-import { state } from './app.js?v=20261104174420';
-import { openDeal } from './deal-modal.js?v=20261104174420';
-import { openArchivedDeal } from './archive.js?v=20261104174420';
-import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES, DEMO_RESCHEDULING } from './disco-outcome.js?v=20261104174420';
-import { writeRemovalNote, showAcquisitionRemovalPicker, DESK_DQ_REASONS, deskDqNote, LOST_REASONS, lostNote } from './removal-reason.js?v=20261104174420';
-import { deleteDeal } from './deals.js?v=20261104174420';
-import { showClientEndPicker } from './client-end.js?v=20261104174420';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261104182615';
+import { esc, escAttr } from './utils.js?v=20261104182615';
+import { state } from './app.js?v=20261104182615';
+import { openDeal } from './deal-modal.js?v=20261104182615';
+import { openArchivedDeal } from './archive.js?v=20261104182615';
+import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES, DEMO_RESCHEDULING } from './disco-outcome.js?v=20261104182615';
+import { writeRemovalNote, showAcquisitionRemovalPicker, DESK_DQ_REASONS, deskDqNote, lostNote, SAID_NO_REASONS, saidNoNote } from './removal-reason.js?v=20261104182615';
+import { deleteDeal } from './deals.js?v=20261104182615';
+import { showClientEndPicker } from './client-end.js?v=20261104182615';
 
 // ── Record the outcome from the list (Lars, 2026-09-10) ──
 // A flagged row gets the same options the reps use live, and writes through the
 // same functions, so the ledger reads it exactly as if it had been answered on
 // the card: the pre-disco removal reasons at level 02, the discovery outcome at
 // 03, the demo outcome at 05 and 06, the offboard picker at 07.
-const PRE_DISCO_REASONS = [...DESK_DQ_REASONS.map(deskDqNote), 'Miscategorized', 'Duplicate', ...LOST_REASONS.map(o => lostNote(o.reason)), 'Other…']; // a desk DQ and a loss always say which
+const PRE_DISCO_REASONS = [...DESK_DQ_REASONS.map(deskDqNote), 'Miscategorized', 'Duplicate', lostNote('Went silent'), ...SAID_NO_REASONS.map(saidNoNote), 'Other…']; // a desk DQ and a loss always say which
 const FINAL_DEMO = DEMO_OUTCOMES.filter(o => o !== 'No-Show' && o !== 'Qualified — Pending');
 // Level 04 (2026-09-18): was a demo booked after the disco, or did the lead drop? Every row can say either — "no demo
 // booked yet" is often a demo that happened with no booking on record (Aidan, 2026-09-18).

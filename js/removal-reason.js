@@ -23,10 +23,10 @@
 // acquisition deals here (deal-modal.js, deals.js). Everything is read from the
 // deal's Timeline at click time — nothing new is stored.
 
-import { state } from './app.js?v=20261104174420';
-import { esc } from './utils.js?v=20261104174420';
-import { sbCreateInteraction, sbGetInteractions, showToast } from './api.js?v=20261104174420';
-import { markDisco, markDemo, openNurture, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20261104174420';
+import { state } from './app.js?v=20261104182615';
+import { esc } from './utils.js?v=20261104182615';
+import { sbCreateInteraction, sbGetInteractions, showToast } from './api.js?v=20261104182615';
+import { markDisco, markDemo, openNurture, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20261104182615';
 
 export const REMOVAL_PREFIX = 'Removed — ';
 
@@ -62,6 +62,9 @@ export const LOST_REASONS = [
   { reason: 'Said no',     hint: 'told us they are not interested' },
 ];
 export const lostNote = (reason) => 'Lost: ' + reason;
+// Why they said no — the offer signal (Aidan, 2026-11-04). Written "Lost: Said no — <why>".
+export const SAID_NO_REASONS = ['Price', 'Has enough work', "Doesn't want a retainer / wants pay-per-lead", 'Bad timing'];
+export const saidNoNote = (why) => lostNote('Said no — ' + why);
 
 // Stages a deal cannot reach without a demo having been booked.
 const DEMO_STAGES = new Set(['Demo Scheduled', 'Under Review', 'No Show', 'Waiting for Payment/Contract', 'Closed Won']);
@@ -288,7 +291,7 @@ export async function showAcquisitionRemovalPicker(dealIds, { onPick, onNurture,
     const askSub = (title, sub, label, tone, options, toNote, otherPrompt) => () => {
       list.innerHTML = '';
       heading(title, sub);
-      options.forEach(o => button(o.reason, tone, () => record(label, toNote(o.reason)), o.hint));
+      options.forEach(o => button(o.reason, tone, o.next || (() => record(label, toNote(o.reason))), o.hint));
       if (otherPrompt) button('Other…', 'other', () => {
         const r = prompt(otherPrompt);
         if (r && r.trim()) record(label, toNote('Other: ' + r.trim()));
@@ -299,8 +302,9 @@ export async function showAcquisitionRemovalPicker(dealIds, { onPick, onNurture,
     const SUB_STEPS = {
       'Desk DQ': askSub('Why is it a desk DQ?', 'Tracked per list, so we can see which lists bring in leads we would never work.',
         'Desk DQ', 'dq', DESK_DQ_REASONS.map(reason => ({ reason })), deskDqNote, 'Desk DQ reason:'),
-      'Lost': askSub('How was it lost?', 'Tells a follow-up that goes quiet apart from a real no.',
-        'Lost', 'lost', LOST_REASONS, lostNote, null),
+      'Lost': askSub('How was it lost?', 'Tells a follow-up that goes quiet apart from a real no.', 'Lost', 'lost',
+        LOST_REASONS.map(o => o.reason !== 'Said no' ? o : { ...o, next: askSub('Why did they say no?', 'Shows whether the offer or the price is the problem.',
+          'Lost', 'lost', SAID_NO_REASONS.map(reason => ({ reason })), saidNoNote, 'Why did they say no?') }), lostNote, null),
     };
     ACQ_REMOVAL_REASONS.forEach(r => button(r.label, r.tone, SUB_STEPS[r.note] || (() => record(r.label, r.note)), r.hint));
     if (onNurture) button('Move to Nurture', 'keep', () => { div.remove(); onNurture(); });
