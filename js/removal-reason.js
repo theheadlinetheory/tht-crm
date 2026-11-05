@@ -23,10 +23,10 @@
 // acquisition deals here (deal-modal.js, deals.js). Everything is read from the
 // deal's Timeline at click time — nothing new is stored.
 
-import { state } from './app.js?v=20261104160429';
-import { esc } from './utils.js?v=20261104160429';
-import { sbCreateInteraction, sbGetInteractions, showToast } from './api.js?v=20261104160429';
-import { markDisco, markDemo, openNurture, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20261104160429';
+import { state } from './app.js?v=20261104165754';
+import { esc } from './utils.js?v=20261104165754';
+import { sbCreateInteraction, sbGetInteractions, showToast } from './api.js?v=20261104165754';
+import { markDisco, markDemo, openNurture, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20261104165754';
 
 export const REMOVAL_PREFIX = 'Removed — ';
 
@@ -38,6 +38,21 @@ export const ACQ_REMOVAL_REASONS = [
   { label: 'Duplicate',      note: 'Duplicate',      tone: 'dq',   hint: 'this company is already on the board' },
   { label: 'Lost',           note: 'Lost',           tone: 'lost', hint: 'not interested, or no response after we worked it' },
 ];
+
+// Why a lead was desk-DQ'd (Aidan, 2026-11-04): October's 108 desk DQs carried no reason, so nobody could tell
+// which lists bring in leads we would never work. The note becomes "Desk DQ: <reason>"; pipeline-leads still
+// reads it as removed by us (it matches ^Desk DQ) and keeps the full text in removed_reason.
+export const DESK_DQ_REASONS = [
+  'No website / social page only',
+  'Wrong trade (not maintenance / HVAC)',
+  'Residential only / solo operator',
+  'Install / hardscape / construction only',
+  'Tree / plant care only',
+  'Remote / small town',
+  'Outside our market (country / region)',
+  'Too small / not established',
+];
+export const deskDqNote = (reason) => 'Desk DQ: ' + reason;
 
 // Stages a deal cannot reach without a demo having been booked.
 const DEMO_STAGES = new Set(['Demo Scheduled', 'Under Review', 'No Show', 'Waiting for Payment/Contract', 'Closed Won']);
@@ -259,7 +274,20 @@ export async function showAcquisitionRemovalPicker(dealIds, { onPick, onNurture,
     const n = dealIds.length;
     heading(`Why is ${n === 1 ? 'this lead' : n + ' leads'} being removed?`, 'Feeds level 02 of the sales pipeline. Desk DQ / Miscategorized / Duplicate = we removed them. Lost = they dropped.');
     const preIds = dealIds.filter((_, i) => infos[i].stage === 'pre');
-    ACQ_REMOVAL_REASONS.forEach(r => button(r.label, r.tone, () => finish(r.label, () => Promise.all(preIds.map(id => writeRemovalNote(id, r.note)))), r.hint));
+    const record = (label, note) => finish(label, () => Promise.all(preIds.map(id => writeRemovalNote(id, note))));
+    // Desk DQ asks one more question: which reason. Answers feed the list-quality trend at level 02.
+    const askDeskDq = () => {
+      list.innerHTML = '';
+      heading('Why is it a desk DQ?', 'Tracked per list, so we can see which lists bring in leads we would never work.');
+      DESK_DQ_REASONS.forEach(reason => button(reason, 'dq', () => record('Desk DQ', deskDqNote(reason))));
+      button('Other…', 'other', () => {
+        const r = prompt('Desk DQ reason:');
+        if (r && r.trim()) record('Desk DQ', deskDqNote('Other: ' + r.trim()));
+      });
+      box.appendChild(list);
+      box.appendChild(cancel); // heading() rebuilt the box
+    };
+    ACQ_REMOVAL_REASONS.forEach(r => button(r.label, r.tone, r.note === 'Desk DQ' ? askDeskDq : () => record(r.label, r.note), r.hint));
     if (onNurture) button('Move to Nurture', 'keep', () => { div.remove(); onNurture(); });
     button('Other…', 'other', () => {
       const r = prompt('Reason:');

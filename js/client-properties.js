@@ -16,12 +16,12 @@
 // The overlay is appended to <body>, NOT inside the deal modal, so a render()
 // while it is open cannot wipe it.
 
-import { state } from './app.js?v=20261104160429';
-import { esc, escAttr, str } from './utils.js?v=20261104160429';
-import { isAdmin, isEmployee } from './auth.js?v=20261104160429';
-import { sbUpdateClient } from './api.js?v=20261104160429';
-import { registerActions } from './delegate.js?v=20261104160429';
-import { findClientForDeal } from './client-info.js?v=20261104160429';
+import { state } from './app.js?v=20261104165754';
+import { esc, escAttr, str } from './utils.js?v=20261104165754';
+import { isAdmin, isEmployee } from './auth.js?v=20261104165754';
+import { sbUpdateClient } from './api.js?v=20261104165754';
+import { registerActions } from './delegate.js?v=20261104165754';
+import { findClientForDeal } from './client-info.js?v=20261104165754';
 
 const OVERLAY_ID = 'client-props-overlay';
 const HEADER_RE = /^(?!.*\d)(?=.*\b(property|name|site|building)\b)(?=.*\b(address|street|city)\b)/i;
