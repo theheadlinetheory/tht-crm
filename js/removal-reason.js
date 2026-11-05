@@ -23,10 +23,10 @@
 // acquisition deals here (deal-modal.js, deals.js). Everything is read from the
 // deal's Timeline at click time — nothing new is stored.
 
-import { state } from './app.js?v=20261105031849';
-import { esc } from './utils.js?v=20261105031849';
-import { sbCreateInteraction, sbGetInteractions, showToast } from './api.js?v=20261105031849';
-import { markDisco, markDemo, openNurture, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20261105031849';
+import { state } from './app.js?v=20261104160429';
+import { esc } from './utils.js?v=20261104160429';
+import { sbCreateInteraction, sbGetInteractions, showToast } from './api.js?v=20261104160429';
+import { markDisco, markDemo, openNurture, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20261104160429';
 
 export const REMOVAL_PREFIX = 'Removed — ';
 
@@ -177,6 +177,12 @@ export async function showAcquisitionRemovalPicker(dealIds, { onPick, onNurture,
   if (existing) existing.remove();
 
   const infos = await Promise.all(dealIds.map(id => leadStage(id)));
+  // A Reactivating lead's old disco/demo answer is history, not why it leaves
+  // now — always ask, with Move to Nurture on offer (Elements, 2026-11-04).
+  infos.forEach((info, i) => {
+    const deal = state.deals.find(d => String(d.id) === String(dealIds[i]));
+    if (deal && deal.stage === 'Reactivating') info.stage = 'reactivating';
+  });
 
   // Already answered on the touchpoint: record that, ask nothing.
   if (dealIds.length === 1) {
@@ -241,6 +247,14 @@ export async function showAcquisitionRemovalPicker(dealIds, { onPick, onNurture,
             'The same answers as the outcome dropdown on the Timeline — recorded once, there.');
     // Exactly DISCO_OUTCOMES, same rule for "Not right now".
     DISCO_OUTCOMES.forEach(o => button(o, toneFor(o), () => finish(NURTURE_ANSWERS.has(o) ? null : DISCO_STATUS(o), answer(o, discoMark, () => markDisco(dealId, o)))));
+  } else if (stage === 'reactivating') {
+    heading('Reactivation finished — where does this lead go?', 'Move to Nurture brings it back on a follow-up date. Archive only if it is done for good.');
+    if (onNurture) button('Move to Nurture', 'keep', () => { div.remove(); onNurture(); }, 'Pick when to hit them up again');
+    button('Lost — no response to reactivation', 'lost', () => finish('Lost — no reactivation response', async () => {}));
+    button('Other…', 'other', () => {
+      const r = prompt('Reason:');
+      if (r && r.trim()) finish(r.trim(), async () => {});
+    });
   } else {
     const n = dealIds.length;
     heading(`Why is ${n === 1 ? 'this lead' : n + ' leads'} being removed?`, 'Feeds level 02 of the sales pipeline. Desk DQ / Miscategorized / Duplicate = we removed them. Lost = they dropped.');
