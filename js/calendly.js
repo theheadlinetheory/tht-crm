@@ -41,25 +41,42 @@ export function setCalendlyBookingDealId(id){
   calendlyBookingDealId=id;
 }
 
+// Which deal's "Review & Edit Info Sent to Calendly" panel is open. Kept here, not only in the DOM:
+// any re-render (a client/appointment/tracker realtime event, the 2-minute sync) rebuilds the card,
+// and the panel used to come back collapsed mid-typing — the box "went up" and the next keystrokes
+// went nowhere (Ioannis + Marcel, 2026-11-06).
+let calendlyOpenDealId=null;
+export function isCalendlyBookingOpen(dealId){
+  return calendlyOpenDealId!==null && String(calendlyOpenDealId)===String(dealId);
+}
+
 export function toggleCalendlyBooking(dealId, calUrl){
   calendlyBookingDealId=dealId;
   // Toggle the inline prefill/review section instead of opening Calendly directly
   const section=document.getElementById('calendly-booking-section');
   if(section){
-    section.style.display=section.style.display==='none'?'block':'none';
+    const open=section.style.display==='none';
+    section.style.display=open?'block':'none';
+    calendlyOpenDealId=open?dealId:null;
   }
+}
+
+/** Set a field on every in-memory copy of the deal NOW, so a re-render can never rebuild a box from
+ *  older text. state.selectedDeal and the state.deals row can be different objects (the background
+ *  sync swaps in a fresh row), and only the database write is debounced. */
+export function setDealFieldLocal(dealId, field, value){
+  const copies=new Set([state.deals.find(d=>String(d.id)===String(dealId)), state.selectedDeal]);
+  for(const d of copies){ if(d && String(d.id)===String(dealId)) d[field]=value; }
 }
 
 let _prefillSaveTimers={};
 export function savePrefillField(dealId, field, value){
-  clearTimeout(_prefillSaveTimers[field]);
-  _prefillSaveTimers[field]=setTimeout(()=>{
-    const deal=state.deals.find(d=>d.id===dealId);
-    if(deal){
-      deal[field]=value;
-      pendingWrites.value++;
-      sbUpdateDeal(dealId, camelToSnake({[field]:value})).catch(e=>console.error('Update deal failed:',e)).finally(()=>{pendingWrites.value--;});
-    }
+  setDealFieldLocal(dealId, field, value);
+  const key=dealId+':'+field;
+  clearTimeout(_prefillSaveTimers[key]);
+  _prefillSaveTimers[key]=setTimeout(()=>{
+    pendingWrites.value++;
+    sbUpdateDeal(dealId, camelToSnake({[field]:value})).catch(e=>console.error('Update deal failed:',e)).finally(()=>{pendingWrites.value--;});
   },800);
 }
 
@@ -281,6 +298,7 @@ export function showCalendlyTimeConfirm(dealId, deal, clientName, ianaTz){
 // Expose to inline HTML handlers
 window.showCalendlyTimeConfirm = showCalendlyTimeConfirm;
 window.toggleCalendlyBooking = toggleCalendlyBooking;
+window.isCalendlyBookingOpen = isCalendlyBookingOpen;
 window.openCalendlyEmbed = openCalendlyEmbed;
 window.openCalendlyFromWarmCall = openCalendlyFromWarmCall;
 window.openAcqCalendly = openAcqCalendly;

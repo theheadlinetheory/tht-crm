@@ -1491,7 +1491,7 @@ export function renderDealModal(deal){
             ${svgIcon('calendar',14)} Book Meeting on ${esc(matchedClient.name)}'s Calendar
           </button>
         </div>
-        <div id="calendly-booking-section" style="display:none;margin:0 0 12px 0;padding:12px;background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px">
+        <div id="calendly-booking-section" style="display:${window.isCalendlyBookingOpen&&window.isCalendlyBookingOpen(deal.id)?'block':'none'};margin:0 0 12px 0;padding:12px;background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
             <div style="font-size:11px;font-weight:700;color:#5b21b6">Review & Edit Info Sent to Calendly</div>
             ${(()=>{const ci=lookupClientInfo(matchedClient.name);const tz=ci&&ci.timeZone?ci.timeZone:'';return tz?'<div style="font-size:11px;font-weight:700;color:#fff;background:#7c3aed;padding:2px 8px;border-radius:10px;letter-spacing:.3px">'+esc(matchedClient.name)+' Time: '+esc(tz)+'</div>':'';})()}
@@ -1510,7 +1510,7 @@ export function renderDealModal(deal){
           </div>
           <div style="margin-bottom:8px">
             <label style="font-size:11px;color:#6b7280;font-weight:600">Additional Info / Instructions</label>
-            <textarea id="cal-prefill-notes" rows="5"
+            <textarea id="cal-prefill-notes" rows="5" data-keep-focus="1"
               oninput="savePrefillField('${esc(deal.id)}','calNotes',this.value)"
               style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px;resize:vertical">${esc(deal.calNotes||prefillText)}</textarea>
           </div>
@@ -1579,7 +1579,7 @@ export function renderDealModal(deal){
         const instrText = applyTemplate(instrTpl, deal, matchedClient.name, str(matchedClient.contactFirstName));
         h+=`<div style="margin:0 0 10px 0;padding:10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px">
           <label style="font-size:11px;font-weight:700;color:#0369a1;display:block;margin-bottom:4px">Send Instructions</label>
-          <textarea rows="5" id="send-instructions-notes"
+          <textarea rows="5" id="send-instructions-notes" data-keep-focus="1"
             oninput="savePrefillField('${esc(deal.id)}','calNotes',this.value)"
             style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);resize:vertical">${esc(deal.calNotes||instrText)}</textarea>
         </div>`;

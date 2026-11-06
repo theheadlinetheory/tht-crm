@@ -56,6 +56,27 @@ async function pollTranscript(dealId, phone) {
   }
 }
 
+// ─── Calendly notes from the same draft ───
+// The calendar invite carries the same details as the pass-off (Ioannis, 2026-11-06), so Claude's
+// calendly_notes block goes into the Calendly box: when nobody has typed there (cal_notes is empty;
+// the template is only the box's placeholder), when it still holds the block Claude wrote last, or
+// on a revise (Claude was shown the box and changes only what the caller asked).
+const lastAutoCalNotes = new Map(); // deal id -> the block we last put in
+
+function applyCalendlyNotes(dealId, notes, isRevise) {
+  if (!str(notes).trim()) return;
+  const deal = state.deals.find(d => String(d.id) === String(dealId)) || state.selectedDeal;
+  const current = str(deal && deal.calNotes).trim();
+  const untouched = !current || current === str(lastAutoCalNotes.get(String(dealId))).trim();
+  if (!untouched && !isRevise) return;
+  lastAutoCalNotes.set(String(dealId), notes);
+  setLocal(dealId, 'calNotes', notes);
+  pendingWrites.value++;
+  sbUpdateDeal(dealId, camelToSnake({ calNotes: notes }))
+    .catch(e => console.error('Saving Calendly notes failed:', e))
+    .finally(() => { pendingWrites.value--; });
+}
+
 // ─── Generate Passoff ───
 
 async function generatePassoff(dealId, clientName) {
@@ -69,13 +90,11 @@ async function generatePassoff(dealId, clientName) {
     clearTimeout(timeout);
     if (resp.error) throw new Error(resp.error);
 
-    const deal = state.deals.find(d => d.id === dealId);
-    if (deal) {
-      deal.passoffInstructions = resp.instructions;
-      if (resp.leadMessage !== undefined) deal.passoffLeadMessage = resp.leadMessage;
-      // refreshModal() alone only swaps the activity/meeting/reply boxes, never this panel.
-      if (state.selectedDeal && String(state.selectedDeal.id) === String(dealId)) refreshModal(true);
-    }
+    setLocal(dealId, 'passoffInstructions', resp.instructions);
+    if (resp.leadMessage !== undefined) setLocal(dealId, 'passoffLeadMessage', resp.leadMessage);
+    applyCalendlyNotes(dealId, resp.calendlyNotes, false);
+    // refreshModal() alone only swaps the activity/meeting/reply boxes, never this panel.
+    if (state.selectedDeal && String(state.selectedDeal.id) === String(dealId)) refreshModal(true);
   } catch (e) {
     const msg = e.name === 'AbortError' ? 'Request timed out — try again' : e.message;
     const resetBtn = document.getElementById('passoff-generate-btn');
@@ -91,11 +110,18 @@ async function regeneratePassoff(dealId, clientName) {
 
 // ─── Save Passoff Text (debounced) ───
 
+// Every in-memory copy of the deal gets the text on each keystroke (state.selectedDeal can be a
+// different object from the state.deals row after a background sync); only the write is debounced.
+function setLocal(dealId, field, value) {
+  for (const d of new Set([state.deals.find(x => String(x.id) === String(dealId)), state.selectedDeal])) {
+    if (d && String(d.id) === String(dealId)) d[field] = value;
+  }
+}
+
 let passoffSaveTimer = null;
 
 function savePassoffText(dealId, text) {
-  const deal = state.deals.find(d => d.id === dealId);
-  if (deal) deal.passoffInstructions = text;
+  setLocal(dealId, 'passoffInstructions', text);
 
   clearTimeout(passoffSaveTimer);
   passoffSaveTimer = setTimeout(() => {
@@ -108,8 +134,7 @@ function savePassoffText(dealId, text) {
 let leadSaveTimer = null;
 
 function saveLeadMessage(dealId, text) {
-  const deal = state.deals.find(d => d.id === dealId);
-  if (deal) deal.passoffLeadMessage = text;
+  setLocal(dealId, 'passoffLeadMessage', text);
   clearTimeout(leadSaveTimer);
   leadSaveTimer = setTimeout(() => {
     pendingWrites.value++;
@@ -138,11 +163,9 @@ async function reviseWithClaude(dealId, clientName) {
     if (resp.error) throw new Error(resp.error);
     log.push({ role: 'user', content: instruction });
     chatLog.set(dealId, log);
-    const deal = state.deals.find(d => d.id === dealId);
-    if (deal) {
-      deal.passoffInstructions = resp.instructions;
-      deal.passoffLeadMessage = resp.leadMessage;
-    }
+    setLocal(dealId, 'passoffInstructions', resp.instructions);
+    setLocal(dealId, 'passoffLeadMessage', resp.leadMessage);
+    applyCalendlyNotes(dealId, resp.calendlyNotes, true);
     refreshModal(true);
   } catch (e) {
     alert('Claude could not apply that: ' + (e.name === 'AbortError' ? 'timed out, try again' : e.message));
@@ -209,9 +232,9 @@ export function renderPassoffSection(deal, clientName) {
     const log = chatLog.get(deal.id) || [];
     const box = 'width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);resize:vertical;margin-bottom:8px';
     h += `<div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:4px">1. Pass-off to ${esc(clientName)}</div>
-    <textarea id="passoff-text" rows="9" oninput="savePassoffTextClick('${esc(deal.id)}',this.value)" style="${box}">${esc(deal.passoffInstructions)}</textarea>
-    <div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:4px">2. Confirmation to the lead (goes out with "Email lead + client" below, from the client's cold-call inbox)</div>
-    <textarea id="passoff-lead-text" rows="6" oninput="saveLeadMessageClick('${esc(deal.id)}',this.value)" style="${box}">${esc(deal.passoffLeadMessage)}</textarea>
+    <textarea id="passoff-text" rows="9" data-keep-focus="1" oninput="savePassoffTextClick('${esc(deal.id)}',this.value)" style="${box}">${esc(deal.passoffInstructions)}</textarea>
+    <div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:4px">2. Confirmation to the lead (saved as a draft in the client's cold-call inbox by "Create draft" below)</div>
+    <textarea id="passoff-lead-text" rows="6" data-keep-focus="1" oninput="saveLeadMessageClick('${esc(deal.id)}',this.value)" style="${box}">${esc(deal.passoffLeadMessage)}</textarea>
     <div style="background:#fff;border:1px solid #e9d5ff;border-radius:6px;padding:8px;margin-bottom:8px">
       <div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:4px">Ask Claude to change something</div>
       ${log.length ? `<div style="font-size:11px;color:#6b7280;margin-bottom:6px">${log.map(m => '✓ ' + esc(m.content)).join('<br>')}</div>` : ''}
@@ -238,11 +261,11 @@ export function renderPassoffSection(deal, clientName) {
       ${coldCall ? 'Draft pass-off + lead confirmation with Claude' : 'Generate Passoff Instructions'}
     </button>
     <div style="font-size:10px;color:var(--text-muted);margin-top:6px">
-      ${coldCall ? 'Claude reads the call (your JustCall notes, and the transcript when there is one) and drafts both emails. Set the meeting time on the card first.'
+      ${coldCall ? 'Claude reads the call (your JustCall notes, and the transcript when there is one) and drafts the pass-off, the lead confirmation and the Calendly notes. Book on Calendly first so the meeting time is on the card.'
         : `Call transcript: ${hasTranscript ? '<span style="color:#059669">Available</span>' : '<span style="color:#d97706">Pending</span>'}`}
     </div>`;
   } else {
-    h += `<textarea id="passoff-text" rows="8"
+    h += `<textarea id="passoff-text" rows="8" data-keep-focus="1"
       oninput="savePassoffTextClick('${esc(deal.id)}',this.value)"
       style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);resize:vertical;margin-bottom:8px">${esc(deal.passoffInstructions)}</textarea>
     <div style="display:flex;gap:6px">

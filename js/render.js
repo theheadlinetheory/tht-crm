@@ -125,7 +125,11 @@ export function refreshModal(forceFullRebuild){
     const tmp=document.createElement('div');
     tmp.innerHTML=fresh;
     const newOverlay=tmp.firstElementChild;
+    // Same keep-what-they're-typing guard as render(): a transcript landing or a draft finishing
+    // rebuilds the card while a caller is mid-sentence in the Calendly notes or the pass-off.
+    const preserved=capturePreserve(document);
     if(newOverlay) overlay.innerHTML=newOverlay.innerHTML;
+    restorePreserve(document, preserved);
     const newModal=overlay.querySelector('.modal');
     if(newModal){
       newModal.scrollTop=savedScroll;

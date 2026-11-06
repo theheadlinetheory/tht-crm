@@ -191,4 +191,27 @@ test('caret survives a focus handler that re-renders (search typed backwards)', 
   assert.equal(live._end, 4);
 });
 
+test('an open deal card keeps its own scroll position across a rebuild', () => {
+  const field = el({ id: 'cal-prefill-notes', tagName: 'TEXTAREA', value: 'Meet with Alita at the clubhouse' });
+  const els = [field];
+  const d = doc(els, field);
+  let modal = { scrollTop: 640 };
+  d.querySelector = sel => (sel === '.modal-overlay .modal' ? modal : null);
+  const snap = capturePreserve(d);
+  modal = { scrollTop: 0 };                 // innerHTML swap: a fresh .modal starts at the top
+  const fresh = el({ id: 'cal-prefill-notes', tagName: 'TEXTAREA', value: 'Meet with Alita' });
+  fresh._doc = d; els[0] = fresh;
+  restorePreserve(d, snap);
+  assert.equal(modal.scrollTop, 640, 'card jumped back to the top');
+  assert.equal(fresh.value, 'Meet with Alita at the clubhouse', 'typed text was dropped');
+});
+
+test('no open card: a document without querySelector still works', () => {
+  const field = el({ id: 'x', value: 'a' });
+  const d = doc([field], field);
+  const snap = capturePreserve(d);
+  assert.equal(snap.modalScroll, null);
+  restorePreserve(d, snap);
+});
+
 console.log(`\n${passed} passed`);

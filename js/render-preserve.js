@@ -39,9 +39,17 @@ function caretOf(el) {
   catch { return { start: null, end: null }; }
 }
 
+function openModal(doc) {
+  return typeof doc.querySelector === 'function' ? doc.querySelector('.modal-overlay .modal') : null;
+}
+
 export function capturePreserve(doc) {
   const view = doc.defaultView || {};
-  const snap = { id: null, value: null, start: null, end: null, scrollX: view.scrollX || 0, scrollY: view.scrollY || 0 };
+  const snap = { id: null, value: null, start: null, end: null, scrollX: view.scrollX || 0, scrollY: view.scrollY || 0, modalScroll: null };
+  // An open deal card scrolls inside .modal, not the window: rebuilt, it came back at the top, which read as
+  // the Calendly notes box "going up" mid-typing (Ioannis, 2026-11-06).
+  const modal = openModal(doc);
+  if (modal) snap.modalScroll = modal.scrollTop || 0;
   const el = doc.activeElement;
   // Only fields carrying an id survive the swap — that's what we re-find by.
   if (!isTextEntry(el) || !el.id) return snap;
@@ -58,6 +66,10 @@ export function restorePreserve(doc, snap) {
   const view = doc.defaultView;
   if (view && typeof view.scrollTo === 'function' && (view.scrollX !== snap.scrollX || view.scrollY !== snap.scrollY)) {
     view.scrollTo(snap.scrollX, snap.scrollY);
+  }
+  if (snap.modalScroll !== null) {
+    const modal = openModal(doc);
+    if (modal && modal.scrollTop !== snap.modalScroll) modal.scrollTop = snap.modalScroll;
   }
   if (!snap.id) return;
   const el = doc.getElementById(snap.id);
