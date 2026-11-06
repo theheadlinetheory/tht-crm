@@ -4,7 +4,7 @@
 // A cold-call lead has no email thread yet, so this starts one: from the
 // client's designated inbox (clients.cold_call_email), to the lead, with the
 // client CC'd. Ioannis's format (call with Tim, 2026-11-06): subject
-// "<First>, Appointment Confirmation", body from the pass-off panel's lead box.
+// "<First> - Appointment Confirmation", body from the pass-off panel's lead box.
 //
 // Main button: "Create draft in contact@…" — gmail-lead-draft saves it in that
 // inbox's Drafts folder (Tim, 2026-11-07: a real draft, ready to send). The
@@ -12,16 +12,19 @@
 // Fallback link: the old Gmail compose window, filled in, for an inbox that is
 // not connected yet.
 
-import { esc, str, applyTemplate, svgIcon } from './utils.js?v=20261107033626';
-import { state } from './app.js?v=20261107033626';
-import { invokeEdgeFunction, sbUpdateDeal, showToast } from './api.js?v=20261107033626';
+import { esc, str, applyTemplate, svgIcon } from './utils.js?v=20261107040024';
+import { state } from './app.js?v=20261107040024';
+import { invokeEdgeFunction, sbUpdateDeal, showToast } from './api.js?v=20261107040024';
 
-const SUBJECT = '{FIRST_NAME}, Appointment Confirmation';
-// Used only when Claude has not drafted the lead box yet; same shape Claude is told to write.
-const BODY = `Hi {FIRST_NAME},
+const SUBJECT = '{FIRST_NAME} - Appointment Confirmation';
+// Client SDR Templates SOP, Template 2. Used only when Claude has not drafted the lead box yet.
+const BODY = `Hi {FIRST_NAME}. Great chatting with you just now.
 
-Great chatting with you just now. I will add {OWNER}, the owner, to this thread. We will stop by {MEETING_TIME} to put together an estimate.
+I'll add {OWNER}, the owner, to this thread. We will stop by on {MEETING_TIME} and put together an estimate.
 {PHONE_LINE}
+Looking forward to it.
+
+Best regards,
 [YOUR NAME]
 {CLIENT}`;
 
@@ -39,8 +42,8 @@ function fill(text, deal, client) {
     .replaceAll('{CLIENT}', clientDisplayName(client.name))
     .replaceAll('{OWNER}', owner)
     .replaceAll('{FIRST_NAME}', field('{FIRST_NAME}') || 'there')
-    .replace('{MEETING_TIME}', meeting ? meeting.charAt(0).toLowerCase() + meeting.slice(1) : '[APPOINTMENT TIME]')
-    .replace('{PHONE_LINE}', phone ? `\n${owner}'s phone number is ${phone}. Feel free to reach out to ${owner} if you have any questions or if something comes up.\n` : '');
+    .replace('{MEETING_TIME}', meeting || '[DAY] at [TIME]')
+    .replace('{PHONE_LINE}', phone ? `\n${owner}'s phone number is ${phone}, feel free to reach out to ${owner} if you have any questions or if something comes up before we meet.\n` : '');
 }
 
 function leadBody(deal, client) {
