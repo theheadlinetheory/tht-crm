@@ -14,14 +14,14 @@
 // red count on the Hiring tab (hiring-unread.js). The detail modal, timeline
 // and follow-ups live in hiring-modal.js / hiring-activity.js.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261106142747';
-import { render } from './render.js?v=20261106142747';
-import { supabase } from './supabase-client.js?v=20261106142747';
-import { showToast } from './api.js?v=20261106142747';
-import { esc, str, svgIcon } from './utils.js?v=20261106142747';
-import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261106142747';
-import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261106142747';
-import { onHiringChange } from './hiring-unread.js?v=20261106142747';
+import { state } from './app.js?v=20261106125404';
+import { render } from './render.js?v=20261106125404';
+import { supabase } from './supabase-client.js?v=20261106125404';
+import { showToast } from './api.js?v=20261106125404';
+import { esc, str, svgIcon } from './utils.js?v=20261106125404';
+import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261106125404';
+import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261106125404';
+import { onHiringChange } from './hiring-unread.js?v=20261106125404';
 
 // Applicants want a job with us; partners are companies that hire (recruiting
 // partners who could send us candidates). Each gets its own board.
@@ -124,7 +124,7 @@ function partnerTags(c) {
   const linkedin = c.answers?.channel === 'LinkedIn';
   return [
     `<span class="deal-tag" style="${t.style}">${t.label}</span>`,
-    `<span class="deal-tag" style="background:#eff6ff;color:#0a66c2">${linkedin ? 'in LinkedIn' : '✉ Email'}</span>`,
+    linkedin ? '' : '<span class="deal-tag" style="background:#eff6ff;color:#0a66c2">✉ Email</span>',
     c.answers?.category ? `<span class="deal-tag" style="background:#f5f3ff;color:#6d28d9">${esc(c.answers.category)}</span>` : '',
   ];
 }
@@ -142,15 +142,14 @@ function applicantTags(c) {
 function previewHtml(c) {
   const text = c.kind === 'partner' ? replyText(c.answers?.reply).replace(/\s+/g, ' ') : '';
   if (!text) return '';
-  return `<div style="font-size:12px;color:var(--text-muted);font-style:italic;margin:4px 0 6px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">“${esc(text)}”</div>`;
+  return `<div style="font-size:12px;color:var(--text-muted);font-style:italic;margin:2px 0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">“${esc(text)}”</div>`;
 }
 
 // ─── Board ───
 function cardHtml(c) {
   const tags = [
     ...(c.kind === 'partner' ? partnerTags(c) : applicantTags(c)),
-    c.linkedin ? `<a class="deal-tag" href="${esc(withScheme(c.linkedin))}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="background:#eff6ff;color:#0a66c2;text-decoration:none">LinkedIn ↗</a>` : '',
-    c.location ? `<span class="deal-tag">${esc(c.location)}</span>` : '',
+    c.linkedin ? `<a class="deal-tag" href="${esc(withScheme(c.linkedin))}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="background:#eff6ff;color:#0a66c2;text-decoration:none">in LinkedIn ↗</a>` : '',
     c.applied_at ? `<span class="deal-tag" style="background:#f1f5f9;color:#475569">${esc(shortDate(c.applied_at))}</span>` : '',
     c.invite_sent_at ? '<span class="deal-tag" style="background:#eff6ff;color:#1d4ed8">Invite sent</span>' : '',
   ].join('');
