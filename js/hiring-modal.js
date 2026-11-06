@@ -6,13 +6,13 @@
 // Every text field is state-backed (state.hiringDraft) because render()
 // rebuilds #app. Clicking outside, ✕ and Close all save pending edits.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261106121027';
-import { render } from './render.js?v=20261106121027';
-import { showToast } from './api.js?v=20261106121027';
-import { esc, str, svgIcon, fmtTimestamp, getToday } from './utils.js?v=20261106121027';
-import { STAGES, CONTACT_TYPES, stageLabel, shortDate, replyText, findCandidate, saveFields, moveCandidate, toggleStar } from './hiring.js?v=20261106121027';
-import { activitiesFor, loadActivities, addHiringActivity, updateHiringActivity, deleteHiringActivity, findActivity } from './hiring-activity.js?v=20261106121027';
-import { refreshHiringUnread } from './hiring-unread.js?v=20261106121027';
+import { state } from './app.js?v=20261106121450';
+import { render } from './render.js?v=20261106121450';
+import { showToast } from './api.js?v=20261106121450';
+import { esc, str, svgIcon, fmtTimestamp, getToday } from './utils.js?v=20261106121450';
+import { STAGES, CONTACT_TYPES, stageLabel, shortDate, replyText, findCandidate, saveFields, moveCandidate, toggleStar } from './hiring.js?v=20261106121450';
+import { activitiesFor, loadActivities, addHiringActivity, updateHiringActivity, deleteHiringActivity, findActivity } from './hiring-activity.js?v=20261106121450';
+import { refreshHiringUnread } from './hiring-unread.js?v=20261106121450';
 
 const LINK_STYLE = 'color:var(--purple);word-break:break-all';
 const INPUT_STYLE = 'padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)';
@@ -251,6 +251,12 @@ window.hiringFollowUpAdd = async (id) => {
   if (!body || !d.fuDue) { showToast('Add what the follow-up is and its due date'); return; }
   if (await addHiringActivity(id, { type: 'followup', body, due_at: d.fuDue })) { d.fuSubject = ''; render(); }
 };
-window.hiringFollowUpDone = async (cid, id) => { const a = findActivity(cid, id); if (a) { await updateHiringActivity(a, { done_at: new Date().toISOString() }); render(); } };
-window.hiringFollowUpDue = async (cid, id, due) => { const a = findActivity(cid, id); if (a && due) { await updateHiringActivity(a, { due_at: due }); render(); } };
-window.hiringActivityDelete = async (cid, id) => { const a = findActivity(cid, id); if (a) { await deleteHiringActivity(a); render(); } };
+async function withActivity(cid, id, write) {
+  const a = findActivity(cid, id);
+  if (!a) return;
+  await write(a);
+  render();
+}
+window.hiringFollowUpDone = (cid, id) => withActivity(cid, id, a => updateHiringActivity(a, { done_at: new Date().toISOString() }));
+window.hiringFollowUpDue = (cid, id, due) => due && withActivity(cid, id, a => updateHiringActivity(a, { due_at: due }));
+window.hiringActivityDelete = (cid, id) => withActivity(cid, id, deleteHiringActivity);

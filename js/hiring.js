@@ -14,14 +14,14 @@
 // red count on the Hiring tab (hiring-unread.js). The detail modal, timeline
 // and follow-ups live in hiring-modal.js / hiring-activity.js.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261106121027';
-import { render } from './render.js?v=20261106121027';
-import { supabase } from './supabase-client.js?v=20261106121027';
-import { showToast } from './api.js?v=20261106121027';
-import { esc, str, svgIcon } from './utils.js?v=20261106121027';
-import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261106121027';
-import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261106121027';
-import { onHiringChange } from './hiring-unread.js?v=20261106121027';
+import { state } from './app.js?v=20261106121450';
+import { render } from './render.js?v=20261106121450';
+import { supabase } from './supabase-client.js?v=20261106121450';
+import { showToast } from './api.js?v=20261106121450';
+import { esc, str, svgIcon } from './utils.js?v=20261106121450';
+import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261106121450';
+import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261106121450';
+import { onHiringChange } from './hiring-unread.js?v=20261106121450';
 
 // Applicants want a job with us; partners are companies that hire (recruiting
 // partners who could send us candidates). Each gets its own board.
@@ -162,7 +162,7 @@ function cardHtml(c) {
       onclick="hiringOpen('${esc(c.id)}')">
     <div class="deal-card-top">
       <div class="deal-company">${isNew ? `<span class="reply-indicator" title="${c.kind === 'applicant' ? 'New applicant' : 'New reply'}">${svgIcon('mail', 12, '#3b82f6')}</span>` : ''}${esc(c.name || c.email || 'Unknown')}</div>
-      <span onclick="event.stopPropagation();hiringCardStar('${esc(c.id)}')" title="Strong candidate" style="cursor:pointer;font-size:14px;color:${c.starred ? '#f59e0b' : '#d1d5db'}">★</span>
+      <span onclick="event.stopPropagation();hiringToggleStar('${esc(c.id)}')" title="Strong candidate" style="cursor:pointer;font-size:14px;color:${c.starred ? '#f59e0b' : '#d1d5db'}">★</span>
     </div>
     ${orgLine(c) ? `<div class="deal-detail">${esc(orgLine(c))}</div>` : ''}
     ${previewHtml(c)}
@@ -279,7 +279,6 @@ window.hiringDrop = (key) => {
 };
 export function toggleStar(id) { const c = findCandidate(id); if (c) saveFields(c, { starred: !c.starred }); }
 window.hiringOpen = (id) => openHiringCard(id);
-window.hiringCardStar = (id) => toggleStar(id);
 window.hiringKind = (kind) => { state.hiringKind = kind; render(); };
 window.hiringContactType = (v) => { state.hiringContactType = v === 'all' ? null : v; render(); };
 window.hiringSearch = (v) => { state.hiringSearch = v; render(); };
