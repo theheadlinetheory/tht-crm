@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 // Derived from deals.lead_source. Everything without a source predates
 // multi-channel outreach and came from SmartLead, so it counts as Email.
-import { svgIcon } from './utils.js?v=20261106130356';
+import { svgIcon } from './utils.js?v=20261106131311';
 
 export const ACQUISITION_CHANNELS = ['Email', 'Cold Calling', 'SMS', 'LinkedIn', 'AEO/GEO', 'Other'];
 
@@ -23,7 +23,7 @@ export function dealChannel(deal) {
 
 // Pill shown before the company name on acquisition cards. Channels without
 // an entry (Cold Calling/Other have no source wired up yet) show nothing.
-export const CHANNEL_PILL = 'display:inline-flex;align-items:center;margin-right:4px;font-size:9px;font-weight:800;color:#fff;padding:1px 4px;border-radius:3px;vertical-align:middle;font-family:Arial,sans-serif;line-height:11px';
+const PILL = 'display:inline-flex;align-items:center;margin-right:4px;font-size:9px;font-weight:800;color:#fff;padding:1px 4px;border-radius:3px;vertical-align:middle;font-family:Arial,sans-serif;line-height:11px';
 const CHANNEL_BADGES = {
   Email: { title: 'Email lead (SmartLead)', bg: '#7c3aed', content: () => svgIcon('mail', 10, '#fff') },
   LinkedIn: { title: 'LinkedIn lead (Aimfox)', bg: '#0a66c2', content: () => 'in' },
@@ -33,5 +33,5 @@ const CHANNEL_BADGES = {
 
 export function channelCardBadge(deal) {
   const b = CHANNEL_BADGES[dealChannel(deal)];
-  return b ? `<span title="${b.title}" style="${CHANNEL_PILL};background:${b.bg}">${b.content()}</span>` : '';
+  return b ? `<span title="${b.title}" style="${PILL};background:${b.bg}">${b.content()}</span>` : '';
 }

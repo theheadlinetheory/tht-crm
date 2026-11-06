@@ -6,14 +6,14 @@
 // Every text field is state-backed (state.hiringDraft) because render()
 // rebuilds #app. Clicking outside, ✕ and Close all save pending edits.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261106130356';
-import { render } from './render.js?v=20261106130356';
-import { showToast } from './api.js?v=20261106130356';
-import { esc, str, svgIcon, fmtTimestamp, getToday } from './utils.js?v=20261106130356';
-import { STAGES, CONTACT_TYPES, stageLabel, shortDate, replyText, findCandidate, saveFields, moveCandidate, toggleStar } from './hiring.js?v=20261106130356';
-import { activitiesFor, loadActivities, addHiringActivity, updateHiringActivity, deleteHiringActivity, findActivity } from './hiring-activity.js?v=20261106130356';
-import { candidateChannel, channelSelectHtml } from './hiring-channel.js?v=20261106130356';
-import { refreshHiringUnread } from './hiring-unread.js?v=20261106130356';
+import { state } from './app.js?v=20261106131311';
+import { render } from './render.js?v=20261106131311';
+import { showToast } from './api.js?v=20261106131311';
+import { esc, str, svgIcon, fmtTimestamp, getToday } from './utils.js?v=20261106131311';
+import { STAGES, CONTACT_TYPES, stageLabel, shortDate, replyText, findCandidate, saveFields, moveCandidate, toggleStar } from './hiring.js?v=20261106131311';
+import { activitiesFor, loadActivities, addHiringActivity, updateHiringActivity, deleteHiringActivity, findActivity } from './hiring-activity.js?v=20261106131311';
+import { candidateChannel, channelSelectHtml } from './hiring-channel.js?v=20261106131311';
+import { refreshHiringUnread } from './hiring-unread.js?v=20261106131311';
 
 const LINK_STYLE = 'color:var(--purple);word-break:break-all';
 const INPUT_STYLE = 'padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)';
