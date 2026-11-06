@@ -6,13 +6,13 @@
 // Every text field is state-backed (state.hiringDraft) because render()
 // rebuilds #app. Clicking outside, ✕ and Close all save pending edits.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261106125404';
-import { render } from './render.js?v=20261106125404';
-import { showToast } from './api.js?v=20261106125404';
-import { esc, str, svgIcon, fmtTimestamp, getToday } from './utils.js?v=20261106125404';
-import { STAGES, CONTACT_TYPES, stageLabel, shortDate, replyText, findCandidate, saveFields, moveCandidate, toggleStar } from './hiring.js?v=20261106125404';
-import { activitiesFor, loadActivities, addHiringActivity, updateHiringActivity, deleteHiringActivity, findActivity } from './hiring-activity.js?v=20261106125404';
-import { refreshHiringUnread } from './hiring-unread.js?v=20261106125404';
+import { state } from './app.js?v=20261106130122';
+import { render } from './render.js?v=20261106130122';
+import { showToast } from './api.js?v=20261106130122';
+import { esc, str, svgIcon, fmtTimestamp, getToday } from './utils.js?v=20261106130122';
+import { STAGES, CONTACT_TYPES, stageLabel, shortDate, replyText, findCandidate, saveFields, moveCandidate, toggleStar } from './hiring.js?v=20261106130122';
+import { activitiesFor, loadActivities, addHiringActivity, updateHiringActivity, deleteHiringActivity, findActivity } from './hiring-activity.js?v=20261106130122';
+import { refreshHiringUnread } from './hiring-unread.js?v=20261106130122';
 
 const LINK_STYLE = 'color:var(--purple);word-break:break-all';
 const INPUT_STYLE = 'padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)';
@@ -120,6 +120,36 @@ function followUpRow(a) {
   </div>`;
 }
 
+// One-click follow-ups for the steps we repeat on every card; `days` = due date offset from today.
+const FOLLOW_UP_TEMPLATES = {
+  applicant: [
+    { body: 'Review application + intro video', days: 0 },
+    { body: 'WhatsApp intro message', days: 0 },
+    { body: 'Chase interview booking', days: 2 },
+    { body: 'Send decision', days: 1 },
+  ],
+  partner: [
+    { body: 'Reply to their message', days: 0 },
+    { body: 'Send role page + application link', days: 0 },
+    { body: 'Follow up (no reply)', days: 3 },
+    { body: 'Check if they shared the role', days: 7 },
+  ],
+};
+
+function addDays(iso, days) {
+  const dt = new Date(iso + 'T00:00:00');
+  dt.setDate(dt.getDate() + days);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
+
+function templateChipsHtml(c, pending) {
+  const open = new Set(pending.map(a => a.body));
+  return `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">
+    ${FOLLOW_UP_TEMPLATES[c.kind].map((t, i) => open.has(t.body) ? '' :
+      `<button class="btn btn-ghost" style="font-size:11px;padding:3px 8px;border:1px dashed var(--border)" onclick="hiringFollowUpTemplate('${esc(c.id)}', ${i})">+ ${esc(t.body)}${t.days ? ` <span style="color:var(--text-muted)">(${t.days}d)</span>` : ''}</button>`).join('')}
+  </div>`;
+}
+
 function followUpsHtml(c, d, rows) {
   const fus = rows.filter(a => a.type === 'followup');
   const pending = fus.filter(a => !a.done_at).sort((a, b) => str(a.due_at).localeCompare(str(b.due_at)));
@@ -131,6 +161,7 @@ function followUpsHtml(c, d, rows) {
       <input type="date" id="hiring-fu-due" value="${esc(d.fuDue)}" oninput="hiringDraftSet('fuDue', this.value)" style="${INPUT_STYLE}">
       <button class="btn btn-primary" style="font-size:12px" onclick="hiringFollowUpAdd('${esc(c.id)}')">+ Add</button>
     </div>
+    ${templateChipsHtml(c, pending)}
     ${pending.length ? pending.map(followUpRow).join('') : '<div style="color:var(--text-muted)">No follow-ups scheduled</div>'}
     ${done.length ? `<details style="margin-top:6px"><summary style="cursor:pointer;color:var(--text-muted)">Completed (${done.length})</summary>
       ${done.map(a => `<div style="padding:3px 0;color:var(--text-muted)">✓ ${esc(a.body)} <span style="font-size:10px">${esc(fmtTimestamp(a.done_at))}</span></div>`).join('')}</details>` : ''}
@@ -250,6 +281,11 @@ window.hiringFollowUpAdd = async (id) => {
   const body = str(d?.fuSubject).trim();
   if (!body || !d.fuDue) { showToast('Add what the follow-up is and its due date'); return; }
   if (await addHiringActivity(id, { type: 'followup', body, due_at: d.fuDue })) { d.fuSubject = ''; render(); }
+};
+window.hiringFollowUpTemplate = async (id, i) => {
+  const c = findCandidate(id);
+  const t = c && FOLLOW_UP_TEMPLATES[c.kind][i];
+  if (t && await addHiringActivity(id, { type: 'followup', body: t.body, due_at: addDays(getToday(), t.days) })) render();
 };
 async function withActivity(cid, id, write) {
   const a = findActivity(cid, id);

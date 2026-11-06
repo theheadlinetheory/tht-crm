@@ -3,8 +3,8 @@
 // Calls go through invokeEdgeFunctionAsUser so the edge function sees the
 // caller's own session and can enforce admin-only (the anon key cannot).
 // ═══════════════════════════════════════════════════════════
-import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20261106125404';
-import { sbUpdateDeal, camelToSnake } from './api.js?v=20261106125404';
+import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20261106130122';
+import { sbUpdateDeal, camelToSnake } from './api.js?v=20261106130122';
 
 const call = (action, body = {}) => invokeEdgeFunctionAsUser('deal-invoice', { action, ...body });
 
