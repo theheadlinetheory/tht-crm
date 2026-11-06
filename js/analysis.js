@@ -11,18 +11,18 @@
 // /sequence-analytics endpoint the Weekly Updates tab uses, so the two tabs
 // can never report different numbers for the same week.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261107040024';
-import { render } from './render.js?v=20261107040024';
-import { esc, escAttr, str } from './utils.js?v=20261107040024';
-import { isAdmin } from './auth.js?v=20261107040024';
-import { showToast } from './api.js?v=20261107040024';
+import { state } from './app.js?v=20261107045741';
+import { render } from './render.js?v=20261107045741';
+import { esc, escAttr, str } from './utils.js?v=20261107045741';
+import { isAdmin } from './auth.js?v=20261107045741';
+import { showToast } from './api.js?v=20261107045741';
 import {
   currentWeekKey, weekLabel, shiftWeeks, ymd, weekStartOf,
   getWeeklyKpiStatus, getPpmClients, getRetainerClients,
   PPM_WEEKLY_TARGET, RETAINER_WEEKLY_TARGET,
   PPM_TRAILING_WEEKS, PPM_STALE_DAYS,
   trailingWeeklyDelivery, weekLabelShort,
-} from './dashboard.js?v=20261107040024';
+} from './dashboard.js?v=20261107045741';
 
 // Lives on the fulfillment-dashboard Supabase project (verify_jwt=false),
 // same as the Weekly Updates stats proxy.
@@ -349,22 +349,55 @@ export async function runAnalysis() {
     }
 
     // 3. Pull the week's breakdown for exactly those campaigns.
-    a.progress = `Pulling Smartlead stats for ${owned.length} campaign${owned.length === 1 ? '' : 's'}… (up to a minute)`;
+    a.progress = `Pulling Smartlead stats for ${owned.length} campaign${owned.length === 1 ? '' : 's'}… (1–2 minutes)`;
     render();
 
-    const payload = await proxyCall({
-      action: 'client_week_breakdown',
-      campaign_ids: owned.map(c => Number(c.id)),
-      start_date: start,
-      end_date: end,
+    // Batched: the proxy pages through every individual send of every campaign
+    // in one edge-function call, so ~200 campaigns (or ~20 busy ones, e.g.
+    // Nov 2026 retargets at 1–2.6k sends/week each) blow its compute budget and
+    // the whole pull dies with 546 WORKER_RESOURCE_LIMIT. Small batches, a few
+    // in flight; a batch that still 546s is retried one campaign at a time so
+    // only a genuinely oversized campaign shows an error, not the whole tab.
+    const BATCH = 4, IN_FLIGHT = 3;
+    const ids = owned.map(c => Number(c.id));
+    const batches = [];
+    for (let i = 0; i < ids.length; i += BATCH) batches.push(ids.slice(i, i + BATCH));
+    const pullBatch = campaign_ids => proxyCall({
+      action: 'client_week_breakdown', campaign_ids, start_date: start, end_date: end,
     }, 'Stats pull', () => {
       a.progress = 'Smartlead rate-limit collision — retrying in 20s…';
       render();
     });
+    const statRows = [];
+    let done = 0, next = 0;
+    const worker = async () => {
+      while (next < batches.length) {
+        if (stale()) return;
+        const batch = batches[next++];
+        try {
+          statRows.push(...((await pullBatch(batch)).data || []));
+        } catch (e) {
+          if (batch.length === 1) {
+            statRows.push({ id: batch[0], error: e.message });
+          } else {
+            for (const id of batch) {
+              try { statRows.push(...((await pullBatch([id])).data || [])); }
+              catch (e2) { statRows.push({ id, error: e2.message }); }
+            }
+          }
+        }
+        done += batch.length;
+        if (!stale()) {
+          a.progress = `Pulling Smartlead stats… ${done} / ${ids.length} campaigns`;
+          render();
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(IN_FLIGHT, batches.length) }, worker));
     if (stale()) return;
 
     const byId = {};
-    for (const row of (payload.data || [])) byId[String(row.id)] = row;
+    for (const row of statRows) byId[String(row.id)] = row;
 
     a.rows = owned.map(c => {
       const b = byId[String(c.id)] || {};
@@ -660,7 +693,7 @@ export function renderAnalysis() {
            <div style="margin-bottom:14px">${missed.map(m => esc(m.name) + ` (${m.count}/${m.target})`).join(' · ')}</div>`
         : `<div style="margin-bottom:14px">Every client hit their target for ${esc(weekLabel(week))}. Switch to "All active clients" to analyse anyway.</div>`}
       <button class="btn btn-primary" style="font-size:12px;padding:7px 18px" onclick="analysisRun()">Run analysis</button>
-      <div style="font-size:11px;margin-top:10px">Pulls live Smartlead stats for the matching campaigns — usually 10–60 seconds.</div>
+      <div style="font-size:11px;margin-top:10px">Pulls live Smartlead stats for the matching campaigns — usually 30 seconds to 2 minutes.</div>
     </div></div>`;
     return h;
   }
