@@ -12,13 +12,13 @@
 //   CCs are ALSO editable here, on the idle checklist and on review rows.
 //   Lars's signature appended. The Client Info sheet is NOT used.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20261106121450';
-import { state } from './app.js?v=20261106121450';
-import { render } from './render.js?v=20261106121450';
-import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20261106121450';
-import { esc, str, svgIcon } from './utils.js?v=20261106121450';
-import { crmWeekContext, ctxCheckinLines, ctxDay, ctxSummary, ctxSection } from './weekly-context.js?v=20261106121450';
-import { DEFAULT_WEEKLY_UPDATE_TEMPLATE, WEEKLY_TOKENS, PPM_NOTE, applyWeeklyTemplate, weeklyGreeting } from './weekly-template.js?v=20261106121450';
+import { supabase } from './supabase-client.js?v=20261106142747';
+import { state } from './app.js?v=20261106142747';
+import { render } from './render.js?v=20261106142747';
+import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20261106142747';
+import { esc, str, svgIcon } from './utils.js?v=20261106142747';
+import { crmWeekContext, ctxCheckinLines, ctxDay, ctxSummary, ctxSection } from './weekly-context.js?v=20261106142747';
+import { DEFAULT_WEEKLY_UPDATE_TEMPLATE, WEEKLY_TOKENS, PPM_NOTE, applyWeeklyTemplate, weeklyGreeting } from './weekly-template.js?v=20261106142747';
 
 // Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
@@ -601,7 +601,7 @@ function renderRow(r,i,w){
     </div>
     ${r.campaigns.length?`<div style="font-size:10.5px;color:var(--text-muted);margin:6px 0 0 26px">Campaigns: ${esc(r.campaigns.join(', '))}</div>`:''}
     ${renderCtxPanel(r,i,w)}
-    <textarea rows="7" data-weekly-edit="1" ${w.step==='sending'?'disabled':''} style="width:100%;margin-top:10px;${r.h?`height:${esc(r.h)};`:''}border:1px solid var(--border);border-radius:8px;padding:10px;font-size:13px;font-family:var(--font);resize:vertical;box-sizing:border-box"
+    <textarea rows="11" data-weekly-edit="1" ${w.step==='sending'?'disabled':''} style="width:100%;margin-top:10px;${r.h?`height:${esc(r.h)};`:''}border:1px solid var(--border);border-radius:8px;padding:10px;font-size:13px;font-family:var(--font);resize:vertical;box-sizing:border-box"
       oninput="state.weekly.rows[${i}].body=this.value;weeklyAutosave()"
       onmouseup="if(this.style.height)state.weekly.rows[${i}].h=this.style.height">${esc(r.body)}</textarea>
     <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:8px">
