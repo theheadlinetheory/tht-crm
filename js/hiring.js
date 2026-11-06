@@ -10,17 +10,23 @@
 //   here by smartlead-webhook.
 // Landing an applicant on Interviewing emails the interview invite once
 // (hiring-invite), exactly as the old sheet script did.
+// A new applicant or reply flags the card (has_new_activity): blue card here,
+// red count on the Hiring tab (hiring-unread.js). The detail modal, timeline
+// and follow-ups live in hiring-modal.js / hiring-activity.js.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261106075114';
-import { render } from './render.js?v=20261106075114';
-import { supabase } from './supabase-client.js?v=20261106075114';
-import { showToast } from './api.js?v=20261106075114';
-import { esc, str } from './utils.js?v=20261106075114';
+import { state } from './app.js?v=20261106121027';
+import { render } from './render.js?v=20261106121027';
+import { supabase } from './supabase-client.js?v=20261106121027';
+import { showToast } from './api.js?v=20261106121027';
+import { esc, str, svgIcon } from './utils.js?v=20261106121027';
+import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261106121027';
+import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261106121027';
+import { onHiringChange } from './hiring-unread.js?v=20261106121027';
 
 // Applicants want a job with us; partners are companies that hire (recruiting
 // partners who could send us candidates). Each gets its own board.
 // 'Partner Replies' is the stage smartlead-webhook files new replies under.
-const STAGES = {
+export const STAGES = {
   applicant: [
     { id: 'Applied', color: '#64748b' },
     { id: 'Shortlist', color: '#8b5cf6' },
@@ -39,13 +45,13 @@ const STAGES = {
 const KIND_LABELS = { applicant: 'Applicants', partner: 'Recruiting Partners' };
 // Partner replies are either companies that could send us candidates or
 // individuals who want the job themselves (contact_type; null = not sorted yet).
-const CONTACT_TYPES = {
+export const CONTACT_TYPES = {
   company: { label: '🏢 Company', style: 'background:#ecfdf5;color:#047857' },
   individual: { label: '👤 Individual', style: 'background:#fef3c7;color:#92400e' },
   '': { label: 'Unsorted', style: 'background:#fef2f2;color:#b91c1c' },
 };
 const contactType = (c) => CONTACT_TYPES[c.contact_type || ''];
-const stageLabel = (s) => s.label || s.id;
+export const stageLabel = (s) => s.label || s.id;
 const INVITE_STAGE = 'Interviewing';
 const STALE_MS = 60000;
 
@@ -75,8 +81,8 @@ async function loadCandidates() {
   render();
 }
 
-const shortDate = (iso) => iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
-const find = (id) => _candidates.find(c => c.id === id);
+export const shortDate = (iso) => iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+export const findCandidate = (id) => _candidates.find(c => c.id === id);
 
 function visibleCandidates() {
   const q = str(state.hiringSearch).trim().toLowerCase();
@@ -91,7 +97,7 @@ function visibleCandidates() {
 const FREE_MAIL = /@(gmail|googlemail|yahoo|hotmail|outlook|live|icloud|me|aol|proton(mail)?)\./i;
 
 // The reply as plain text: email HTML minus quoted history and signature.
-function replyText(raw) {
+export function replyText(raw) {
   const s = str(raw);
   if (!/<[a-z][\s\S]*>/i.test(s)) return s.trim();
   const doc = new DOMParser().parseFromString(s.replace(/<br\b[^>]*>/gi, '\n').replace(/<\/(div|p)>/gi, '\n$&'), 'text/html');
@@ -148,14 +154,15 @@ function cardHtml(c) {
     c.applied_at ? `<span class="deal-tag" style="background:#f1f5f9;color:#475569">${esc(shortDate(c.applied_at))}</span>` : '',
     c.invite_sent_at ? '<span class="deal-tag" style="background:#eff6ff;color:#1d4ed8">Invite sent</span>' : '',
   ].join('');
-  return `<div class="deal-card" draggable="true"
+  const isNew = c.has_new_activity;
+  return `<div class="deal-card${isNew ? ' has-reply' : ''}" draggable="true"
       ondragstart="event.dataTransfer.effectAllowed='move';hiringDragStart('${esc(c.id)}')"
       ondragend="clearAllDragOver()"
       ondragover="event.preventDefault();doDragOver(this.closest('.column'))"
       onclick="hiringOpen('${esc(c.id)}')">
     <div class="deal-card-top">
-      <div class="deal-company">${esc(c.name || c.email || 'Unknown')}</div>
-      <span onclick="event.stopPropagation();hiringToggleStar('${esc(c.id)}')" title="Strong candidate" style="cursor:pointer;font-size:14px;color:${c.starred ? '#f59e0b' : '#d1d5db'}">★</span>
+      <div class="deal-company">${isNew ? `<span class="reply-indicator" title="${c.kind === 'applicant' ? 'New applicant' : 'New reply'}">${svgIcon('mail', 12, '#3b82f6')}</span>` : ''}${esc(c.name || c.email || 'Unknown')}</div>
+      <span onclick="event.stopPropagation();hiringCardStar('${esc(c.id)}')" title="Strong candidate" style="cursor:pointer;font-size:14px;color:${c.starred ? '#f59e0b' : '#d1d5db'}">★</span>
     </div>
     ${orgLine(c) ? `<div class="deal-detail">${esc(orgLine(c))}</div>` : ''}
     ${previewHtml(c)}
@@ -198,7 +205,25 @@ function toolbarHtml(total) {
   </div>`;
 }
 
+// A webhook reply or new applicant lands live: reload the board, and the open
+// card's timeline. The modal's typing is state-backed, so nothing is lost.
+// Registered on first render (not at import) so the module cycle with
+// hiring-modal.js can never touch hiring-unread.js before it has loaded.
+let _watching = false;
+function watchChanges() {
+  if (_watching) return;
+  _watching = true;
+  onHiringChange(() => {
+    _loadedAt = 0;
+    if (state.pipeline !== 'hiring') return;
+    if (_status !== 'loading') loadCandidates();
+    const openId = state.hiringOpenId;
+    if (openId) loadActivities(openId).then(() => { if (state.hiringOpenId === openId) render(); });
+  });
+}
+
 export function renderHiring() {
+  watchChanges();
   if (_status !== 'loading' && Date.now() - _loadedAt > STALE_MS) loadCandidates();
   if (_status === 'loading' && !_candidates.length) {
     return '<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading candidates…</div>';
@@ -216,78 +241,11 @@ export function renderHiring() {
       <div class="col-body">${sc.length ? sc.map(cardHtml).join('') : '<div class="col-empty">Nobody here</div>'}</div>
     </div>`;
   }
-  return html + '</div>' + detailModalHtml();
-}
-
-// ─── Detail ───
-const LINK_STYLE = 'color:var(--purple);word-break:break-all';
-
-// Escapes text and makes every URL in it clickable.
-function linkify(v) {
-  return esc(str(v)).replace(/https?:\/\/[^\s<"]+/gi, (u) => `<a href="${u}" target="_blank" rel="noopener" style="${LINK_STYLE}">${u}</a>`).replace(/\n/g, '<br>');
-}
-
-// Editable contact fields; `href` turns a saved value into its link.
-const withScheme = (v) => /^https?:\/\//i.test(v) ? v : `https://${v}`;
-const DETAIL_FIELDS = [
-  { key: 'name', label: 'Name' },
-  { key: 'email', label: 'Email', href: (v) => `mailto:${v}` },
-  { key: 'phone', label: 'Phone / WhatsApp', href: (v) => `https://wa.me/${v.replace(/\D/g, '')}` },
-  { key: 'company', label: 'Company' },
-  { key: 'location', label: 'Location' },
-  { key: 'linkedin', label: 'LinkedIn', href: withScheme },
-  { key: 'video_url', label: 'Intro video', href: withScheme, kind: 'applicant' },
-];
-
-function detailFieldsHtml(c) {
-  const inputStyle = 'flex:1;min-width:0;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)';
-  return `<div style="display:grid;grid-template-columns:110px 1fr;gap:6px 10px;align-items:center;font-size:12px;margin-bottom:12px">
-    ${DETAIL_FIELDS.filter(f => !f.kind || f.kind === c.kind).map(f => {
-      const v = str(c[f.key]).trim();
-      const open = f.href && v ? `<a href="${esc(f.href(v))}" target="_blank" rel="noopener" title="Open" style="${LINK_STYLE};text-decoration:none;padding:0 4px">↗</a>` : '';
-      return `<label style="color:var(--text-muted);font-weight:600">${f.label}</label>
-        <div style="display:flex;align-items:center;gap:4px"><input type="text" data-keep-focus="1" value="${esc(v)}" placeholder="—"
-          onchange="hiringSaveField('${esc(c.id)}', '${f.key}', this.value)" onblur="setTimeout(hiringRefresh)" style="${inputStyle}">${open}</div>`;
-    }).join('')}
-  </div>`;
-}
-
-function detailModalHtml() {
-  const c = state.hiringOpenId ? find(state.hiringOpenId) : null;
-  if (!c) return '';
-  const answers = Object.entries(c.answers || {})
-    .map(([q, v]) => q === 'reply' ? ['Reply', replyText(v)] : [q, v])
-    .filter(([, v]) => str(v));
-  return `<div class="modal-overlay">
-    <div class="invoice-modal" style="max-width:620px">
-      <div class="invoice-header">
-        <h3 style="margin:0;font-size:16px">${esc(c.name || c.email)} ${c.kind === 'partner' ? '<span class="deal-tag" style="background:#ecfeff;color:#0e7490">Partner</span>' : ''}</h3>
-        <button class="btn btn-ghost" onclick="hiringClose()" style="padding:4px 8px">✕</button>
-      </div>
-      <div class="invoice-body">
-        ${detailFieldsHtml(c)}
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;font-size:12px">
-          <select onchange="hiringMove('${esc(c.id)}', this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
-            ${STAGES[c.kind].map(s => `<option value="${esc(s.id)}" ${s.id === c.stage ? 'selected' : ''}>${esc(stageLabel(s))}</option>`).join('')}
-          </select>
-          <button class="btn btn-ghost" style="font-size:12px;color:${c.starred ? '#f59e0b' : 'var(--text-muted)'}" onclick="hiringToggleStar('${esc(c.id)}')">★ ${c.starred ? 'Starred' : 'Star'}</button>
-          ${c.kind === 'partner' ? `<select onchange="hiringSetContactType('${esc(c.id)}', this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
-            ${Object.entries(CONTACT_TYPES).map(([k, t]) => `<option value="${k}" ${k === (c.contact_type || '') ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}
-          </select>` : ''}
-          <span style="color:var(--text-muted)">${c.invite_sent_at ? `Interview invite sent ${esc(shortDate(c.invite_sent_at))}` : ''}</span>
-        </div>
-        <div style="max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:12px;font-size:12px;line-height:1.5">
-          ${answers.length ? answers.map(([q, a]) => `<div style="margin-bottom:8px"><div style="font-weight:600;color:var(--text-muted)">${esc(q)}</div><div>${linkify(a)}</div></div>`).join('') : '<span style="color:var(--text-muted)">No answers on file.</span>'}
-        </div>
-        <textarea placeholder="Notes" data-keep-focus="1" onblur="hiringSaveNotes('${esc(c.id)}', this.value)"
-          style="width:100%;min-height:70px;border:1px solid var(--border);border-radius:6px;padding:10px;font-size:13px;font-family:var(--font);resize:vertical">${esc(str(c.notes))}</textarea>
-      </div>
-    </div>
-  </div>`;
+  return html + '</div>' + renderHiringModal();
 }
 
 // ─── Writes ───
-async function saveFields(c, fields) {
+export async function saveFields(c, fields) {
   const before = { ...c };
   Object.assign(c, fields);
   render();
@@ -304,10 +262,11 @@ async function sendInvite(c) {
   render();
 }
 
-async function moveCandidate(id, stage) {
-  const c = find(id);
+export async function moveCandidate(id, stage) {
+  const c = findCandidate(id);
   if (!c || c.stage === stage) return;
   const ok = await saveFields(c, { stage });
+  if (ok) addHiringActivity(c.id, { type: 'stage', body: stage }).then(() => render());
   if (ok && stage === INVITE_STAGE && c.kind === 'applicant' && !c.invite_sent_at) await sendInvite(c);
 }
 
@@ -318,19 +277,10 @@ window.hiringDrop = (key) => {
   state.hiringDragId = null;
   if (id) moveCandidate(id, decodeURIComponent(key));
 };
-window.hiringMove = (id, stage) => moveCandidate(id, stage);
-window.hiringOpen = (id) => { state.hiringOpenId = id; render(); };
-window.hiringClose = () => { state.hiringOpenId = null; render(); };
-window.hiringToggleStar = (id) => { const c = find(id); if (c) saveFields(c, { starred: !c.starred }); };
-window.hiringRefresh = () => render();
-window.hiringSaveField = (id, key, value) => {
-  const c = find(id);
-  const v = key === 'email' ? value.trim().toLowerCase() : value.trim();
-  if (c && str(c[key]) !== v) saveFields(c, { [key]: v });
-};
-window.hiringSaveNotes =(id, notes) => { const c = find(id); if (c && str(c.notes) !== notes) saveFields(c, { notes }); };
+export function toggleStar(id) { const c = findCandidate(id); if (c) saveFields(c, { starred: !c.starred }); }
+window.hiringOpen = (id) => openHiringCard(id);
+window.hiringCardStar = (id) => toggleStar(id);
 window.hiringKind = (kind) => { state.hiringKind = kind; render(); };
 window.hiringContactType = (v) => { state.hiringContactType = v === 'all' ? null : v; render(); };
-window.hiringSetContactType = (id, v) => { const c = find(id); if (c) saveFields(c, { contact_type: v || null }); };
 window.hiringSearch = (v) => { state.hiringSearch = v; render(); };
 window.hiringStarredOnly = (on) => { state.hiringStarredOnly = on; render(); };

@@ -31,6 +31,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .topbar-tab { padding: 6px 14px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; background: transparent; color: #64748b; font-family: var(--font); transition: all .15s; }
 .topbar-tab.active { background: #334155; color: #f1f5f9; }
 .topbar-tab:hover:not(.active) { background: rgba(51,65,85,.4); }
+.tab-bubble { display:inline-flex; align-items:center; justify-content:center; min-width:16px; height:16px; padding:0 4px; margin-left:5px; border-radius:8px; background:#ef4444; color:#fff; font-size:10px; font-weight:700; line-height:1; vertical-align:middle; }
 .topbar-right { display: flex; align-items: center; gap: 10px; }
 .topbar-stat { font-size: 11px; color: #64748b; }
 .btn { padding: 5px 12px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font); transition: all .12s; }

@@ -4,7 +4,7 @@
 // All mutations go through store.* methods to prevent direct
 // state tampering and ensure consistent re-renders.
 
-import { render, refreshModal } from './render.js?v=20261106075114';
+import { render, refreshModal } from './render.js?v=20261106121027';
 
 // ─── Raw State (private — modules should use store.*) ───
 export const state = {
@@ -85,6 +85,7 @@ export const state = {
   hiringKind: 'applicant', // applicant | partner — which board the Hiring tab shows
   hiringContactType: null, // partner board filter: null = all, '' = unsorted, company | individual
   hiringOpenId: null,
+  hiringDraft: null, // open hiring card's unsaved typing (hiring-modal.js)
   hiringDragId: null,
   hiringSearch: '',
   hiringStarredOnly: false,
