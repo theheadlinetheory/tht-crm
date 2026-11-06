@@ -12,9 +12,9 @@
 // Fallback link: the old Gmail compose window, filled in, for an inbox that is
 // not connected yet.
 
-import { esc, str, applyTemplate, svgIcon } from './utils.js?v=20261106131651';
-import { state } from './app.js?v=20261106131651';
-import { invokeEdgeFunction, sbUpdateDeal, showToast } from './api.js?v=20261106131651';
+import { esc, str, applyTemplate, svgIcon } from './utils.js?v=20261107033626';
+import { state } from './app.js?v=20261107033626';
+import { invokeEdgeFunction, sbUpdateDeal, showToast } from './api.js?v=20261107033626';
 
 const SUBJECT = '{FIRST_NAME}, Appointment Confirmation';
 // Used only when Claude has not drafted the lead box yet; same shape Claude is told to write.
