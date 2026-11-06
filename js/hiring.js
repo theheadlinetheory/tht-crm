@@ -14,14 +14,15 @@
 // red count on the Hiring tab (hiring-unread.js). The detail modal, timeline
 // and follow-ups live in hiring-modal.js / hiring-activity.js.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261106130122';
-import { render } from './render.js?v=20261106130122';
-import { supabase } from './supabase-client.js?v=20261106130122';
-import { showToast } from './api.js?v=20261106130122';
-import { esc, str, svgIcon } from './utils.js?v=20261106130122';
-import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261106130122';
-import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261106130122';
-import { onHiringChange } from './hiring-unread.js?v=20261106130122';
+import { state } from './app.js?v=20261106130356';
+import { render } from './render.js?v=20261106130356';
+import { supabase } from './supabase-client.js?v=20261106130356';
+import { showToast } from './api.js?v=20261106130356';
+import { candidateChannel, channelPill, channelSelectHtml } from './hiring-channel.js?v=20261106130356';
+import { esc, str, svgIcon } from './utils.js?v=20261106130356';
+import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261106130356';
+import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261106130356';
+import { onHiringChange } from './hiring-unread.js?v=20261106130356';
 
 // Applicants want a job with us; partners are companies that hire (recruiting
 // partners who could send us candidates). Each gets its own board.
@@ -90,6 +91,7 @@ function visibleCandidates() {
     c.kind === state.hiringKind &&
     (!state.hiringStarredOnly || c.starred) &&
     (state.hiringContactType == null || (c.contact_type || '') === state.hiringContactType) &&
+    (!state.hiringChannel || candidateChannel(c) === state.hiringChannel) &&
     (!q || [c.name, c.email, c.company, c.location, c.source].some(v => str(v).toLowerCase().includes(q))));
 }
 
@@ -121,10 +123,8 @@ function yesNoTag(label, answer) {
 
 function partnerTags(c) {
   const t = contactType(c);
-  const linkedin = c.answers?.channel === 'LinkedIn';
   return [
     `<span class="deal-tag" style="${t.style}">${t.label}</span>`,
-    linkedin ? '' : '<span class="deal-tag" style="background:#eff6ff;color:#0a66c2">✉ Email</span>',
     c.answers?.category ? `<span class="deal-tag" style="background:#f5f3ff;color:#6d28d9">${esc(c.answers.category)}</span>` : '',
   ];
 }
@@ -160,7 +160,7 @@ function cardHtml(c) {
       ondragover="event.preventDefault();doDragOver(this.closest('.column'))"
       onclick="hiringOpen('${esc(c.id)}')">
     <div class="deal-card-top">
-      <div class="deal-company">${isNew ? `<span class="reply-indicator" title="${c.kind === 'applicant' ? 'New applicant' : 'New reply'}">${svgIcon('mail', 12, '#3b82f6')}</span>` : ''}${esc(c.name || c.email || 'Unknown')}</div>
+      <div class="deal-company">${channelPill(c)}${isNew ? `<span class="reply-indicator" title="${c.kind === 'applicant' ? 'New applicant' : 'New reply'}">${svgIcon('mail', 12, '#3b82f6')}</span>` : ''}${esc(c.name || c.email || 'Unknown')}</div>
       <span onclick="event.stopPropagation();hiringToggleStar('${esc(c.id)}')" title="Strong candidate" style="cursor:pointer;font-size:14px;color:${c.starred ? '#f59e0b' : '#d1d5db'}">★</span>
     </div>
     ${orgLine(c) ? `<div class="deal-detail">${esc(orgLine(c))}</div>` : ''}
@@ -195,6 +195,7 @@ function toolbarHtml(total) {
     <span>${total} ${total === 1 ? 'card' : 'cards'} · drag a card to move it · ${hint}</span>
     ${_status === 'error' ? '<span style="color:#b91c1c">Could not load the board.</span>' : ''}
     <span style="flex:1"></span>
+    ${channelSelectHtml(state.hiringChannel || 'all', 'hiringChannel(this.value)', true)}
     ${contactTypeFilterHtml()}
     <input type="text" placeholder="Search name, email, country…" value="${esc(str(state.hiringSearch))}"
       onchange="hiringSearch(this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);width:200px">
@@ -280,5 +281,6 @@ export function toggleStar(id) { const c = findCandidate(id); if (c) saveFields(
 window.hiringOpen = (id) => openHiringCard(id);
 window.hiringKind = (kind) => { state.hiringKind = kind; render(); };
 window.hiringContactType = (v) => { state.hiringContactType = v === 'all' ? null : v; render(); };
+window.hiringChannel = (v) => { state.hiringChannel = v === 'all' ? null : v; render(); };
 window.hiringSearch = (v) => { state.hiringSearch = v; render(); };
 window.hiringStarredOnly = (on) => { state.hiringStarredOnly = on; render(); };

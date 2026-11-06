@@ -6,13 +6,14 @@
 // Every text field is state-backed (state.hiringDraft) because render()
 // rebuilds #app. Clicking outside, ✕ and Close all save pending edits.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261106130122';
-import { render } from './render.js?v=20261106130122';
-import { showToast } from './api.js?v=20261106130122';
-import { esc, str, svgIcon, fmtTimestamp, getToday } from './utils.js?v=20261106130122';
-import { STAGES, CONTACT_TYPES, stageLabel, shortDate, replyText, findCandidate, saveFields, moveCandidate, toggleStar } from './hiring.js?v=20261106130122';
-import { activitiesFor, loadActivities, addHiringActivity, updateHiringActivity, deleteHiringActivity, findActivity } from './hiring-activity.js?v=20261106130122';
-import { refreshHiringUnread } from './hiring-unread.js?v=20261106130122';
+import { state } from './app.js?v=20261106130356';
+import { render } from './render.js?v=20261106130356';
+import { showToast } from './api.js?v=20261106130356';
+import { esc, str, svgIcon, fmtTimestamp, getToday } from './utils.js?v=20261106130356';
+import { STAGES, CONTACT_TYPES, stageLabel, shortDate, replyText, findCandidate, saveFields, moveCandidate, toggleStar } from './hiring.js?v=20261106130356';
+import { activitiesFor, loadActivities, addHiringActivity, updateHiringActivity, deleteHiringActivity, findActivity } from './hiring-activity.js?v=20261106130356';
+import { candidateChannel, channelSelectHtml } from './hiring-channel.js?v=20261106130356';
+import { refreshHiringUnread } from './hiring-unread.js?v=20261106130356';
 
 const LINK_STYLE = 'color:var(--purple);word-break:break-all';
 const INPUT_STYLE = 'padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)';
@@ -85,6 +86,7 @@ function controlsHtml(c) {
     ${c.kind === 'partner' ? `<select onchange="hiringSetContactType('${id}', this.value)" style="${INPUT_STYLE}">
       ${Object.entries(CONTACT_TYPES).map(([k, t]) => `<option value="${k}" ${k === (c.contact_type || '') ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}
     </select>` : ''}
+    ${channelSelectHtml(candidateChannel(c), `hiringSetChannel('${id}', this.value)`, false)}
     <span style="color:var(--text-muted)">${c.invite_sent_at ? `Interview invite sent ${esc(shortDate(c.invite_sent_at))}` : ''}</span>
   </div>`;
 }
@@ -282,6 +284,7 @@ window.hiringFollowUpAdd = async (id) => {
   if (!body || !d.fuDue) { showToast('Add what the follow-up is and its due date'); return; }
   if (await addHiringActivity(id, { type: 'followup', body, due_at: d.fuDue })) { d.fuSubject = ''; render(); }
 };
+window.hiringSetChannel = (id, v) => { const c = findCandidate(id); if (c && v !== c.channel) saveFields(c, { channel: v }); };
 window.hiringFollowUpTemplate = async (id, i) => {
   const c = findCandidate(id);
   const t = c && FOLLOW_UP_TEMPLATES[c.kind][i];
