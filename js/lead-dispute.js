@@ -6,10 +6,10 @@
 // it is removed, and removing it is the same "Called Back" the CB button sets.
 // Admins and employees can both log and resolve one — whoever handles the
 // client handles the dispute.
-import { state, pendingWrites } from './app.js?v=20261104182615';
-import { sbUpdateTrackerEntry, invokeEdgeFunction, camelToSnake } from './api.js?v=20261104182615';
-import { esc, str } from './utils.js?v=20261104182615';
-import { render } from './render.js?v=20261104182615';
+import { state, pendingWrites } from './app.js?v=20261106075114';
+import { sbUpdateTrackerEntry, invokeEdgeFunction, camelToSnake } from './api.js?v=20261106075114';
+import { esc, str } from './utils.js?v=20261106075114';
+import { render } from './render.js?v=20261106075114';
 
 const LABELS = { open: 'Disputed', removed: 'Dispute: removed', billed: 'Dispute: billed' };
 

@@ -4,9 +4,9 @@
 // Rules are a fallback: an explicit campaign_assignment always overrides them.
 // Stored in crm_settings key 'routing_rules' as a JSON array [{keyword, owner}].
 
-import { state } from './app.js?v=20261104182615';
-import { supabase } from './supabase-client.js?v=20261104182615';
-import { esc, svgIcon } from './utils.js?v=20261104182615';
+import { state } from './app.js?v=20261106075114';
+import { supabase } from './supabase-client.js?v=20261106075114';
+import { esc, svgIcon } from './utils.js?v=20261106075114';
 
 // ── Resolution (used by getOwnerForDeal / getOwnerNameForDeal in auth.js) ──
 export function resolveRoutingOwner(campaignName){

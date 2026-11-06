@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // API — API layer (Google Sheets calls + Supabase CRUD)
 // ═══════════════════════════════════════════════════════════
-import { API_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261104182615';
-import { supabase } from './supabase-client.js?v=20261104182615';
+import { API_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261106075114';
+import { supabase } from './supabase-client.js?v=20261106075114';
 export { supabase };
-import { state, store, pendingWrites, failedWriteQueue, pendingDealFields, deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds, inFlightActivityIds } from './app.js?v=20261104182615';
-import { render, refreshModal } from './render.js?v=20261104182615';
+import { state, store, pendingWrites, failedWriteQueue, pendingDealFields, deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds, inFlightActivityIds } from './app.js?v=20261106075114';
+import { render, refreshModal } from './render.js?v=20261106075114';
 
 // Cached auth check — populated lazily on first initialSync to avoid circular import
 let _cachedIsAdmin = null;
@@ -133,7 +133,7 @@ export async function syncFromSheet(){
       state.clients=data.clients.filter(c => !deletedClientIds.has(String(c.id)));
     }
     if(data.appointments && Array.isArray(data.appointments)){
-      const { getToday } = await import('./utils.js?v=20261104182615');
+      const { getToday } = await import('./utils.js?v=20261106075114');
       state.appointments=data.appointments;
       state.appointments.forEach(a=>{
         Object.keys(a).forEach(k=>{ if(a[k]!=null && typeof a[k]!=='string') a[k]=String(a[k]); });
@@ -188,16 +188,16 @@ export async function syncFromSheet(){
     state.loadFailed=false;
     // Run service area checks in background (all roles — clients need maps too)
     // Re-render after checks complete to show badges/maps
-    const { runServiceAreaChecks } = await import('./maps.js?v=20261104182615');
+    const { runServiceAreaChecks } = await import('./maps.js?v=20261106075114');
     runServiceAreaChecks().then(() => render()).catch(e => console.warn('Service area checks failed:', e));
     // Pre-load archive
     if((isAdmin()||isEmployee()) && !state.archiveLoaded){
-      const { loadArchive } = await import('./archive.js?v=20261104182615');
+      const { loadArchive } = await import('./archive.js?v=20261106075114');
       loadArchive(true);
     }
   } else {
     if(state.deals.length===0){
-      const { getTestData } = await import('./config.js?v=20261104182615');
+      const { getTestData } = await import('./config.js?v=20261106075114');
       const { TEST_DEALS, TEST_ACTIVITIES, TEST_CLIENTS } = getTestData();
       state.deals=[...TEST_DEALS];
       state.activities=[...TEST_ACTIVITIES];
@@ -363,6 +363,7 @@ const FIELD_MAP = {
   payment_terms: 'paymentTerms',
   auto_charge: 'autoCharge',
   invoice_emails: 'invoiceEmails',
+  invoice_contact_first_name: 'invoiceContactFirstName',
   weekly_update_emails: 'weeklyUpdateEmails',
   cold_call_email: 'coldCallEmail',
   client_phone: 'clientPhone',
@@ -458,7 +459,7 @@ export async function initialSync(isStartup) {
     }
     // Apply settings from Supabase if available
     if (savedSettings && Object.keys(savedSettings).length > 0) {
-      const { applySettings } = await import('./settings.js?v=20261104182615');
+      const { applySettings } = await import('./settings.js?v=20261106075114');
       applySettings(savedSettings);
     }
     state.deals = (deals || []).map(normalizeRow);
@@ -475,7 +476,7 @@ export async function initialSync(isStartup) {
     state.clients = clients.map(normalizeRow);
     // Cache isAdmin for use in synchronous realtime handler
     if (!_cachedIsAdmin) {
-      const { isAdmin: _isAdmin } = await import('./auth.js?v=20261104182615');
+      const { isAdmin: _isAdmin } = await import('./auth.js?v=20261106075114');
       _cachedIsAdmin = _isAdmin;
     }
     // Strip sensitive GHL credentials for non-admin users but preserve a flag
@@ -543,7 +544,7 @@ export async function initialSync(isStartup) {
 
     // Replay any pending activities from write-ahead log
     if (isStartup) {
-      import('./activities.js?v=20261104182615').then(m => m.replayPendingActivities && m.replayPendingActivities()).catch(() => {});
+      import('./activities.js?v=20261106075114').then(m => m.replayPendingActivities && m.replayPendingActivities()).catch(() => {});
     }
 
     state.synced = true;
@@ -552,7 +553,7 @@ export async function initialSync(isStartup) {
     if (isStartup || !selfManagedTabActive()) render();
 
     // Run service area checks in background, re-render when done
-    const { runServiceAreaChecks } = await import('./maps.js?v=20261104182615');
+    const { runServiceAreaChecks } = await import('./maps.js?v=20261106075114');
     runServiceAreaChecks().then(() => { if (isStartup || !selfManagedTabActive()) render(); }).catch(e => console.warn('Service area checks failed:', e));
   } catch (e) {
     console.error('Initial sync failed:', e);

@@ -5,11 +5,11 @@
 // (held or missed a demo, held a disco, or owned by MANUAL_OUTREACH_OWNER),
 // plus the deals already re-activated and mid-cadence. Actions reuse the
 // nurture handlers in rerun.js — this file only lays the list out.
-import { state } from './app.js?v=20261104182615';
-import { esc, getToday, fmtDate, svgIcon } from './utils.js?v=20261104182615';
-import { statCard } from './html-helpers.js?v=20261104182615';
-import { getNurtureItems, needsManualOutreach, getUrgencyBadge, ownerChip, demoHeldChip } from './rerun.js?v=20261104182615';
-import { journeyFor } from './archive-journey.js?v=20261104182615';
+import { state } from './app.js?v=20261106075114';
+import { esc, getToday, fmtDate, svgIcon } from './utils.js?v=20261106075114';
+import { statCard } from './html-helpers.js?v=20261106075114';
+import { getNurtureItems, needsManualOutreach, getUrgencyBadge, ownerChip, demoHeldChip } from './rerun.js?v=20261106075114';
+import { journeyFor } from './archive-journey.js?v=20261106075114';
 
 const BTN = 'font-size:10px;padding:2px 8px;border-radius:4px';
 const CALL_BTN = `${BTN};background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;text-decoration:none;display:inline-flex;align-items:center;gap:2px`;

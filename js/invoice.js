@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // INVOICE — Stripe invoice generation from Lead Tracker
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20261104182615';
-import { invokeEdgeFunction } from './api.js?v=20261104182615';
-import { esc, str } from './utils.js?v=20261104182615';
-import { render } from './render.js?v=20261104182615';
-import { disputeNote } from './lead-dispute.js?v=20261104182615';
-import { renderTimeline } from './invoice-timeline.js?v=20261104182615';
+import { state, pendingWrites } from './app.js?v=20261106075114';
+import { invokeEdgeFunction } from './api.js?v=20261106075114';
+import { esc, str } from './utils.js?v=20261106075114';
+import { render } from './render.js?v=20261106075114';
+import { disputeNote } from './lead-dispute.js?v=20261106075114';
+import { renderTimeline } from './invoice-timeline.js?v=20261106075114';
 
 // ─── Month helpers ───
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -416,7 +416,7 @@ function renderLoadingStep(title, subtitle) {
 function getClientInfo(clientName) {
   const client = state.clients.find(c => str(c.name).toLowerCase() === clientName.toLowerCase());
   return {
-    firstName: str(client?.contactFirstName) || clientName,
+    firstName: str(client?.invoiceContactFirstName).trim() || str(client?.contactFirstName) || clientName,
     email: str(client?.notifyEmail) || '',
     invoiceEmails: str(client?.invoiceEmails) || str(client?.notifyEmail) || '',
     paymentTerms: str(client?.paymentTerms) || 'Net 7',
