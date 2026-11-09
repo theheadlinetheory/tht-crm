@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // PD-VIEWS — Power Dialer rendering (pure HTML generators)
 // ═══════════════════════════════════════════════════════════
-import { esc, svgIcon, str } from './utils.js?v=20261110032711';
+import { esc, svgIcon, str } from './utils.js?v=20261110042736';
 
 const IS_MX_RECORD = /mail\.protection|aspmx|mx\d|ppe-hosted|pphosted|mimecast/i;
 
