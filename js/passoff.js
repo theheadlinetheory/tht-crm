@@ -7,6 +7,7 @@ import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20261
 import { esc, jsArg, str, confirmNoPlaceholders } from './utils.js?v=20261110032711';
 import { refreshModal } from './render.js?v=20261110032711';
 import { isAdmin, isEmployee } from './auth.js?v=20261110032711';
+import { renderCallPoints } from './call-points.js?v=20261110032711';
 
 // ─── Transcript Polling ───
 
@@ -92,6 +93,7 @@ async function generatePassoff(dealId, clientName) {
 
     setLocal(dealId, 'passoffInstructions', resp.instructions);
     if (resp.leadMessage !== undefined) setLocal(dealId, 'passoffLeadMessage', resp.leadMessage);
+    if (Array.isArray(resp.callPoints)) setLocal(dealId, 'callPoints', resp.callPoints.join('\n')); // call-points.js
     applyCalendlyNotes(dealId, resp.calendlyNotes, false);
     // refreshModal() alone only swaps the activity/meeting/reply boxes, never this panel.
     if (state.selectedDeal && String(state.selectedDeal.id) === String(dealId)) refreshModal(true);
@@ -234,6 +236,7 @@ export function renderPassoffSection(deal, clientName) {
     const box = 'width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);resize:vertical;margin-bottom:8px';
     h += `<div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:4px">1. Pass-off to ${esc(clientName)}</div>
     <textarea id="passoff-text" rows="9" data-keep-focus="1" oninput="savePassoffTextClick('${esc(deal.id)}',this.value)" style="${box}">${esc(deal.passoffInstructions)}</textarea>
+    ${renderCallPoints(deal, clientName)}
     <div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:4px">2. Confirmation to the lead (saved as a draft in the client's cold-call inbox by "Create draft" below)</div>
     <textarea id="passoff-lead-text" rows="6" data-keep-focus="1" oninput="saveLeadMessageClick('${esc(deal.id)}',this.value)" style="${box}">${esc(deal.passoffLeadMessage)}</textarea>
     <div style="background:#fff;border:1px solid #e9d5ff;border-radius:6px;padding:8px;margin-bottom:8px">
