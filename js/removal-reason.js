@@ -23,10 +23,10 @@
 // acquisition deals here (deal-modal.js, deals.js). Everything is read from the
 // deal's Timeline at click time — nothing new is stored.
 
-import { state } from './app.js?v=20261109100915';
-import { esc } from './utils.js?v=20261109100915';
-import { sbCreateInteraction, sbGetInteractions, showToast, invokeEdgeFunction } from './api.js?v=20261109100915';
-import { markDisco, markDemo, openNurture, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20261109100915';
+import { state } from './app.js?v=20261109102011';
+import { esc } from './utils.js?v=20261109102011';
+import { sbCreateInteraction, sbGetInteractions, showToast } from './api.js?v=20261109102011';
+import { markDisco, markDemo, openNurture, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20261109102011';
 
 export const REMOVAL_PREFIX = 'Removed — ';
 
@@ -91,19 +91,10 @@ const TONE = {
 /** The Timeline note for a pre-disco removal. Written BEFORE the deal is archived
  *  so the reason and the removal can never be separated. Failure is logged,
  *  never fatal — losing a note must not block the rep from archiving. */
-/** A Miscategorized reply stops counting as positive in Smartlead too (smartlead-recategorize moves it to
- *  "Uncategorizable by Ai" only if it is still positive there). Fire-and-forget: never blocks the archive. */
-function untagPositiveInSmartlead(dealId) {
-  invokeEdgeFunction('smartlead-recategorize', { dealId })
-    .then(r => { if (r && r.changed) showToast('Smartlead updated: no longer a positive reply', 'success'); })
-    .catch(e => showToast('Smartlead not updated — change the category there by hand: ' + (e && e.message || e), 'error'));
-}
-
 export async function writeRemovalNote(dealId, note, opts) {
   try {
     // opts.asOf (YYYY-MM-DD): recorded later from a Funnel list row — the ledger dates the removal to that day.
     await sbCreateInteraction({ deal_id: dealId, type: 'Note', content: REMOVAL_PREFIX + note + ' · marked in the CRM' + (opts && opts.asOf ? ' · as of ' + opts.asOf : '') });
-    if (/^Miscategori[sz]ed/.test(note)) untagPositiveInSmartlead(dealId);
     return true;
   } catch (e) {
     // Say so: a swallowed failure turned the Funnel row green while the answer was lost (hardening review, 2026-09-15).
