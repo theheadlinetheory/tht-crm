@@ -10,6 +10,7 @@ import { leadCardId, leadCardIcon, matchLeadCards } from './lead-card.js?v=20261
 import { dealChannel } from './acquisition-channel.js?v=20261110032711';
 import { renderDisputeButton, renderDisputeModal, isOpenDispute } from './lead-dispute.js?v=20261110032711';
 import { EMAIL_LEAD_PAY, COLD_CALL_LEAD_PAY, isColdCallLead, leadPayout } from './lead-payout.js?v=20261110032711';
+import { setterOf, setterInfo, setterCellHtml, setterFilterHtml, setterPickerHtml } from './lead-setter.js?v=20261110032711';
 
 // ─── Column Definitions ───
 // The billing "Month" ('July/26') is deliberately not a column — the sheet shows
@@ -19,6 +20,7 @@ const COLUMNS = [
   { key: 'clientName',      label: 'Client',         editable: true,      adminOnly: false },
   { key: 'leadName',        label: 'Lead Name',      editable: true,      adminOnly: false },
   { key: 'leadSource',      label: 'Source',          editable: false,     adminOnly: false },
+  { key: 'setter',          label: 'Setter',          editable: false,     adminOnly: false, staffOnly: true },
   { key: 'leadEmail',       label: 'Email',           editable: true,      adminOnly: false },
   { key: 'dateAdded',       label: 'Booked',          editable: true,      adminOnly: false },
   { key: 'apptDate',        label: 'Appt Date',       editable: true,      adminOnly: false },
@@ -36,12 +38,13 @@ const COLUMNS = [
 // billing month, which is no longer shown as a column.
 const BULK_EDIT_COLUMNS = [
   ...COLUMNS.filter(c => c.editable),
+  { key: 'setter', label: 'Setter (Ioannis / Marcel)' },
   { key: 'month', label: 'Billing Month (July/26)' },
 ];
 
 function getVisibleColumns() {
   if (isAdmin()) return COLUMNS;
-  return COLUMNS.filter(c => !c.adminOnly);
+  return COLUMNS.filter(c => !c.adminOnly && (!c.staffOnly || isEmployee()));
 }
 
 // Dates are stored as 'M/D/YY'; show them in full so "7/26" can't be read as a
@@ -109,6 +112,9 @@ function getFilteredEntries() {
 
   if (f.client) {
     entries = entries.filter(e => e.clientName === f.client);
+  }
+  if (f.setter) {
+    entries = entries.filter(e => setterOf(e) === f.setter);
   }
   if (f.paidStatus === 'paid') {
     entries = entries.filter(e => str(e.paidStatus).toLowerCase() === 'paid');
@@ -325,6 +331,7 @@ export function renderLeadTracker() {
       <option value="">All Clients</option>
       ${clients.map(c => `<option value="${esc(c)}" ${f.client === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}
     </select>
+    ${setterFilterHtml(f.setter)}
     <select onchange="trackerFilterPaid(this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
       <option value="" ${!f.paidStatus ? 'selected' : ''}>All Status</option>
       <option value="paid" ${f.paidStatus === 'paid' ? 'selected' : ''}>Paid</option>
@@ -415,6 +422,7 @@ export function renderLeadTracker() {
       html += `<td style="text-align:center"><input type="checkbox" ${sel.has(entry.id) ? 'checked' : ''} onchange="trackerToggleSelect('${entry.id}')"></td>`;
     }
     for (const col of cols) {
+      if (col.key === 'setter') { html += setterCellHtml(entry, isCalledBack); continue; }
       const val = col.key === 'leadSource' ? dealChannel(entry) : str(entry[col.key]);
       const isEditing = state.trackerEditingCell && state.trackerEditingCell.id === entry.id && state.trackerEditingCell.field === col.key;
       // Color the client name cell with client color
@@ -485,6 +493,7 @@ export function renderLeadTracker() {
 
 // ─── Window Handlers ───
 window.trackerFilterClient = (v) => { state.trackerFilters.client = v; render(); };
+window.trackerFilterSetter = (v) => { state.trackerFilters.setter = v; render(); };
 window.trackerFilterPaid = (v) => { state.trackerFilters.paidStatus = v; render(); };
 window.trackerFilterQuality = (v) => { state.trackerFilters.leadQuality = v; render(); };
 window.trackerFilterDateFrom = (v) => { state.trackerFilters.dateFrom = isoToMDY(v); render(); };
@@ -652,9 +661,9 @@ window.trackerFillDown = async (fromId, field, value) => {
 };
 
 // ─── Payout Report ───
-const BIWEEKLY_BASE = 250;
-const MONTHLY_BASE = BIWEEKLY_BASE * 2;
-const IOANNIS_PAYPAL = 'ioannis.serafeim@gmail.com';
+// Per setter since 2026-11-10 (lead-setter.js): each report counts only that
+// setter's leads, with their own base pay and PayPal address.
+function payoutSetter() { return setterInfo(state._payoutSetter || 'Ioannis'); }
 
 function parseMDY(s) {
   const parts = s.split('/');
@@ -671,7 +680,7 @@ function getPayoutData(month, year) {
     const added = str(e.dateAdded);
     const parsed = (appt && appt.includes('/')) ? parseMDY(appt) : parseMDY(added);
     if (!parsed) return false;
-    return parsed.m === month && parsed.y === year;
+    return parsed.m === month && parsed.y === year && setterOf(e) === payoutSetter().name;
   });
 
   const total = entries.length;
@@ -690,7 +699,8 @@ function getPayoutData(month, year) {
     else byClient[client].good++;
   }
 
-  return { total, calledBack: calledBack.length, good, coldCall, email: good - coldCall, commission, base: MONTHLY_BASE, grandTotal: commission + MONTHLY_BASE, byClient };
+  const base = (payoutSetter().biweeklyBase || 0) * 2;
+  return { total, calledBack: calledBack.length, good, coldCall, email: good - coldCall, commission, base, grandTotal: commission + base, byClient };
 }
 
 function renderPayoutModal() {
@@ -703,10 +713,12 @@ function renderPayoutModal() {
   const data = getPayoutData(month, year);
   const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
+  const setter = payoutSetter();
   let h = `<div class="modal" style="width:520px;max-height:80vh" onclick="event.stopPropagation()">
-    <div class="modal-header"><h3>Payout Report — Ioannis</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button></div>
+    <div class="modal-header"><h3>Payout Report — ${esc(setter.name)}</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button></div>
     <div class="modal-body" style="max-height:60vh;overflow-y:auto">
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px">
+        ${setterPickerHtml(setter.name)}
         <select onchange="payoutSetMonth(+this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
           ${months.map((m, i) => `<option value="${i+1}" ${i+1===month?'selected':''}>${m}</option>`).join('')}
         </select>
@@ -750,7 +762,7 @@ function renderPayoutModal() {
           <span>Cold call leads × $${COLD_CALL_LEAD_PAY}</span><span>${data.coldCall} × $${COLD_CALL_LEAD_PAY} = <b>$${data.coldCall * COLD_CALL_LEAD_PAY}</b></span>
         </div>
         <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px">
-          <span>Base pay ($${BIWEEKLY_BASE} × 2)</span><span><b>$${data.base}</b></span>
+          <span>Base pay ${setter.biweeklyBase ? `($${setter.biweeklyBase} × 2)` : '(none on file)'}</span><span><b>$${data.base}</b></span>
         </div>
         <div style="display:flex;justify-content:space-between;padding-top:10px;border-top:2px solid var(--border);font-size:15px;font-weight:700">
           <span>Total Payout</span><span style="color:#7c3aed">$${data.grandTotal.toLocaleString()}</span>
@@ -767,7 +779,9 @@ function renderPayoutModal() {
           <input id="payout-note" type="text" value="${months[month-1]} ${year} leads" placeholder="Payment note" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
         </div>
       </div>
-      <button id="payout-send-btn" class="btn btn-primary" style="width:100%;margin-top:8px" onclick="payoutSendPayPal(${data.good}, ${month}, ${year})">Send via PayPal → ${IOANNIS_PAYPAL}</button>
+      ${setter.paypal
+        ? `<button id="payout-send-btn" class="btn btn-primary" style="width:100%;margin-top:8px" onclick="payoutSendPayPal(${data.good}, ${month}, ${year})">Send via PayPal → ${esc(setter.paypal)}</button>`
+        : `<div style="margin-top:8px;font-size:12px;color:var(--text-muted);text-align:center">No PayPal address on file for ${esc(setter.name)}: pay outside the CRM, or add one in js/lead-setter.js.</div>`}
 
       <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px">
         <h4 style="margin:0 0 10px;font-size:13px;color:var(--text-muted)">Payment History</h4>
@@ -783,6 +797,7 @@ window.openPayoutReport = () => {
   const now = new Date();
   state._payoutMonth = now.getMonth() + 1;
   state._payoutYear = now.getFullYear();
+  state._payoutSetter = state.trackerFilters.setter || 'Ioannis';
   const overlay = document.createElement('div');
   overlay.id = 'payout-overlay';
   overlay.className = 'modal-overlay';
@@ -792,6 +807,7 @@ window.openPayoutReport = () => {
   loadPayoutHistory();
 };
 window.payoutSetMonth = (m) => { state._payoutMonth = m; renderPayoutModal(); loadPayoutHistory(); };
+window.payoutSetSetter = (n) => { state._payoutSetter = n; renderPayoutModal(); loadPayoutHistory(); };
 window.payoutSetYear = (y) => { state._payoutYear = y; renderPayoutModal(); loadPayoutHistory(); };
 
 async function loadPayoutHistory() {
@@ -799,6 +815,9 @@ async function loadPayoutHistory() {
   if (!el) return;
   try {
     const resp = await invokeEdgeFunction('paypal-payout', { action: 'list' });
+    // History is shared across setters; rows without a name predate Marcel and are Ioannis's.
+    const who = payoutSetter().name;
+    if (resp.ok && resp.payments) resp.payments = resp.payments.filter(p => (p.employee_name || 'Ioannis') === who);
     if (!resp.ok || !resp.payments?.length) { el.innerHTML = '<div style="color:var(--text-muted)">No payments recorded yet.</div>'; return; }
     el.innerHTML = `<table style="width:100%;border-collapse:collapse">
       <thead><tr style="border-bottom:1px solid var(--border)">
@@ -826,15 +845,17 @@ window.payoutSendPayPal = async (goodLeads, month, year) => {
   if (!amount || amount <= 0) { showToast('Enter a valid amount', 'error'); return; }
 
   const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  if (!confirm(`Send $${amount.toFixed(2)} to ${IOANNIS_PAYPAL} via PayPal?`)) return;
+  const setter = payoutSetter();
+  if (!setter.paypal) return;
+  if (!confirm(`Send $${amount.toFixed(2)} to ${setter.name} (${setter.paypal}) via PayPal?`)) return;
 
   btn.disabled = true;
   btn.textContent = 'Creating payment...';
   try {
     const createResp = await invokeEdgeFunction('paypal-payout', {
       action: 'create',
-      employee_name: 'Ioannis',
-      base_amount: BIWEEKLY_BASE * 2,
+      employee_name: setter.name,
+      base_amount: (setter.biweeklyBase || 0) * 2,
       booked_meetings: goodLeads,
       rate_per_meeting: EMAIL_LEAD_PAY,
       subtotal: amount,
@@ -849,19 +870,19 @@ window.payoutSendPayPal = async (goodLeads, month, year) => {
     const sendResp = await invokeEdgeFunction('paypal-payout', {
       action: 'send',
       paymentId: createResp.payment.id,
-      recipientEmail: IOANNIS_PAYPAL,
+      recipientEmail: setter.paypal,
       amount: amount.toFixed(2),
       note: note || `THT Payment - ${months[month-1]} ${year}`,
     });
     if (!sendResp.ok) throw new Error(sendResp.error || 'PayPal send failed');
 
-    showToast(`$${amount.toFixed(2)} sent to ${IOANNIS_PAYPAL}`, 'success');
+    showToast(`$${amount.toFixed(2)} sent to ${setter.paypal}`, 'success');
     btn.textContent = 'Sent ✓';
     btn.style.background = '#059669';
     loadPayoutHistory();
   } catch (err) {
     showToast(`Payout failed: ${err.message}`, 'error');
     btn.disabled = false;
-    btn.textContent = `Send via PayPal → ${IOANNIS_PAYPAL}`;
+    btn.textContent = `Send via PayPal → ${setter.paypal}`;
   }
 };

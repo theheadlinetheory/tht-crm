@@ -371,13 +371,13 @@ async function loadTracker() {
   cc.trackerLoading = true;
   try {
     const [lt, po] = await Promise.all([
-      supabase.from('lead_tracker').select('deal_id,client_name,lead_name,lead_email,date_added,appt_date,appt_time,lead_source').order('created_at', { ascending: false }).limit(2000),
+      supabase.from('lead_tracker').select('deal_id,client_name,lead_name,lead_email,date_added,appt_date,appt_time,lead_source,setter').order('created_at', { ascending: false }).limit(2000),
       supabase.from('pass_offs').select('deal_id,client_name,company,contact,email,date_passed,appt_date,appt_time').order('date_passed', { ascending: false }).limit(2000),
     ]);
     if (lt.error) throw lt.error;
     if (po.error) throw po.error;
     const rows = [
-      ...(lt.data || []).map(r => ({ client: r.client_name, lead: r.lead_name, email: r.lead_email, booked: (r.date_added || '').slice(0, 10), appt: [r.appt_date, r.appt_time].filter(Boolean).join(' '), source: r.lead_source === 'cold_call' ? 'Cold call' : 'Email', dealId: r.deal_id, where: 'PPM tracker' })),
+      ...(lt.data || []).map(r => ({ client: r.client_name, lead: r.lead_name, email: r.lead_email, booked: (r.date_added || '').slice(0, 10), appt: [r.appt_date, r.appt_time].filter(Boolean).join(' '), source: (r.lead_source === 'cold_call' ? 'Cold call' : 'Email') + ' · ' + (r.setter || 'Ioannis'), dealId: r.deal_id, where: 'PPM tracker' })),
       ...(po.data || []).map(r => ({ client: r.client_name, lead: [r.company, r.contact].filter(Boolean).join(' — '), email: r.email, booked: (r.date_passed || '').slice(0, 10), appt: [r.appt_date, r.appt_time].filter(Boolean).join(' '), source: 'Passed off', dealId: r.deal_id, where: 'Retainer pass-off' })),
     ];
     // Booked on the board but not delivered yet: still a booking.

@@ -78,7 +78,7 @@ export const state = {
   myDealsFilter: false,
   trackerEntries: [],
   trackerLoaded: false,
-  trackerFilters: { client: '', paidStatus: '', leadQuality: '', dateFrom: '', dateTo: '', dateBasis: 'appt' },
+  trackerFilters: { client: '', setter: '', paidStatus: '', leadQuality: '', dateFrom: '', dateTo: '', dateBasis: 'appt' },
   trackerSort: { field: 'dateAdded', dir: 'desc' }, // newest lead first
   trackerEditingCell: null,
   trackerDispute: null,
