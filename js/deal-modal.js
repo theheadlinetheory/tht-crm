@@ -22,6 +22,7 @@ import { renderDealInvoiceButton } from './deal-invoice.js?v=20261110032711';
 import { isAdmin, isEmployee, isSdr, loadAssignableUsers } from './auth.js?v=20261110032711';
 import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn, purgeDeal } from './deals.js?v=20261110032711';
 import { showAcquisitionRemovalPicker } from './removal-reason.js?v=20261110032711';
+import { renderNotALeadButton } from './not-a-lead.js?v=20261110032711';
 import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, reschedulePreCallSequence, assignNoShowSequence } from './activities.js?v=20261110032711';
 import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js?v=20261110032711';
 import { getStagesForPipeline } from './dashboard.js?v=20261110032711';
@@ -1375,6 +1376,7 @@ export function renderDealModal(deal){
         ?`<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e9d5ff"><button class="sl-subseq-btn" onclick="event.stopPropagation();startAutoFollowUp('${esc(deal.id)}')" style="display:inline-flex;align-items:center;gap:6px;padding:7px 16px;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);box-shadow:0 1px 3px rgba(124,58,237,.3);transition:opacity .15s" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">${svgIcon('send',14,'#fff')} Start Auto Follow-Up</button></div>`
         :''}
       ${isSubseqActive?`<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e9d5ff"><div style="display:inline-flex;align-items:center;gap:6px;padding:7px 16px;background:#f3e8ff;color:#6d28d9;border-radius:8px;font-size:12px;font-weight:600">${svgIcon('check',14,'#6d28d9')} Auto Follow-Up Active${followUpDate?' · Started '+followUpDate:''}</div></div>`:''}
+      ${renderNotALeadButton(deal)}
     </div>`;
   }
 
