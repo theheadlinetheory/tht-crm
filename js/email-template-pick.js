@@ -8,8 +8,8 @@
 // writes a Timeline Note "Day 1 email: <template> · marked in the CRM".
 // Skipping is fine: the task is already marked done and nothing else waits on this.
 
-import { esc } from './utils.js?v=20261108172836';
-import { sbCreateInteraction, showToast } from './api.js?v=20261108172836';
+import { esc } from './utils.js?v=20261109100915';
+import { sbCreateInteraction, showToast } from './api.js?v=20261109100915';
 
 export const DAY1_EMAIL_PREFIX = 'Day 1 email: ';
 export const EMAIL_TEMPLATES = ['Service breakdown', 'Mechanism / Info', 'Meeting', 'Price', 'Custom'];
