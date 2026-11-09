@@ -24,6 +24,10 @@ export function esc(s){
 }
 /** esc() for attribute values and inline-handler strings: quotes too (hardening review, 2026-09-15). */
 export function escAttr(s){ return esc(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+/** A string as a quoted JS literal for an inline handler: onclick="fn(${jsArg(name)})". esc()/escAttr()
+ *  inside '…' break on an apostrophe (the browser decodes &#39; back to ' before the JS parses), so
+ *  "Woody's Landcare LLC" made the whole onclick a syntax error and the button silently did nothing. */
+export function jsArg(s){ return escAttr(JSON.stringify(str(s))); }
 
 export function str(v){
   return v===null||v===undefined?'':String(v);

@@ -2,22 +2,22 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20261109104950';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20261109104950';
-import { render } from './render.js?v=20261109104950';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20261109104950';
-import { renderRoutingRules } from './routing-rules.js?v=20261109104950';
-import { esc, str, svgIcon } from './utils.js?v=20261109104950';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20261109104950';
-import { lookupClientInfo } from './client-info.js?v=20261109104950';
-import { findPolygonForClient, invalidateServiceAreaCache } from './maps.js?v=20261109104950';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20261109104950';
-import { DEFAULT_BOOKING_SMS_TEMPLATE } from './booking-sms.js?v=20261109104950';
-import { renderRetainerBilling } from './retainer-billing.js?v=20261109104950';
-import { renderAutoChargeToggle } from './auto-charge.js?v=20261109104950';
-import { showClientEndPicker, clearClientEnd } from './client-end.js?v=20261109104950';
-import { setupBadge, setupBanner } from './client-setup-status.js?v=20261109104950';
-import { renderCallSheetSettings, renderCallSheetOnboardingFields, callSheetOnboardingUpdates } from './call-sheet.js?v=20261109104950';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20261110022853';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20261110022853';
+import { render } from './render.js?v=20261110022853';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20261110022853';
+import { renderRoutingRules } from './routing-rules.js?v=20261110022853';
+import { esc, jsArg, str, svgIcon } from './utils.js?v=20261110022853';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20261110022853';
+import { lookupClientInfo } from './client-info.js?v=20261110022853';
+import { findPolygonForClient, invalidateServiceAreaCache } from './maps.js?v=20261110022853';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20261110022853';
+import { DEFAULT_BOOKING_SMS_TEMPLATE } from './booking-sms.js?v=20261110022853';
+import { renderRetainerBilling } from './retainer-billing.js?v=20261110022853';
+import { renderAutoChargeToggle } from './auto-charge.js?v=20261110022853';
+import { showClientEndPicker, clearClientEnd } from './client-end.js?v=20261110022853';
+import { setupBadge, setupBanner } from './client-setup-status.js?v=20261110022853';
+import { renderCallSheetSettings, renderCallSheetOnboardingFields, callSheetOnboardingUpdates } from './call-sheet.js?v=20261110022853';
 
 export function getDefaultSettings(){
   return {
@@ -312,7 +312,7 @@ export function refreshSettingsBody(){
       window._dialerFieldsLoaded = true;
       supabase.from('crm_settings').select('value').eq('key','dialer_default_fields').single()
         .then(({ data }) => { window._dialerDefaultFields = data?.value ? JSON.parse(data.value) : []; refreshSettingsBody(); });
-      import('./number-health.js?v=20261109104950').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
+      import('./number-health.js?v=20261110022853').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
     }
     h=renderDialerSettings();
   }
@@ -628,7 +628,7 @@ function renderClientsSettings(){
           ${str(c.clientSheetId) ? `
             <a href="https://docs.google.com/spreadsheets/d/${esc(str(c.clientSheetId))}/edit" target="_blank" style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;background:#dcfce7;border:1px solid #86efac;border-radius:6px;font-size:11px;font-weight:600;color:#16a34a;text-decoration:none">${svgIcon('external-link',12)} Open Sheet</a>
           ` : `
-            <button onclick="createLeadTrackerSheet('${esc(c.id)}','${esc(c.name)}',${str(c.hasInboxMgmt).toUpperCase()==='TRUE'})" style="padding:5px 12px;background:#4f46e5;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">${svgIcon('upload',12)} Create Lead Tracker</button>
+            <button onclick="createLeadTrackerSheet(${jsArg(c.id)},${jsArg(c.name)},${str(c.hasInboxMgmt).toUpperCase()==='TRUE'})" style="padding:5px 12px;background:#4f46e5;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">${svgIcon('upload',12)} Create Lead Tracker</button>
           `}
         </div>
       </div>
@@ -1761,7 +1761,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20261109104950');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20261110022853');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);
@@ -2035,7 +2035,7 @@ window.restoreClient = async function(clientId) {
   }
   showToast(`${c.name} restored — rebuilding their Smartlead portal…`, 'success');
   try {
-    const { createSmartleadPortal } = await import('./smartlead-portal.js?v=20261109104950');
+    const { createSmartleadPortal } = await import('./smartlead-portal.js?v=20261110022853');
     const r = await createSmartleadPortal(c);
     render();
     // crm-smartlead-client writes the id onto the clients row itself, with a
@@ -2063,7 +2063,7 @@ window.restoreClient = async function(clientId) {
 window.createClientPortal = async function(clientId) {
   const c = state.clients.find(x => str(x.id) === str(clientId));
   if (!c) return;
-  const { portalEmail, createSmartleadPortal } = await import('./smartlead-portal.js?v=20261109104950');
+  const { portalEmail, createSmartleadPortal } = await import('./smartlead-portal.js?v=20261110022853');
   const email = portalEmail(c);
   if (!email) { showToast('Add a contact email for this client first', 'error'); return; }
   if (!confirm(`Create a Smartlead portal for ${c.name}?\n\nLogin: ${email}\n\nSmartlead has no way to delete a client portal, so this cannot be undone.`)) return;
@@ -2103,7 +2103,7 @@ window.orderColdCallInbox = async function(clientId, btn) {
   if (!confirm(`Buy a contact@ .info cold-calling inbox for ${c.name}?\n\n~$4 domain + $3/month mailbox. It goes live in Zapmail and SmartLead on its own over the next hour or two.`)) return;
   if (btn) { btn.disabled = true; btn.textContent = 'Ordering…'; }
   try {
-    const { createColdCallInbox } = await import('./cold-call-inbox.js?v=20261109104950');
+    const { createColdCallInbox } = await import('./cold-call-inbox.js?v=20261110022853');
     const r = await createColdCallInbox(c);
     render();
     showToast(`${r.existed ? 'Already ordered' : 'Ordered'}: ${r.email} — live in ~1–3h, then warming up`, 'success');

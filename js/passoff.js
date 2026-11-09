@@ -2,11 +2,11 @@
 // PASSOFF — Passoff instructions generator + transcript polling
 // ═══════════════════════════════════════════════════════════
 
-import { state, pendingWrites } from './app.js?v=20261109104950';
-import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20261109104950';
-import { esc, str } from './utils.js?v=20261109104950';
-import { refreshModal } from './render.js?v=20261109104950';
-import { isAdmin, isEmployee } from './auth.js?v=20261109104950';
+import { state, pendingWrites } from './app.js?v=20261110022853';
+import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20261110022853';
+import { esc, jsArg, str } from './utils.js?v=20261110022853';
+import { refreshModal } from './render.js?v=20261110022853';
+import { isAdmin, isEmployee } from './auth.js?v=20261110022853';
 
 // ─── Transcript Polling ───
 
@@ -240,24 +240,24 @@ export function renderPassoffSection(deal, clientName) {
       ${log.length ? `<div style="font-size:11px;color:#6b7280;margin-bottom:6px">${log.map(m => '✓ ' + esc(m.content)).join('<br>')}</div>` : ''}
       <div style="display:flex;gap:6px">
         <input id="passoff-chat-input" type="text" placeholder="e.g. The meeting is Thursday at 10am, and mention the gate code 4411"
-          onkeydown="if(event.key==='Enter'){event.preventDefault();reviseWithClaudeClick('${esc(deal.id)}','${esc(clientName)}')}"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();reviseWithClaudeClick(${jsArg(deal.id)},${jsArg(clientName)})}"
           style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
         <button id="passoff-chat-btn" class="btn btn-primary" style="font-size:12px;background:#7c3aed;border-color:#7c3aed"
-          onclick="reviseWithClaudeClick('${esc(deal.id)}','${esc(clientName)}')">Ask Claude</button>
+          onclick="reviseWithClaudeClick(${jsArg(deal.id)},${jsArg(clientName)})">Ask Claude</button>
       </div>
     </div>
     <div style="display:flex;gap:6px">
       <button class="btn btn-ghost" style="flex:1;justify-content:center;font-size:12px"
-        onclick="regeneratePassoffClick('${esc(deal.id)}','${esc(clientName)}')">Start over</button>
+        onclick="regeneratePassoffClick(${jsArg(deal.id)},${jsArg(clientName)})">Start over</button>
       <button id="passoff-send-btn" class="btn btn-primary" style="flex:1;justify-content:center;font-size:12px;background:#7c3aed;border-color:#7c3aed"
-        onclick="sendPassoffClick('${esc(deal.id)}','${esc(clientName)}')">
+        onclick="sendPassoffClick(${jsArg(deal.id)},${jsArg(clientName)})">
         ${hasSent ? 'Resend pass-off to client' : 'Send pass-off to client'}
       </button>
     </div>`;
   } else if (!hasInstructions) {
     h += `<button id="passoff-generate-btn" class="btn btn-primary"
       style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#7c3aed;border-color:#7c3aed"
-      onclick="generatePassoffClick('${esc(deal.id)}','${esc(clientName)}')">
+      onclick="generatePassoffClick(${jsArg(deal.id)},${jsArg(clientName)})">
       ${coldCall ? 'Draft pass-off + lead confirmation with Claude' : 'Generate Passoff Instructions'}
     </button>
     <div style="font-size:10px;color:var(--text-muted);margin-top:6px">
@@ -270,11 +270,11 @@ export function renderPassoffSection(deal, clientName) {
       style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);resize:vertical;margin-bottom:8px">${esc(deal.passoffInstructions)}</textarea>
     <div style="display:flex;gap:6px">
       <button class="btn btn-ghost" style="flex:1;justify-content:center;font-size:12px"
-        onclick="regeneratePassoffClick('${esc(deal.id)}','${esc(clientName)}')">
+        onclick="regeneratePassoffClick(${jsArg(deal.id)},${jsArg(clientName)})">
         Regenerate
       </button>
       <button id="passoff-send-btn" class="btn btn-primary" style="flex:1;justify-content:center;font-size:12px;background:#7c3aed;border-color:#7c3aed"
-        onclick="sendPassoffClick('${esc(deal.id)}','${esc(clientName)}')">
+        onclick="sendPassoffClick(${jsArg(deal.id)},${jsArg(clientName)})">
         ${hasSent ? 'Resend to Client' : 'Send to Client'}
       </button>
     </div>`;
