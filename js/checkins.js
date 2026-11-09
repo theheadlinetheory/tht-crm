@@ -14,15 +14,16 @@
 // Admin-only: it shows retainer amounts and reads three founder inboxes.
 // Data and caches live in checkins-data.js.
 
-import { state } from './app.js?v=20261109102011';
-import { esc, str, getToday, svgIcon } from './utils.js?v=20261109102011';
-import { buildRenewalRow, money } from './renewals.js?v=20261109102011';
-import { prettyDate } from './retainer-billing.js?v=20261109102011';
-import { extensionsFor, extensionsStatus, loadTermExtensions } from './term-extensions.js?v=20261109102011';
+import { state } from './app.js?v=20261109104950';
+import { esc, str, getToday, svgIcon } from './utils.js?v=20261109104950';
+import { buildRenewalRow, money } from './renewals.js?v=20261109104950';
+import { prettyDate } from './retainer-billing.js?v=20261109104950';
+import { extensionsFor, extensionsStatus, loadTermExtensions } from './term-extensions.js?v=20261109104950';
 import {
   CALL_DAYS, callsState, statsState, emailsState, campaignsState, loadCalls, loadStats, loadEmails, loadCampaigns,
   callClientName, defaultCall, knownContacts, lastHeardFrom, recentLeads,
-} from './checkins-data.js?v=20261109102011';
+} from './checkins-data.js?v=20261109104950';
+import { loadConfirmations, confirmChip, confirmPanel, wireConfirmHandlers } from './checkin-confirm.js?v=20261109104950';
 
 const paint = () => window.render && window.render();
 // esc() leaves quotes alone, so anything inside an attribute or an inline handler needs these.
@@ -77,6 +78,7 @@ function callsList(clientNames, selected) {
       <div style="display:flex;justify-content:space-between;font-size:12px"><span style="font-weight:700;color:#1e293b">${esc(timeOf(c.start))}</span><span style="color:${rel === 'now' ? '#dc2626' : '#64748b'};font-weight:600">${esc(rel)}</span></div>
       <div style="font-size:13px;color:#1e293b;margin-top:2px">${esc(name || c.client)}</div>
       <div style="font-size:11px;color:#94a3b8">${name ? `${people} from the client invited` : 'Not matched to a CRM client'}</div>
+      ${name ? confirmChip(c) : ''}
     </div>`;
   }
   return html;
@@ -336,6 +338,7 @@ function brief(name, call) {
       <button class="btn btn-ghost" style="font-size:12px" onclick="openClientInfoPanel(atob('${b64(name)}'))">Client info</button>
     </div></div>`;
   return header
+    + confirmPanel(call)
     + campaignsCard(name)
     + `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:0 14px;align-items:start">
         <div>${peopleCard(cl, call, s.data)}${accountCard(cl)}${numbersCard(name)}</div>
@@ -344,7 +347,7 @@ function brief(name, call) {
 }
 
 export function renderCheckins() {
-  setTimeout(() => loadCalls(paint), 0);
+  setTimeout(() => { loadCalls(paint); loadConfirmations(paint); }, 0);
   const clients = (state.clients || []).filter(c => !str(c.endedOn));
   const clientNames = (state.clients || []).map(c => c.name);
   const calls = callsState().data?.calls || [];
@@ -379,7 +382,8 @@ window.ciSelect = (name) => {
   paint();
 };
 window.ciToggle = (el) => { const k = el.dataset.key; if (el.open) openThreads.add(k); else openThreads.delete(k); };
-window.ciRefreshCalls = () => loadCalls(paint, true);
+window.ciRefreshCalls = () => { loadCalls(paint, true); loadConfirmations(paint, true); };
+wireConfirmHandlers(paint);
 window.ciRefreshStats = (name) => loadStats(name, paint, true);
 window.ciRefreshCampaigns = (name) => loadCampaigns(name, paint, true);
 window.ciRefreshEmails = (id) => loadEmails(id, paint, true);
