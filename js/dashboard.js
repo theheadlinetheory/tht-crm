@@ -1,14 +1,14 @@
 // ═══════════════════════════════════════════════════════════
 // DASHBOARD — Dashboard rendering (client fulfillment + acquisition)
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261110022853';
-import { ACQUISITION_STAGES, NURTURE_STAGES, RENEWAL_STAGES, DEFAULT_CLIENT_STAGES, ALL_PIPELINES } from './config.js?v=20261110022853';
-import { render } from './render.js?v=20261110022853';
-import { esc, fmt$ } from './utils.js?v=20261110022853';
-import { isAdmin, isEmployee } from './auth.js?v=20261110022853';
-import { getOverdueActivities } from './activities.js?v=20261110022853';
-import { renderSetterStats } from './setter-stats.js?v=20261110022853';
-import { funnelMonths, funnelMonth, acquisitionCounts, conversionLevels, retentionLevel } from './dashboard-funnel.js?v=20261110022853';
+import { state } from './app.js?v=20261110032711';
+import { ACQUISITION_STAGES, NURTURE_STAGES, RENEWAL_STAGES, DEFAULT_CLIENT_STAGES, ALL_PIPELINES } from './config.js?v=20261110032711';
+import { render } from './render.js?v=20261110032711';
+import { esc, fmt$ } from './utils.js?v=20261110032711';
+import { isAdmin, isEmployee } from './auth.js?v=20261110032711';
+import { getOverdueActivities } from './activities.js?v=20261110032711';
+import { renderSetterStats } from './setter-stats.js?v=20261110032711';
+import { funnelMonths, funnelMonth, acquisitionCounts, conversionLevels, retentionLevel } from './dashboard-funnel.js?v=20261110032711';
 
 function dateAddedToDate(dateAdded) {
   if (!dateAdded) return null;

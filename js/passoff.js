@@ -2,11 +2,11 @@
 // PASSOFF — Passoff instructions generator + transcript polling
 // ═══════════════════════════════════════════════════════════
 
-import { state, pendingWrites } from './app.js?v=20261110022853';
-import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20261110022853';
-import { esc, jsArg, str } from './utils.js?v=20261110022853';
-import { refreshModal } from './render.js?v=20261110022853';
-import { isAdmin, isEmployee } from './auth.js?v=20261110022853';
+import { state, pendingWrites } from './app.js?v=20261110032711';
+import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20261110032711';
+import { esc, jsArg, str, confirmNoPlaceholders } from './utils.js?v=20261110032711';
+import { refreshModal } from './render.js?v=20261110032711';
+import { isAdmin, isEmployee } from './auth.js?v=20261110032711';
 
 // ─── Transcript Polling ───
 
@@ -179,6 +179,7 @@ async function reviseWithClaude(dealId, clientName) {
 async function sendPassoffToClient(dealId, clientName) {
   const deal = state.deals.find(d => d.id === dealId);
   if (!deal || !deal.passoffInstructions) return;
+  if (!confirmNoPlaceholders(deal.passoffInstructions)) return;
 
   const sendBtn = document.getElementById('passoff-send-btn');
   if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Sending...'; }

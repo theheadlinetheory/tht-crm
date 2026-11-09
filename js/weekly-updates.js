@@ -12,13 +12,13 @@
 //   CCs are ALSO editable here, on the idle checklist and on review rows.
 //   Lars's signature appended. The Client Info sheet is NOT used.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20261110022853';
-import { state } from './app.js?v=20261110022853';
-import { render } from './render.js?v=20261110022853';
-import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20261110022853';
-import { esc, str, svgIcon } from './utils.js?v=20261110022853';
-import { crmWeekContext, ctxCheckinLines, ctxDay, ctxSummary, ctxSection } from './weekly-context.js?v=20261110022853';
-import { DEFAULT_WEEKLY_UPDATE_TEMPLATE, WEEKLY_TOKENS, PPM_NOTE, applyWeeklyTemplate, weeklyGreeting } from './weekly-template.js?v=20261110022853';
+import { supabase } from './supabase-client.js?v=20261110032711';
+import { state } from './app.js?v=20261110032711';
+import { render } from './render.js?v=20261110032711';
+import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20261110032711';
+import { esc, str, svgIcon } from './utils.js?v=20261110032711';
+import { crmWeekContext, ctxCheckinLines, ctxDay, ctxSummary, ctxSection } from './weekly-context.js?v=20261110032711';
+import { DEFAULT_WEEKLY_UPDATE_TEMPLATE, WEEKLY_TOKENS, PPM_NOTE, applyWeeklyTemplate, weeklyGreeting } from './weekly-template.js?v=20261110032711';
 
 // Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';

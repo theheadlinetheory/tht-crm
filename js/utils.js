@@ -182,6 +182,7 @@ export function applyTemplate(template, deal, clientName, clientFirst){
     '{CLIENT_FIRST}': s(clientFirst || 'there'),
     '{NOTES}': s(deal.notes),
     '{MEETING_TIME}': buildMeetingTimeStr(deal),
+    '{INSTRUCTIONS}': leadInstructions(deal),
   };
   let result = template;
   for(const [key, val] of Object.entries(replacements)){
@@ -195,6 +196,38 @@ export function applyTemplate(template, deal, clientName, clientFirst){
     return !labelMatch;
   });
   return filtered.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/** The lead's own instructions: everything after "Instructions:" in the card's Calendly notes (Claude's
+ *  draft or what the caller typed), else in the pass-off draft. "Good luck!" is the template's to add. */
+function leadInstructions(deal){
+  for(const src of [deal.calNotes, deal.passoffInstructions]){
+    const m = String(src || '').match(/^\s*Instructions:[ \t]*([\s\S]*)$/mi);
+    const text = m ? m[1].replace(/\n*\s*Good luck!?\s*$/i, '').trim() : '';
+    if(text) return text;
+  }
+  return '';
+}
+
+// Template variables that never got a value. Placeholder names typed without braces (NAME, JOB_TITLE)
+// slipped into a client email on 2026-11-09 (Woody's / Hub Apartments): a message to a client is
+// blocked while any of these is still in it.
+const BARE_VARS = /\b(?:NAME|FIRST_NAME|LAST_NAME|JOB_TITLE|TITLE|CONTACT|BUSINESS|COMPANY|CLIENT_FIRST|CLIENT_NAME|MEETING_TIME|APPOINTMENT TIME|EMAIL|PHONE|MOBILE_PHONE|ADDRESS|WEBSITE|CITY|SERVICE|PRONOUN|INSTRUCTIONS|NOTES)\b/g;
+export function unfilledPlaceholders(text){
+  const t = String(text || '');
+  const hits = [
+    ...(t.match(/\{[A-Za-z_ ]+\}/g) || []),           // {JOB_TITLE}
+    ...(t.match(/\[[^\]\n]{1,40}\](?!\()/g) || []),    // [Day] at [Time], [APPOINTMENT TIME], [contact first name]
+    ...(t.match(BARE_VARS) || []),                     // NAME, JOB_TITLE typed without braces
+  ];
+  return [...new Set(hits)];
+}
+/** Alert + false when text still has template variables in it. */
+export function confirmNoPlaceholders(text){
+  const left = unfilledPlaceholders(text);
+  if(!left.length) return true;
+  alert('This message still has unfilled variables: ' + left.join(', ') + '\n\nReplace them with the real details (or delete them) before sending.');
+  return false;
 }
 
 function buildMeetingTimeStr(deal){

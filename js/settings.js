@@ -2,22 +2,22 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20261110022853';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20261110022853';
-import { render } from './render.js?v=20261110022853';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20261110022853';
-import { renderRoutingRules } from './routing-rules.js?v=20261110022853';
-import { esc, jsArg, str, svgIcon } from './utils.js?v=20261110022853';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20261110022853';
-import { lookupClientInfo } from './client-info.js?v=20261110022853';
-import { findPolygonForClient, invalidateServiceAreaCache } from './maps.js?v=20261110022853';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20261110022853';
-import { DEFAULT_BOOKING_SMS_TEMPLATE } from './booking-sms.js?v=20261110022853';
-import { renderRetainerBilling } from './retainer-billing.js?v=20261110022853';
-import { renderAutoChargeToggle } from './auto-charge.js?v=20261110022853';
-import { showClientEndPicker, clearClientEnd } from './client-end.js?v=20261110022853';
-import { setupBadge, setupBanner } from './client-setup-status.js?v=20261110022853';
-import { renderCallSheetSettings, renderCallSheetOnboardingFields, callSheetOnboardingUpdates } from './call-sheet.js?v=20261110022853';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20261110032711';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20261110032711';
+import { render } from './render.js?v=20261110032711';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20261110032711';
+import { renderRoutingRules } from './routing-rules.js?v=20261110032711';
+import { esc, jsArg, str, svgIcon } from './utils.js?v=20261110032711';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20261110032711';
+import { lookupClientInfo } from './client-info.js?v=20261110032711';
+import { findPolygonForClient, invalidateServiceAreaCache } from './maps.js?v=20261110032711';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20261110032711';
+import { DEFAULT_BOOKING_SMS_TEMPLATE } from './booking-sms.js?v=20261110032711';
+import { renderRetainerBilling } from './retainer-billing.js?v=20261110032711';
+import { renderAutoChargeToggle } from './auto-charge.js?v=20261110032711';
+import { showClientEndPicker, clearClientEnd } from './client-end.js?v=20261110032711';
+import { setupBadge, setupBanner } from './client-setup-status.js?v=20261110032711';
+import { renderCallSheetSettings, renderCallSheetOnboardingFields, callSheetOnboardingUpdates } from './call-sheet.js?v=20261110032711';
 
 export function getDefaultSettings(){
   return {
@@ -312,7 +312,7 @@ export function refreshSettingsBody(){
       window._dialerFieldsLoaded = true;
       supabase.from('crm_settings').select('value').eq('key','dialer_default_fields').single()
         .then(({ data }) => { window._dialerDefaultFields = data?.value ? JSON.parse(data.value) : []; refreshSettingsBody(); });
-      import('./number-health.js?v=20261110022853').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
+      import('./number-health.js?v=20261110032711').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
     }
     h=renderDialerSettings();
   }
@@ -1565,7 +1565,7 @@ function renderTemplatesSettings(){
   const bookingSmsTpl = settingsDraft.booking_sms_template || DEFAULT_BOOKING_SMS_TEMPLATE;
   return `
     <div style="margin-bottom:16px;padding:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;font-size:12px;color:#166534;line-height:1.6">
-      <strong>Available placeholders:</strong> {BUSINESS}, {CONTACT}, {EMAIL}, {PHONE}, {MOBILE_PHONE}, {WEBSITE}, {ADDRESS}, {JOB_TITLE}, {CLIENT_NAME}, {CLIENT_FIRST}, {MEETING_TIME}, {NOTES}
+      <strong>Available placeholders:</strong> {BUSINESS}, {CONTACT}, {EMAIL}, {PHONE}, {MOBILE_PHONE}, {WEBSITE}, {ADDRESS}, {JOB_TITLE}, {CLIENT_NAME}, {CLIENT_FIRST}, {MEETING_TIME}, {NOTES}, {INSTRUCTIONS} (the lead's instructions from the card's Calendly notes)
       <div style="margin-top:4px;color:#15803d;font-size:11px">Placeholders auto-fill with the lead's info when a deal is opened. Empty fields are omitted.</div>
     </div>
 
@@ -1607,7 +1607,7 @@ function renderTemplatesSettings(){
 
     <div style="margin-bottom:20px">
       <label style="font-size:13px;font-weight:700;color:var(--text);display:block;margin-bottom:6px">${svgIcon('send',14)} Lead Delivery Email Template</label>
-      <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Pre-fills the "Message Preview" when sending lead info to a client via email. Use {MEETING_TIME} for the booked date/time.</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Pre-fills the "Message Preview" when sending lead info to a client via email. Use {MEETING_TIME} for the booked date/time and {INSTRUCTIONS} for the lead's own instructions. Never type lead details into the template: it goes out with every lead.</div>
       <textarea id="tpl-delivery" rows="12" oninput="settingsDraft.delivery_template=this.value;debouncedAutoSave()"
         style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:var(--font);line-height:1.5;resize:vertical;color:var(--text);background:var(--card)">${esc(delivTpl)}</textarea>
       <button onclick="settingsDraft.delivery_template='';document.getElementById('tpl-delivery').value='';debouncedAutoSave()" style="margin-top:4px;font-size:11px;color:#6b7280;background:none;border:none;cursor:pointer;text-decoration:underline">Reset to default</button>
@@ -1761,7 +1761,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20261110022853');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20261110032711');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);
@@ -2035,7 +2035,7 @@ window.restoreClient = async function(clientId) {
   }
   showToast(`${c.name} restored — rebuilding their Smartlead portal…`, 'success');
   try {
-    const { createSmartleadPortal } = await import('./smartlead-portal.js?v=20261110022853');
+    const { createSmartleadPortal } = await import('./smartlead-portal.js?v=20261110032711');
     const r = await createSmartleadPortal(c);
     render();
     // crm-smartlead-client writes the id onto the clients row itself, with a
@@ -2063,7 +2063,7 @@ window.restoreClient = async function(clientId) {
 window.createClientPortal = async function(clientId) {
   const c = state.clients.find(x => str(x.id) === str(clientId));
   if (!c) return;
-  const { portalEmail, createSmartleadPortal } = await import('./smartlead-portal.js?v=20261110022853');
+  const { portalEmail, createSmartleadPortal } = await import('./smartlead-portal.js?v=20261110032711');
   const email = portalEmail(c);
   if (!email) { showToast('Add a contact email for this client first', 'error'); return; }
   if (!confirm(`Create a Smartlead portal for ${c.name}?\n\nLogin: ${email}\n\nSmartlead has no way to delete a client portal, so this cannot be undone.`)) return;
@@ -2103,7 +2103,7 @@ window.orderColdCallInbox = async function(clientId, btn) {
   if (!confirm(`Buy a contact@ .info cold-calling inbox for ${c.name}?\n\n~$4 domain + $3/month mailbox. It goes live in Zapmail and SmartLead on its own over the next hour or two.`)) return;
   if (btn) { btn.disabled = true; btn.textContent = 'Ordering…'; }
   try {
-    const { createColdCallInbox } = await import('./cold-call-inbox.js?v=20261110022853');
+    const { createColdCallInbox } = await import('./cold-call-inbox.js?v=20261110032711');
     const r = await createColdCallInbox(c);
     render();
     showToast(`${r.existed ? 'Already ordered' : 'Ordered'}: ${r.email} — live in ~1–3h, then warming up`, 'success');

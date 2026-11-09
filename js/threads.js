@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════
 // THREADS — SmartLead thread viewer, client thread sender
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261110022853';
-import { refreshModal } from './render.js?v=20261110022853';
-import { apiPost, invokeEdgeFunction } from './api.js?v=20261110022853';
-import { esc } from './utils.js?v=20261110022853';
+import { state } from './app.js?v=20261110032711';
+import { refreshModal } from './render.js?v=20261110032711';
+import { apiPost, invokeEdgeFunction } from './api.js?v=20261110032711';
+import { esc, unfilledPlaceholders, confirmNoPlaceholders } from './utils.js?v=20261110032711';
 
 // ─── SmartLead Thread Viewer ───
 let slThreadCache = {};
@@ -82,8 +82,8 @@ export function getThreadCache() { return slThreadCache; }
 export async function openSendToClientPreview(dealId, clientName){
   const deal=state.deals.find(d=>d.id===dealId);
   if(!deal) return;
-  const { getClientThreadId, lookupClientInfo } = await import('./client-info.js?v=20261110022853');
-  const { buildLeadMessage } = await import('./email.js?v=20261110022853');
+  const { getClientThreadId, lookupClientInfo } = await import('./client-info.js?v=20261110032711');
+  const { buildLeadMessage } = await import('./email.js?v=20261110032711');
   const threadId=getClientThreadId(clientName)||'';
   const info=lookupClientInfo(clientName)||{};
   const message=buildLeadMessage(deal, clientName);
@@ -118,6 +118,7 @@ export async function openSendToClientPreview(dealId, clientName){
     </div>
     <div style="padding:16px 20px">
       <label style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px">Message Preview (editable)</label>
+      ${(()=>{ const left=unfilledPlaceholders(message); return left.length?`<div style="margin-bottom:8px;padding:8px 10px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;font-size:12px;color:#b91c1c"><strong>Fill these in before sending:</strong> ${esc(left.join(', '))}</div>`:''; })()}
       <textarea id="send-preview-body" rows="14" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;font-family:var(--font);line-height:1.6;resize:vertical;color:#1f2937">${esc(message)}</textarea>
     </div>
     <div style="padding:12px 20px 20px;display:flex;gap:8px">
@@ -134,6 +135,7 @@ export async function doSendToClientThread(dealId, clientName, threadId){
   const btn=document.getElementById('send-to-thread-btn');
   const messageBody=document.getElementById('send-preview-body')?.value||'';
   if(!messageBody.trim()){ alert('Message is empty'); return; }
+  if(!confirmNoPlaceholders(messageBody)) return;
 
   if(btn){ btn.disabled=true; btn.textContent='Sending...'; btn.style.opacity='0.6'; }
 
