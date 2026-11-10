@@ -2,7 +2,7 @@
 // clients are charged in Stripe within a day or so of their invoice going out:
 // the invoice email (js/invoice.js) carries a "no need to respond" heads-up, a
 // card lands in #client-payments, and they never get reminders.
-import { esc, str } from './utils.js?v=20261110103444';
+import { esc, str } from './utils.js?v=20261110104341';
 
 export function renderAutoChargeToggle(c) {
   const on = str(c.autoCharge).toUpperCase() === 'TRUE';
