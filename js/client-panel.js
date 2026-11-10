@@ -25,19 +25,19 @@
 // mid-edit. Edits save straight to Supabase (debounced) and patch the affected
 // DOM nodes in place — the panel is never wholesale re-rendered while open.
 
-import { state } from './app.js?v=20261110104341';
-import { esc, str, getToday, isValidDate, svgIcon } from './utils.js?v=20261110104341';
-import { isAdmin } from './auth.js?v=20261110104341';
-import { lookupClientInfo } from './client-info.js?v=20261110104341';
-import { sbUpdateClient, sbGetWonAcquisitionCards } from './api.js?v=20261110104341';
-import { registerActions } from './delegate.js?v=20261110104341';
-import { buildAcquisitionCard, indexWonCards, matchCardForClient, answeredQuestions } from './client-acquisition.js?v=20261110104341';
-import { parseProperties, areaOf } from './client-properties.js?v=20261110104341';
-import { renderCallSheetLink } from './call-sheet.js?v=20261110104341';
-import { findPolygonForClient, renderServiceAreaMap } from './maps.js?v=20261110104341';
-import { coldCallsSectionHtml, fillColdCallsSection } from './client-cold-calls.js?v=20261110104341';
-import { clientColdCallStatsHtml } from './cold-calling-tab.js?v=20261110104341';
-import { CALL_FIELDS, callCardHtml, onCallCardOpen, showPane } from './client-call-card.js?v=20261110104341';
+import { state } from './app.js?v=20261110105020';
+import { esc, str, getToday, isValidDate, svgIcon } from './utils.js?v=20261110105020';
+import { isAdmin } from './auth.js?v=20261110105020';
+import { lookupClientInfo } from './client-info.js?v=20261110105020';
+import { sbUpdateClient, sbGetWonAcquisitionCards } from './api.js?v=20261110105020';
+import { registerActions } from './delegate.js?v=20261110105020';
+import { buildAcquisitionCard, indexWonCards, matchCardForClient, answeredQuestions } from './client-acquisition.js?v=20261110105020';
+import { parseProperties, areaOf } from './client-properties.js?v=20261110105020';
+import { renderCallSheetLink } from './call-sheet.js?v=20261110105020';
+import { findPolygonForClient, renderServiceAreaMap } from './maps.js?v=20261110105020';
+import { coldCallsSectionHtml, fillColdCallsSection } from './client-cold-calls.js?v=20261110105020';
+import { clientColdCallStatsHtml } from './cold-calling-tab.js?v=20261110105020';
+import { CALL_FIELDS, callCardHtml, onCallCardOpen, showPane } from './client-call-card.js?v=20261110105020';
 
 const OVERLAY_ID = 'client-info-overlay';
 const MAP_KEY = 'client-panel'; // activeMapInstances key for the panel's map (no deal behind it)

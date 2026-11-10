@@ -14,15 +14,15 @@
 // red count on the Hiring tab (hiring-unread.js). The detail modal, timeline
 // and follow-ups live in hiring-modal.js / hiring-activity.js.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261110104341';
-import { render } from './render.js?v=20261110104341';
-import { supabase } from './supabase-client.js?v=20261110104341';
-import { showToast } from './api.js?v=20261110104341';
-import { candidateChannel, channelPill, channelSelectHtml } from './hiring-channel.js?v=20261110104341';
-import { esc, str, svgIcon } from './utils.js?v=20261110104341';
-import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261110104341';
-import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261110104341';
-import { onHiringChange } from './hiring-unread.js?v=20261110104341';
+import { state } from './app.js?v=20261110105020';
+import { render } from './render.js?v=20261110105020';
+import { supabase } from './supabase-client.js?v=20261110105020';
+import { showToast } from './api.js?v=20261110105020';
+import { candidateChannel, channelPill, channelSelectHtml } from './hiring-channel.js?v=20261110105020';
+import { esc, str, svgIcon } from './utils.js?v=20261110105020';
+import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261110105020';
+import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261110105020';
+import { onHiringChange } from './hiring-unread.js?v=20261110105020';
 
 // Applicants want a job with us; partners are companies that hire (recruiting
 // partners who could send us candidates). Each gets its own board.

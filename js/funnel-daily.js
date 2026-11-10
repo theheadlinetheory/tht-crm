@@ -13,12 +13,12 @@
 // months are the same day rows grouped in the browser (funnel-trend-group.js,
 // tested). The offer and channel chips on the Funnel tab apply here too.
 
-import { esc } from './utils.js?v=20261110104341';
-import { state } from './app.js?v=20261110104341';
-import { multiFilterDropdown } from './html-helpers.js?v=20261110104341';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261110104341';
-import { todayYmdLA, addDays } from './funnel-period.js?v=20261110104341';
-import { groupDays, avgComplete, dowOf, shortDay } from './funnel-trend-group.js?v=20261110104341';
+import { esc } from './utils.js?v=20261110105020';
+import { state } from './app.js?v=20261110105020';
+import { multiFilterDropdown } from './html-helpers.js?v=20261110105020';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261110105020';
+import { todayYmdLA, addDays } from './funnel-period.js?v=20261110105020';
+import { groupDays, avgComplete, dowOf, shortDay } from './funnel-trend-group.js?v=20261110105020';
 
 // The stages, in funnel order, each with its own colour for good (a stage keeps its colour whatever else is picked —
 // palette validated with the dataviz checks, 2026-11-10). `hint` is the counting rule in one line.
@@ -34,12 +34,9 @@ const LIGHT = '#c7d2fe'; // a partial week/month bar
 
 const RANGE_KEY = 'funnelDailyRange', GRAN_KEY = 'funnelDailyGran', METRICS_KEY = 'funnelDailyMetrics', STACK_KEY = 'funnelDailyStacked';
 const WINDOW_START = '2026-05-04';
-// Days and weeks pick a stretch; months always show the whole window (a 4-week month view would be two stubs).
-const RANGES = {
-  day:   [{ key: '4w', label: '4 weeks', days: 28 }, { key: '8w', label: '8 weeks', days: 56 }, { key: '12w', label: '12 weeks', days: 84 }, { key: 'all', label: 'Since May 4', days: 0 }],
-  week:  [{ key: '8w', label: '8 weeks', days: 56 }, { key: '12w', label: '12 weeks', days: 84 }, { key: '26w', label: '26 weeks', days: 182 }, { key: 'all', label: 'Since May 4', days: 0 }],
-  month: [{ key: 'all', label: 'Since May 4', days: 0 }],
-};
+// The same range chips whatever the granularity, so nothing on the row moves when a chip is clicked (Lars, 2026-11-10:
+// "the button locations change every time you click something"). A short range by month is a couple of partial bars.
+const RANGES = [{ key: '4w', label: '4 weeks', days: 28 }, { key: '8w', label: '8 weeks', days: 56 }, { key: '12w', label: '12 weeks', days: 84 }, { key: '26w', label: '26 weeks', days: 182 }, { key: 'all', label: 'Since May 4', days: 0 }];
 const GRANS = [{ key: 'day', label: 'Day' }, { key: 'week', label: 'Week' }, { key: 'month', label: 'Month' }];
 const lsGet = (k, d) => { try { return localStorage.getItem(k) || d; } catch (_) { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (_) { /* private mode */ } };
@@ -62,11 +59,8 @@ const _cache = {};   // key → { data, at } | { error, at }
 let _loading = null;
 const TTL_MS = 15 * 60e3;
 
-/** The range chip in force: the saved one if this granularity offers it, else the granularity's default. */
-function rangeDef() {
-  const list = RANGES[_gran];
-  return list.find(r => r.key === _range) || list.find(r => r.key === '8w') || list[list.length - 1];
-}
+/** The range chip in force. */
+const rangeDef = () => RANGES.find(r => r.key === _range) || RANGES[1];
 const rangeOf = () => { const r = rangeDef(), to = todayYmdLA(); return { from: r.days ? addDays(to, -(r.days - 1)) : WINDOW_START, to }; };
 const cacheKey = (offer, channel) => `${rangeDef().days}@${offer || ''}@${channel || ''}`;
 
@@ -87,7 +81,7 @@ function fetchDaily(offer, channel, rerender) {
 /** Forget every cached answer (the Refresh button). */
 export function clearFunnelDaily() { for (const k of Object.keys(_cache)) delete _cache[k]; }
 
-const rerenderNow = () => import('./render.js?v=20261110104341').then(m => m.render());
+const rerenderNow = () => import('./render.js?v=20261110105020').then(m => m.render());
 window.setFunnelDailyRange = (key) => { _range = key; lsSet(RANGE_KEY, key); rerenderNow(); };
 window.setFunnelDailyGran = (key) => { if (GRANS.some(g => g.key === key)) { _gran = key; lsSet(GRAN_KEY, key); rerenderNow(); } };
 window.toggleFunnelDailyStacked = () => { _stacked = !_stacked; lsSet(STACK_KEY, _stacked ? '1' : ''); rerenderNow(); };
@@ -219,13 +213,12 @@ function stackedRows(groups, sel) {
 }
 
 /** One chart: the picked stages together, a legend with each one's total above it. */
-function oneChart(groups, sel, data) {
+function oneChart(groups, sel) {
   const legend = sel.map(m => { const { total, avg } = stat(groups, m); return `<span style="display:inline-flex;align-items:baseline;gap:6px;margin-right:18px" title="${esc(m.hint)}">
       <span style="width:9px;height:9px;border-radius:50%;background:${m.color};align-self:center"></span>
       <span style="font-size:${sel.length === 1 ? 22 : 16}px;font-weight:800;color:#1e1b4b;font-variant-numeric:tabular-nums">${total.toLocaleString('en-US')}</span>
-      <span style="font-size:12px;color:#6b7280">${esc(sel.length === 1 ? m.label.toLowerCase() : m.label)}${avg ? ` · ${avg}` : ''}</span></span>`; }).join('');
-  const removed = sel.length === 1 && sel[0].key === 'qualified' && data.totals ? data.totals.positives - data.totals.qualified : 0;
-  return `<div style="display:flex;align-items:baseline;flex-wrap:wrap;margin:6px 0 4px">${legend}<span style="font-size:12px;color:#9ca3af">${esc(shortDay(data.from))} → ${esc(shortDay(data.to))}${removed ? ` · ${removed} more removed by reps` : ''}</span></div>`
+      <span style="font-size:12px;color:#6b7280">${sel.length === 1 ? '' : esc(m.label) + (avg ? ' · ' : '')}${avg}</span></span>`; }).join('');
+  return `<div style="display:flex;align-items:baseline;flex-wrap:wrap;margin:6px 0 4px;min-height:30px">${legend}</div>`
     + chartSvg(groups, sel.map(m => m.key), { small: false, last: true });
 }
 
@@ -257,28 +250,27 @@ export function renderFunnelDaily(offer, channel, filterLabel) {
     const groups = groupDays(c.data.days || [], _gran, todayYmdLA()), n = groups.length;
     _groups = groups; _ys = {};
     _xs = groups.map((_, i) => _gran === 'day' ? (n === 1 ? (L + W - R) / 2 : L + (i / (n - 1)) * (W - L - R)) : L + ((W - L - R) / n) * (i + 0.5));
-    body = `<div id="funnel-daily-charts" style="position:relative">${several && _stacked ? stackedRows(groups, sel) : oneChart(groups, sel, c.data)}
+    body = `<div id="funnel-daily-charts" style="position:relative">${several && _stacked ? stackedRows(groups, sel) : oneChart(groups, sel)}
       <div id="funnel-daily-tip" style="display:none;position:absolute;pointer-events:none;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.12);padding:8px 10px;font-size:11px;min-width:220px;z-index:5"></div></div>`
       + (_table ? tableHtml(groups, sel) : '');
   }
-  const unit = _gran === 'day' ? 'day' : _gran === 'week' ? 'week (Mon–Sun)' : 'month';
-  const note = _gran === 'day' ? 'weekends shaded' : (several && !_stacked ? '' : 'a lighter bar is a partial ' + (_gran === 'week' ? 'week' : 'month') + ' (the range or today cuts it short)');
-  const title = several ? `Pipeline per ${unit}` : `${esc(sel[0].label)} per ${unit}`;
+  const unit = _gran === 'day' ? 'day' : _gran === 'week' ? 'week' : 'month';
+  const title = (several ? 'Pipeline' : esc(sel[0].label)) + ` per ${unit}` + (filterLabel ? ` · ${esc(filterLabel)}` : '');
+  // Every control is always on the row, in the same place: the dropdown has a fixed width, Stacked is greyed rather
+  // than hidden with one stage, the range chips are the same set for day, week and month.
+  const stackChip = `<button onclick="${several ? 'toggleFunnelDailyStacked()' : ''}" ${several ? '' : 'disabled'} style="padding:4px 11px;border:1px solid ${several && _stacked ? '#1e1b4b' : 'var(--border)'};border-radius:999px;background:${several && _stacked ? '#1e1b4b' : 'var(--card)'};color:${several && _stacked ? '#fff' : several ? 'var(--text)' : '#c4c8d0'};font-size:11px;font-weight:600;cursor:${several ? 'pointer' : 'default'}">Stacked</button>`;
   return `<div style="border:1px solid var(--border);border-radius:10px;padding:14px 16px;background:var(--card);margin-top:12px">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-      <div>
-        <div style="font-size:14px;font-weight:700;color:#1e1b4b">${title}</div>
-        <div style="font-size:11px;color:#9ca3af">${several ? 'What happened each ' + _gran + ', whichever day the lead came in' : esc(sel[0].hint)} · Los Angeles days${note ? ' · ' + note : ''}${filterLabel ? ` · ${esc(filterLabel)}` : ''}</div>
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-        ${multiFilterDropdown(state, 'funnelMetrics', 'showFunnelMetricsDropdown', 'All stages', 'stages', METRICS.map(m => m.label))}
-        ${several ? chip(_stacked, 'toggleFunnelDailyStacked()', 'Stacked') : ''}
-        <span style="width:6px"></span>
-        ${GRANS.map(g => chip(_gran === g.key, `setFunnelDailyGran('${g.key}')`, g.label)).join('')}
-        <span style="width:6px"></span>
-        ${RANGES[_gran].length > 1 ? RANGES[_gran].map(r => chip(rangeDef().key === r.key, `setFunnelDailyRange('${r.key}')`, esc(r.label))).join('') + '<span style="width:6px"></span>' : ''}
-        ${chip(_table, 'toggleFunnelDailyTable()', _table ? 'Hide table' : 'Table')}
-      </div>
+    <style>#funnel-daily-controls .acq-filter-wrap{width:220px}#funnel-daily-controls .acq-filter-toggle{width:100%;justify-content:space-between;white-space:nowrap;overflow:hidden}</style>
+    <div style="font-size:14px;font-weight:700;color:#1e1b4b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${title}</div>
+    <div id="funnel-daily-controls" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px">
+      ${multiFilterDropdown(state, 'funnelMetrics', 'showFunnelMetricsDropdown', 'All stages', 'stages', METRICS.map(m => m.label))}
+      ${stackChip}
+      <span style="width:6px"></span>
+      ${GRANS.map(g => chip(_gran === g.key, `setFunnelDailyGran('${g.key}')`, g.label)).join('')}
+      <span style="width:6px"></span>
+      ${RANGES.map(r => chip(rangeDef().key === r.key, `setFunnelDailyRange('${r.key}')`, esc(r.label))).join('')}
+      <span style="margin-left:auto"></span>
+      ${chip(_table, 'toggleFunnelDailyTable()', _table ? 'Hide table' : 'Table')}
     </div>
     ${body}
   </div>`;
