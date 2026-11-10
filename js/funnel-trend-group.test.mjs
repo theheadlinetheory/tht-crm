@@ -59,3 +59,12 @@ test('avgComplete ignores partial groups and is null with none complete', () => 
   assert.equal(avgComplete(g), 21);
   assert.equal(avgComplete(g.filter(x => x.partial)), null);
 });
+
+
+test('every numeric field is a metric: extra stages are summed and averaged without the grouper knowing them', () => {
+  const rows = days('2026-11-02', 14).map((r, i) => ({ ...r, closed: i % 7 === 0 ? 1 : 0, demo_conducted: 2 }));
+  const g = groupDays(rows, 'week', '2026-11-20');
+  assert.deepEqual(g.map(x => [x.closed, x.demo_conducted, x.qualified]), [[1, 14, 7], [1, 14, 7]]);
+  assert.equal(avgComplete(g, 'demo_conducted'), 14);
+  assert.equal(avgComplete(groupDays(rows, 'month', '2026-11-20'), 'closed'), null); // November is partial
+});

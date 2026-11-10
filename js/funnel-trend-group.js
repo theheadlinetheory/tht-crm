@@ -45,7 +45,9 @@ export function weekLabel(monday) {
  *   partial   days < expected, or the group holds `today` (still being written)
  */
 export function groupDays(rows, gran, today) {
-  if (gran !== 'week' && gran !== 'month') return rows.map(r => ({ key: r.day, label: shortDay(r.day), days: 1, expected: 1, partial: r.day === today, positives: r.positives, qualified: r.qualified }));
+  // Every numeric field of a row other than its day is a metric and is summed — a new stage needs no change here.
+  const metricsOf = (r) => Object.keys(r).filter(k => k !== 'day' && typeof r[k] === 'number');
+  if (gran !== 'week' && gran !== 'month') return rows.map(r => { const g = { key: r.day, label: shortDay(r.day), days: 1, expected: 1, partial: r.day === today }; for (const k of metricsOf(r)) g[k] = r[k]; return g; });
   const keyOf = gran === 'week' ? mondayOf : monthOf;
   const out = [];
   const byKey = new Map();
@@ -53,18 +55,20 @@ export function groupDays(rows, gran, today) {
     const key = keyOf(r.day);
     let g = byKey.get(key);
     if (!g) {
-      g = { key, label: gran === 'week' ? weekLabel(key) : monthLabel(key), days: 0, expected: gran === 'week' ? 7 : daysInMonth(key), partial: false, positives: 0, qualified: 0 };
+      g = { key, label: gran === 'week' ? weekLabel(key) : monthLabel(key), days: 0, expected: gran === 'week' ? 7 : daysInMonth(key), partial: false };
+      for (const k of metricsOf(r)) g[k] = 0;
       byKey.set(key, g); out.push(g);
     }
-    g.days++; g.positives += r.positives; g.qualified += r.qualified;
+    g.days++;
+    for (const k of metricsOf(r)) g[k] = (g[k] || 0) + r[k];
     if (r.day === today) g.partial = true;
   }
   for (const g of out) if (g.days < g.expected) g.partial = true;
   return out;
 }
 
-/** Average qualified per complete group (partial groups left out); null when there is none. */
-export function avgComplete(groups) {
+/** Average of a metric per complete group (partial groups left out); null when there is none. */
+export function avgComplete(groups, metric = 'qualified') {
   const full = groups.filter(g => !g.partial);
-  return full.length ? full.reduce((s, g) => s + g.qualified, 0) / full.length : null;
+  return full.length ? full.reduce((s, g) => s + (g[metric] || 0), 0) / full.length : null;
 }
