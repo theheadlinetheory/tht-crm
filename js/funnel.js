@@ -19,10 +19,11 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20261110042736';
-import { supabase } from './supabase-client.js?v=20261110042736';
-import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel, rangeDays, todayYmdLA, requestExactSends } from './funnel-period.js?v=20261110042736';
-import { leadsTable } from './funnel-leads.js?v=20261110042736';
+import { esc, svgIcon } from './utils.js?v=20261110100615';
+import { supabase } from './supabase-client.js?v=20261110100615';
+import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel, rangeDays, todayYmdLA, requestExactSends } from './funnel-period.js?v=20261110100615';
+import { leadsTable } from './funnel-leads.js?v=20261110100615';
+import { renderFunnelDaily, clearFunnelDaily } from './funnel-daily.js?v=20261110100615';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -102,6 +103,7 @@ export function loadFunnel(rerender) {
 export function reloadFunnel(rerender) {
   const y = window.scrollY, key = _period;
   _failedAt = 0; // the user asked: no cooldown
+  clearFunnelDaily(); // the daily line refetches on the re-render
   const cards = supabase.from('pipeline_latest').select('*')
     .then(({ data, error }) => { if (error) _error = error.message; else { _levels = data || []; _error = null; } });
   const g = (_gen[ck(key)] = (_gen[ck(key)] || 0) + 1);
@@ -116,7 +118,7 @@ export function reloadFunnel(rerender) {
 
 function loadPeriod(key, rerender) {
   if (periodRows(key) || _periodLoading === key) return;
-  if (!rerender) rerender = () => import('./render.js?v=20261110042736').then(m => m.render());
+  if (!rerender) rerender = () => import('./render.js?v=20261110100615').then(m => m.render());
   _periodLoading = key;
   const g = (_gen[ck(key)] = (_gen[ck(key)] || 0) + 1);
   fetchPeriod(periodRange(key), _levels || [], _offer, _channel).then(rows => {
@@ -151,23 +153,23 @@ window.setFunnelPeriod = (key) => {
     };
     setTimeout(whenLoaded, 500);
   }
-  import('./render.js?v=20261110042736').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+  import('./render.js?v=20261110100615').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
 };
 
 window.setFunnelOffer = (offer) => {
   _offer = offer === 'ppm' || offer === 'retainer' ? offer : '';
   try { localStorage.setItem(OFFER_KEY, _offer); } catch (_) { /* private mode */ }
-  import('./render.js?v=20261110042736').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
+  import('./render.js?v=20261110100615').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
 };
 window.setFunnelChannel = (channel) => {
   _channel = CHANNELS.some(c => c.key === channel) ? channel : '';
   try { localStorage.setItem(CHANNEL_KEY, _channel); } catch (_) { /* private mode */ }
-  import('./render.js?v=20261110042736').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
+  import('./render.js?v=20261110100615').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
 };
 
 // ── The calendar: pick any stretch of days (Lars, 2026-09-18) ──
 const _pick = { open: false, month: null, start: null, end: null }; // month 'YYYY-MM'; start/end 'YYYY-MM-DD' while choosing
-const rerenderNow = () => import('./render.js?v=20261110042736').then(m => m.render());
+const rerenderNow = () => import('./render.js?v=20261110100615').then(m => m.render());
 window.funnelPickToggle = () => {
   _pick.open = !_pick.open;
   if (_pick.open) { const r = periodRange(_period); _pick.month = (r ? r.to : todayYmdLA()).slice(0, 7); _pick.start = null; _pick.end = null; }
@@ -536,6 +538,8 @@ export function renderFunnel() {
           <button onclick="refreshFunnel()" style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border:1px solid var(--border);border-radius:7px;background:var(--card);font-size:12px;cursor:pointer">${svgIcon('refresh-cw', 12)} Refresh</button>
         </div>`;
   h += periodBar();
+  // The trend line: qualified positives per day, under the same offer/channel chips (Lars, 2026-11-10: "start really simple").
+  try { h += renderFunnelDaily(_offer, _channel, filterLabel()); } catch (e) { h += `<div style="padding:10px 0;color:#b91c1c;font-size:12px">Daily line could not render: ${esc(e && e.message || e)}</div>`; }
   h += `<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">`;
   // One level's bad answer must not take the screen down: a card that throws renders as its own error card.
   const safeCard = (r) => { try { return r.error ? levelError(r) : levelCard(r); } catch (e) { return levelError({ ...r, error: 'could not render: ' + (e && e.message || e) }); } };
@@ -572,5 +576,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20261110042736').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20261110100615').then(m => reloadFunnel(m.render));
 };

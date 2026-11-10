@@ -11,11 +11,11 @@
 // Offered only to clients with clients.share_call_points = true, so clients
 // that never asked do not start getting call details. Admins switch it on per
 // client from the card.
-import { state } from './app.js?v=20261110042736';
-import { supabase, sbUpdateClient, showToast } from './api.js?v=20261110042736';
-import { esc, jsArg, str } from './utils.js?v=20261110042736';
-import { refreshModal } from './render.js?v=20261110042736';
-import { isAdmin } from './auth.js?v=20261110042736';
+import { state } from './app.js?v=20261110100615';
+import { supabase, sbUpdateClient, showToast } from './api.js?v=20261110100615';
+import { esc, jsArg, str } from './utils.js?v=20261110100615';
+import { refreshModal } from './render.js?v=20261110100615';
+import { isAdmin } from './auth.js?v=20261110100615';
 
 const HEADING = 'From the call:';
 const loading = new Set(); // deal ids being fetched

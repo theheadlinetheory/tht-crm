@@ -5,8 +5,8 @@
 // live through a hiring_candidates realtime channel. Reads nothing but
 // hiring_candidates: no other tab's counts, banners or stats are touched.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20261110042736';
-import { isAdmin } from './auth.js?v=20261110042736';
+import { supabase } from './supabase-client.js?v=20261110100615';
+import { isAdmin } from './auth.js?v=20261110100615';
 
 const DEBOUNCE_MS = 800;
 let _count = 0;
