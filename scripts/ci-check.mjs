@@ -49,6 +49,8 @@ console.log(`   checked ${jsFiles.length} files`);
 // Each entry: a substring that MUST still exist in the given file. These are
 // stable structural anchors for whole features/tabs — not cosmetic strings.
 const REQUIRED_FEATURES = [
+  // Realtime UPDATEs merge into the row we hold (a replace blanked large columns → dead "Send pass-off" button)
+  { file: 'api.js',            needle: 'mergeRealtimeUpdate(list[idx], newRow)', feature: 'Realtime: UPDATE merges, never replaces, the held row' },
   // Lead Tracker: every passed lead opens its deal card (PPM Meetings icon, Retainer Leads company link)
   { file: 'lead-card.js',      needle: 'window.openLeadCard',                 feature: 'Lead Tracker: open a lead\'s deal card' },
   { file: 'lead-tracker.js',   needle: 'leadCardIcon(leadCardId(entry))',     feature: 'PPM Meetings: open-card icon on Lead Name' },

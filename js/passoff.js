@@ -2,12 +2,12 @@
 // PASSOFF — Passoff instructions generator + transcript polling
 // ═══════════════════════════════════════════════════════════
 
-import { state, pendingWrites } from './app.js?v=20261110105020';
-import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20261110105020';
-import { esc, jsArg, str, confirmNoPlaceholders } from './utils.js?v=20261110105020';
-import { refreshModal } from './render.js?v=20261110105020';
-import { isAdmin, isEmployee } from './auth.js?v=20261110105020';
-import { renderCallPoints } from './call-points.js?v=20261110105020';
+import { state, pendingWrites } from './app.js?v=20261110154602';
+import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20261110154602';
+import { esc, jsArg, str, confirmNoPlaceholders } from './utils.js?v=20261110154602';
+import { refreshModal } from './render.js?v=20261110154602';
+import { isAdmin, isEmployee } from './auth.js?v=20261110154602';
+import { renderCallPoints } from './call-points.js?v=20261110154602';
 
 // ─── Transcript Polling ───
 
@@ -179,30 +179,44 @@ async function reviseWithClaude(dealId, clientName) {
 // ─── Send Passoff to Client ───
 
 async function sendPassoffToClient(dealId, clientName) {
-  const deal = state.deals.find(d => d.id === dealId);
-  if (!deal || !deal.passoffInstructions) return;
-  if (!confirmNoPlaceholders(deal.passoffInstructions)) return;
+  // What goes out is what is on screen: the box first, then whichever copy of the deal has the
+  // text. This used to read only the state.deals row and return without a word when that copy
+  // had lost the text (see realtime-merge.js) — the button looked dead (Ioannis, 2026-11-10).
+  const box = document.getElementById('passoff-text');
+  const row = state.deals.find(d => String(d.id) === String(dealId));
+  const open = state.selectedDeal && String(state.selectedDeal.id) === String(dealId) ? state.selectedDeal : null;
+  const text = str(box ? box.value : '').trim() ? box.value
+    : str(row && row.passoffInstructions).trim() ? row.passoffInstructions
+    : str(open && open.passoffInstructions);
+  if (!str(text).trim()) { alert('There is no pass-off text to send.'); return; }
+  if (!confirmNoPlaceholders(text)) return;
 
   const sendBtn = document.getElementById('passoff-send-btn');
+  const label = sendBtn ? sendBtn.textContent : '';
   if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Sending...'; }
 
   try {
-    await invokeEdgeFunction('send-email', {
+    const resp = await invokeEdgeFunction('send-email', {
       action: 'send_to_client_thread',
       dealId,
       clientName,
-      messageBody: deal.passoffInstructions,
+      messageBody: text,
     });
+    // send-email answers some refusals ("No email configured for client") with HTTP 200.
+    if (!resp || resp.ok === false || resp.error) throw new Error((resp && resp.error) || 'No response from server');
 
-    deal.passoffSentAt = new Date().toISOString();
+    const sentAt = new Date().toISOString();
+    setLocal(dealId, 'passoffInstructions', text);
+    setLocal(dealId, 'passoffSentAt', sentAt);
     pendingWrites.value++;
-    sbUpdateDeal(dealId, camelToSnake({ passoffSentAt: deal.passoffSentAt }))
+    sbUpdateDeal(dealId, camelToSnake({ passoffSentAt: sentAt }))
+      .catch(e => console.error('Saving pass-off sent time failed:', e))
       .finally(() => { pendingWrites.value--; });
 
-    if (state.selectedDeal && String(state.selectedDeal.id) === String(dealId)) refreshModal(true);
+    if (open) refreshModal(true);
   } catch (e) {
     alert('Failed to send passoff: ' + e.message);
-    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send to Client →'; }
+    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = label; }
   }
 }
 

@@ -1,11 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // API — API layer (Google Sheets calls + Supabase CRUD)
 // ═══════════════════════════════════════════════════════════
-import { API_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261110105020';
-import { supabase } from './supabase-client.js?v=20261110105020';
+import { API_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261110154602';
+import { supabase } from './supabase-client.js?v=20261110154602';
+import { mergeRealtimeUpdate } from './realtime-merge.js?v=20261110154602';
 export { supabase };
-import { state, store, pendingWrites, failedWriteQueue, pendingDealFields, deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds, inFlightActivityIds } from './app.js?v=20261110105020';
-import { render, refreshModal } from './render.js?v=20261110105020';
+import { state, store, pendingWrites, failedWriteQueue, pendingDealFields, deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds, inFlightActivityIds } from './app.js?v=20261110154602';
+import { render, refreshModal } from './render.js?v=20261110154602';
 
 // Cached auth check — populated lazily on first initialSync to avoid circular import
 let _cachedIsAdmin = null;
@@ -133,7 +134,7 @@ export async function syncFromSheet(){
       state.clients=data.clients.filter(c => !deletedClientIds.has(String(c.id)));
     }
     if(data.appointments && Array.isArray(data.appointments)){
-      const { getToday } = await import('./utils.js?v=20261110105020');
+      const { getToday } = await import('./utils.js?v=20261110154602');
       state.appointments=data.appointments;
       state.appointments.forEach(a=>{
         Object.keys(a).forEach(k=>{ if(a[k]!=null && typeof a[k]!=='string') a[k]=String(a[k]); });
@@ -188,16 +189,16 @@ export async function syncFromSheet(){
     state.loadFailed=false;
     // Run service area checks in background (all roles — clients need maps too)
     // Re-render after checks complete to show badges/maps
-    const { runServiceAreaChecks } = await import('./maps.js?v=20261110105020');
+    const { runServiceAreaChecks } = await import('./maps.js?v=20261110154602');
     runServiceAreaChecks().then(() => render()).catch(e => console.warn('Service area checks failed:', e));
     // Pre-load archive
     if((isAdmin()||isEmployee()) && !state.archiveLoaded){
-      const { loadArchive } = await import('./archive.js?v=20261110105020');
+      const { loadArchive } = await import('./archive.js?v=20261110154602');
       loadArchive(true);
     }
   } else {
     if(state.deals.length===0){
-      const { getTestData } = await import('./config.js?v=20261110105020');
+      const { getTestData } = await import('./config.js?v=20261110154602');
       const { TEST_DEALS, TEST_ACTIVITIES, TEST_CLIENTS } = getTestData();
       state.deals=[...TEST_DEALS];
       state.activities=[...TEST_ACTIVITIES];
@@ -460,7 +461,7 @@ export async function initialSync(isStartup) {
     }
     // Apply settings from Supabase if available
     if (savedSettings && Object.keys(savedSettings).length > 0) {
-      const { applySettings } = await import('./settings.js?v=20261110105020');
+      const { applySettings } = await import('./settings.js?v=20261110154602');
       applySettings(savedSettings);
     }
     state.deals = (deals || []).map(normalizeRow);
@@ -477,7 +478,7 @@ export async function initialSync(isStartup) {
     state.clients = clients.map(normalizeRow);
     // Cache isAdmin for use in synchronous realtime handler
     if (!_cachedIsAdmin) {
-      const { isAdmin: _isAdmin } = await import('./auth.js?v=20261110105020');
+      const { isAdmin: _isAdmin } = await import('./auth.js?v=20261110154602');
       _cachedIsAdmin = _isAdmin;
     }
     // Strip sensitive GHL credentials for non-admin users but preserve a flag
@@ -545,7 +546,7 @@ export async function initialSync(isStartup) {
 
     // Replay any pending activities from write-ahead log
     if (isStartup) {
-      import('./activities.js?v=20261110105020').then(m => m.replayPendingActivities && m.replayPendingActivities()).catch(() => {});
+      import('./activities.js?v=20261110154602').then(m => m.replayPendingActivities && m.replayPendingActivities()).catch(() => {});
     }
 
     state.synced = true;
@@ -554,7 +555,7 @@ export async function initialSync(isStartup) {
     if (isStartup || !selfManagedTabActive()) render();
 
     // Run service area checks in background, re-render when done
-    const { runServiceAreaChecks } = await import('./maps.js?v=20261110105020');
+    const { runServiceAreaChecks } = await import('./maps.js?v=20261110154602');
     runServiceAreaChecks().then(() => { if (isStartup || !selfManagedTabActive()) render(); }).catch(e => console.warn('Service area checks failed:', e));
   } catch (e) {
     console.error('Initial sync failed:', e);
@@ -686,7 +687,7 @@ export async function subscribeRealtime() {
     .subscribe();
 
   // Hiring tab's unread bubble (admin-only; its own table, no deal/activity counts).
-  import('./hiring-unread.js?v=20261110105020').then(m => m.watchHiringUnread(rid)).catch(e => console.warn('Hiring unread watch failed:', e));
+  import('./hiring-unread.js?v=20261110154602').then(m => m.watchHiringUnread(rid)).catch(e => console.warn('Hiring unread watch failed:', e));
 
   supabase.channel(`pass-offs-changes-${rid}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'pass_offs' }, payload => {
@@ -734,7 +735,8 @@ function applyRealtimeEvent(table, payload) {
     }
     const idx = list.findIndex(item => String(item.id) === String(newRow.id));
     if (idx >= 0) {
-      list[idx] = newRow;
+      // Merge, never replace: the payload leaves out large columns this UPDATE did not touch.
+      list[idx] = mergeRealtimeUpdate(list[idx], newRow);
       if (table === 'deals') {
         const pending = pendingDealFields[String(newRow.id)];
         if (pending) Object.assign(newRow, pending);

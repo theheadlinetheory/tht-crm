@@ -5,7 +5,7 @@
 // form's "Where did you find this job application" answer.
 // Hiring-only: nothing in acquisition/client stats reads this.
 // ═══════════════════════════════════════════════════════════
-import { esc, str, svgIcon } from './utils.js?v=20261110105020';
+import { esc, str, svgIcon } from './utils.js?v=20261110154602';
 
 // Email cards came in through SmartLead, so they show SmartLead's own favicon
 // (smartlead.ai, 48px PNG inlined so nothing loads from their CDN).
