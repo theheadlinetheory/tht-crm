@@ -8,7 +8,7 @@
 //      The DB trigger interactions_miscategorized_to_smartlead (tht-crm-backend
 //      20261109_miscategorized_to_smartlead.sql) hands that to the
 //      smartlead-recategorize edge function, which moves the lead to
-//      "Uncategorizable by Ai" in its campaign. It only changes a lead that is
+//      "DQ / out of service area" in its campaign. It only changes a lead that is
 //      still positive there, so a person's own later tag is never overwritten.
 //   2. archives the card with the reason, the same way the Archive button does.
 // Staff only.
@@ -19,12 +19,12 @@
 // and level 02 of the sales pipeline counts it as removed by us) and the same
 // "Miscategorized" archive status. Only before any call: a lead that had a
 // discovery call or a demo is told to use Archive, which asks how that ended.
-import { state } from './app.js?v=20261112004345';
-import { esc } from './utils.js?v=20261112004345';
-import { sbCreateInteraction, showToast } from './api.js?v=20261112004345';
-import { isAdmin, isEmployee } from './auth.js?v=20261112004345';
-import { deleteDeal } from './deals.js?v=20261112004345';
-import { REMOVAL_PREFIX, writeRemovalNote, leadStage } from './removal-reason.js?v=20261112004345';
+import { state } from './app.js?v=20261112012511';
+import { esc } from './utils.js?v=20261112012511';
+import { sbCreateInteraction, showToast } from './api.js?v=20261112012511';
+import { isAdmin, isEmployee } from './auth.js?v=20261112012511';
+import { deleteDeal } from './deals.js?v=20261112012511';
+import { REMOVAL_PREFIX, writeRemovalNote, leadStage } from './removal-reason.js?v=20261112012511';
 
 const REASONS = [
   { label: 'Not actually interested',        hint: 'the AI tagged a no / an auto-reply / a question as positive' },
@@ -58,7 +58,7 @@ function acqModalHtml(deal) {
     <div class="modal-body">
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
         <b>${esc(deal.company || deal.contact || deal.email || 'This lead')}</b> is archived as <b>Miscategorized</b> (the AI tagged a
-        non-positive reply as positive) and stops counting as a positive reply in Smartlead (moved to "Uncategorizable by Ai").
+        non-positive reply as positive) and stops counting as a positive reply in Smartlead (moved to "DQ / out of service area").
         Same as Archive → Miscategorized.
       </div>
       <input id="not-a-lead-detail" type="text" placeholder="Detail (optional), e.g. auto-reply, said no" style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
@@ -76,7 +76,7 @@ function modalHtml(deal) {
     <div class="modal-body">
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
         <b>${esc(deal.company || deal.contact || deal.email || 'This lead')}</b> leaves the board (it stays in the Archive) and
-        stops counting as a positive reply in Smartlead (moved to "Uncategorizable by Ai").
+        stops counting as a positive reply in Smartlead (moved to "DQ / out of service area").
       </div>
       ${delivered ? `<div style="font-size:12px;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;padding:8px;margin-bottom:12px">
         This lead was already sent to the client. Removing it here does not un-send it; if it was billed, flag it in the Lead Tracker (🚫 CB) too.</div>` : ''}
