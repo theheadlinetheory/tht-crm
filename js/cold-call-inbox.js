@@ -10,8 +10,8 @@
 //
 // Sends the caller's CRM session, not a password: this repo is public, and
 // email-infra checks the token against our auth server (crm_auth.py).
-import { supabase } from './supabase-client.js?v=20261110154602';
-import { str } from './utils.js?v=20261110154602';
+import { supabase } from './supabase-client.js?v=20261112003721';
+import { str } from './utils.js?v=20261112003721';
 
 const FN_URL = 'https://email-infra.vercel.app/api/cold-call-inbox';
 

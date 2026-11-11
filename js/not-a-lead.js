@@ -11,13 +11,20 @@
 //      "Uncategorizable by Ai" in its campaign. It only changes a lead that is
 //      still positive there, so a person's own later tag is never overwritten.
 //   2. archives the card with the reason, the same way the Archive button does.
-// Staff only. Acquisition leads keep their own removal picker (removal-reason.js).
-import { state } from './app.js?v=20261110154602';
-import { esc } from './utils.js?v=20261110154602';
-import { sbCreateInteraction, showToast } from './api.js?v=20261110154602';
-import { isAdmin, isEmployee } from './auth.js?v=20261110154602';
-import { deleteDeal } from './deals.js?v=20261110154602';
-import { REMOVAL_PREFIX } from './removal-reason.js?v=20261110154602';
+// Staff only.
+//
+// Acquisition leads (asked for 2026-11-12) get the same button. It is a shortcut
+// for Archive → "Miscategorized" in the removal picker (removal-reason.js): the
+// same "Removed — Miscategorized" note (so the same trigger re-tags Smartlead,
+// and level 02 of the sales pipeline counts it as removed by us) and the same
+// "Miscategorized" archive status. Only before any call: a lead that had a
+// discovery call or a demo is told to use Archive, which asks how that ended.
+import { state } from './app.js?v=20261112003721';
+import { esc } from './utils.js?v=20261112003721';
+import { sbCreateInteraction, showToast } from './api.js?v=20261112003721';
+import { isAdmin, isEmployee } from './auth.js?v=20261112003721';
+import { deleteDeal } from './deals.js?v=20261112003721';
+import { REMOVAL_PREFIX, writeRemovalNote, leadStage } from './removal-reason.js?v=20261112003721';
 
 const REASONS = [
   { label: 'Not actually interested',        hint: 'the AI tagged a no / an auto-reply / a question as positive' },
@@ -31,8 +38,12 @@ export function isClientLead(deal) {
   return !!deal && deal.pipeline === 'Client' && deal.leadSource !== 'cold_call';
 }
 
+export function isAcqLead(deal) {
+  return !!deal && deal.pipeline === 'Acquisition';
+}
+
 export function renderNotALeadButton(deal) {
-  if (!isClientLead(deal) || !(isAdmin() || isEmployee())) return '';
+  if (!(isClientLead(deal) || isAcqLead(deal)) || !(isAdmin() || isEmployee())) return '';
   return `<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e9d5ff">
     <button onclick="event.stopPropagation();openNotALead('${esc(deal.id)}')" title="Take this lead off the board and stop Smartlead counting it as a positive reply"
       style="padding:7px 14px;background:#fff;color:#b91c1c;border:1px solid #fca5a5;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font)">
@@ -41,7 +52,24 @@ export function renderNotALeadButton(deal) {
   </div>`;
 }
 
+function acqModalHtml(deal) {
+  return `<div class="modal" style="width:480px" onclick="event.stopPropagation()">
+    <div class="modal-header"><h3>Not a real lead</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button></div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
+        <b>${esc(deal.company || deal.contact || deal.email || 'This lead')}</b> is archived as <b>Miscategorized</b> (the AI tagged a
+        non-positive reply as positive) and stops counting as a positive reply in Smartlead (moved to "Uncategorizable by Ai").
+        Same as Archive → Miscategorized.
+      </div>
+      <input id="not-a-lead-detail" type="text" placeholder="Detail (optional), e.g. auto-reply, said no" style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
+      <button id="not-a-lead-go" class="btn btn-primary" style="width:100%;margin-top:12px;justify-content:center;background:#dc2626;border-color:#dc2626"
+        onclick="confirmNotALead('${esc(deal.id)}')">Remove from CRM + recategorize in Smartlead</button>
+    </div>
+  </div>`;
+}
+
 function modalHtml(deal) {
+  if (isAcqLead(deal)) return acqModalHtml(deal);
   const delivered = deal.pushedToTracker || deal.forwardedAt || deal.pushedToClientSheet;
   return `<div class="modal" style="width:480px" onclick="event.stopPropagation()">
     <div class="modal-header"><h3>Not a real lead</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button></div>
@@ -65,9 +93,17 @@ function modalHtml(deal) {
   </div>`;
 }
 
-window.openNotALead = (dealId) => {
+window.openNotALead = async (dealId) => {
   const deal = state.deals.find(d => d.id === dealId);
   if (!deal) return;
+  if (isAcqLead(deal)) {
+    // Miscategorized is a pre-call answer; past a call the outcome dropdown owns it.
+    const info = await leadStage(dealId);
+    if (info.stage !== 'pre') {
+      showToast('This lead had a discovery call or a demo. Use Archive, which asks how it ended.', 'error');
+      return;
+    }
+  }
   const overlay = document.createElement('div');
   overlay.id = 'not-a-lead-overlay';
   overlay.className = 'modal-overlay';
@@ -80,6 +116,7 @@ window.confirmNotALead = async (dealId) => {
   const deal = state.deals.find(d => d.id === dealId);
   const overlay = document.getElementById('not-a-lead-overlay');
   if (!deal) { overlay?.remove(); return; }
+  if (isAcqLead(deal)) return confirmAcq(deal, overlay);
   const idx = Number(document.querySelector('input[name="not-a-lead-reason"]:checked')?.value || 0);
   const reason = REASONS[idx].label;
   const detail = (document.getElementById('not-a-lead-detail')?.value || '').trim();
@@ -101,3 +138,20 @@ window.confirmNotALead = async (dealId) => {
   await deleteDeal(dealId, 'Not a real lead — ' + why, deal.stage);
   showToast('Removed. Smartlead is being updated (if the lead is still positive there).', 'success');
 };
+
+// Acquisition: exactly what Archive → Miscategorized writes (removal-reason.js).
+async function confirmAcq(deal, overlay) {
+  const detail = (document.getElementById('not-a-lead-detail')?.value || '').trim();
+  const btn = document.getElementById('not-a-lead-go');
+  if (btn) { btn.disabled = true; btn.textContent = 'Removing…'; }
+  // writeRemovalNote prefixes "Removed — " and toasts its own error.
+  const ok = await writeRemovalNote(deal.id, 'Miscategorized' + (detail ? ': ' + detail : ''));
+  if (!ok) {
+    // No note = no Smartlead change, so do not archive either.
+    if (btn) { btn.disabled = false; btn.textContent = 'Remove from CRM + recategorize in Smartlead'; }
+    return;
+  }
+  overlay?.remove();
+  await deleteDeal(deal.id, 'Miscategorized');
+  showToast('Removed. Smartlead is being updated (if the lead is still positive there).', 'success');
+}

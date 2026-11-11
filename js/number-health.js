@@ -1,8 +1,8 @@
 // js/number-health.js — Dialer number health tracking and smart number selection
 
-import { supabase } from './api.js?v=20261110154602';
-import { sbCall } from './api.js?v=20261110154602';
-import { esc, svgIcon } from './utils.js?v=20261110154602';
+import { supabase } from './api.js?v=20261112003721';
+import { sbCall } from './api.js?v=20261112003721';
+import { esc, svgIcon } from './utils.js?v=20261112003721';
 
 /* ── Constants ─────────────────────────────────────────────── */
 const ANSWER_THRESHOLD = 0.30;
@@ -282,6 +282,6 @@ export function renderNumberHealthSettings() {
 window.__numberHealthModule = { renderNumberHealthSettings };
 window.reEnableNumber = async function(number) {
   await toggleNumberDisabled(number);
-  const { render } = await import('./render.js?v=20261110154602');
+  const { render } = await import('./render.js?v=20261112003721');
   render();
 };

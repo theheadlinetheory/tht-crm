@@ -6,8 +6,8 @@
 // nothing about hiring may show up there. Admin-only by RLS.
 // Types: reply_in · message_out · note · stage · followup (due_at / done_at).
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20261110154602';
-import { showToast } from './api.js?v=20261110154602';
+import { supabase } from './supabase-client.js?v=20261112003721';
+import { showToast } from './api.js?v=20261112003721';
 
 const TABLE = 'hiring_activities';
 const PAGE = 1000;
