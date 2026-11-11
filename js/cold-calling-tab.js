@@ -31,12 +31,12 @@
 //   ceiling. Where the client sits in the order earns nothing: the whole list has to be finished first.
 //   Order: retainer clients first, then pay-per-meeting; fewest meetings this week first.
 
-import { state } from './app.js?v=20261112003721';
-import { render } from './render.js?v=20261112003721';
-import { supabase } from './supabase-client.js?v=20261112003721';
-import { esc, str, svgIcon, getToday } from './utils.js?v=20261112003721';
-import { currentUser, isSdr, loadAssignableUsers } from './auth.js?v=20261112003721';
-import { registerActions } from './delegate.js?v=20261112003721';
+import { state } from './app.js?v=20261112004345';
+import { render } from './render.js?v=20261112004345';
+import { supabase } from './supabase-client.js?v=20261112004345';
+import { esc, str, svgIcon, getToday } from './utils.js?v=20261112004345';
+import { currentUser, isSdr, isAdmin, isEmployee, loadAssignableUsers } from './auth.js?v=20261112004345';
+import { registerActions } from './delegate.js?v=20261112004345';
 
 export const CALLBACK_STAGE = 'Cold Call Callback';
 const NO_CONNECTION = new Set(['no_answer', 'voicemail', 'bad_number', 'desk_dq']);
@@ -759,7 +759,46 @@ export function coldCallHistoryHtml(deal) {
   }
   return `<div class="form-group form-span2" style="margin:12px 0 8px 0;padding:12px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px">
     <div style="font-size:12px;font-weight:700;color:#0369a1;margin-bottom:8px">${svgIcon('phone', 12, '#0369a1')} Cold calls to this lead</div>
-    <div id="cc-history-${esc(deal.id)}">${_history.get(key)}</div></div>`;
+    <div id="cc-history-${esc(deal.id)}">${_history.get(key)}</div>${removeBookingButton(deal)}</div>`;
+}
+
+// ─── Remove a cold-call lead and its appointment (asked for 2026-11-12) ───
+// A booked meeting that falls through (wrong person, cancelled, not a real appointment) used to need Tim to
+// clear it by hand. One button on the card does both halves:
+//   1. cold_calls.not_counted = the reason on this deal's dials, so the meeting leaves the client's weekly cap
+//      (Call Queue reopens the client), the rep's numbers and "My bookings" (isMeeting skips not_counted).
+//   2. archives the card with the reason (deleteDeal): it leaves the board and "All booked meetings", and
+//      push-lead-tracker drops it from the client's sheet if it was already sent there.
+// Managers and staff only: SDRs can read cold_calls but not write them (sdr RLS).
+function removeBookingButton(deal) {
+  if (!(isAdmin() || isEmployee()) || isSdr() || deal.pipeline !== 'Client') return '';
+  return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid #bae6fd">
+    <button onclick="event.stopPropagation();ccRemoveBooking('${esc(deal.id)}')" title="Archive this lead and stop its meeting counting toward the client's weekly cap and the tracker"
+      style="padding:7px 14px;background:#fff;color:#b91c1c;border:1px solid #fca5a5;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font)">
+      Remove lead + its appointment</button></div>`;
+}
+
+// Inline handler: the deal modal stops click propagation, so body-level data-action delegation never sees it.
+window.ccRemoveBooking = (dealId) => removeBooking(dealId);
+
+async function removeBooking(dealId) {
+  const deal = state.deals.find(d => d.id === dealId);
+  if (!deal) return;
+  const reason = (prompt(`Remove ${deal.company || deal.contact || 'this lead'} and its appointment?\n\nIt leaves the board and the lead tracker, and its meeting stops counting toward ${deal.stage}'s weekly cap.\n\nWhy? (e.g. cancelled, wrong contact, not a real appointment)`) || '').trim();
+  if (!reason) return;
+  const who = (currentUser && currentUser.email) || 'CRM';
+  // 1. Un-count the meeting first: if this fails nothing is archived, so the card is still there to retry.
+  const { data: rows, error } = await supabase.from('cold_calls')
+    .update({ not_counted: `Removed: ${reason} · ${who} · ${getToday()}` }).eq('deal_id', dealId).select('call_id');
+  if (error) { alert('Could not update the meeting count, nothing was removed: ' + error.message); return; }
+  for (const r of cc.calls || []) if (r.deal_id === dealId) r.not_counted = 'Removed: ' + reason;
+  const [{ sbCreateInteraction }, { deleteDeal }] = await Promise.all([
+    import('./api.js?v=20261112004345'), import('./deals.js?v=20261112004345')]);
+  try { await sbCreateInteraction({ deal_id: dealId, type: 'Note', content: `Removed — cold-call appointment: ${reason} · ${(rows || []).length} dial(s) no longer counted · marked in the CRM` }); }
+  catch (e) { console.warn('[removeBooking] note not saved', e && e.message); }
+  await deleteDeal(dealId, 'Removed — ' + reason);
+  cc.tracker = null; // rebuild "All booked meetings" on the next view
+  render();
 }
 
 function historyRows(calls) {
@@ -816,7 +855,7 @@ registerActions({
   async ccSync() {
     cc.syncing = true; cc.syncNote = ''; render();
     try {
-      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261112003721');
+      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261112004345');
       const out = await invokeEdgeFunctionAsUser('cold-call-sync', {});
       const made = (out.cards || []).filter(c => c.created).length;
       cc.syncNote = `${out.synced} dials pulled${made ? `, ${made} new card${made === 1 ? '' : 's'}` : ''}`;
@@ -830,7 +869,7 @@ registerActions({
   ccOpenDeal(el) {
     const id = el.dataset.id;
     if (!state.deals.some(d => String(d.id) === String(id))) { alert('That card is no longer on the board (delivered or archived).'); return; }
-    import('./deal-modal.js?v=20261112003721').then(m => m.openDeal(id));
+    import('./deal-modal.js?v=20261112004345').then(m => m.openDeal(id));
   },
   ccTrackerScope(el) { cc.trackerScope = el.dataset.scope; render(); },
   ccTrackerClient(el, e) { if (e.type !== 'change') return; cc.trackerClient = el.value; render(); },
@@ -875,7 +914,7 @@ registerActions({
   async ccTranscribe(el) {
     el.disabled = true; el.textContent = 'Transcribing…';
     try {
-      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261112003721');
+      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261112004345');
       const out = await invokeEdgeFunctionAsUser('cold-call-sync', { action: 'transcribe', call_id: Number(el.dataset.id) });
       const box = document.createElement('div');
       box.style.cssText = 'white-space:pre-wrap;font-size:11px;max-height:260px;overflow:auto;background:#fff;border-radius:6px;padding:8px;margin-top:4px';

@@ -1,14 +1,14 @@
 // ═══════════════════════════════════════════════════════════
 // ARCHIVE — Admin archive (Deals sheet archive), load/render
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, deletedDealIds } from './app.js?v=20261112003721';
-import { render } from './render.js?v=20261112003721';
-import { sbGetArchive, sbRestoreFromArchive, normalizeRow, supabase } from './api.js?v=20261112003721';
-import { esc, str, fmtDate } from './utils.js?v=20261112003721';
-import { registerActions } from './delegate.js?v=20261112003721';
-import { openDeal } from './deal-modal.js?v=20261112003721';
-import { filterSelect } from './html-helpers.js?v=20261112003721';
-import { loadJourneys, journeyFor, LEFT_AT_OPTIONS, WHY_OPTIONS } from './archive-journey.js?v=20261112003721';
+import { state, store, pendingWrites, deletedDealIds } from './app.js?v=20261112004345';
+import { render } from './render.js?v=20261112004345';
+import { sbGetArchive, sbRestoreFromArchive, normalizeRow, supabase } from './api.js?v=20261112004345';
+import { esc, str, fmtDate } from './utils.js?v=20261112004345';
+import { registerActions } from './delegate.js?v=20261112004345';
+import { openDeal } from './deal-modal.js?v=20261112004345';
+import { filterSelect } from './html-helpers.js?v=20261112004345';
+import { loadJourneys, journeyFor, LEFT_AT_OPTIONS, WHY_OPTIONS } from './archive-journey.js?v=20261112004345';
 
 export async function loadArchive(silent){
   if(!silent){
@@ -185,7 +185,7 @@ export async function restoreFromArchive(id){
     return;
   } finally { pendingWrites.value--; }
   store.removeArchiveItem(id);
-  const { initialSync } = await import('./api.js?v=20261112003721');
+  const { initialSync } = await import('./api.js?v=20261112004345');
   await initialSync();
 }
 

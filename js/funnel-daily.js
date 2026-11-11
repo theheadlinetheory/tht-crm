@@ -13,12 +13,12 @@
 // months are the same day rows grouped in the browser (funnel-trend-group.js,
 // tested). The offer and channel chips on the Funnel tab apply here too.
 
-import { esc } from './utils.js?v=20261112003721';
-import { state } from './app.js?v=20261112003721';
-import { multiFilterDropdown } from './html-helpers.js?v=20261112003721';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261112003721';
-import { todayYmdLA, addDays } from './funnel-period.js?v=20261112003721';
-import { groupDays, avgComplete, dowOf, shortDay } from './funnel-trend-group.js?v=20261112003721';
+import { esc } from './utils.js?v=20261112004345';
+import { state } from './app.js?v=20261112004345';
+import { multiFilterDropdown } from './html-helpers.js?v=20261112004345';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261112004345';
+import { todayYmdLA, addDays } from './funnel-period.js?v=20261112004345';
+import { groupDays, avgComplete, dowOf, shortDay } from './funnel-trend-group.js?v=20261112004345';
 
 // The stages, in funnel order, each with its own colour for good (a stage keeps its colour whatever else is picked —
 // palette validated with the dataviz checks, 2026-11-10). `hint` is the counting rule in one line.
@@ -81,7 +81,7 @@ function fetchDaily(offer, channel, rerender) {
 /** Forget every cached answer (the Refresh button). */
 export function clearFunnelDaily() { for (const k of Object.keys(_cache)) delete _cache[k]; }
 
-const rerenderNow = () => import('./render.js?v=20261112003721').then(m => m.render());
+const rerenderNow = () => import('./render.js?v=20261112004345').then(m => m.render());
 window.setFunnelDailyRange = (key) => { _range = key; lsSet(RANGE_KEY, key); rerenderNow(); };
 window.setFunnelDailyGran = (key) => { if (GRANS.some(g => g.key === key)) { _gran = key; lsSet(GRAN_KEY, key); rerenderNow(); } };
 window.toggleFunnelDailyStacked = () => { _stacked = !_stacked; lsSet(STACK_KEY, _stacked ? '1' : ''); rerenderNow(); };
