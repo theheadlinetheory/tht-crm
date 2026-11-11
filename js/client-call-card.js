@@ -11,10 +11,11 @@
 // client-panel.js owns the overlay and the editable blocks; this module only lays them out in tabs and owns the
 // Appointments tab. The panel is never re-rendered while open, so switching tabs only flips which pane shows.
 
-import { state } from './app.js?v=20261112012511';
-import { esc, str, svgIcon, getToday } from './utils.js?v=20261112012511';
-import { supabase } from './supabase-client.js?v=20261112012511';
-import { registerActions } from './delegate.js?v=20261112012511';
+import { state } from './app.js?v=20261112201802';
+import { esc, str, svgIcon, getToday } from './utils.js?v=20261112201802';
+import { supabase } from './supabase-client.js?v=20261112201802';
+import { registerActions } from './delegate.js?v=20261112201802';
+import { clientIanaTz } from './calendly.js?v=20261112201802';
 
 // ─── Call sheet fields (clients.call_*: no FIELD_MAP entry, so snake_case on the client object) ───
 const lineList = v => {
@@ -88,7 +89,7 @@ const fact = (label, value) => `<div style="font-size:13px;color:#334155;margin-
 
 /**
  * The tabbed body. `parts` comes from client-panel.js: editable(field, opts), questions, contact, stats, map,
- * coldCalls, callSheetLink, calendly, serviceAreaLink, billing (HTML strings or a function for editable blocks).
+ * coldCalls, callSheetLink, serviceAreaLink, billing (the calendar lives on the Appointments tab) (HTML strings or a function for editable blocks).
  */
 export function callCardHtml(cl, parts) {
   _client = cl.name;
@@ -108,11 +109,12 @@ export function callCardHtml(cl, parts) {
     want: ed('call_property_types_want', cl, green) + ed('call_property_types_avoid', cl, red) + ed('call_min_job_size', cl) + ed('call_do_not_call', cl, red),
     info: box(heading('On the call') + fact('You are', esc(`${CALLER}, ${displayName(cl)}`))
         + fact('Get before hanging up', esc(getBeforeHangingUp(cl).join(' · '))))
-      + parts.calendly + ed('call_booking_notes', cl)
+      + ed('call_booking_notes', cl)
       + ed('call_display_name', cl) + ed('call_meets_lead', cl) + ed('call_shop', cl) + ed('location', cl) + '<div id="cp-loc-hint" style="margin:-12px 0 16px"></div>'
       + ed('call_caller_id', cl) + ed('call_get_extra', cl) + ed('call_confirmation_email', cl)
       + parts.contact + parts.callSheetLink + parts.billing,
-    appointments: `<div id="cp-appts"><div style="font-size:12px;color:#94a3b8">Loading appointments…</div></div>`,
+    // Marcell, 2026-11-12: the calendar sits open under Upcoming, so free times and booked meetings are one glance.
+    appointments: `<div id="cp-appts"><div style="font-size:12px;color:#94a3b8">Loading appointments…</div></div>` + calendarHtml(cl),
     cold: parts.stats + parts.coldCalls,
   };
   if (!TABS.some(t => t.id === _tab)) _tab = 'map';
@@ -126,6 +128,8 @@ export function callCardHtml(cl, parts) {
 /** After the panel is in the DOM: the map draws when its pane first shows; the appointments load now. */
 export function onCallCardOpen(clientName, { renderMap }) {
   if (renderMap) _onShow.map = renderMap;
+  const cl = state.clients.find(c => c.name === clientName);
+  if (cl && str(cl.calendlyUrl).trim()) _onShow.appointments = () => mountCalendar(clientName, cl.calendlyUrl);
   runOnShow(_tab);
   loadAppointments(clientName);
 }
@@ -157,30 +161,55 @@ function isoDate(v) {
   return `${y}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`;
 }
 
+// Read through the client_appointments RPC, not the tables: an SDR's row access stops at cold-call deals, but a
+// caller has to see every meeting booked for the client (email ones too) so a property is never booked twice.
 async function loadAppointments(clientName) {
   try {
-    const [lt, po] = await Promise.all([
-      supabase.from('lead_tracker').select('deal_id,lead_name,date_added,created_at,appt_date,appt_time,lead_source').eq('client_name', clientName).limit(1000),
-      supabase.from('pass_offs').select('deal_id,company,contact,date_passed,appt_date,appt_time').eq('client_name', clientName).limit(1000),
-    ]);
-    if (lt.error) throw lt.error;
-    if (po.error) throw po.error;
-    const deal = id => state.deals.find(d => String(d.id) === String(id));
-    const rows = [
-      ...(lt.data || []).map(r => ({ lead: r.lead_name, booked: isoDate(r.created_at) || isoDate(r.date_added), appt: isoDate(r.appt_date), time: r.appt_time, source: r.lead_source === 'cold_call' ? 'Cold call' : 'Email', dealId: r.deal_id })),
-      ...(po.data || []).map(r => ({ lead: [r.company, r.contact].filter(Boolean).join(' — '), booked: isoDate(r.date_passed), appt: isoDate(r.appt_date), time: r.appt_time, source: deal(r.deal_id)?.leadSource === 'cold_call' ? 'Cold call' : 'Passed off', dealId: r.deal_id })),
-    ];
-    // Booked on the board but not delivered yet: still a meeting.
-    const delivered = new Set(rows.map(r => r.dealId).filter(Boolean));
-    for (const d of state.deals) {
-      if (d.pipeline !== 'Client' || d.stage !== clientName || !d.bookedDate || delivered.has(d.id)) continue;
-      rows.push({ lead: [d.company, d.contact].filter(Boolean).join(' — '), booked: isoDate(d.createdDate || d.createdAt), appt: isoDate(d.bookedDate), time: d.bookedTime, source: d.leadSource === 'cold_call' ? 'Cold call' : 'Email', dealId: d.id, onBoard: true });
+    const { data, error } = await supabase.rpc('client_appointments', { p_client: clientName });
+    if (error) throw error;
+    const rows = [];
+    const seen = new Set();
+    const key = r => str(r.lead).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 14) + '|' + r.appt;
+    // Deal-linked rows first, so a CRM mirror row ("Booked in CRM", no deal id) only shows when nothing else does.
+    for (const r of (data || []).sort((a, b) => (a.deal_id ? 0 : 1) - (b.deal_id ? 0 : 1))) {
+      const row = { lead: r.lead, booked: isoDate(r.booked), appt: isoDate(r.appt_date), time: str(r.appt_time).slice(0, 5), source: r.source, dealId: r.deal_id };
+      const k = key(row);
+      if (row.appt && seen.has(k)) continue;
+      seen.add(k);
+      rows.push(row);
     }
     fillAppointments(clientName, rows);
   } catch (e) {
     const host = _client === clientName && document.getElementById('cp-appts');
     if (host) host.innerHTML = `<div style="font-size:12px;color:#dc2626">Couldn't load appointments: ${esc(e.message || String(e))}</div>`;
   }
+}
+
+// ─── The client's Calendly, open inline under Upcoming ───
+function calendarHtml(cl) {
+  if (!str(cl.calendlyUrl).trim()) return box(heading('Calendar') + '<div style="font-size:12px;color:#94a3b8">No Calendly link for this client yet.</div>');
+  return box(heading(`${svgIcon('calendar', 12)} ${esc(cl.name)}'s calendar`, '#4338ca')
+    + `<div id="cp-cal" style="min-width:280px;height:700px"></div>`, { bg: '#eef2ff', border: '#c7d2fe' });
+}
+
+function mountCalendar(clientName, baseUrl, tries = 0) {
+  const host = _client === clientName && document.getElementById('cp-cal');
+  if (!host) return;
+  if (!window.Calendly) {   // widget.js loads async
+    if (tries < 20) setTimeout(() => mountCalendar(clientName, baseUrl, tries + 1), 300);
+    else host.innerHTML = `<a href="${esc(baseUrl)}" target="_blank" rel="noopener" style="font-size:13px;color:#2563eb">Open the calendar ↗</a>`;
+    return;
+  }
+  let url = baseUrl;
+  try {
+    const u = new URL(baseUrl);
+    const tz = clientIanaTz(clientName);
+    if (tz) u.searchParams.set('timezone', tz);
+    u.searchParams.set('hide_gdpr_banner', '1');
+    url = u.toString();
+  } catch (e) { /* keep the raw link */ }
+  host.innerHTML = '';
+  window.Calendly.initInlineWidget({ url, parentElement: host });
 }
 
 function fillAppointments(clientName, rows) {
@@ -208,6 +237,6 @@ registerActions({
   cpOpenDeal(el) {
     const id = el.dataset.id;
     if (window.closeClientInfoPanel) window.closeClientInfoPanel();
-    import('./deal-modal.js?v=20261112012511').then(m => m.openDeal(id));
+    import('./deal-modal.js?v=20261112201802').then(m => m.openDeal(id));
   },
 });
