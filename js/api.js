@@ -1,8 +1,9 @@
 // ═══════════════════════════════════════════════════════════
 // API — API layer (Google Sheets calls + Supabase CRUD)
 // ═══════════════════════════════════════════════════════════
-import { API_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261113002412';
+import { API_URL } from './config.js?v=20261113002412';
 import { supabase } from './supabase-client.js?v=20261113002412';
+import { callEdgeFunction } from './edge-auth.js?v=20261113002412';
 import { applyRealtimeUpdate, createRealtimeQueue } from './realtime-merge.js?v=20261113002412';
 import { selectAllPages } from './paging.js?v=20261113002412';
 import { dealsVersion } from './state.js?v=20261113002412';
@@ -1182,19 +1183,9 @@ export const sbBatchUpdateDeals = (ids, fields) => sbCall(async () => {
 // ─── Edge Function Invoker ───
 
 export async function invokeEdgeFunction(fnName, body, signal) {
-  const url = `${SUPABASE_URL}/functions/v1/${fnName}`;
-  const opts = {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-    },
-    body: JSON.stringify(body)
-  };
-  if (signal) opts.signal = signal;
-  const resp = await fetch(url, opts);
-  // A gateway/upstream outage answers with an HTML page — report the status, not a JSON parse error.
-  const data = await resp.json().catch(() => ({ error: `${fnName} returned ${resp.status} (not JSON — service may be down)` }));
+  // Sends the signed-in user's token, not the public anon key; throws "Signed out — sign in again"
+  // with no session (A2#2, Tim, 2026-11-13). Same signature and return shape as before.
+  const { resp, data } = await callEdgeFunction(fnName, body, { signal });
   if (!resp.ok && !data.ok) throw new Error(data.error || `Edge Function ${fnName} failed (${resp.status})`);
   return data;
 }
