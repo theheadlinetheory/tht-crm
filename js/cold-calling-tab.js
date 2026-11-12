@@ -67,6 +67,7 @@ const cc = {
   calls: [],                 // cold_calls rows, last LOOKBACK_DAYS
   quotas: { ...DEFAULT_QUOTAS },
   pinned: [],                // client names the manager pinned to the top
+  order: [],                 // client names in the order the manager dragged them (empty = automatic order)
   unlimited: [],             // client names with no weekly ceiling once every client has hit the cap
   syncing: false, syncNote: '',
   tracker: null, trackerLoading: false,
@@ -103,12 +104,13 @@ async function loadAll() {
     }
     cc.calls = rows;
     if (!(state.assignableUsers || []).length) await loadAssignableUsers().catch(() => null);
-    const { data: settings } = await supabase.from('crm_settings').select('key,value').in('key', ['cold_call_quotas', 'cold_call_pinned', 'cold_call_unlimited']);
+    const { data: settings } = await supabase.from('crm_settings').select('key,value').in('key', ['cold_call_quotas', 'cold_call_pinned', 'cold_call_unlimited', 'cold_call_order']);
     for (const s of settings || []) {
       try {
         if (s.key === 'cold_call_quotas') cc.quotas = { ...DEFAULT_QUOTAS, ...JSON.parse(s.value) };
         if (s.key === 'cold_call_pinned') cc.pinned = JSON.parse(s.value) || [];
         if (s.key === 'cold_call_unlimited') cc.unlimited = JSON.parse(s.value) || [];
+        if (s.key === 'cold_call_order') cc.order = JSON.parse(s.value) || [];
       } catch (_) { /* a bad row keeps the defaults */ }
     }
     cc.error = '';
@@ -172,7 +174,8 @@ export function coldCallClients() {
   return (state.clients || []).filter(c => c.status !== 'inactive' && isOn(c.coldCalling));
 }
 
-/** Retainers first, then pay-per-meeting; pinned first within each; fewest meetings this week first; capped last.
+/** Retainers first, then pay-per-meeting; within each, the manager's dragged order if there is one (clients not in
+ *  it come after), otherwise pinned first; then fewest meetings this week; capped last.
  *  An unlimited client reopens (unlocked) only once every client switched on has reached the cap this week. */
 export function rankedClients() {
   const week = callsOn(thisWeek());
@@ -196,8 +199,12 @@ export function rankedClients() {
     r.unlocked = r.unlimited && everyoneAtCap;
     r.capped = r.atCap && !r.unlocked;
   }
+  const pos = name => { const i = cc.order.indexOf(name); return i < 0 ? 1e6 : i; };
+  // Once the manager has dragged, their order decides within each group (it already starts from the pins).
+  const manual = cc.order.length > 0;
   rows.sort((a, b) =>
-    (a.capped - b.capped) || (b.retainer - a.retainer) || (b.pinned - a.pinned) ||
+    (a.capped - b.capped) || (b.retainer - a.retainer) ||
+    (manual ? (pos(a.name) - pos(b.name)) : 0) || (b.pinned - a.pinned) ||
     (a.bookedWeek - b.bookedWeek) || a.name.localeCompare(b.name));
   return rows;
 }
@@ -444,8 +451,8 @@ function managerHtml() {
     ${ranked.map((r, i) => {
       const t = tally(cc.calls.filter(x => x.client_name === r.name), thisWeek());
       const all = tally(cc.calls.filter(x => x.client_name === r.name));
-      return `<tr style="${r.capped ? 'background:#f1f5f9' : ''}">
-        <td style="${td};font-weight:800">${i + 1}</td>
+      return `<tr draggable="true" data-cc-row="${esc(r.name)}" style="${r.capped ? 'background:#f1f5f9' : ''}">
+        <td style="${td};font-weight:800;white-space:nowrap"><span class="cc-drag" title="Drag to move this client up or down the call queue" style="cursor:grab;color:#94a3b8;margin-right:6px;user-select:none">⋮⋮</span>${i + 1}</td>
         <td style="${td};font-weight:700">${esc(r.name)} ${r.unlocked ? UNLIMITED_BADGE : r.capped ? '<span style="font-size:9px;font-weight:800;color:#fff;background:#6b7280;padding:1px 6px;border-radius:8px">CAPPED</span>' : ''}</td>
         <td style="${td}">${r.retainer ? 'Retainer' : 'PPM'}</td>
         <td style="${td};min-width:140px">${capCell(r)}</td>
@@ -454,7 +461,7 @@ function managerHtml() {
         <td style="${td};white-space:nowrap"><button data-action="ccPin" data-name="${esc(r.name)}" style="font-size:11px;padding:3px 9px;border:1px solid var(--border);border-radius:6px;background:${r.pinned ? '#fef3c7' : '#fff'};color:#334155;cursor:pointer;font-weight:600">${r.pinned ? 'Unpin' : '📌 Pin'}</button>
           <button data-action="ccUnlimited" data-name="${esc(r.name)}" title="No weekly limit for this client once every client has hit the cap" style="font-size:11px;padding:3px 9px;border:1px solid ${r.unlimited ? '#7c3aed' : 'var(--border)'};border-radius:6px;background:${r.unlimited ? '#f5f3ff' : '#fff'};color:${r.unlimited ? '#6d28d9' : '#334155'};cursor:pointer;font-weight:600">${r.unlimited ? '∞ Unlimited' : '∞ Make unlimited'}</button></td></tr>`;
     }).join('')}</tbody></table>
-    <div style="font-size:11px;color:#94a3b8;margin-top:6px">Order: open clients before capped ones, retainers before pay-per-meeting, pinned first, then fewest meetings this week. The week resets every Monday. ∞ Unlimited clients stop at the cap like everyone else, and reopen with no limit once every client has hit it.</div>`
+    <div style="font-size:11px;color:#94a3b8;margin-top:6px">Drag a client by ⋮⋮ to move it up or down the call queue. Retainers always stay above pay-per-meeting clients and capped clients always sink to the bottom; dragging reorders within those groups. ${cc.order.length ? `<b style="color:#475569">Using your dragged order.</b> <button data-action="ccResetOrder" style="font-size:11px;padding:1px 8px;border:1px solid var(--border);border-radius:6px;background:#fff;color:#334155;cursor:pointer">Reset to automatic order</button>` : 'Automatic order: pinned first, then fewest meetings this week.'} The week resets every Monday. ∞ Unlimited clients stop at the cap like everyone else, and reopen with no limit once every client has hit it.</div>`
     : '<div style="font-size:12px;color:#94a3b8">No clients switched on yet. Use the list below.</div>');
 
   // Reps: one row each, every number coloured against its quota (the week pro-rated to today).
@@ -876,9 +883,18 @@ registerActions({
   ccTrackerSearch(el, e) { if (e.type !== 'input') return; cc.trackerSearch = el.value; render(); },
   async ccPin(el) {
     const name = el.dataset.name;
-    cc.pinned = cc.pinned.includes(name) ? cc.pinned.filter(n => n !== name) : [...cc.pinned, name];
+    const pinning = !cc.pinned.includes(name);
+    cc.pinned = pinning ? [...cc.pinned, name] : cc.pinned.filter(n => n !== name);
+    // With a dragged order in place, pinning moves the client to the top of it.
+    if (pinning && cc.order.length) cc.order = [name, ...cc.order.filter(n => n !== name)];
     render();
     await saveSetting('cold_call_pinned', cc.pinned);
+    if (pinning && cc.order.length) await saveSetting('cold_call_order', cc.order);
+  },
+  async ccResetOrder() {
+    cc.order = [];
+    render();
+    await saveSetting('cold_call_order', []);
   },
   async ccUnlimited(el) {
     const name = el.dataset.name;
@@ -927,3 +943,48 @@ registerActions({
     }
   },
 });
+
+// ─── Manager: drag a client row to reorder the call queue ───
+// The delegate only routes click/change/input, so the drag events are wired here once.
+let _dragName = null;
+function _ccRow(e) { return e.target && e.target.closest ? e.target.closest('tr[data-cc-row]') : null; }
+function _clearDropMarks() {
+  document.querySelectorAll('tr[data-cc-row]').forEach(tr => { tr.style.boxShadow = ''; tr.style.opacity = ''; });
+}
+function _dropAfter(tr, e) { const b = tr.getBoundingClientRect(); return e.clientY > b.top + b.height / 2; }
+if (typeof document !== 'undefined' && !window.__ccDragWired) {
+  window.__ccDragWired = true;
+  document.addEventListener('dragstart', e => {
+    const tr = _ccRow(e);
+    if (!tr) return;
+    _dragName = tr.dataset.ccRow;
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', _dragName); } catch (_) { /* some browsers need data to start a drag */ }
+    tr.style.opacity = '.4';
+  });
+  document.addEventListener('dragover', e => {
+    if (!_dragName) return;
+    const tr = _ccRow(e);
+    if (!tr) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    document.querySelectorAll('tr[data-cc-row]').forEach(x => { if (x !== tr) x.style.boxShadow = ''; });
+    tr.style.boxShadow = _dropAfter(tr, e) ? 'inset 0 -3px 0 var(--purple)' : 'inset 0 3px 0 var(--purple)';
+  });
+  document.addEventListener('drop', async e => {
+    if (!_dragName) return;
+    const tr = _ccRow(e);
+    const from = _dragName;
+    _dragName = null;
+    _clearDropMarks();
+    if (!tr || tr.dataset.ccRow === from) return;
+    e.preventDefault();
+    const names = rankedClients().map(r => r.name).filter(n => n !== from);
+    const at = names.indexOf(tr.dataset.ccRow) + (_dropAfter(tr, e) ? 1 : 0);
+    names.splice(at, 0, from);
+    cc.order = names;
+    render();
+    await saveSetting('cold_call_order', names);
+  });
+  document.addEventListener('dragend', () => { if (_dragName) { _dragName = null; _clearDropMarks(); } });
+}
