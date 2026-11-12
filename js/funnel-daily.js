@@ -19,6 +19,7 @@ import { multiFilterDropdown } from './html-helpers.js?v=20261113002412';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261113002412';
 import { todayYmdLA, addDays } from './funnel-period.js?v=20261113002412';
 import { groupDays, avgComplete, dowOf, shortDay } from './funnel-trend-group.js?v=20261113002412';
+import { authedFetch } from './edge-auth.js?v=20261113002412'; // session token, not the anon key (A2#2, S1, 2026-11-13)
 
 // The stages, in funnel order, each with its own colour for good (a stage keeps its colour whatever else is picked —
 // palette validated with the dataviz checks, 2026-11-10). `hint` is the counting rule in one line.
@@ -70,7 +71,7 @@ function fetchDaily(offer, channel, rerender) {
   _loading = key;
   const headers = { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY };
   const payload = { ...rangeOf(), ...(offer ? { offer } : {}), ...(channel ? { channel } : {}) };
-  fetch(`${SUPABASE_URL}/functions/v1/pipeline-daily`, { method: 'POST', headers, body: JSON.stringify(payload) })
+  authedFetch(`${SUPABASE_URL}/functions/v1/pipeline-daily`, { method: 'POST', headers, body: JSON.stringify(payload) })
     .then(async r => { const text = await r.text(); let j = null; try { j = JSON.parse(text); } catch (_) { /* not JSON */ }
       if (!r.ok || !j || j.ok === false) throw new Error((j && (j.error || j.message)) || ('HTTP ' + r.status));
       _cache[key] = { data: j, at: Date.now() }; })

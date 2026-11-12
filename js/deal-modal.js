@@ -42,6 +42,7 @@ import { renderClientPropertiesButton } from './client-properties.js?v=202611130
 import { renderCallSheetLink } from './call-sheet.js?v=20261113002412';
 import { isAimfoxDeal, renderAimfoxSource } from './aimfox.js?v=20261113002412';
 import { isGhlSmsDeal, renderGhlSmsSource, renderGhlConversationLink } from './ghl-sms.js?v=20261113002412';
+import { authedFetch } from './edge-auth.js?v=20261113002412'; // session token, not the anon key (A2#2, S1, 2026-11-13)
 
 function actTypeClass(type){
   const t=(type||'').toLowerCase();
@@ -2139,7 +2140,7 @@ export function confirmScheduleAndCopy(){
   if(client && dateVal){
     import('./calendly.js?v=20261113002412').then(mod=>{
       const apptAddr=(deal.address||deal.location||'').trim();
-      mod.saveAppointment(client.name, deal.company||deal.contact||'Unknown', dateVal, timeVal, '', apptAddr);
+      mod.saveAppointment(client.name, deal.company||deal.contact||'Unknown', dateVal, timeVal, '', apptAddr, deal.id); // deal_id: rebook replaces, archive clears (round 2, T)
     });
   }
   document.getElementById('schedule-prompt-overlay')?.remove();
@@ -2171,7 +2172,7 @@ async function startAutoFollowUp(dealId){
   try {
     console.log('[Subseq] Calling edge function...', { leadId:deal.slLeadId, campaignId:deal.slCampaignId, email:deal.email });
     const url = `${SUPABASE_URL}/functions/v1/smartlead-subsequence`;
-    const resp = await fetch(url, {
+    const resp = await authedFetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
       body: JSON.stringify({ action:'start-subsequence', leadId:deal.slLeadId, campaignId:deal.slCampaignId, dealId:deal.id, email:deal.email }),
@@ -2251,7 +2252,7 @@ window.bookAvailabilitySlot = function(dealId, ayc) {
       && a.apptDate === deal.bookedDate && (a.apptTime || '') === (deal.bookedTime || ''));
     if (old) window.removeAppointment(old.id);
   }
-  window.saveAppointment(client.name, leadName, dateVal, ayc ? '' : timeVal, ayc ? 'Booked in CRM — time of their convenience' : 'Booked in CRM', (deal.location || deal.address || '').trim());
+  window.saveAppointment(client.name, leadName, dateVal, ayc ? '' : timeVal, ayc ? 'Booked in CRM — time of their convenience' : 'Booked in CRM', (deal.location || deal.address || '').trim(), deal.id);
   const before = { bookedDate: deal.bookedDate, bookedTime: deal.bookedTime, bookedFor: deal.bookedFor };
   deal.bookedDate = dateVal;
   deal.bookedTime = ayc ? '' : timeVal;

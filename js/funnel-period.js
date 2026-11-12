@@ -13,6 +13,7 @@
 // daily send snapshots. The "All" view keeps reading pipeline_latest.
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261113002412';
+import { authedFetch } from './edge-auth.js?v=20261113002412'; // session token, not the anon key (A2#2, S1, 2026-11-13)
 
 export const TZ = 'America/Los_Angeles';
 
@@ -56,7 +57,7 @@ export function requestExactSends(r) {
   const headers = { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY };
   // Resolves true once the row is stored, so the caller can re-ask level 01 and show the number (Lars, 2026-09-18:
   // "still not there" — the card had answered before the row existed and then sat in the 15-minute cache).
-  return fetch(`${SUPABASE_URL}/functions/v1/pipeline-sends`, { method: 'POST', headers, body: JSON.stringify({ from: r.from, to: r.to }) })
+  return authedFetch(`${SUPABASE_URL}/functions/v1/pipeline-sends`, { method: 'POST', headers, body: JSON.stringify({ from: r.from, to: r.to }) })
     .then(async (res) => { const j = await res.json().catch(() => null); return !!(res.ok && j && j.ok !== false); })
     .catch(() => false);
 }
@@ -108,7 +109,7 @@ export async function fetchPeriod(range, levelDefs, offer, channel) {
   const headers = { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY };
   const payload = { ...range, ...(offer ? { offer } : {}), ...(channel ? { channel } : {}) }; // PPM vs retainer (Lars, 2026-10-07); channel (2026-10-08)
   // A gateway 504 is an HTML page and an auth failure is JSON without `ok`: read the text, then decide (hardening review, 2026-09-15).
-  const ask = (n) => fetch(`${SUPABASE_URL}/functions/v1/pipeline-level0${n}`, { method: 'POST', headers, body: JSON.stringify(payload) })
+  const ask = (n) => authedFetch(`${SUPABASE_URL}/functions/v1/pipeline-level0${n}`, { method: 'POST', headers, body: JSON.stringify(payload) })
     .then(async r => { const text = await r.text(); let j = null; try { j = JSON.parse(text); } catch (_) { /* not JSON */ }
       if (!r.ok || !j || j.ok === false) return { ok: false, error: (j && (j.error || j.message)) || ('HTTP ' + r.status) };
       return j; })

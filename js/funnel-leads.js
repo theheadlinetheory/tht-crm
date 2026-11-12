@@ -18,6 +18,7 @@ import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES, DEMO_RESCHEDULING }
 import { writeRemovalNote, showAcquisitionRemovalPicker, DESK_DQ_REASONS, deskDqNote, lostNote, SAID_NO_REASONS, saidNoNote } from './removal-reason.js?v=20261113002412';
 import { deleteDeal } from './deals.js?v=20261113002412';
 import { showClientEndPicker } from './client-end.js?v=20261113002412';
+import { authedFetch } from './edge-auth.js?v=20261113002412'; // session token, not the anon key (A2#2, S1, 2026-11-13)
 
 // ── Record the outcome from the list (Lars, 2026-09-10) ──
 // A flagged row gets the same options the reps use live, and writes through the
@@ -102,7 +103,7 @@ async function syncLedger(delayMs = 0) {
 async function syncLedgerOnce() {
   try {
     const headers = { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY };
-    const r = await fetch(`${SUPABASE_URL}/functions/v1/pipeline-leads`, { method: 'POST', headers, body: '{}' });
+    const r = await authedFetch(`${SUPABASE_URL}/functions/v1/pipeline-leads`, { method: 'POST', headers, body: '{}' });
     if (!r.ok) throw new Error('pipeline-leads answered ' + r.status);
     if (typeof window.refreshFunnel === 'function') window.refreshFunnel();
   } catch (e) { console.warn('[funnel-leads] ledger refresh — the hourly run will catch up:', e && e.message); }

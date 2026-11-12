@@ -820,11 +820,19 @@ export const sbDeleteInteraction = (id) => sbCall(async () => {
 
 // Clients
 export const sbGetClients = () => sbCall(async () => {
-  return selectAllPages(() => supabase.from('clients').select('*').order('id'));
+  // Through clients_visible(): SDRs get money/secret columns as NULL, and direct selects of those columns are
+  // revoked (audit A2#12, Tim, 2026-11-13; migration 20261113000290). Same rows, paging and order as before.
+  try {
+    return await selectAllPages(() => supabase.rpc('clients_visible').select('*').order('id'));
+  } catch (e) {
+    // Until migration 20261113000290 is applied the RPC doesn't exist (PGRST202) — read the table as before.
+    if (!/clients_visible|PGRST202|Could not find the function/i.test(String(e && (e.message || e.code) || e))) throw e;
+    return selectAllPages(() => supabase.from('clients').select('*').order('id'));
+  }
 }, { label: 'Load clients' });
 
 export const sbCreateClient = (fields) => sbCall(async () => {
-  const { data, error } = await supabase.from('clients').insert(fields).select().single();
+  const { data, error } = await supabase.from('clients').insert(fields).select('id').single(); // callers use only .id; money columns aren't selectable (A2#12)
   if (error) throw error;
   return data;
 }, { label: 'Create client' });
@@ -1186,7 +1194,12 @@ export async function invokeEdgeFunction(fnName, body, signal) {
   // Sends the signed-in user's token, not the public anon key; throws "Signed out — sign in again"
   // with no session (A2#2, Tim, 2026-11-13). Same signature and return shape as before.
   const { resp, data } = await callEdgeFunction(fnName, body, { signal });
-  if (!resp.ok && !data.ok) throw new Error(data.error || `Edge Function ${fnName} failed (${resp.status})`);
+  if (!resp.ok && !data.ok) {
+    // The body rides along on the error, so a caller can read e.g. a 409's sentAt / inProgress (round 2, C).
+    const err = new Error(data.error || `Edge Function ${fnName} failed (${resp.status})`);
+    err.body = data; err.status = resp.status;
+    throw err;
+  }
   return data;
 }
 

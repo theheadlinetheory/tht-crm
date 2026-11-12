@@ -25,6 +25,7 @@ import { state } from './app.js?v=20261113002412';
 import { esc, svgIcon } from './utils.js?v=20261113002412';
 import { sbCreateInteraction, showToast } from './api.js?v=20261113002412';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261113002412';
+import { authedFetch } from './edge-auth.js?v=20261113002412'; // session token, not the anon key (A2#2, S1, 2026-11-13)
 
 // pipeline-level03 runs on the CRM's own Supabase project (moved 2026-09-03). It
 // is deployed with JWT verification, so the anon key goes along as the bearer.
@@ -89,7 +90,7 @@ export function loadDiscoOutcomes(rerender) {
   if (_pending !== null || _loading) return;
   _loading = true;
   const headers = { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY };
-  const get = (url) => fetch(url, { method: 'POST', headers }).then(r => r.json()).catch(e => { console.warn('[disco-outcome] load failed:', e); return {}; });
+  const get = (url) => authedFetch(url, { method: 'POST', headers }).then(r => r.json()).catch(e => { console.warn('[disco-outcome] load failed:', e); return {}; });
   Promise.all([get(PENDING_URL), get(DEMO_PENDING_URL)]).then(([d, m]) => {
     // Only rows we can actually attach an answer to. A pending call whose lead
     // has no CRM deal cannot be marked, and showing it would be a button that

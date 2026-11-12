@@ -131,7 +131,14 @@ export function callCardHtml(cl, parts) {
 export function onCallCardOpen(clientName, { renderMap }) {
   if (renderMap) _onShow.map = renderMap;
   const cl = state.clients.find(c => c.name === clientName);
-  if (cl && str(cl.calendlyUrl).trim()) _onShow.calendar = () => mountCalendar(clientName, cl.calendlyUrl);
+  // Re-count the client's meetings before the calendar shows when it is one short of its weekly cap, so two SDRs
+  // can't both book the last slot (audit A3#6, round 2 C, Tim 2026-11-13). At the cap the calendar stays closed.
+  if (cl && str(cl.calendlyUrl).trim()) _onShow.calendar = async () => {
+    const c = window.ccCheckSlotBeforeBooking ? await window.ccCheckSlotBeforeBooking(clientName).catch(() => null) : null;
+    if (c && c.ok === false) { const h = _client === clientName && document.getElementById('cp-cal'); if (h) h.innerHTML = `<div style="font-size:13px;color:#b91c1c;font-weight:600">${esc(c.message || 'This client is at its weekly cap.')}</div>`; return; }
+    if (c && c.lastSlot && c.message) showLastSlotNote(clientName, c.message);
+    mountCalendar(clientName, cl.calendlyUrl);
+  };
   runOnShow(_tab);
   loadAppointments(clientName);
 }
@@ -192,6 +199,11 @@ function calendarHtml(cl) {
   if (!str(cl.calendlyUrl).trim()) return box(heading('Calendar') + '<div style="font-size:12px;color:#94a3b8">No Calendly link for this client yet.</div>');
   return box(heading(`${svgIcon('calendar', 12)} ${esc(cl.name)}'s calendar`, '#4338ca')
     + `<div id="cp-cal" style="min-width:280px;height:700px"></div>`, { bg: '#eef2ff', border: '#c7d2fe' });
+}
+
+function showLastSlotNote(clientName, msg) {
+  const host = _client === clientName && document.getElementById('cp-cal');
+  if (host && host.parentElement) host.insertAdjacentHTML('beforebegin', `<div style="margin-bottom:8px;padding:8px 10px;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;font-size:12px;font-weight:700;color:#92400e">${esc(msg)}</div>`);
 }
 
 function mountCalendar(clientName, baseUrl, tries = 0) {
