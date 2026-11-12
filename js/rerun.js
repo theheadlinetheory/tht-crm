@@ -13,6 +13,7 @@ import { dealHadDemo } from './demo-tracker.js?v=20261113002412';
 import { loadJourneys, journeyFor } from './archive-journey.js?v=20261113002412';
 import { assignReactivationSequence } from './activities.js?v=20261113002412';
 import { renderManualReactivation } from './nurture-manual.js?v=20261113002412';
+import { requestTrackerRemoval } from './tracker-removal.js?v=20261113002412';
 
 // ─── Data Loading ───
 
@@ -980,7 +981,7 @@ registerActions({
       try {
         await sbArchiveDeal(deal.id, JSON.stringify(deal));
         await sbDeleteDeal(deal.id);
-        invokeEdgeFunction('push-lead-tracker',{action:'remove-lead',dealId:deal.id}).catch(e=>console.warn('Sheet removal:',e.message));
+        requestTrackerRemoval(invokeEdgeFunction, deal.id, 'Deleted/Lost'); // archived above as Deleted/Lost (sbArchiveDeal default)
         store.removeDeal(deal.id, { silent: true });
       } catch (e) { console.error('Failed to archive deal:', e); }
       finally { pendingWrites.value--; }
