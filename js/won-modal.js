@@ -5,16 +5,16 @@
 // inbox when ticked). Ordered, with Retry.
 // Body-level overlay (survives render()).
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261113002303';
-import { str, esc, jsArg, getToday } from './utils.js?v=20261113002303';
-import { createClientRecord, deriveTimezone } from './client-info.js?v=20261113002303';
-import { ensureLeadTrackerSheet } from './lead-tracker-sheet.js?v=20261113002303';
-import { invokeEdgeFunction, showToast } from './api.js?v=20261113002303';
-import { isAdmin } from './auth.js?v=20261113002303';
-import { prepaidNote } from './retainer-billing.js?v=20261113002303';
-import { createSmartleadPortal } from './smartlead-portal.js?v=20261113002303';
-import { createColdCallInbox } from './cold-call-inbox.js?v=20261113002303';
-import { PAYMENT_CADENCES, TERM_UNITS } from './client-terms.js?v=20261113002303';
+import { state } from './app.js?v=20261113002412';
+import { str, esc, jsArg, getToday } from './utils.js?v=20261113002412';
+import { createClientRecord, deriveTimezone } from './client-info.js?v=20261113002412';
+import { ensureLeadTrackerSheet } from './lead-tracker-sheet.js?v=20261113002412';
+import { invokeEdgeFunction, showToast } from './api.js?v=20261113002412';
+import { isAdmin } from './auth.js?v=20261113002412';
+import { prepaidNote } from './retainer-billing.js?v=20261113002412';
+import { createSmartleadPortal } from './smartlead-portal.js?v=20261113002412';
+import { createColdCallInbox } from './cold-call-inbox.js?v=20261113002412';
+import { PAYMENT_CADENCES, TERM_UNITS } from './client-terms.js?v=20261113002412';
 
 let _w = null; // { deal, clientId, archived, sheetId, tagsDone, portal, coldInbox }
 const CURRENCIES = ['USD', 'AUD', 'CAD'];
@@ -285,7 +285,7 @@ async function runSteps(f, startIdx) {
       // client, then removes it from `deals` — that is what clears the card.
       // The overlay lives on document.body, so it survives the render() this
       // triggers and the remaining steps keep reporting into it.
-      const { deleteDeal } = await import('./deals.js?v=20261113002303');
+      const { deleteDeal } = await import('./deals.js?v=20261113002412');
       await deleteDeal(_w.deal.id, 'Closed Won', f.name, { asOf: _w.closedDate || getToday() });
       _w.archived = true;
     }
@@ -382,7 +382,7 @@ export function wonPortalCopy() {
 export async function wonModalLink(existingName) {
   const dealId = _w.deal.id;
   wonModalDismiss();
-  const { deleteDeal } = await import('./deals.js?v=20261113002303');
+  const { deleteDeal } = await import('./deals.js?v=20261113002412');
   deleteDeal(dealId, 'Closed Won', existingName);
   showToast(`Deal linked to existing client "${existingName}"`, 'success');
 }
