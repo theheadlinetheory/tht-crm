@@ -615,7 +615,10 @@ function selfManagedTabActive() {
 function debouncedRealtimeRender() {
   if (selfManagedTabActive()) return;        // don't disturb a self-managed tab
   if (_realtimeRenderTimer) return;          // already scheduled
-  _realtimeRenderTimer = setTimeout(() => {
+  _realtimeRenderTimer = setTimeout(function tick() {
+    // Contract C3: no full re-render of an open card while a save or pass-off request is in
+    // flight — it reset the card's buttons mid-request. Try again shortly (Tim, 2026-11-12).
+    if (state.selectedDeal && (crmBusy() || pendingWrites.value > 0)) { _realtimeRenderTimer = setTimeout(tick, 500); return; }
     _realtimeRenderTimer = null;
     render();
   }, 150);                                    // batch renders within 150ms window
