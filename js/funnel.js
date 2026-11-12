@@ -19,11 +19,11 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20261113031032';
-import { supabase } from './supabase-client.js?v=20261113031032';
-import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel, rangeDays, todayYmdLA, requestExactSends } from './funnel-period.js?v=20261113031032';
-import { leadsTable } from './funnel-leads.js?v=20261113031032';
-import { renderFunnelDaily, clearFunnelDaily } from './funnel-daily.js?v=20261113031032';
+import { esc, svgIcon } from './utils.js?v=20261113032638';
+import { supabase } from './supabase-client.js?v=20261113032638';
+import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel, rangeDays, todayYmdLA, requestExactSends } from './funnel-period.js?v=20261113032638';
+import { leadsTable } from './funnel-leads.js?v=20261113032638';
+import { renderFunnelDaily, clearFunnelDaily } from './funnel-daily.js?v=20261113032638';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -43,7 +43,7 @@ let _offer = (() => { try { const v = localStorage.getItem(OFFER_KEY) || ''; ret
 const OFFERS = [{ key: '', label: 'All offers' }, { key: 'ppm', label: 'PPM' }, { key: 'retainer', label: 'Retainer' }];
 // Channels (Lars, 2026-10-08): '' = every channel, else the one the lead replied on. Same mechanics as the offer filter.
 const CHANNEL_KEY = 'funnelChannel';
-const CHANNELS = [{ key: '', label: 'All channels' }, { key: 'email', label: 'Email' }, { key: 'linkedin', label: 'LinkedIn' }, { key: 'sms', label: 'SMS' }];
+const CHANNELS = [{ key: '', label: 'All channels' }, { key: 'email', label: 'Email' }, { key: 'linkedin', label: 'LinkedIn' }, { key: 'sms', label: 'SMS' }, { key: 'aeo', label: 'AEO/GEO' }]; // AEO/GEO (Lars, 2026-11-05): inbound bookers on none of our lists
 let _channel = (() => { try { const v = localStorage.getItem(CHANNEL_KEY) || ''; return CHANNELS.some(c => c.key === v) ? v : ''; } catch (_) { return ''; } })();
 const filterLabel = () => [_offer === 'ppm' ? 'PPM' : _offer === 'retainer' ? 'retainer' : '', (CHANNELS.find(c => c.key === _channel) || {}).label || ''].filter(Boolean).join(' · ');
 const ck = (key) => (_offer || _channel) ? `${key}@${_offer}@${_channel}` : key; // cache key: a period under a filter is its own entry
@@ -118,7 +118,7 @@ export function reloadFunnel(rerender) {
 
 function loadPeriod(key, rerender) {
   if (periodRows(key) || _periodLoading === key) return;
-  if (!rerender) rerender = () => import('./render.js?v=20261113031032').then(m => m.render());
+  if (!rerender) rerender = () => import('./render.js?v=20261113032638').then(m => m.render());
   _periodLoading = key;
   const g = (_gen[ck(key)] = (_gen[ck(key)] || 0) + 1);
   fetchPeriod(periodRange(key), _levels || [], _offer, _channel).then(rows => {
@@ -153,23 +153,23 @@ window.setFunnelPeriod = (key) => {
     };
     setTimeout(whenLoaded, 500);
   }
-  import('./render.js?v=20261113031032').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+  import('./render.js?v=20261113032638').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
 };
 
 window.setFunnelOffer = (offer) => {
   _offer = offer === 'ppm' || offer === 'retainer' ? offer : '';
   try { localStorage.setItem(OFFER_KEY, _offer); } catch (_) { /* private mode */ }
-  import('./render.js?v=20261113031032').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
+  import('./render.js?v=20261113032638').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
 };
 window.setFunnelChannel = (channel) => {
   _channel = CHANNELS.some(c => c.key === channel) ? channel : '';
   try { localStorage.setItem(CHANNEL_KEY, _channel); } catch (_) { /* private mode */ }
-  import('./render.js?v=20261113031032').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
+  import('./render.js?v=20261113032638').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
 };
 
 // ── The calendar: pick any stretch of days (Lars, 2026-09-18) ──
 const _pick = { open: false, month: null, start: null, end: null }; // month 'YYYY-MM'; start/end 'YYYY-MM-DD' while choosing
-const rerenderNow = () => import('./render.js?v=20261113031032').then(m => m.render());
+const rerenderNow = () => import('./render.js?v=20261113032638').then(m => m.render());
 window.funnelPickToggle = () => {
   _pick.open = !_pick.open;
   if (_pick.open) { const r = periodRange(_period); _pick.month = (r ? r.to : todayYmdLA()).slice(0, 7); _pick.start = null; _pick.end = null; }
@@ -574,5 +574,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20261113031032').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20261113032638').then(m => reloadFunnel(m.render));
 };
