@@ -140,13 +140,18 @@ export async function doSendToClientThread(dealId, clientName, threadId){
   if(btn){ btn.disabled=true; btn.textContent='Sending...'; btn.style.opacity='0.6'; }
 
   try {
-    const result=await invokeEdgeFunction('send-email',{
+    // send-email refuses a second send of the same deal (409 already_sent) unless resend:true, so a
+    // double click or a second SDR can't email the client twice; sendOnce asks first (Tim, 2026-11-12).
+    const { sendOnce } = await import('./passoff-core.js?v=20261112201802');
+    const sentBefore=(state.deals.find(d=>String(d.id)===String(dealId))||{}).passoffSentAt;
+    const result=await sendOnce(b=>invokeEdgeFunction('send-email',b),{
       action: 'send_to_client_thread',
       dealId: dealId,
       clientName: clientName,
       threadId: threadId,
       messageBody: messageBody
-    });
+    },{ confirm: msg=>confirm(msg), clientName, sentAt: sentBefore?new Date(sentBefore).toLocaleString():'' });
+    if(result===null){ if(btn){ btn.disabled=false; btn.textContent='Send to '+clientName; btn.style.opacity='1'; } return; }
     if(result && result.ok){
       const deal=state.deals.find(d=>d.id===dealId);
       if(deal) deal.forwardedAt=new Date().toISOString();

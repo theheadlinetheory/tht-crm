@@ -2176,8 +2176,12 @@ window.pushToClientSheet = async function(dealId) {
   if (!btn || btn.disabled) return;
 
   const deal = state.deals.find(d => String(d.id) === String(dealId));
+  // push-to-client-sheet now writes once per deal and answers alreadyPushed on a repeat; a confirmed
+  // "Push again" has to say force:true or nothing is written (Tim, 2026-11-12).
+  let force = false;
   if (deal && deal.pushedToClientSheet) {
     if (!confirm('This deal was already pushed to the client sheet. Push again?')) return;
+    force = true;
   }
 
   const origText = btn.innerHTML;
@@ -2187,8 +2191,15 @@ window.pushToClientSheet = async function(dealId) {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 25000);
-    const result = await invokeEdgeFunction('push-to-client-sheet', { dealId }, ctrl.signal);
+    const result = await invokeEdgeFunction('push-to-client-sheet', force ? { dealId, force: true } : { dealId }, ctrl.signal);
     clearTimeout(timer);
+    if (!result || result.error || result.ok === false) throw new Error((result && result.error) || 'No response from server');
+    if (result.alreadyPushed) {
+      btn.innerHTML = origText; btn.disabled = false;
+      const { showToast: t0 } = await import('./api.js?v=20261112201802');
+      t0('Already on ' + (result.client || 'the client') + "'s sheet, nothing added", 'info');
+      return;
+    }
 
     if (deal) {
       deal.pushedToClientSheet = new Date().toISOString();
