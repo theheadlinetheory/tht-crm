@@ -11,11 +11,11 @@
 // client-panel.js owns the overlay and the editable blocks; this module only lays them out in tabs and owns the
 // Appointments tab. The panel is never re-rendered while open, so switching tabs only flips which pane shows.
 
-import { state } from './app.js?v=20261112201802';
-import { esc, str, svgIcon, getToday } from './utils.js?v=20261112201802';
-import { supabase } from './supabase-client.js?v=20261112201802';
-import { registerActions } from './delegate.js?v=20261112201802';
-import { clientIanaTz } from './calendly.js?v=20261112201802';
+import { state } from './app.js?v=20261112224636';
+import { esc, str, svgIcon, getToday } from './utils.js?v=20261112224636';
+import { supabase } from './supabase-client.js?v=20261112224636';
+import { registerActions } from './delegate.js?v=20261112224636';
+import { clientIanaTz } from './calendly.js?v=20261112224636';
 
 // ─── Call sheet fields (clients.call_*: no FIELD_MAP entry, so snake_case on the client object) ───
 const lineList = v => {
@@ -237,6 +237,6 @@ registerActions({
   cpOpenDeal(el) {
     const id = el.dataset.id;
     if (window.closeClientInfoPanel) window.closeClientInfoPanel();
-    import('./deal-modal.js?v=20261112201802').then(m => m.openDeal(id));
+    import('./deal-modal.js?v=20261112224636').then(m => m.openDeal(id));
   },
 });

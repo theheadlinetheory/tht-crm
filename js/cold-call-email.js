@@ -12,10 +12,10 @@
 // Fallback link: the old Gmail compose window, filled in, for an inbox that is
 // not connected yet.
 
-import { esc, str, applyTemplate, svgIcon } from './utils.js?v=20261112201802';
-import { state } from './app.js?v=20261112201802';
-import { invokeEdgeFunction, sbUpdateDeal, showToast } from './api.js?v=20261112201802';
-import { passoffInFlight, buttonState, onScreenText } from './passoff-core.js?v=20261112201802';
+import { esc, str, applyTemplate, svgIcon } from './utils.js?v=20261112224636';
+import { state } from './app.js?v=20261112224636';
+import { invokeEdgeFunction, sbUpdateDeal, showToast } from './api.js?v=20261112224636';
+import { passoffInFlight, buttonState, onScreenText } from './passoff-core.js?v=20261112224636';
 
 const SUBJECT = '{FIRST_NAME} - Appointment Confirmation';
 // Client SDR Templates SOP, Template 2. Used only when Claude has not drafted the lead box yet.
