@@ -6,7 +6,7 @@
 // Body-level overlay (survives render()).
 // ═══════════════════════════════════════════════════════════
 import { state } from './app.js?v=20261112201802';
-import { str, esc, getToday } from './utils.js?v=20261112201802';
+import { str, esc, jsArg, getToday } from './utils.js?v=20261112201802';
 import { createClientRecord, deriveTimezone } from './client-info.js?v=20261112201802';
 import { ensureLeadTrackerSheet } from './lead-tracker-sheet.js?v=20261112201802';
 import { invokeEdgeFunction, showToast } from './api.js?v=20261112201802';
@@ -47,7 +47,7 @@ export function openWonModal(deal) {
     ? `<div style="margin:0 0 12px;padding:10px 12px;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;font-size:12px;color:#92400e">
         Possible duplicate: <strong>${esc(dup.name)}</strong> already exists.
         <label style="display:block;margin-top:6px"><input type="checkbox" id="won-dup-override"> Create anyway</label>
-        <button onclick="wonModalLink('${esc(dup.name)}')" style="margin-top:6px;padding:4px 10px;background:#f59e0b;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">Link to existing instead</button>
+        <button onclick="wonModalLink(${jsArg(dup.name)})" style="margin-top:6px;padding:4px 10px;background:#f59e0b;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">Link to existing instead</button>
       </div>`
     : '';
   const html = `<div id="won-overlay" style="position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:flex-start;padding:40px 20px;overflow-y:auto" onclick="if(event.target===this)wonModalDismiss()">
