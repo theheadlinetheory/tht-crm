@@ -5,17 +5,17 @@
 // Ioannis, 2026-11-04: the call sheet (Google Doc) and the client card were two places to look, and finding an
 // answer mid-call meant scrolling. So on the Cold Calling board the card IS the call sheet, one tab per thing a
 // caller looks for: Map, Services, Properties, Questions, Quick lines, Who we want, Client info, Appointments,
-// Cold calling. Every call sheet field (clients.call_*) shows here and edits in place; an edit rebuilds the doc
+// Calendar, Cold calling. Every call sheet field (clients.call_*) shows here and edits in place; an edit rebuilds the doc
 // within a minute (the clients trigger), so the doc stays in step for anyone still using it.
 //
 // client-panel.js owns the overlay and the editable blocks; this module only lays them out in tabs and owns the
 // Appointments tab. The panel is never re-rendered while open, so switching tabs only flips which pane shows.
 
-import { state } from './app.js?v=20261112224636';
-import { esc, str, svgIcon, getToday } from './utils.js?v=20261112224636';
-import { supabase } from './supabase-client.js?v=20261112224636';
-import { registerActions } from './delegate.js?v=20261112224636';
-import { clientIanaTz } from './calendly.js?v=20261112224636';
+import { state } from './app.js?v=20261112233213';
+import { esc, str, svgIcon, getToday } from './utils.js?v=20261112233213';
+import { supabase } from './supabase-client.js?v=20261112233213';
+import { registerActions } from './delegate.js?v=20261112233213';
+import { clientIanaTz, setCalendlyBookingDealId } from './calendly.js?v=20261112233213';
 
 // ─── Call sheet fields (clients.call_*: no FIELD_MAP entry, so snake_case on the client object) ───
 const lineList = v => {
@@ -58,6 +58,7 @@ const TABS = [
   { id: 'want', label: 'Who we want' },
   { id: 'info', label: 'Client info' },
   { id: 'appointments', label: 'Appointments' },
+  { id: 'calendar', label: 'Calendar' },
   { id: 'cold', label: 'Cold calling' },
 ];
 let _tab = 'map';          // remembered between opens, so the caller lands where they left off
@@ -89,7 +90,7 @@ const fact = (label, value) => `<div style="font-size:13px;color:#334155;margin-
 
 /**
  * The tabbed body. `parts` comes from client-panel.js: editable(field, opts), questions, contact, stats, map,
- * coldCalls, callSheetLink, serviceAreaLink, billing (the calendar lives on the Appointments tab) (HTML strings or a function for editable blocks).
+ * coldCalls, callSheetLink, serviceAreaLink, billing (the calendar has its own Calendar tab) (HTML strings or a function for editable blocks).
  */
 export function callCardHtml(cl, parts) {
   _client = cl.name;
@@ -113,8 +114,9 @@ export function callCardHtml(cl, parts) {
       + ed('call_display_name', cl) + ed('call_meets_lead', cl) + ed('call_shop', cl) + ed('location', cl) + '<div id="cp-loc-hint" style="margin:-12px 0 16px"></div>'
       + ed('call_caller_id', cl) + ed('call_get_extra', cl) + ed('call_confirmation_email', cl)
       + parts.contact + parts.callSheetLink + parts.billing,
-    // Marcell, 2026-11-12: the calendar sits open under Upcoming, so free times and booked meetings are one glance.
-    appointments: `<div id="cp-appts"><div style="font-size:12px;color:#94a3b8">Loading appointments…</div></div>` + calendarHtml(cl),
+    appointments: `<div id="cp-appts"><div style="font-size:12px;color:#94a3b8">Loading appointments…</div></div>`,
+    // Ioannis, 2026-11-12: the open calendar gets its own tab, with nothing else in it.
+    calendar: calendarHtml(cl),
     cold: parts.stats + parts.coldCalls,
   };
   if (!TABS.some(t => t.id === _tab)) _tab = 'map';
@@ -129,7 +131,7 @@ export function callCardHtml(cl, parts) {
 export function onCallCardOpen(clientName, { renderMap }) {
   if (renderMap) _onShow.map = renderMap;
   const cl = state.clients.find(c => c.name === clientName);
-  if (cl && str(cl.calendlyUrl).trim()) _onShow.appointments = () => mountCalendar(clientName, cl.calendlyUrl);
+  if (cl && str(cl.calendlyUrl).trim()) _onShow.calendar = () => mountCalendar(clientName, cl.calendlyUrl);
   runOnShow(_tab);
   loadAppointments(clientName);
 }
@@ -185,7 +187,7 @@ async function loadAppointments(clientName) {
   }
 }
 
-// ─── The client's Calendly, open inline under Upcoming ───
+// ─── The client's Calendly, open inline on the Calendar tab ───
 function calendarHtml(cl) {
   if (!str(cl.calendlyUrl).trim()) return box(heading('Calendar') + '<div style="font-size:12px;color:#94a3b8">No Calendly link for this client yet.</div>');
   return box(heading(`${svgIcon('calendar', 12)} ${esc(cl.name)}'s calendar`, '#4338ca')
@@ -209,6 +211,8 @@ function mountCalendar(clientName, baseUrl, tries = 0) {
     url = u.toString();
   } catch (e) { /* keep the raw link */ }
   host.innerHTML = '';
+  // This calendar belongs to no deal: a booking here must not land on whichever card set the id last.
+  setCalendlyBookingDealId(null);
   window.Calendly.initInlineWidget({ url, parentElement: host });
 }
 
@@ -237,6 +241,6 @@ registerActions({
   cpOpenDeal(el) {
     const id = el.dataset.id;
     if (window.closeClientInfoPanel) window.closeClientInfoPanel();
-    import('./deal-modal.js?v=20261112224636').then(m => m.openDeal(id));
+    import('./deal-modal.js?v=20261112233213').then(m => m.openDeal(id));
   },
 });

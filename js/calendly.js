@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // CALENDLY — Calendly popup/inline widget integration
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20261112224636';
-import { TZ_TO_IANA, ACQ_CALENDLY_URLS } from './config.js?v=20261112224636';
-import { render, refreshModal } from './render.js?v=20261112224636';
-import { sbUpdateDeal, sbCreateAppointment, sbDeleteAppointment, camelToSnake, showToast } from './api.js?v=20261112224636';
-import { esc, str, getToday, fmtTime12, uid } from './utils.js?v=20261112224636';
-import { lookupClientInfo, findClientForDeal } from './client-info.js?v=20261112224636';
-import { zonedDateTime } from './passoff-core.js?v=20261112224636';
+import { state, store, pendingWrites } from './app.js?v=20261112233213';
+import { TZ_TO_IANA, ACQ_CALENDLY_URLS } from './config.js?v=20261112233213';
+import { render, refreshModal } from './render.js?v=20261112233213';
+import { sbUpdateDeal, sbCreateAppointment, sbDeleteAppointment, camelToSnake, showToast } from './api.js?v=20261112233213';
+import { esc, str, getToday, fmtTime12, uid } from './utils.js?v=20261112233213';
+import { lookupClientInfo, findClientForDeal } from './client-info.js?v=20261112233213';
+import { zonedDateTime } from './passoff-core.js?v=20261112233213';
 
 export function buildCalendlyUrl(baseUrl, deal){
   if(!baseUrl) return '';
@@ -38,8 +38,22 @@ export function clientIanaTz(clientName){
 
 let calendlyBookingDealId=null;
 
-export function setCalendlyBookingDealId(id){
+// host = the inline widget's container. When it leaves the page (warm-call sheet closed, card closed) the id is
+// cleared after the same grace as the popup, so a later booking from a widget with no deal (the client card's
+// Calendar tab) is never written onto this deal (Tim, 2026-11-12).
+let _inlineHostWatch=null;
+export function setCalendlyBookingDealId(id, host){
   calendlyBookingDealId=id;
+  if(_inlineHostWatch){ _inlineHostWatch.disconnect(); _inlineHostWatch=null; }
+  if(id===null || !host || typeof MutationObserver==='undefined') return;
+  const obs=new MutationObserver(()=>{
+    if(document.body.contains(host)) return;
+    obs.disconnect();
+    if(_inlineHostWatch===obs) _inlineHostWatch=null;
+    setTimeout(()=>{ if(calendlyBookingDealId!==null && String(calendlyBookingDealId)===String(id)) calendlyBookingDealId=null; },1500);
+  });
+  obs.observe(document.body,{childList:true,subtree:true});
+  _inlineHostWatch=obs;
 }
 
 // Closing Calendly without booking left calendlyBookingDealId on that deal, so the next booking made
@@ -98,7 +112,10 @@ export function savePrefillField(dealId, field, value){
   clearTimeout(_prefillSaveTimers[key]);
   _prefillSaveTimers[key]=setTimeout(()=>{
     pendingWrites.value++;
-    sbUpdateDeal(dealId, camelToSnake({[field]:value})).catch(e=>console.error('Update deal failed:',e)).finally(()=>{pendingWrites.value--;});
+    // sbCall already shows the error toast; also say which field, so the caller knows to retype it.
+    sbUpdateDeal(dealId, camelToSnake({[field]:value}))
+      .catch(e=>{ console.error('Update deal failed:',e); showToast('Calendly prefill not saved ('+field+') — type it again','error'); })
+      .finally(()=>{pendingWrites.value--;});
   },800);
 }
 

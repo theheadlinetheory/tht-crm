@@ -2,12 +2,12 @@
 // DEAL-INVOICE-FORM — pure rendering for the four composer steps.
 // No fetch, no state mutation: hands back HTML, takes handlers by name.
 // ═══════════════════════════════════════════════════════════
-import { esc, escAttr, str } from './utils.js?v=20261112224636';
-import { renderTimeline, statusesByIndex } from './invoice-timeline.js?v=20261112224636';
+import { esc, escAttr, str } from './utils.js?v=20261112233213';
+import { renderTimeline, statusesByIndex } from './invoice-timeline.js?v=20261112233213';
 import {
   TERMS, CURRENCIES, PAYMENT_METHODS,
   formatCents, draftTotalCents, lineAmountCents, dueDateLabel, validateDraft, priceInputValue,
-} from './deal-invoice-state.js?v=20261112224636';
+} from './deal-invoice-state.js?v=20261112233213';
 
 export const STEPS = [
   { key: 'compose', label: 'Compose' },

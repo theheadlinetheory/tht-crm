@@ -1,9 +1,9 @@
 // Push a CRM activity to the logged-in user's Google Tasks as an all-day task.
-import { state } from './app.js?v=20261112224636';
-import { showToast } from './api.js?v=20261112224636';
-import { currentUser } from './auth.js?v=20261112224636';
-import { str } from './utils.js?v=20261112224636';
-import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20261112224636';
+import { state } from './app.js?v=20261112233213';
+import { showToast } from './api.js?v=20261112233213';
+import { currentUser } from './auth.js?v=20261112233213';
+import { str } from './utils.js?v=20261112233213';
+import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20261112233213';
 
 // Sends the signed-in user's session token rather than the shared anon key: the
 // edge function reads whose task list to write to off that token, so the anon
