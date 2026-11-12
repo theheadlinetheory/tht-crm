@@ -143,3 +143,14 @@ await test('Calendly start_time lands on the client clock, not the browser clock
 });
 
 console.log(`\n${passed} passed${process.exitCode ? ', some FAILED' : ''}`);
+
+// send-email's claim (audit A4 #18, 2026-11-13): a send still running elsewhere is not "already sent".
+{
+  let asked = false, calls = 0;
+  const invoke = async () => { calls++; return { ok: false, error: 'already_sent', inProgress: true, sentAt: '2026-11-13T10:00:00Z' }; };
+  await assert.rejects(sendOnce(invoke, { dealId: 'd1' }, { confirm: () => { asked = true; return true; }, clientName: 'X', sentAt: '' }),
+    e => e.inProgress === true);
+  assert.equal(asked, false);
+  assert.equal(calls, 1);
+  console.log('  ok  in-progress send → no "send again?" prompt, no second call');
+}

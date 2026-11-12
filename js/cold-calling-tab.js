@@ -238,6 +238,7 @@ export function rankedClients() {
   for (const r of rows) {
     r.unlocked = r.unlimited && everyoneAtCap;
     r.capped = r.atCap && !r.unlocked;
+    r.lastSlot = !r.capped && !r.unlocked && r.cap - r.bookedWeek === 1;
   }
   const pos = name => { const i = cc.order.indexOf(name); return i < 0 ? 1e6 : i; };
   // Once the manager has dragged, their order decides within each group (it already starts from the pins).
@@ -288,8 +289,44 @@ export function coldCallColumnMeta(stageId) {
   const badge = r.capped
     ? `<span title="${r.unlimited ? `Unlimited client: reopens once every client has ${r.cap} meetings this week.` : 'Weekly cap reached. Do not call for this client until Monday.'}" style="font-size:9px;font-weight:800;color:#fff;background:#6b7280;padding:1px 6px;border-radius:8px;letter-spacing:.3px">CAPPED</span>`
     : `<span style="font-size:9px;font-weight:700;color:${r.retainer ? '#1d4ed8' : '#047857'};background:${r.retainer ? '#dbeafe' : '#d1fae5'};padding:1px 6px;border-radius:8px">${r.retainer ? 'RETAINER' : 'PPM'}</span>`;
-  return ` · <b style="color:${r.capped ? '#6b7280' : '#0f172a'}">${r.bookedWeek}/${r.cap}</b> this week ${badge}`;
+  return ` · <b style="color:${r.capped ? '#6b7280' : '#0f172a'}">${r.bookedWeek}/${r.cap}</b> this week ${badge}${r.lastSlot ? ' ' + LAST_SLOT_BADGE : ''}`;
 }
+
+// ─── Last slot of the weekly cap (audit A3 #6, 2026-11-13) ───
+// The counts above come from a copy of cold_calls reloaded every 2 minutes, filled by a sync that also runs every
+// 2 minutes, so two SDRs could both book a client's last paid meeting. One short of the cap, the count is re-read
+// from the database before the calendar opens, and the client wears this badge.
+const LAST_SLOT_BADGE = `<span title="One meeting left this week. Another SDR may be booking it right now: the count is re-checked when you open the calendar, and a booking made in the last 2 minutes may not show yet." style="font-size:9px;font-weight:800;color:#92400e;background:#fef3c7;border:1px solid #fde68a;padding:1px 6px;border-radius:8px;letter-spacing:.3px;white-space:nowrap">LAST SLOT — CHECK BEFORE BOOKING</span>`;
+
+/** This week's counted meetings for one client, read from the database now (not the 2-minute copy). */
+async function liveMeetingsThisWeek(clientName) {
+  const wk = thisWeek();
+  const { data, error } = await supabase.from('cold_calls').select('call_id,outcome,booked_on,call_date,not_counted')
+    .eq('client_name', clientName).or(`call_date.gte.${wk},booked_on.gte.${wk}`);
+  if (error) throw error;
+  return (data || []).filter(r => isMeeting(r) && meetingDate(r) >= wk).length;
+}
+
+/**
+ * Call before showing a client's Calendly link. Only when the client is one meeting short of its cap does it go to
+ * the database; then it returns ok:false if the cap is already reached (and updates the local copy so the queue shows
+ * it), or ok:true with lastSlot so the caller can warn. A failed read never blocks booking: it says so instead.
+ */
+export async function checkSlotBeforeBooking(clientName) {
+  const r = rankedClients().find(x => x.name === clientName);
+  if (!r || !r.lastSlot) return { ok: true };
+  try {
+    const live = await liveMeetingsThisWeek(clientName);
+    if (live >= r.cap) {
+      loadAll().then(() => render()).catch(() => {});
+      return { ok: false, count: live, cap: r.cap, message: `${clientName} already has ${live}/${r.cap} meetings this week — the cap is reached. Book for another client.` };
+    }
+    return { ok: true, lastSlot: true, count: live, cap: r.cap, message: `Last slot for ${clientName} this week (${live}/${r.cap}). A booking another SDR made in the last 2 minutes may not show yet.` };
+  } catch (e) {
+    return { ok: true, lastSlot: true, message: `Could not re-check ${clientName}'s meetings (${e.message}). This is their last slot this week — check before booking.` };
+  }
+}
+if (typeof window !== 'undefined') window.ccCheckSlotBeforeBooking = checkSlotBeforeBooking;
 
 // ─── Shared pieces ───
 const UNLIMITED_BADGE = `<span title="Every client has hit the weekly cap, so this client has no limit for the rest of the week." style="font-size:9px;font-weight:800;color:#fff;background:#7c3aed;padding:1px 6px;border-radius:8px;letter-spacing:.3px">UNLIMITED</span>`;
@@ -381,7 +418,7 @@ function queueHtml() {
         : `<span style="color:#64748b">Next</span>`;
     return `<tr style="${r.capped ? 'opacity:.55' : r.snow.active ? 'background:#f0f9ff' : ''}">
       <td style="${td};font-weight:800;color:#0f172a">${i + 1}</td>
-      <td style="${td}"><div style="font-weight:700;color:#0f172a">${esc(r.name)}${snowBadge(r)}${r.pinned ? ' <span title="Pinned by the sales manager">📌</span>' : ''}${r.unlocked ? ' ' + UNLIMITED_BADGE : r.unlimited ? ' <span title="No weekly limit once every client has hit the cap" style="font-size:10px;color:#7c3aed;font-weight:700">∞</span>' : ''}</div>
+      <td style="${td}"><div style="font-weight:700;color:#0f172a">${esc(r.name)}${snowBadge(r)}${r.pinned ? ' <span title="Pinned by the sales manager">📌</span>' : ''}${r.lastSlot ? ' ' + LAST_SLOT_BADGE : ''}${r.unlocked ? ' ' + UNLIMITED_BADGE : r.unlimited ? ' <span title="No weekly limit once every client has hit the cap" style="font-size:10px;color:#7c3aed;font-weight:700">∞</span>' : ''}</div>
         <div style="font-size:11px;color:#64748b">${r.retainer ? 'Retainer' : 'Pay per meeting'}${r.client.coldCallEmail ? ' · pass-offs from ' + esc(r.client.coldCallEmail) : ''}</div></td>
       <td style="${td};min-width:160px">${capCell(r)}</td>
       <td style="${td}">${status}</td>
@@ -688,7 +725,7 @@ export function clientColdCallStatsHtml(clientName) {
   const cap = r ? r.cap : (Number(cc.quotas.capPerClient) || 2);
   const box = (label, v) => `<div style="flex:1;min-width:90px"><div style="font-size:10px;color:#64748b;font-weight:600;text-transform:uppercase">${label}</div><div style="font-size:18px;font-weight:800;color:#0f172a">${v}</div></div>`;
   return `<div style="margin-bottom:16px;padding:12px;background:#f5f3ff;border-radius:8px;border:1px solid #ddd6fe">
-    <div style="font-size:11px;font-weight:700;color:#6d28d9;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Cold calling this week${r && r.unlocked ? ' · ' + UNLIMITED_BADGE : r && r.capped ? ' · <span style="color:#fff;background:#6b7280;padding:1px 6px;border-radius:8px;font-size:9px">CAPPED</span>' : ''}</div>
+    <div style="font-size:11px;font-weight:700;color:#6d28d9;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Cold calling this week${r && r.unlocked ? ' · ' + UNLIMITED_BADGE : r && r.capped ? ' · <span style="color:#fff;background:#6b7280;padding:1px 6px;border-radius:8px;font-size:9px">CAPPED</span>' : r && r.lastSlot ? ' · ' + LAST_SLOT_BADGE : ''}</div>
     <div style="margin-bottom:10px">${r && r.unlocked ? capCell(r) : bar(w.booked, cap, { cap: true })}<div style="font-size:10px;color:#94a3b8;margin-top:2px">${r && r.unlimited ? `meetings this week / weekly cap (unlimited once every client has ${cap})` : 'meetings this week / weekly cap'}</div></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">${box('Dials', w.dials)}${box('Connections', w.connections)}${box('Connect %', w.connectRate == null ? '—' : w.connectRate + '%')}${box('All-time meetings', `${a.booked}<span style="font-size:11px;color:#64748b;font-weight:600"> / ${a.dials} dials</span>`)}</div>
     ${segs.length ? `<table style="width:100%;border-collapse:collapse"><thead><tr><th style="${th}">Industry</th><th style="${th}">Dials</th><th style="${th}">Reached a person</th><th style="${th}">Meetings</th><th style="${th}">Desk DQ</th></tr></thead><tbody>
@@ -905,8 +942,13 @@ registerActions({
     try {
       const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261113002412');
       const out = await invokeEdgeFunctionAsUser('cold-call-sync', {});
-      const made = (out.cards || []).filter(c => c.created).length;
-      cc.syncNote = `${out.synced} dials pulled${made ? `, ${made} new card${made === 1 ? '' : 's'}` : ''}`;
+      // One sync at a time (audit A3 #4, 2026-11-13): a Refresh during the 2-minute cron's run is skipped.
+      if (out.skipped) {
+        cc.syncNote = 'A sync is already running — showing its results';
+      } else {
+        const made = (out.cards || []).filter(c => c.created).length;
+        cc.syncNote = `${out.synced} dials pulled${made ? `, ${made} new card${made === 1 ? '' : 's'}` : ''}`;
+      }
       await loadAll();
     } catch (e) {
       cc.syncNote = 'Refresh failed: ' + e.message;
