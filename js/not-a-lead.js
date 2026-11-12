@@ -19,12 +19,12 @@
 // and level 02 of the sales pipeline counts it as removed by us) and the same
 // "Miscategorized" archive status. Only before any call: a lead that had a
 // discovery call or a demo is told to use Archive, which asks how that ended.
-import { state } from './app.js?v=20261113002412';
-import { esc } from './utils.js?v=20261113002412';
-import { sbCreateInteraction, showToast } from './api.js?v=20261113002412';
-import { isAdmin, isEmployee } from './auth.js?v=20261113002412';
-import { deleteDeal } from './deals.js?v=20261113002412';
-import { REMOVAL_PREFIX, writeRemovalNote, leadStage } from './removal-reason.js?v=20261113002412';
+import { state } from './app.js?v=20261113031032';
+import { esc } from './utils.js?v=20261113031032';
+import { sbCreateInteraction, showToast } from './api.js?v=20261113031032';
+import { isAdmin, isEmployee } from './auth.js?v=20261113031032';
+import { deleteDeal } from './deals.js?v=20261113031032';
+import { REMOVAL_PREFIX, writeRemovalNote, leadStage } from './removal-reason.js?v=20261113031032';
 
 const REASONS = [
   { label: 'Not actually interested',        hint: 'the AI tagged a no / an auto-reply / a question as positive' },
