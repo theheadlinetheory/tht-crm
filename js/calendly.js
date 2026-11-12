@@ -4,7 +4,8 @@
 import { state, store, pendingWrites } from './app.js?v=20261113002412';
 import { TZ_TO_IANA, ACQ_CALENDLY_URLS } from './config.js?v=20261113002412';
 import { render, refreshModal } from './render.js?v=20261113002412';
-import { sbUpdateDeal, sbCreateAppointment, sbDeleteAppointment, camelToSnake, showToast } from './api.js?v=20261113002412';
+import { sbUpdateDeal, sbDeleteAppointment, camelToSnake, showToast, supabase } from './api.js?v=20261113002412';
+import { replaceDealAppointment, saveDealAppointmentRow } from './deal-appointment.js?v=20261113002412';
 import { esc, str, getToday, fmtTime12, uid } from './utils.js?v=20261113002412';
 import { lookupClientInfo, findClientForDeal } from './client-info.js?v=20261113002412';
 import { zonedDateTime } from './passoff-core.js?v=20261113002412';
@@ -235,10 +236,8 @@ export function applyBookedDateTime(dealId, deal, bookedDate, bookedTime, client
       notes:'Booked via Calendly',
       address:deal.location||deal.address||''
     };
-    const appt={id:uid(),...apptData};
-    store.addAppointment(appt, {silent: true});
-    pendingWrites.value++;
-    sbCreateAppointment(camelToSnake(appt)).catch(e=>console.error('Create appointment failed:',e)).finally(()=>{pendingWrites.value--;});
+    // One row per deal: a rebook replaces the deal's previous appointment (A3#8, 2026-11-13).
+    persistAppointment({id:uid(),...apptData,dealId});
     console.log('[Calendly] Appointment saved:', clientName, bookedDate, bookedTime);
   }
   // Save deal fields
@@ -249,12 +248,19 @@ export function applyBookedDateTime(dealId, deal, bookedDate, bookedTime, client
   else render();
 }
 
-export function saveAppointment(clientName, leadName, apptDate, apptTime, notes, address){
-  const appt={id:uid(),clientName,leadName,apptDate,apptTime,notes:notes||'',address:address||''};
-  store.addAppointment(appt, {silent: true});
-  pendingWrites.value++;
-  sbCreateAppointment(camelToSnake(appt)).catch(e=>console.error('Create appointment failed:',e)).finally(()=>{pendingWrites.value--;});
+// dealId (optional, 2026-11-13): links the row to its deal, so a rebook replaces it and archiving removes it.
+export function saveAppointment(clientName, leadName, apptDate, apptTime, notes, address, dealId){
+  const appt={id:uid(),clientName,leadName,apptDate,apptTime,notes:notes||'',address:address||'',dealId:dealId||null};
+  persistAppointment(appt);
   return appt;
+}
+
+function persistAppointment(appt){
+  state.appointments=replaceDealAppointment(state.appointments, appt);
+  pendingWrites.value++;
+  saveDealAppointmentRow(supabase, camelToSnake(appt))
+    .catch(e=>{ console.error('Create appointment failed:',e); showToast('Appointment not saved: '+(e.message||e),'error'); })
+    .finally(()=>{pendingWrites.value--;});
 }
 
 export function removeAppointment(id){

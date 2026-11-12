@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites } from './app.js?v=20261113002412';
 import { render, refreshModal } from './render.js?v=20261113002412';
-import { invokeEdgeFunction, sbUpdateDeal, camelToSnake } from './api.js?v=20261113002412';
+import { invokeEdgeFunction, sbUpdateDeal, camelToSnake, showToast } from './api.js?v=20261113002412';
 import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20261113002412';
 import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20261113002412';
 import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20261113002412';
@@ -251,8 +251,10 @@ export async function autoPushToTracker(deal){
     state.trackerEntries.unshift(normalizeRow(entry));
   }
 
-  // Fire-and-forget sheet sync
-  invokeEdgeFunction('sync-lead-tracker',{action:'sync-row',entryId:entry.id}).catch(e=>console.warn('Sheet sync failed:',e));
+  // Sheet sync is awaited (Tim, 2026-11-13): the caller archives right after, and the row must be on the
+  // Admin sheet first. A failure is logged, not fatal — the DB row is the billing record.
+  try{ await invokeEdgeFunction('sync-lead-tracker',{action:'sync-row',entryId:entry.id}); }
+  catch(e){ console.warn('Sheet sync failed:',e); }
 
   console.log('Lead Tracker push success:',leadName,'→',clientName);
 }
@@ -403,6 +405,9 @@ export async function executePassOff(dealId, clientName){
       try{ sheetResp=await invokeEdgeFunction('push-to-client-sheet',{dealId:dealId}); }
       catch(sheetErr){ throw new Error('Client sheet push failed: '+sheetErr.message+'. The deal was NOT archived.'); }
       if(!sheetResp||sheetResp.error||sheetResp.ok===false) throw new Error('Client sheet push failed: '+((sheetResp&&sheetResp.error)||'no response')+'. The deal was NOT archived.');
+      // The row is on the client's sheet, but a later step (formatting, the pass_offs billing row) failed:
+      // say so instead of dropping it (A4#9, Tim 2026-11-13).
+      if(sheetResp.warning) showToast('Passed off, but: '+sheetResp.warning,'error');
     }
 
     if(btn) btn.textContent='Archiving...';

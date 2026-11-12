@@ -6,6 +6,7 @@ import { render } from './render.js?v=20261113002412';
 import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbPurgeDeal, sbArchiveDeal, sbRestoreFromArchive, sbCreateActivity, camelToSnake, invokeEdgeFunction } from './api.js?v=20261113002412';
 import { showAcquisitionRemovalPicker, recordWonOnTimeline } from './removal-reason.js?v=20261113002412';
 import { uid, getToday, str } from './utils.js?v=20261113002412';
+import { requestTrackerRemoval } from './tracker-removal.js?v=20261113002412';
 
 const TODAY = getToday;
 
@@ -44,7 +45,7 @@ export async function deleteDeal(id, archiveStatus, clientName, opts){
   store.removeActivitiesForDeal(id, {silent: true});
   store.set({selectedDeal: null});
   pendingWrites.value++;
-  try { await sbArchiveDeal(id, JSON.stringify({...deal, archiveStatus:status, pipeline, clientName:cName})); await sbDeleteDeal(id); invokeEdgeFunction('push-lead-tracker',{action:'remove-lead',dealId:id}).catch(e=>console.warn('Sheet removal:',e.message)); }
+  try { await sbArchiveDeal(id, JSON.stringify({...deal, archiveStatus:status, pipeline, clientName:cName})); await sbDeleteDeal(id); requestTrackerRemoval(invokeEdgeFunction, id, status); } // never for a delivered lead (A1#1, 2026-11-13)
   catch(e){
     // Never cancel a deal with no archive row — it would vanish from the board
     // AND the Archive tab. Put it back; sbCall has already shown the error toast.
@@ -212,7 +213,7 @@ async function executeBulkArchive(reason){
   store.set({bulkSelected: new Set(), bulkMode: false});
   pendingWrites.value++;
   try{
-    for(const id of ids){ const d=state.deals.find(x=>x.id===id); await sbArchiveDeal(id, JSON.stringify({...d, archiveStatus:reason})); await sbDeleteDeal(id); invokeEdgeFunction('push-lead-tracker',{action:'remove-lead',dealId:id}).catch(e=>console.warn('Sheet removal:',e.message)); }
+    for(const id of ids){ const d=state.deals.find(x=>x.id===id); await sbArchiveDeal(id, JSON.stringify({...d, archiveStatus:reason})); await sbDeleteDeal(id); requestTrackerRemoval(invokeEdgeFunction, id, reason); }
   }finally{ pendingWrites.value--; }
 }
 window.doBulkArchiveWithReason = (reason) => executeBulkArchive(reason);

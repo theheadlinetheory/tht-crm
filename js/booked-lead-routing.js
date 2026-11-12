@@ -23,8 +23,10 @@ export async function deliverBookedLead(deal, clientName) {
     const { openPassOffPreview } = await import('./email.js?v=20261113002412');
     return openPassOffPreview(deal.id, clientName);
   }
+  // autoPushToTracker now waits for the sheet sync, and archiving as 'Meeting Booked' no longer asks
+  // push-lead-tracker to remove the row it just wrote (A1#1, A4#8 — Tim, 2026-11-13).
   const { autoPushToTracker } = await import('./email.js?v=20261113002412');
   await autoPushToTracker(deal);
   const { deleteDeal } = await import('./deals.js?v=20261113002412');
-  deleteDeal(deal.id, 'Meeting Booked', clientName);
+  await deleteDeal(deal.id, 'Meeting Booked', clientName);
 }

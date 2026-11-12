@@ -245,7 +245,11 @@ async function reconcileSheet() {
   const btn = document.getElementById('tracker-reconcile-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Reconciling...'; }
   try {
-    await invokeEdgeFunction('sync-lead-tracker', { action: 'full-reconcile' });
+    // In place since 2026-11-13: fills A..L from the DB and adds missing deals; never deletes or moves a row.
+    const r = await invokeEdgeFunction('sync-lead-tracker', { action: 'full-reconcile' });
+    const extra = [r && r.duplicates && r.duplicates.length ? r.duplicates.length + ' duplicate deal(s)' : '',
+      r && r.sheetOnly && r.sheetOnly.length ? r.sheetOnly.length + ' sheet-only row(s)' : ''].filter(Boolean).join(', ');
+    showToast('Sheet reconciled: ' + ((r && r.inserted) || 0) + ' added, ' + ((r && r.updated) || 0) + ' updated' + (extra ? ' — left alone: ' + extra : ''), 'success');
     if (btn) { btn.textContent = 'Done!'; setTimeout(() => { btn.textContent = 'Reconcile Sheet'; btn.disabled = false; }, 2000); }
   } catch (e) {
     alert('Reconcile failed: ' + e.message);
