@@ -7,6 +7,7 @@ import { render, refreshModal } from './render.js?v=20261112201802';
 import { sbUpdateDeal, sbCreateAppointment, sbDeleteAppointment, camelToSnake, showToast } from './api.js?v=20261112201802';
 import { esc, str, getToday, fmtTime12, uid } from './utils.js?v=20261112201802';
 import { lookupClientInfo, findClientForDeal } from './client-info.js?v=20261112201802';
+import { zonedDateTime } from './passoff-core.js?v=20261112201802';
 
 export function buildCalendlyUrl(baseUrl, deal){
   if(!baseUrl) return '';
@@ -39,6 +40,27 @@ let calendlyBookingDealId=null;
 
 export function setCalendlyBookingDealId(id){
   calendlyBookingDealId=id;
+}
+
+// Closing Calendly without booking left calendlyBookingDealId on that deal, so the next booking made
+// anywhere (another card, the Calendly link on a later call) was written onto the first deal
+// (Tim, 2026-11-12). Calendly sends no "closed" event; its popup overlay just leaves the page.
+// The booking message arrives before the overlay goes, so a short grace keeps a real booking safe.
+let _calendlyCloseWatch=null;
+function watchCalendlyPopupClose(dealId){
+  if(_calendlyCloseWatch) _calendlyCloseWatch.disconnect();
+  if(typeof MutationObserver==='undefined') return;
+  let seen=false;
+  const obs=new MutationObserver(()=>{
+    const open=!!document.querySelector('.calendly-overlay');
+    if(open){ seen=true; return; }
+    if(!seen) return;
+    obs.disconnect();
+    if(_calendlyCloseWatch===obs) _calendlyCloseWatch=null;
+    setTimeout(()=>{ if(calendlyBookingDealId!==null && String(calendlyBookingDealId)===String(dealId)) calendlyBookingDealId=null; },1500);
+  });
+  obs.observe(document.body,{childList:true,subtree:true});
+  _calendlyCloseWatch=obs;
 }
 
 // Which deal's "Review & Edit Info Sent to Calendly" panel is open. Kept here, not only in the DOM:
@@ -134,12 +156,14 @@ export function openCalendlyEmbed(dealId, baseCalUrl, clientName, overrideName, 
     if(window.Calendly){
       try{window.Calendly.closePopupWidget();}catch(ex){}
       window.Calendly.initPopupWidget({url:finalUrl, prefill});
+      if(dealId) watchCalendlyPopupClose(dealId);
     } else {
       window.open(finalUrl,'_blank');
     }
   } catch(e){
     if(window.Calendly){
       window.Calendly.initPopupWidget({url:baseCalUrl});
+      if(dealId) watchCalendlyPopupClose(dealId);
     } else {
       window.open(baseCalUrl,'_blank');
     }
@@ -162,9 +186,9 @@ window.addEventListener('message',function(e){
         const clientName=client?client.name:'';
         const ianaTz=clientName?clientIanaTz(clientName):null;
         if(startTime){
-          const dt=new Date(startTime);
-          const bookedDate=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
-          const bookedTime=String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');
+          // On the client's clock, not the caller's browser clock: a caller in another zone booked
+          // the meeting at the wrong hour on the card (Tim, 2026-11-12).
+          const { date: bookedDate, time: bookedTime }=zonedDateTime(startTime, ianaTz);
           applyBookedDateTime(calendlyBookingDealId, deal, bookedDate, bookedTime, clientName, ianaTz, startTime);
         } else {
           // Calendly didn't include start_time — ask user to confirm

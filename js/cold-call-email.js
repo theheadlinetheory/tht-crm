@@ -15,6 +15,7 @@
 import { esc, str, applyTemplate, svgIcon } from './utils.js?v=20261112201802';
 import { state } from './app.js?v=20261112201802';
 import { invokeEdgeFunction, sbUpdateDeal, showToast } from './api.js?v=20261112201802';
+import { passoffInFlight, buttonState, onScreenText } from './passoff-core.js?v=20261112201802';
 
 const SUBJECT = '{FIRST_NAME} - Appointment Confirmation';
 // Client SDR Templates SOP, Template 2. Used only when Claude has not drafted the lead box yet.
@@ -74,15 +75,20 @@ async function createLeadDraft(dealId, clientName) {
   const deal = state.selectedDeal && String(state.selectedDeal.id) === String(dealId)
     ? state.selectedDeal : state.deals.find(d => String(d.id) === String(dealId));
   if (!deal) return;
+  // Ignored while this deal's draft is saving or Claude is rewriting the lead box (Tim, 2026-11-12).
+  if (!passoffInFlight.begin(dealId, 'gmail-draft')) return;
   const btn = document.getElementById('cc-draft-btn');
-  // Open the tab inside the click so the popup blocker allows it; it is pointed at Gmail once we know where.
-  const tab = window.open('about:blank', '_blank');
+  let tab = null;
   if (btn) { btn.disabled = true; btn.textContent = 'Saving draft…'; }
   try {
-    // The draft is built from what is SAVED on the card, so save the lead box now (its own save is debounced).
-    const body = str(deal.passoffLeadMessage).trim();
-    if (!body) throw new Error('Draft the lead confirmation in the pass-off panel first.');
-    await sbUpdateDeal(dealId, { passoff_lead_message: deal.passoffLeadMessage });
+    // The draft is built from what is SAVED on the card, so save the lead box now (its own save is
+    // debounced). What is on screen wins over the deal copy, which can lag the box.
+    const leadBox = document.getElementById('passoff-lead-text');
+    const text = onScreenText(leadBox ? leadBox.value : '', deal.passoffLeadMessage);
+    if (!str(text).trim()) throw new Error('Draft the lead confirmation in the pass-off panel first.');
+    // Open the tab inside the click so the popup blocker allows it; it is pointed at Gmail once we know where.
+    tab = window.open('about:blank', '_blank');
+    await sbUpdateDeal(dealId, { passoff_lead_message: text });
     const resp = await invokeEdgeFunction('gmail-lead-draft', { dealId, clientName });
     if (resp.needsConnect) {
       const c = await invokeEdgeFunction('gmail-connect', { inbox: resp.inbox });
@@ -90,15 +96,16 @@ async function createLeadDraft(dealId, clientName) {
       showToast(`Connect ${resp.inbox} once (sign in as it in the tab that opened), then press the button again.`, 'warning');
       return;
     }
-    if (!resp.ok) throw new Error(resp.error || 'Gmail did not save the draft');
+    if (!resp || !resp.ok) throw new Error((resp && resp.error) || 'Gmail did not save the draft');
     if (tab) tab.location = resp.openUrl; else window.open(resp.openUrl, '_blank');
     showToast(`Draft saved in ${resp.inbox} → Drafts. Check it and hit Send.`, 'success');
   } catch (e) {
     if (tab) tab.close();
     showToast('Could not create the draft: ' + e.message);
   } finally {
+    passoffInFlight.end(dealId, 'gmail-draft');
     const b = document.getElementById('cc-draft-btn');
-    if (b) { b.disabled = false; b.innerHTML = draftLabel(clientName); }
+    if (b) { b.disabled = passoffInFlight.any(dealId); b.innerHTML = draftLabel(clientName); }
   }
 }
 
@@ -110,12 +117,15 @@ export function renderColdCallEmailButton(deal, client) {
   const url = coldCallEmailUrl(deal, client);
   if (!url) return '';
   const name = btoa(unescape(encodeURIComponent(client.name)));
+  // Drawn from the in-flight map so a re-render mid-save keeps it busy (Tim, 2026-11-12).
+  const st = buttonState(passoffInFlight, deal.id, 'gmail-draft', '');
+  const label = st.disabled && passoffInFlight.has(deal.id, 'gmail-draft') ? 'Saving draft…' : draftLabel(client.name);
   return `<div style="margin:0 0 8px 0">
-    <button id="cc-draft-btn" class="btn btn-primary"
+    <button id="cc-draft-btn" class="btn btn-primary" ${st.disabled ? 'disabled' : ''}
       style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#0891b2;border-color:#0891b2"
       title="Saves the lead confirmation in ${esc(client.coldCallEmail)} → Drafts, to ${esc(deal.email)} with ${esc(client.name)} CC'd. Nothing is sent."
       onclick="createLeadDraftClick('${esc(deal.id)}',decodeURIComponent(escape(atob('${name}'))))">
-      ${draftLabel(client.name)}
+      ${label}
     </button>
     <div style="font-size:10px;color:var(--text-muted);margin-top:4px;text-align:center">
       Goes to ${esc(client.coldCallEmail)} → Drafts ·

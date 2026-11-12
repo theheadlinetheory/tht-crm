@@ -146,8 +146,9 @@ export async function confirmForward(dealId){
     const deal=state.deals.find(d=>d.id===dealId);
     const client=deal ? (findClientForDeal(deal) || state.clients.find(c=>c.name===deal.stage)) : null;
     const resp=await invokeEdgeFunction('send-email',{action:'forward_to_client', dealId:dealId, clientId: client ? client.id : ''});
-    if(!resp || resp.error){
-      const errMsg=resp?resp.error:'No response from server \u2014 check Apps Script deployment';
+    // send-email can answer a refusal as {ok:false} with no error text (Tim, 2026-11-12).
+    if(!resp || resp.error || resp.ok===false){
+      const errMsg=resp?(resp.error||'send-email refused the forward'):'No response from server \u2014 check Apps Script deployment';
       alert('Forward failed: '+errMsg);
       if(btn){btn.innerHTML=svgIcon('mail',14)+' Retry';btn.disabled=false;}
       return;
@@ -368,39 +369,40 @@ export async function executePassOff(dealId, clientName){
   const btn=document.getElementById('passoff-confirm-btn');
   if(btn){btn.disabled=true;btn.textContent='Passing off...';btn.style.opacity='0.6';}
 
+  const resetBtn=()=>{if(btn){btn.disabled=false;btn.textContent='Pass Off to '+clientName;btn.style.opacity='1';}};
   const deal=state.deals.find(d=>d.id===dealId);
-  if(!deal){alert('Deal not found');return;}
+  if(!deal){alert('Deal not found');resetBtn();return;}
   const client=findClientForDeal(deal)||state.clients.find(c=>c.name===clientName);
-  if(!client){alert('Client not found');return;}
+  if(!client){alert('Client not found');resetBtn();return;}
 
   try{
     if(!deal.forwardedAt || str(deal.forwardedAt).trim()===''){
       if(btn) btn.textContent='Forwarding...';
       const resp=await invokeEdgeFunction('send-email',{action:'forward_to_client',dealId:dealId,clientId:client.id||''});
-      if(!resp||resp.error) throw new Error('Forward failed: '+(resp?.error||'No response'));
+      if(!resp||resp.error||resp.ok===false) throw new Error('Forward failed: '+(resp?.error||(resp?'send-email refused the forward':'No response')));
       deal.forwardedAt=new Date().toISOString();
     }
 
     const ghlConfigured=client.ghlConfigured||(str(client.ghlLocationId).trim()&&str(client.ghlApiKey).trim());
     if(ghlConfigured){
       if(btn) btn.textContent='Pushing to GHL...';
-      try{
-        const ghlResp=await invokeEdgeFunction('push-to-ghl',{dealId:dealId});
-        if(ghlResp&&ghlResp.error) console.warn('GHL push warning:',ghlResp.error);
-      }catch(ghlErr){
-        console.warn('GHL push skipped during pass-off:',ghlErr.message);
-      }
+      // A failed push used to be logged and the deal archived anyway, so the client never got the
+      // lead and it vanished from the board. Stop here instead; the forward is not repeated on retry
+      // (forwardedAt is set) (Tim, 2026-11-12).
+      let ghlResp;
+      try{ ghlResp=await invokeEdgeFunction('push-to-ghl',{dealId:dealId}); }
+      catch(ghlErr){ throw new Error('GHL push failed: '+ghlErr.message+'. The deal was NOT archived.'); }
+      if(!ghlResp||ghlResp.error||ghlResp.ok===false) throw new Error('GHL push failed: '+((ghlResp&&ghlResp.error)||'no response')+'. The deal was NOT archived.');
     }
 
     // Push to client sheet (logs to pass_offs for retainer clients)
     const hasSheet=str(client.clientSheetId).trim();
     if(hasSheet){
       if(btn) btn.textContent='Pushing to client sheet...';
-      try{
-        await invokeEdgeFunction('push-to-client-sheet',{dealId:dealId});
-      }catch(sheetErr){
-        console.warn('Client sheet push skipped during pass-off:',sheetErr.message);
-      }
+      let sheetResp;
+      try{ sheetResp=await invokeEdgeFunction('push-to-client-sheet',{dealId:dealId}); }
+      catch(sheetErr){ throw new Error('Client sheet push failed: '+sheetErr.message+'. The deal was NOT archived.'); }
+      if(!sheetResp||sheetResp.error||sheetResp.ok===false) throw new Error('Client sheet push failed: '+((sheetResp&&sheetResp.error)||'no response')+'. The deal was NOT archived.');
     }
 
     if(btn) btn.textContent='Archiving...';
@@ -415,7 +417,7 @@ export async function executePassOff(dealId, clientName){
     setTimeout(()=>toast.remove(),4000);
   }catch(e){
     alert('Pass-off failed: '+e.message);
-    if(btn){btn.disabled=false;btn.textContent='Pass Off to '+clientName;btn.style.opacity='1';}
+    resetBtn();
   }
 }
 
