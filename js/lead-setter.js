@@ -7,7 +7,7 @@
 //   every other lead → Ioannis.
 // The Setter cell is a dropdown so a wrong guess can be corrected by hand.
 // A new setter = add them here AND to setter_for_email() in that migration.
-import { esc, str } from './utils.js?v=20261113001613';
+import { esc, str } from './utils.js?v=20261113002303';
 
 // paypal / biweeklyBase drive the Payout Report. null = not on file yet: the
 // report still counts the leads but shows no base pay and no Send button.

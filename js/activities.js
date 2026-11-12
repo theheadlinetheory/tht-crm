@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // ACTIVITIES — Activity CRUD, SOP sequences, overdue tracking
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, completedActivityIds, deletedActivityIds, inFlightActivityIds } from './app.js?v=20261113001613';
-import { SOP_DAYS, CLIENT_SOP_DAYS, PRE_CALL_SEQUENCE, NO_SHOW_SEQUENCE, REACTIVATION_DAYS } from './config.js?v=20261113001613';
-import { render, refreshModal } from './render.js?v=20261113001613';
-import { sbCreateActivity, sbUpdateActivity, sbDeleteActivity, camelToSnake } from './api.js?v=20261113001613';
-import { uid, getToday, isValidDate, fmtTime12 } from './utils.js?v=20261113001613';
-import { findClientForDeal } from './client-info.js?v=20261113001613';
-import { isDay1EmailTask, askEmailTemplate } from './email-template-pick.js?v=20261113001613';
+import { state, store, pendingWrites, completedActivityIds, deletedActivityIds, inFlightActivityIds } from './app.js?v=20261113002303';
+import { SOP_DAYS, CLIENT_SOP_DAYS, PRE_CALL_SEQUENCE, NO_SHOW_SEQUENCE, REACTIVATION_DAYS } from './config.js?v=20261113002303';
+import { render, refreshModal } from './render.js?v=20261113002303';
+import { sbCreateActivity, sbUpdateActivity, sbDeleteActivity, camelToSnake } from './api.js?v=20261113002303';
+import { uid, getToday, isValidDate, fmtTime12, esc } from './utils.js?v=20261113002303';
+import { findClientForDeal } from './client-info.js?v=20261113002303';
+import { isDay1EmailTask, askEmailTemplate } from './email-template-pick.js?v=20261113002303';
 
 async function retryActivityWrite(fn, label, maxRetries=3){
   pendingWrites.value++;
@@ -144,7 +144,7 @@ export function renderBookedMeetingsBanner(){
   const shown=booked.slice(0,2);
   let h=`<span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#78350f">\u{1F4C5}`;
   for(const d of shown){
-    h+=`<span style="white-space:nowrap;cursor:pointer" onclick="openDeal('${d.id}')">${d.company||d.contact||'?'}${d.bookedTime?' @ '+fmtTime12(d.bookedTime):''}</span>`;
+    h+=`<span style="white-space:nowrap;cursor:pointer" onclick="openDeal('${esc(d.id)}')">${esc(d.company||d.contact||'?')}${d.bookedTime?' @ '+fmtTime12(d.bookedTime):''}</span>`;
   }
   if(booked.length>2) h+=`<span style="color:#92400e">+${booked.length-2}</span>`;
   h+=`</span>`;
@@ -160,7 +160,7 @@ export function renderUpcomingMeetings(deal, clientName){
   let h=`<div style="margin-bottom:12px;padding:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px">
     <div style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:6px">Upcoming Appointments</div>`;
   for(const a of appts){
-    h+=`<div style="font-size:12px;color:#78350f;padding:2px 0">${a.leadName||'?'} — ${a.apptDate}${a.apptTime?' @ '+fmtTime12(a.apptTime):''}</div>`;
+    h+=`<div style="font-size:12px;color:#78350f;padding:2px 0">${esc(a.leadName||'?')} — ${esc(a.apptDate)}${a.apptTime?' @ '+fmtTime12(a.apptTime):''}</div>`;
   }
   h+=`</div>`;
   return h;
