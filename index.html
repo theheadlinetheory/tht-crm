@@ -11,17 +11,29 @@
      so a token bump alone needs a hard-refresh. This checks version.json (fetched
      no-store, always fresh) against the version baked into THIS (possibly cached)
      document; if they differ, it reloads ONCE to pull the fresh index.html. The
-     per-version sessionStorage guard prevents any reload loop. -->
+     per-version sessionStorage guard prevents any reload loop.
+     It never reloads mid-work: while the app says no (window.__crmCanReload — a save or
+     pass-off request in flight, or unsaved typing on an open card) it waits and asks
+     again every 5s (Tim, 2026-11-12). -->
 <script>
 (function(){
   window.__APP_V='20261112201802';
+  var waiting=null;
+  function reloadWhenIdle(k){
+    waiting=null;
+    var ok=true;
+    try{ ok=typeof window.__crmCanReload!=='function'||window.__crmCanReload(); }catch(e){ ok=true; }
+    if(!ok){ waiting=setTimeout(function(){reloadWhenIdle(k);},5000); return; }
+    if(!sessionStorage.getItem(k)){ sessionStorage.setItem(k,'1'); location.reload(); }
+  }
   function check(){
+    if(waiting) return;
     fetch('version.json?t='+Date.now(),{cache:'no-store'})
       .then(function(r){return r.ok?r.json():null;})
       .then(function(d){
         if(d&&d.v&&d.v!==window.__APP_V){
           var k='__vreload_'+d.v;
-          if(!sessionStorage.getItem(k)){ sessionStorage.setItem(k,'1'); location.reload(); }
+          if(!sessionStorage.getItem(k)&&!waiting) reloadWhenIdle(k);
         }
       }).catch(function(){});
   }
@@ -114,6 +126,8 @@ setTimeout(function() {
   }
 }, 15000);
 </script>
-<script type="module">import('./js/app.js?t=' + Date.now())</script>
+<!-- Same URL every module imports app.js under (?v=<deploy token>, rewritten by bump-tokens.mjs).
+     A different query here (it was ?t=<now>) loads a second copy of the app — ci-check fails it. -->
+<script type="module">import('./js/app.js?v=20261112201802')</script>
 </body>
 </html>

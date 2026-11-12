@@ -183,23 +183,37 @@ export async function loadCampaignAssignments(){
     if(data && data.value) state.campaignAssignments = JSON.parse(data.value);
   } catch(e){ console.warn('Failed to load campaign assignments:', e); }
 }
-async function persistAssignments(){
+// Re-read the current blob and change ONLY this campaign's key. Writing back the whole of
+// state.campaignAssignments overwrote anyone else's assignment made since this tab loaded —
+// and the live listener that kept it fresh was being torn down by api.js (Tim, 2026-11-12).
+// userName empty = remove the assignment. Errors are shown, not swallowed.
+async function persistAssignment(campaignName, userName){
   try {
-    await supabase.from('crm_settings').upsert(
-      { key:'campaign_assignments', value: JSON.stringify(state.campaignAssignments), updated_at: new Date().toISOString() },
+    const { data, error: readErr } = await supabase.from('crm_settings').select('value').eq('key','campaign_assignments').maybeSingle();
+    if(readErr) throw readErr;
+    const current = data && data.value ? JSON.parse(data.value) : {};
+    if(!userName) delete current[campaignName];
+    else current[campaignName] = userName;
+    const { error } = await supabase.from('crm_settings').upsert(
+      { key:'campaign_assignments', value: JSON.stringify(current), updated_at: new Date().toISOString() },
       { onConflict: 'key' });
-  } catch(e){ console.warn('Failed to save campaign assignment:', e); }
+    if(error) throw error;
+    state.campaignAssignments = current;
+  } catch(e){
+    console.warn('Failed to save campaign assignment:', e);
+    import('./api.js?v=20261112201802').then(m => m.showToast(`Campaign assignment not saved: ${e.message || e}`, 'error')).catch(() => {});
+  }
 }
 export async function saveCampaignAssignment(campaignName, userName){
-  state.campaignAssignments[campaignName] = userName; render(); await persistAssignments();
+  state.campaignAssignments[campaignName] = userName; render(); await persistAssignment(campaignName, userName);
 }
 export async function assignCampaignOwner(campaignName, userName){
   if(!userName) delete state.campaignAssignments[campaignName];
   else state.campaignAssignments[campaignName] = userName;
-  await persistAssignments(); render();
+  await persistAssignment(campaignName, userName); render();
 }
 export async function removeCampaignAssignment(campaignName){
-  delete state.campaignAssignments[campaignName]; await persistAssignments(); render();
+  delete state.campaignAssignments[campaignName]; await persistAssignment(campaignName, ''); render();
 }
 export function listenCampaignAssignments(){
   try {

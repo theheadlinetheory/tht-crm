@@ -3,7 +3,9 @@
 // ═══════════════════════════════════════════════════════════
 import { API_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261112201802';
 import { supabase } from './supabase-client.js?v=20261112201802';
-import { mergeRealtimeUpdate } from './realtime-merge.js?v=20261112201802';
+import { applyRealtimeUpdate, createRealtimeQueue } from './realtime-merge.js?v=20261112201802';
+import { selectAllPages } from './paging.js?v=20261112201802';
+import { dealsVersion } from './state.js?v=20261112201802';
 export { supabase };
 import { state, store, pendingWrites, failedWriteQueue, pendingDealFields, deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds, inFlightActivityIds } from './app.js?v=20261112201802';
 import { render, refreshModal } from './render.js?v=20261112201802';
@@ -446,6 +448,7 @@ export async function initialSync(isStartup) {
     if (state.selectedDeal || state.showNew || state.showAddClient) return;
     if (pendingWrites.value > 0) return;
   }
+  const syncStartedAt = Date.now();
   try {
     state.syncing = true;
     if (isStartup || !selfManagedTabActive()) render(); // background sync must not rebuild the weekly tab
@@ -549,6 +552,10 @@ export async function initialSync(isStartup) {
       import('./activities.js?v=20261112201802').then(m => m.replayPendingActivities && m.replayPendingActivities()).catch(() => {});
     }
 
+    // Realtime events received before these reads started are already in this snapshot.
+    _rtQueue.markSynced(syncStartedAt);
+    dealsVersion.value++;
+
     state.synced = true;
     state.loadFailed = false;
     state.syncing = false;
@@ -559,6 +566,15 @@ export async function initialSync(isStartup) {
     runServiceAreaChecks().then(() => { if (isStartup || !selfManagedTabActive()) render(); }).catch(e => console.warn('Service area checks failed:', e));
   } catch (e) {
     console.error('Initial sync failed:', e);
+    // Only the startup load may put up "Failed to load CRM". One failed background sync used to
+    // replace a working board with that screen for every SDR at once; now it keeps the data it
+    // already has and says so (Tim, 2026-11-12).
+    if (!isStartup && state.synced && !state.loadFailed) {
+      state.syncing = false;
+      showToast('Background sync failed — showing the last loaded data. It retries in 2 minutes.', 'warning');
+      if (!selfManagedTabActive()) render();
+      return;
+    }
     state.loadFailed = true;
     state.loadError = e?.message || String(e);
     state.synced = true;
@@ -568,8 +584,20 @@ export async function initialSync(isStartup) {
 }
 
 // ─── Realtime event queue & debounced render ───
-const _realtimeQueue = [];        // events received while guards are active
 let _realtimeRenderTimer = null;  // debounce timer for batching rapid renders
+
+// A pass-off generate/revise/send is running (contract C3, set by passoff.js).
+const crmBusy = () => (typeof window !== 'undefined' && window.__crmBusy > 0);
+
+// Which tables' events must wait. Deals and activities wait while a card is open or a pass-off
+// request runs: applying them swapped the row object under the open card (Tim, 2026-11-12).
+function realtimeGuarded(table) {
+  if (table === 'deals') return pendingWrites.value > 0 || !!state.selectedDeal || state.showNew || state.showAddClient || crmBusy();
+  if (table === 'activities') return pendingWrites.value > 0 || !!state.selectedDeal || crmBusy();
+  if (table === 'clients') return pendingWrites.value > 0;
+  return false;
+}
+const _rtQueue = createRealtimeQueue({ isGuarded: realtimeGuarded, apply: (table, payload) => applyRealtimeEvent(table, payload) });
 
 // Tabs that own their own screen and must NOT be rebuilt by a background
 // event. A full innerHTML re-render throws away scroll position and any open
@@ -587,22 +615,23 @@ function selfManagedTabActive() {
 function debouncedRealtimeRender() {
   if (selfManagedTabActive()) return;        // don't disturb a self-managed tab
   if (_realtimeRenderTimer) return;          // already scheduled
-  _realtimeRenderTimer = setTimeout(() => {
+  _realtimeRenderTimer = setTimeout(function tick() {
+    // Contract C3: no full re-render of an open card while a save or pass-off request is in
+    // flight — it reset the card's buttons mid-request. Try again shortly (Tim, 2026-11-12).
+    if (state.selectedDeal && (crmBusy() || pendingWrites.value > 0)) { _realtimeRenderTimer = setTimeout(tick, 500); return; }
     _realtimeRenderTimer = null;
     render();
   }, 150);                                    // batch renders within 150ms window
 }
 
 export function flushRealtimeQueue() {
-  if (!_realtimeQueue.length) return;
-  const queued = _realtimeQueue.splice(0);
-  for (const { table, payload } of queued) {
-    if (table === 'activities' && payload.eventType === 'DELETE' && payload.old) {
-      if (!deletedActivityIds.has(String(payload.old.id))) continue;
-    }
-    applyRealtimeEvent(table, payload);
-  }
-  if (!selfManagedTabActive()) render();          // state stays fresh; skip the disruptive re-render
+  if (!_rtQueue.length) return;
+  // Guarded tables (an open card, a write or pass-off request in flight) stay queued.
+  if (_rtQueue.flush() && !selfManagedTabActive()) render(); // state stays fresh; skip the disruptive re-render
+}
+
+function onRealtime(table, payload) {
+  if (_rtQueue.receive(table, payload, Date.now())) debouncedRealtimeRender();
 }
 
 let _resubscribeTimer = null;
@@ -618,83 +647,30 @@ function scheduleResubscribe() {
 
 let _realtimeId = 0;
 export async function subscribeRealtime() {
-  await supabase.removeAllChannels();
+  // Remove only the channels this function opened (they all end in -<rid>, hiring-unread's too).
+  // removeAllChannels() also killed auth.js's campaign-assignment and routing-rule listeners,
+  // so those never updated live again after the first reconnect (Tim, 2026-11-12).
+  const prevSuffix = `-${_realtimeId}`;
+  const mine = supabase.getChannels().filter(ch => _realtimeId > 0 && String(ch.topic || '').endsWith(prevSuffix));
+  await Promise.all(mine.map(ch => supabase.removeChannel(ch)));
   const rid = ++_realtimeId;
-  supabase.channel(`deals-changes-${rid}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'deals' }, payload => {
-      if (pendingWrites.value > 0 || state.selectedDeal || state.showNew || state.showAddClient) {
-        _realtimeQueue.push({ table: 'deals', payload });
-        return;
-      }
-      applyRealtimeEvent('deals', payload);
-      debouncedRealtimeRender();
-    })
-    .subscribe((status) => {
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') scheduleResubscribe();
-    });
+  const onStatus = (status) => { if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') scheduleResubscribe(); };
+  // Only the first four reconnect on error, as before.
+  const watch = (name, table, reconnect) => supabase.channel(`${name}-${rid}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table }, payload => onRealtime(table, payload))
+    .subscribe(reconnect ? onStatus : undefined);
 
-  supabase.channel(`activities-changes-${rid}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'activities' }, payload => {
-      if (pendingWrites.value > 0 || state.selectedDeal) {
-        _realtimeQueue.push({ table: 'activities', payload });
-        return;
-      }
-      if (payload.eventType === 'DELETE' && payload.old) {
-        const oldId = String(payload.old.id);
-        if (!deletedActivityIds.has(oldId)) return;
-      }
-      applyRealtimeEvent('activities', payload);
-      debouncedRealtimeRender();
-    })
-    .subscribe((status) => {
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') scheduleResubscribe();
-    });
-
-  supabase.channel(`clients-changes-${rid}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, payload => {
-      if (pendingWrites.value > 0) {
-        _realtimeQueue.push({ table: 'clients', payload });
-        return;
-      }
-      applyRealtimeEvent('clients', payload);
-      debouncedRealtimeRender();
-    })
-    .subscribe((status) => {
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') scheduleResubscribe();
-    });
-
-  supabase.channel(`appointments-changes-${rid}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, payload => {
-      applyRealtimeEvent('appointments', payload);
-      debouncedRealtimeRender();
-    })
-    .subscribe((status) => {
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') scheduleResubscribe();
-    });
-
-  supabase.channel(`tracker-changes-${rid}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'lead_tracker' }, payload => {
-      applyRealtimeEvent('lead_tracker', payload);
-      debouncedRealtimeRender();
-    })
-    .subscribe();
-
-  supabase.channel(`demo-tracker-changes-${rid}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'demo_tracker' }, payload => {
-      applyRealtimeEvent('demo_tracker', payload);
-      debouncedRealtimeRender();
-    })
-    .subscribe();
+  watch('deals-changes', 'deals', true);
+  watch('activities-changes', 'activities', true);
+  watch('clients-changes', 'clients', true);
+  watch('appointments-changes', 'appointments', true);
+  watch('tracker-changes', 'lead_tracker');
+  watch('demo-tracker-changes', 'demo_tracker');
 
   // Hiring tab's unread bubble (admin-only; its own table, no deal/activity counts).
   import('./hiring-unread.js?v=20261112201802').then(m => m.watchHiringUnread(rid)).catch(e => console.warn('Hiring unread watch failed:', e));
 
-  supabase.channel(`pass-offs-changes-${rid}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'pass_offs' }, payload => {
-      applyRealtimeEvent('pass_offs', payload);
-      debouncedRealtimeRender();
-    })
-    .subscribe();
+  watch('pass-offs-changes', 'pass_offs');
 }
 
 // Heavy fields to strip from realtime payloads to save memory
@@ -720,6 +696,8 @@ function applyRealtimeEvent(table, payload) {
     delete newRow.ghlLocationId;
   }
 
+  if (table === 'deals') dealsVersion.value++;
+
   if (eventType === 'INSERT' && newRow) {
     // Skip non-active deals (soft-deleted)
     if (table === 'deals' && newRow.leadStatus && newRow.leadStatus !== 'active') return;
@@ -736,13 +714,16 @@ function applyRealtimeEvent(table, payload) {
     const idx = list.findIndex(item => String(item.id) === String(newRow.id));
     if (idx >= 0) {
       // Merge, never replace: the payload leaves out large columns this UPDATE did not touch.
-      list[idx] = mergeRealtimeUpdate(list[idx], newRow);
-      if (table === 'deals') {
-        const pending = pendingDealFields[String(newRow.id)];
-        if (pending) Object.assign(newRow, pending);
-      }
+      // Merge INTO the row we hold, so an open card (state.selectedDeal) and any other holder
+      // keep pointing at the live row instead of an orphaned copy (Tim, 2026-11-12).
+      // mergeRealtimeUpdate(list[idx], newRow) runs inside applyRealtimeUpdate.
+      applyRealtimeUpdate(list[idx], newRow, table === 'deals' ? pendingDealFields[String(newRow.id)] : null);
     }
   } else if (eventType === 'DELETE' && oldRow) {
+    // Another user's delete applies too — this used to accept only deletes we made ourselves,
+    // so a deleted activity stayed on everyone else's card until a reload (Tim, 2026-11-12).
+    // The one exception: an activity we are still creating is never removed under us.
+    if (table === 'activities' && inFlightActivityIds.has(String(oldRow.id))) return;
     const idx = list.findIndex(item => String(item.id) === String(oldRow.id));
     if (idx >= 0) list.splice(idx, 1);
   }
@@ -754,10 +735,13 @@ function applyRealtimeEvent(table, payload) {
 // These are loaded on-demand when opening a deal modal
 const DEALS_LIGHT_COLS = 'id,company,contact,email,phone,value,stage,pipeline,flag,notes,sl_lead_id,sl_campaign_id,campaign_name,lead_category,created_at,updated_at,website,location,smartlead_url,forwarded_at,mobile_phone,pushed_to_tracker,pushed_to_client_sheet,pushed_to_ghl,address,client_stage,booked_date,booked_time,booked_for,booked_timezone,cal_name,cal_email,cal_notes,has_new_reply,has_new_text,owner_override,job_title,linkedin_url,passoff_instructions,passoff_lead_message,cold_call_client,passoff_sent_at,suggested_updates,contact2,contact3,phone2,phone3,title2,title3,email2,email3,email4,reply_snippet,retarget_campaign,retarget_date,retarget_status,retarget_count,auto_followup_started_at,booking_sms_sent_at,vertical,lead_source,aimfox_lead_id,aimfox_url,ghl_contact_id,ghl_conversation_id';
 
+// Every column of public.deals, as of 2026-11-12 — what an archive restore may write back.
+const DEALS_ALL_COLS = ['id','company','contact','email','phone','value','stage','pipeline','flag','notes','sl_lead_id','sl_campaign_id','campaign_name','lead_category','website','location','smartlead_url','forwarded_at','email_body','mobile_phone','pushed_to_tracker','address','client_stage','booked_date','booked_time','cal_name','cal_email','cal_notes','created_at','updated_at','owner_override','lead_hero_id','has_new_reply','reply_msg_count','email2','email3','email4','booked_for','prefill_name','prefill_email','prefill_notes','booked_timezone','job_title','linkedin_url','passoff_instructions','call_transcript','passoff_sent_at','suggested_updates','contact2','contact3','phone2','phone3','title2','title3','pushed_to_ghl','reply_snippet','lead_status','meeting_status','enriched_at','enrichment_source','pushed_to_demo_tracker','retarget_campaign','retarget_date','retarget_status','retarget_count','ghl_contact_id','ghl_opportunity_id','auto_followup_started_at','has_new_text','vertical','invoice_id','invoice_amount','invoice_currency','invoice_url','invoiced_at','booking_sms_sent_at','invoice_status','invoice_number','invoice_pdf_url','lead_source','aimfox_lead_id','aimfox_url','ghl_conversation_id','pushed_to_client_sheet','cold_call_client','passoff_lead_message','call_points'];
+
 export const sbGetDeals = () => sbCall(async () => {
-  const { data, error } = await supabase.from('deals').select(DEALS_LIGHT_COLS).eq('lead_status', 'active');
-  if (error) throw error;
-  return data;
+  // Every list read below goes through selectAllPages (js/paging.js): the backend stops each
+  // select at 1000 rows with no error (Tim, 2026-11-12).
+  return selectAllPages(() => supabase.from('deals').select(DEALS_LIGHT_COLS).eq('lead_status', 'active').order('id'));
 }, { label: 'Load deals' });
 
 // Fetch heavy fields on demand (email_body, call_transcript)
@@ -792,18 +776,7 @@ export const sbPurgeDeal = (id) => sbCall(async () => {
 
 // Activities — paginate to bypass the 1000-row PostgREST default cap
 export const sbGetActivities = () => sbCall(async () => {
-  const PAGE = 1000;
-  let all = [];
-  for (let off = 0; ; off += PAGE) {
-    const { data, error } = await supabase
-      .from('activities').select('*')
-      .not('deal_id', 'is', null)
-      .range(off, off + PAGE - 1);
-    if (error) throw error;
-    all = all.concat(data);
-    if (data.length < PAGE) break;
-  }
-  return all;
+  return selectAllPages(() => supabase.from('activities').select('*').not('deal_id', 'is', null).order('id'));
 }, { label: 'Load activities' });
 
 export const sbCreateActivity = (fields) => sbCall(async () => {
@@ -846,9 +819,7 @@ export const sbDeleteInteraction = (id) => sbCall(async () => {
 
 // Clients
 export const sbGetClients = () => sbCall(async () => {
-  const { data, error } = await supabase.from('clients').select('*');
-  if (error) throw error;
-  return data;
+  return selectAllPages(() => supabase.from('clients').select('*').order('id'));
 }, { label: 'Load clients' });
 
 export const sbCreateClient = (fields) => sbCall(async () => {
@@ -947,9 +918,7 @@ export const sbGetSignedUrl = (filePath, expiresIn = 60) => sbCall(async () => {
 
 // Appointments
 export const sbGetAppointments = () => sbCall(async () => {
-  const { data, error } = await supabase.from('appointments').select('*');
-  if (error) throw error;
-  return data;
+  return selectAllPages(() => supabase.from('appointments').select('*').order('id'));
 }, { label: 'Load appointments' });
 
 export const sbCreateAppointment = (fields) => sbCall(async () => {
@@ -965,9 +934,7 @@ export const sbDeleteAppointment = (id) => sbCall(async () => {
 
 // Rerun Queue
 export const sbGetRerunQueue = () => sbCall(async () => {
-  const { data, error } = await supabase.from('rerun_queue').select('*');
-  if (error) throw error;
-  return data;
+  return selectAllPages(() => supabase.from('rerun_queue').select('*').order('id'));
 }, { label: 'Load rerun queue' });
 
 export const sbAddToRerun = (fields) => sbCall(async () => {
@@ -1000,9 +967,7 @@ export const sbGetDueNurtureItems = () => sbCall(async () => {
 
 // ─── Lead Tracker ───
 export const sbGetTrackerEntries = () => sbCall(async () => {
-  const { data, error } = await supabase.from('lead_tracker').select('*').order('created_at', { ascending: false });
-  if (error) throw error;
-  return data;
+  return selectAllPages(() => supabase.from('lead_tracker').select('*').order('created_at', { ascending: false }).order('id'));
 }, { label: 'Load tracker entries' });
 
 export const sbCreateTrackerEntry = (fields) => sbCall(async () => {
@@ -1023,9 +988,7 @@ export const sbDeleteTrackerEntry = (id) => sbCall(async () => {
 
 // ─── Demo Tracker CRUD ───
 export const sbGetDemoEntries = () => sbCall(async () => {
-  const { data, error } = await supabase.from('demo_tracker').select('*').order('created_at', { ascending: false });
-  if (error) throw error;
-  return data;
+  return selectAllPages(() => supabase.from('demo_tracker').select('*').order('created_at', { ascending: false }).order('id'));
 }, { label: 'Load demo entries' });
 
 export const sbCreateDemoEntry = (fields) => sbCall(async () => {
@@ -1046,9 +1009,7 @@ export const sbDeleteDemoEntry = (id) => sbCall(async () => {
 
 // ─── Pass-Offs CRUD ───
 export const sbGetPassOffs = () => sbCall(async () => {
-  const { data, error } = await supabase.from('pass_offs').select('*').order('date_passed', { ascending: false });
-  if (error) throw error;
-  return data;
+  return selectAllPages(() => supabase.from('pass_offs').select('*').order('date_passed', { ascending: false }).order('id'));
 }, { label: 'Load pass-offs' });
 
 export const sbUpdatePassOff = (id, fields) => sbCall(async () => {
@@ -1084,15 +1045,7 @@ export const sbSaveSettings = (settings) => sbCall(async () => {
 
 // Archive
 export const sbGetArchive = () => sbCall(async () => {
-  const PAGE = 1000;
-  let all = [];
-  for (let off = 0; ; off += PAGE) {
-    const { data, error } = await supabase.from('archive_list').select('*').range(off, off + PAGE - 1);
-    if (error) throw error;
-    all = all.concat(data || []);
-    if (!data || data.length < PAGE) break;
-  }
-  return all;
+  return selectAllPages(() => supabase.from('archive_list').select('*').order('id'));
 }, { label: 'Load archive' });
 
 // The full acquisition card for every client we closed Won. `archive.original_data`
@@ -1100,16 +1053,7 @@ export const sbGetArchive = () => sbCall(async () => {
 // so this is the only place the second/third contacts, mobile and secondary
 // numbers, extra emails, LinkedIn and street address still exist.
 export const sbGetWonAcquisitionCards = () => sbCall(async () => {
-  const PAGE = 1000;
-  let all = [];
-  for (let off = 0; ; off += PAGE) {
-    const { data, error } = await supabase.from('archive')
-      .select('id,original_data').eq('archive_status', 'Closed Won').range(off, off + PAGE - 1);
-    if (error) throw error;
-    all = all.concat(data || []);
-    if (!data || data.length < PAGE) break;
-  }
-  return all;
+  return selectAllPages(() => supabase.from('archive').select('id,original_data').eq('archive_status', 'Closed Won').order('id'));
 }, { label: 'Load acquisition cards' });
 
 export const sbArchiveDeal = (id, originalData) => sbCall(async () => {
@@ -1133,15 +1077,19 @@ export const sbRestoreFromArchive = (id) => sbCall(async () => {
 
   // Remove archive-specific and non-column fields before inserting
   const exclude = new Set(['archivedAt','archiveStatus','clientName','done','dealId','dayLabel','scheduledTime','completedAt','createdDate']);
-  // Valid deals table columns
-  const DEAL_COLS = new Set(['id','company','contact','email','phone','value','stage','pipeline','flag','notes','sl_lead_id','sl_campaign_id','campaign_name','lead_category','website','location','smartlead_url','forwarded_at','email_body','mobile_phone','pushed_to_tracker','pushed_to_client_sheet','pushed_to_ghl','address','client_stage','booked_date','booked_time','cal_name','cal_email','cal_notes','created_at','updated_at','owner_override','lead_hero_id','has_new_reply','has_new_text','reply_msg_count','email2','email3','email4','booked_for','prefill_name','prefill_email','prefill_notes','booked_timezone','lead_status','job_title','linkedin_url','lead_source','cold_call_client','passoff_lead_message','aimfox_lead_id','aimfox_url','ghl_contact_id','ghl_conversation_id']);
+  // Valid deals table columns — every column of public.deals (read from the live schema,
+  // 2026-11-12). The old hand-written list had drifted: a restore silently dropped the second and
+  // third contacts, pass-off drafts, call points, vertical, transcript and retarget history (Tim).
+  const DEAL_COLS = new Set(DEALS_ALL_COLS);
+  // Typed columns the wider list brings in that NULLABLE_COLS does not cover: '' would fail the insert.
+  const RESTORE_NULLABLE = new Set(['passoff_sent_at','suggested_updates','enriched_at','retarget_date','retarget_count','has_new_text']);
   const insert = {};
   for (const [key, value] of Object.entries(dealData)) {
     if (exclude.has(key)) continue;
     const snakeKey = REVERSE_FIELD_MAP[key] || key;
     if (!DEAL_COLS.has(snakeKey)) continue; // Skip unknown columns
     // Empty strings must be null for non-text columns (numeric, timestamp, date, time)
-    if (value === '' && NULLABLE_COLS.has(snakeKey)) {
+    if (value === '' && (NULLABLE_COLS.has(snakeKey) || RESTORE_NULLABLE.has(snakeKey))) {
       insert[snakeKey] = null;
     } else if (typeof value === 'boolean') {
       insert[snakeKey] = String(value);
@@ -1166,15 +1114,24 @@ export const sbRestoreFromArchive = (id) => sbCall(async () => {
   insert.lead_status = 'active';
 
   // Remove any stale deal row with same ID (prevents duplicate key error)
-  await supabase.from('deals').delete().eq('id', insert.id || id);
+  // Every step checks its error, and the archive row goes only once the deal is confirmed back —
+  // a failed insert used to leave the lead in neither place (Tim, 2026-11-12).
+  const dealId = insert.id || id;
+  const { error: staleErr } = await supabase.from('deals').delete().eq('id', dealId);
+  if (staleErr) throw staleErr;
   const { error: insertErr } = await supabase.from('deals').insert(insert);
   if (insertErr) throw insertErr;
+  const { data: back, error: checkErr } = await supabase.from('deals').select('id').eq('id', dealId).limit(1);
+  if (checkErr) throw checkErr;
+  if (!back || !back.length) throw new Error('Restored deal did not save — it is still in the archive');
 
   // Delete any existing activities for this deal (clean slate)
-  await supabase.from('activities').delete().eq('deal_id', insert.id || id);
+  const { error: actErr } = await supabase.from('activities').delete().eq('deal_id', dealId);
+  if (actErr) throw actErr;
 
   // Delete from archive after successful restore
-  await supabase.from('archive').delete().eq('id', id);
+  const { error: archErr } = await supabase.from('archive').delete().eq('id', id);
+  if (archErr) throw new Error(`Deal restored, but its archive row could not be removed: ${archErr.message}`);
   return data;
 }, { label: 'Restore from archive' });
 
@@ -1188,15 +1145,11 @@ export const sbGetWebhookLog = () => sbCall(async () => {
 // ─── Retargeting CRUD ───
 
 export const sbGetRetargetHistory = () => sbCall(async () => {
-  const { data, error } = await supabase.from('retarget_history').select('*').order('exported_at', { ascending: false });
-  if (error) throw error;
-  return data;
+  return selectAllPages(() => supabase.from('retarget_history').select('*').order('exported_at', { ascending: false }).order('id'));
 }, { label: 'Load retarget history' });
 
 export const sbGetRetargetExports = () => sbCall(async () => {
-  const { data, error } = await supabase.from('retarget_exports').select('*').order('exported_at', { ascending: false });
-  if (error) throw error;
-  return data;
+  return selectAllPages(() => supabase.from('retarget_exports').select('*').order('exported_at', { ascending: false }).order('id'));
 }, { label: 'Load retarget exports' });
 
 export const sbCreateRetargetHistory = (fields) => sbCall(async () => {
@@ -1246,6 +1199,23 @@ export async function invokeEdgeFunction(fnName, body, signal) {
   return data;
 }
 
+// The Sync button. initialSync(false) quietly returns while a save is in flight, so the button
+// used to do nothing at all; now it says why and runs as soon as the save lands (Tim, 2026-11-12).
+let _manualSyncWaiting = false;
+export function manualSync() {
+  if (pendingWrites.value === 0) return initialSync(false);
+  if (_manualSyncWaiting) return;
+  _manualSyncWaiting = true;
+  showToast('Waiting for a save to finish…', 'warning');
+  const startedAt = Date.now();
+  const tick = () => {
+    if (pendingWrites.value === 0) { _manualSyncWaiting = false; initialSync(false); return; }
+    if (Date.now() - startedAt > 60000) { _manualSyncWaiting = false; showToast('A save is still running — try Sync again in a moment.', 'warning'); return; }
+    setTimeout(tick, 300);
+  };
+  setTimeout(tick, 300);
+}
+
 // Expose to inline HTML handlers — syncFromSheet now delegates to initialSync
-window.syncFromSheet = initialSync;
+window.syncFromSheet = manualSync;
 window.initialSync = initialSync;

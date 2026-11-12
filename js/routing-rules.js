@@ -20,24 +20,46 @@ export function resolveRoutingOwner(campaignName){
 }
 
 // ── Persistence (mirrors auth.js campaign_assignments pattern) ──
+// _base = the rules as last read from / written to the database. A save first re-reads the row:
+// if someone else changed it since, their list wins and this tab is told, instead of quietly
+// overwriting it with a stale copy (Tim, 2026-11-12). Rules are an ordered list edited by
+// position, so there is no single key to merge.
+let _base = '[]';
 export async function loadRoutingRules(){
   try {
     const { data } = await supabase.from('crm_settings').select('value').eq('key','routing_rules').single();
-    if(data && data.value) state.routingRules = JSON.parse(data.value);
+    if(data && data.value){ state.routingRules = JSON.parse(data.value); _base = JSON.stringify(state.routingRules); }
   } catch(e){ /* no rules yet */ }
 }
 async function persistRoutingRules(){
   try {
-    await supabase.from('crm_settings').upsert(
-      { key:'routing_rules', value: JSON.stringify(state.routingRules||[]), updated_at: new Date().toISOString() },
+    const { data, error: readErr } = await supabase.from('crm_settings').select('value').eq('key','routing_rules').maybeSingle();
+    if(readErr) throw readErr;
+    const remote = data && data.value ? JSON.stringify(JSON.parse(data.value)) : '[]';
+    if(remote !== _base){
+      state.routingRules = JSON.parse(remote); _base = remote; redrawRulesList();
+      notify('Someone else changed the routing rules — reloaded their version. Please make your change again.');
+      return;
+    }
+    const value = JSON.stringify(state.routingRules||[]);
+    const { error } = await supabase.from('crm_settings').upsert(
+      { key:'routing_rules', value, updated_at: new Date().toISOString() },
       { onConflict: 'key' });
-  } catch(e){ console.warn('Failed to save routing rules:', e); }
+    if(error) throw error;
+    _base = value;
+  } catch(e){
+    console.warn('Failed to save routing rules:', e);
+    notify(`Routing rules not saved: ${e.message || e}`);
+  }
+}
+function notify(msg){
+  import('./api.js?v=20261112201802').then(m => m.showToast(msg, 'error')).catch(() => {});
 }
 export function listenRoutingRules(){
   try {
     supabase.channel('crm_settings-routing')
       .on('postgres_changes', { event:'*', schema:'public', table:'crm_settings', filter:'key=eq.routing_rules' },
-        payload => { if(payload.new && payload.new.value){ try { state.routingRules = JSON.parse(payload.new.value); window.render&&window.render(); } catch(_){} } })
+        payload => { if(payload.new && payload.new.value){ try { state.routingRules = JSON.parse(payload.new.value); _base = JSON.stringify(state.routingRules); window.render&&window.render(); } catch(_){} } })
       .subscribe();
   } catch(e){ /* best effort */ }
 }

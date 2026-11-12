@@ -124,6 +124,9 @@ export const state = {
 export const pendingWrites = { value: 0 };
 export const failedWriteQueue = [];
 export const pendingDealFields = {};
+// Bumped whenever state.deals changes without the array itself being replaced (realtime pushes,
+// splices and in-place merges), so a cache keyed on the array can tell it went stale.
+export const dealsVersion = { value: 0 };
 
 // ─── In-flight activity guard ───
 export const inFlightActivityIds = new Set();
