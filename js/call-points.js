@@ -16,6 +16,7 @@ import { supabase, sbUpdateClient, showToast } from './api.js?v=20261112201802';
 import { esc, jsArg, str } from './utils.js?v=20261112201802';
 import { refreshModal } from './render.js?v=20261112201802';
 import { isAdmin } from './auth.js?v=20261112201802';
+import { onScreenText } from './passoff-core.js?v=20261112201802';
 
 const HEADING = 'From the call:';
 const loading = new Set(); // deal ids being fetched
@@ -76,6 +77,7 @@ async function loadPoints(deal) {
     if (state.selectedDeal && state.selectedDeal.id === deal.id) refreshModal(true);
   } catch (e) {
     console.warn('[call-points] not loaded:', e && e.message);
+    loading.delete(deal.id); // one failed load used to block the points for the whole session (Tim, 2026-11-12)
   }
 }
 
@@ -101,14 +103,17 @@ export function renderCallPoints(deal, clientName) {
 }
 
 window.callPointsToggle = (dealId, idx, on) => {
-  const deal = state.deals.find(d => d.id === dealId) || state.selectedDeal;
+  const deal = state.deals.find(d => String(d.id) === String(dealId)) || state.selectedDeal;
   if (!deal) return;
+  // Build from the box first: the deal copy can lag what was just typed (its save is debounced, and
+  // a background sync can swap in an older row), and ticking brought the older text back (Tim, 2026-11-12).
+  const box = document.getElementById('passoff-text');
+  const base = onScreenText(box ? box.value : '', deal.passoffInstructions);
   const all = pointsOf(deal);
-  const picked = new Set(pickedIn(deal.passoffInstructions));
+  const picked = new Set(pickedIn(base));
   if (on) picked.add(all[idx]); else picked.delete(all[idx]);
   // Keep the points in the order Claude gave them.
-  const text = withBlock(deal.passoffInstructions, all.filter(p => picked.has(p)));
-  const box = document.getElementById('passoff-text');
+  const text = withBlock(base, all.filter(p => picked.has(p)));
   if (box) box.value = text;
   window.savePassoffTextClick(dealId, text); // passoff.js: local copy now, debounced save
 };

@@ -172,7 +172,8 @@ async function onCallEnded(){
 
     // The webhook has had a few seconds by now — pull its touchpoint in.
     const { refreshModal } = await import('./render.js?v=20261112201802');
-    if(state.selectedDeal === dealId) refreshModal();
+    // selectedDeal is the deal object, not its id — this never matched (Tim, 2026-11-12).
+    if(state.selectedDeal && String(state.selectedDeal.id) === String(dealId)) refreshModal();
 
     if(wasAnswered && deal && deal.pipeline === 'Client' && phone){
       window.startTranscriptPolling && window.startTranscriptPolling(dealId, phone);
