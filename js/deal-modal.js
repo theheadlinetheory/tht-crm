@@ -10,7 +10,9 @@ import { state, pendingWrites, pendingDealFields } from './app.js?v=202611130024
 import { flushRealtimeQueue, showToast } from './api.js?v=20261113002412';
 import { ACQUISITION_STAGES, NURTURE_STAGES, DEAL_VERTICALS, SOP_DAYS, REACTIVATION_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY, detectCountry, ACQ_STRATEGY_BOOKERS, ACQ_DEMO_BOOKERS } from './config.js?v=20261113002412';
 import { render, refreshModal } from './render.js?v=20261113002412';
-import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20261113002412';
+import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake, normalizeRow } from './api.js?v=20261113002412';
+import { supabase } from './supabase-client.js?v=20261113002412';
+import { casSave, liveUpdate, watchDeal } from './deal-cas.js?v=20261113002412';
 import { esc, jsArg, str, getToday, TODAY, uid, svgIcon, brandIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20261113002412';
 import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20261113002412';
 import { renderBookingSmsButton } from './booking-sms.js?v=20261113002412';
@@ -20,7 +22,7 @@ import { JUSTCALL_DISPOSITIONS, applyDisposition, isCallTouchpoint } from './cal
 import { HELD, NO_SHOW, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, markDisco, markDemo, outcomeSelect, demoOutcomeSelect } from './disco-outcome.js?v=20261113002412';
 import { renderDealInvoiceButton } from './deal-invoice.js?v=20261113002412';
 import { isAdmin, isEmployee, isSdr, loadAssignableUsers } from './auth.js?v=20261113002412';
-import { saveDeal, createDeal, moveDeal, deleteDeal as deleteDealFn, purgeDeal } from './deals.js?v=20261113002412';
+import { createDeal, moveDeal, deleteDeal as deleteDealFn, purgeDeal } from './deals.js?v=20261113002412';
 import { showAcquisitionRemovalPicker } from './removal-reason.js?v=20261113002412';
 import { renderNotALeadButton } from './not-a-lead.js?v=20261113002412';
 import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, reschedulePreCallSequence, assignNoShowSequence } from './activities.js?v=20261113002412';
@@ -200,6 +202,7 @@ export function openDeal(id){
     if('has_new_text' in clearFlags) deal.hasNewText=true;
   });
   state.selectedDeal=deal;
+  startCardWatch(id);
   render();
   // Lazy-load heavy fields (email_body, call_transcript) if not already cached
   if(!deal._heavyLoaded){
@@ -220,6 +223,7 @@ export function closeDealModal(){
   // (Tim, 2026-11-12).
   // Closing inside the 800ms debounce used to drop the edit. (Tim, 2026-11-12)
   if(state.selectedDeal) flushDealFieldSaves(state.selectedDeal.id);
+  stopCardWatch();
   // An archived deal opened to look at (archive.js) is parked in state.deals only while its card is open.
   if(state.selectedDeal && state.selectedDeal._archived){ const id=String(state.selectedDeal.id); state.deals=state.deals.filter(d=>String(d.id)!==id); }
   state.selectedDeal=null;
@@ -387,13 +391,103 @@ function rollbackDealFields(dealId, fields, prev, err){
   showToast('Not saved — change undone: '+(err?.message||'unknown error'),'error');
   if(changed && state.selectedDeal && String(state.selectedDeal.id)===String(dealId)) refreshModal(true);
 }
+// ─── Compare-and-set card saves (audit A3 #1, 2026-11-13) — logic and tests in js/deal-cas.js ───
+// casSeen: the deals.updated_at this tab last saw for a card (unknown → the first save reads the row first).
+// casBase: per card, each field's value before this tab's unsaved edit — what "nobody else touched it" means.
+const casSeen=new Map();
+const casBase=new Map();
+function noteBase(dealId, key, prevVal){
+  const id=String(dealId);
+  if(!casBase.has(id)) casBase.set(id,{});
+  const b=casBase.get(id);
+  if(!(key in b)) b[key]=prevVal;
+}
+async function casUpdateRow(id, fields, seen){
+  const { data, error }=await supabase.from('deals').update(camelToSnake(fields)).eq('id',id).eq('updated_at',seen).select('updated_at');
+  if(error) throw error;
+  return data && data.length ? data[0].updated_at : null;
+}
+async function casReadRow(id, keys){
+  const cols=Object.keys(camelToSnake(Object.fromEntries(keys.map(k=>[k,1]))));
+  const { data, error }=await supabase.from('deals').select([...cols,'updated_at'].join(',')).eq('id',id).maybeSingle();
+  if(error) throw error;
+  return data ? { ...normalizeRow(data), updatedAt: data.updated_at } : null;
+}
+function setCardField(dealId, k, v){
+  for(const d of dealObjs(dealId)) d[k]=v;
+  const el=document.getElementById('deal-'+k);
+  if(el && el!==document.activeElement && state.selectedDeal && String(state.selectedDeal.id)===String(dealId)) el.value=v;
+}
+// After a save: a field the user kept typing in keeps a base (the value now saved); the rest are clean again.
+function settleBase(dealId, written){
+  const id=String(dealId), b=casBase.get(id); if(!b) return;
+  const pending=pendingDealFields[id]||{};
+  for(const [k,v] of Object.entries(written)){ if(k in pending && pending[k]!==v) b[k]=v; else delete b[k]; }
+  if(!Object.keys(b).length) casBase.delete(id);
+}
+// Notes were merged with another writer's: show the merged text, keeping anything typed since the save started.
+function adoptMergedNotes(dealId, sent, merged){
+  const cur=String(dealObjs(dealId)[0]?.notes ?? '');
+  const next=cur.startsWith(sent) ? merged+cur.slice(sent.length) : merged;
+  const el=document.getElementById('deal-notes');
+  for(const d of dealObjs(dealId)) d.notes=next;
+  if(el && state.selectedDeal && String(state.selectedDeal.id)===String(dealId)) el.value=next;
+  if(next!==merged){ const p=pendingDealFields[String(dealId)]; if(p) p.notes=next; }
+  showToast('Someone else edited these notes at the same time — both versions are kept','info');
+}
+/** Save `fields` (camelCase, changed fields only) with a compare-and-set. Throws only on a real write error. */
+async function casWrite(dealId, fields){
+  const id=String(dealId);
+  const base={...(casBase.get(id)||{})};
+  for(const k of Object.keys(fields)) if(!(k in base)) base[k]=dealObjs(id)[0]?.[k];
+  let r=await casSave({ id, fields, base, seen: casSeen.get(id)||null, update: casUpdateRow, read: casReadRow });
+  if(!r.ok){
+    const names=r.conflicts.join(', ');
+    const reload=confirm('Someone else changed this card ('+names+') while you had it open.\n\n'+
+      'OK = reload: show their version and drop your change to '+names+'.\nCancel = keep yours and overwrite theirs.');
+    if(reload){
+      for(const k of Object.keys(fields)){ clearPendingField(id, k, fields[k]); setCardField(id, k, r.fresh[k]); }
+      settleBase(id, Object.fromEntries(Object.keys(fields).map(k=>[k,r.fresh[k]])));
+      if(r.fresh.updatedAt) casSeen.set(id, r.fresh.updatedAt);
+      if(state.selectedDeal && String(state.selectedDeal.id)===id) refreshModal(true);
+      return;
+    }
+    // Overwrite on purpose: measured against their version, so only a newer write still stops it.
+    const theirs=Object.fromEntries(Object.keys(r.fields).map(k=>[k,r.fresh[k]]));
+    r=await casSave({ id, fields: r.fields, base: theirs, seen: r.fresh.updatedAt, update: casUpdateRow, read: casReadRow });
+    if(!r.ok) throw new Error('the card changed again while saving — reopen it and retry');
+  }
+  if(r.updatedAt) casSeen.set(id, r.updatedAt);
+  if(r.merged.includes('notes')) adoptMergedNotes(id, fields.notes, r.fields.notes);
+  settleBase(id, { ...fields, ...r.fields });
+}
+// Live updates for the open card: a field the user is not editing takes another writer's value at once (it used to
+// wait until the card closed); fields being edited are left to the save's merge.
+let stopWatch=null;
+function startCardWatch(dealId){
+  stopCardWatch();
+  const id=String(dealId);
+  try{
+    stopWatch=watchDeal(supabase, id, raw=>{
+      if(!state.selectedDeal || String(state.selectedDeal.id)!==id) return;
+      const incoming=normalizeRow(raw);
+      const dirty={...(casBase.get(id)||{}), ...(pendingDealFields[id]||{})};
+      for(const k of Object.keys(casBase.get(id)||{})) dirty[k]=pendingDealFields[id]?.[k] ?? state.selectedDeal[k];
+      const { apply, advance }=liveUpdate(state.selectedDeal, incoming, dirty, casBase.get(id)||{});
+      for(const [k,v] of Object.entries(apply)) setCardField(id, k, v);
+      if(advance && raw.updated_at) casSeen.set(id, raw.updated_at);
+    });
+  }catch(e){ console.warn('Open-card live updates unavailable:', e); }
+}
+function stopCardWatch(){ if(stopWatch){ stopWatch(); stopWatch=null; } }
+
 const dealSaveQueue=createDealSaveQueue({
   save:(dealId, fields)=>{
     pendingWrites.value++;
-    return sbUpdateDeal(dealId, camelToSnake(fields)).finally(()=>{pendingWrites.value--;});
+    return casWrite(dealId, fields).finally(()=>{pendingWrites.value--;});
   },
   onSaved:(dealId, fields)=>{ for(const k of Object.keys(fields)) clearPendingField(dealId, k, fields[k]); },
-  onFailed:rollbackDealFields,
+  onFailed:(dealId, fields, prev, err)=>{ settleBase(dealId, Object.fromEntries(Object.keys(fields).map(k=>[k,prev[k]]))); rollbackDealFields(dealId, fields, prev, err); },
 });
 // Start any unsaved edits now — called when the card closes or another opens.
 export function flushDealFieldSaves(dealId){
@@ -417,6 +511,7 @@ export function updateDealField(key,val){
   if(archivedReadOnly()) return;
   if(!state.selectedDeal) return;
   const prevVal=state.selectedDeal[key];
+  noteBase(state.selectedDeal.id, key, prevVal);
   state.selectedDeal[key]=val;
   // Stage, pipeline, and booking fields save immediately — not debounced.
   // The debounced save is killed when the modal closes, so these were lost.
@@ -424,10 +519,9 @@ export function updateDealField(key,val){
     const dealId=state.selectedDeal.id;
     if(!pendingDealFields[String(dealId)]) pendingDealFields[String(dealId)]={};
     pendingDealFields[String(dealId)][key]=val;
-    const snakeKey=camelToSnake({[key]:val});
     pendingWrites.value++;
-    sbUpdateDeal(dealId, snakeKey).then(()=>clearPendingField(dealId, key, val),
-      err=>rollbackDealFields(dealId, {[key]:val}, {[key]:prevVal}, err)
+    casWrite(dealId, {[key]:val}).then(()=>clearPendingField(dealId, key, val),
+      err=>{ settleBase(dealId, {[key]:prevVal}); rollbackDealFields(dealId, {[key]:val}, {[key]:prevVal}, err); }
     ).finally(()=>{pendingWrites.value--;});
     if(key==='bookedDate'&&val){
       const deal=state.selectedDeal;
@@ -453,18 +547,20 @@ export function refreshPushButton(){
   }
 }
 
+// Save sends only the fields that changed, through the same compare-and-set as the autosave (audit A3 #1,
+// 2026-11-13). It used to write all ten form fields, touched or not, over whatever anyone else had saved.
 export function doSaveDeal(id){
   if(archivedReadOnly()) return;
   const deal=state.deals.find(d=>d.id===id);
   if(!deal) return;
-  // Read all fields from modal
   const fieldMap=['company','contact','email','phone','mobilePhone','website','location','address','value','notes'];
-  const updated={id};
   for(const f of fieldMap){
     const el=document.getElementById('deal-'+f);
-    if(el) updated[f]=el.value;
+    // Every input autosaves through updateDealField; this only catches a value that slipped past it.
+    if(el && el.value!==String(deal[f]??'')) updateDealField(f, el.value);
   }
-  saveDeal(updated);
+  deal.lastUpdated=getToday();
+  closeDealModal();
 }
 
 export function doCreateDeal(){
@@ -2214,6 +2310,8 @@ window.pushToClientSheet = async function(dealId) {
     btn.style.cssText = 'width:100%;justify-content:center;gap:6px;font-size:13px';
     const { showToast: toast } = await import('./api.js?v=20261113002412');
     toast('Pushed to ' + (result.client || 'client') + "'s sheet", 'success');
+    // The row is on the sheet but something after it failed (e.g. the pass_offs record): say so (T's NEEDS, 2026-11-13).
+    if (result.warning) toast('Pushed, but: ' + result.warning, 'error');
     setTimeout(() => refreshModal(true), 800);
   } catch (e) {
     const msg = e.name === 'AbortError' ? 'Request timed out' : (e.message || 'Unknown error');
@@ -2231,7 +2329,7 @@ window.pushToGhl = async function(dealId) {
 
   const deal = state.deals.find(d => String(d.id) === String(dealId));
   if (deal && deal.pushedToGhl) {
-    if (!confirm('This deal was already pushed to GHL. Push again? (Contact will be updated, a new opportunity will be created)')) return;
+    if (!confirm('This deal was already pushed to GHL. Push again? (The contact, opportunity and appointment will be updated, not duplicated)')) return;
   }
 
   const origText = btn.innerHTML;

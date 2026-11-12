@@ -115,6 +115,12 @@ export async function sendOnce(invoke, body, { confirm, clientName, sentAt }) {
     if (!isAlreadySent(resp)) return resp;
   } catch (e) {
     if (!isAlreadySent(e)) throw e;
+    resp = e.body || null; // invokeEdgeFunction may attach the 409 body (S1)
+  }
+  // Another SDR's send is still running (send-email's claim, audit A4 #18, 2026-11-13): asking "send again?"
+  // would only meet the same claim. Say what is happening instead.
+  if (resp && resp.inProgress) {
+    const err = new Error('already_sent'); err.inProgress = true; throw err;
   }
   const when = s((resp && resp.sentAt) || sentAt) || 'an earlier time';
   if (!confirm(`Already sent to ${clientName} at ${when}. Send again?`)) return null;

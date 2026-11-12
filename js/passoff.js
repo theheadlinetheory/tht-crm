@@ -16,6 +16,10 @@ import { passoffInFlight, buttonState, textLocked, onScreenText, reviseBody, che
 
 const isOpen = dealId => !!state.selectedDeal && String(state.selectedDeal.id) === String(dealId);
 
+// Deals whose last draft was written without the Smartlead email thread (generate-passoff threadMissing, audit
+// A4 #1, 2026-11-13). The card says so until the next draft, so the SDR checks the reply before sending.
+const threadMissing = new Set();
+
 // Draw the in-flight state onto the card that is on screen now, without waiting for a re-render.
 export function paintPassoffButtons(dealId) {
   for (const el of document.querySelectorAll('[data-passoff-deal]')) {
@@ -161,6 +165,9 @@ async function generatePassoff(dealId, clientName) {
     await flushPassoffSaves(dealId); // the database matches the screen, so a re-read after a timeout is comparable
     const { live, resp } = await callGeneratePassoff(dealId, { dealId, clientName }, before);
     applyDrafts(dealId, resp);
+    if (live) {
+      if (resp.threadMissing) threadMissing.add(String(dealId)); else threadMissing.delete(String(dealId));
+    }
     if (live) applyCalendlyNotes(dealId, resp.calendlyNotes, false);
   } catch (e) {
     alert('Failed to generate passoff: ' + e.message);
@@ -300,14 +307,18 @@ async function sendPassoffToClient(dealId, clientName) {
     // send-email answers some refusals ("No email configured for client") with HTTP 200.
     if (!resp || resp.ok === false || resp.error) throw new Error((resp && resp.error) || 'No response from server');
 
-    const sentAt = new Date().toISOString();
+    // send-email stamps passoff_sent_at itself, after Gmail accepted the message (C2). The browser used to write its
+    // own clock over it, which made a second SDR's Resend fail its compare-and-set (audit A3 #7, 2026-11-13).
+    // The card shows the server's time; the realtime echo brings the same value.
     setLocal(dealId, 'passoffInstructions', text);
-    setLocal(dealId, 'passoffSentAt', sentAt);
-    pendingWrites.value++;
-    sbUpdateDeal(dealId, camelToSnake({ passoffSentAt: sentAt }))
-      .catch(e => console.error('Saving pass-off sent time failed:', e))
-      .finally(() => { pendingWrites.value--; });
+    setLocal(dealId, 'passoffSentAt', resp.sentAt || new Date().toISOString());
+    if (resp.warning) alert('Sent, but: ' + resp.warning);
   } catch (e) {
+    // 409 while another SDR's send is still running (send-email's claim, A4 #18).
+    if (e && (e.message === 'already_sent' || e.inProgress)) {
+      alert('Someone else is sending this pass-off right now. Wait a minute, then check the card before sending again.');
+      return;
+    }
     alert('Failed to send passoff: ' + e.message);
   } finally {
     passoffInFlight.end(dealId, 'send');
@@ -338,6 +349,10 @@ export function renderPassoffSection(deal, clientName) {
       <div style="font-size:12px;font-weight:700;color:#7c3aed">Passoff Instructions</div>
       ${hasSent ? `<div style="font-size:10px;color:#059669;font-weight:600">✓ Sent ${fmtSentDate(deal.passoffSentAt)}</div>` : ''}
     </div>`;
+  if (threadMissing.has(String(deal.id)) && hasInstructions) {
+    h += `<div style="margin:0 0 8px 0;padding:6px 10px;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;font-size:11px;color:#92400e">
+      ⚠️ Smartlead's email thread could not be read, so this draft was written from the card only. Check the lead's reply before sending.</div>`;
+  }
 
   const coldCall = str(deal.leadSource) === 'cold_call';
   if (coldCall && hasInstructions) {
