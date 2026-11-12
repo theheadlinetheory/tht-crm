@@ -370,8 +370,7 @@ export const CA_POSTAL = /\b[A-Za-z]\d[A-Za-z]\s?\d[A-Za-z]\d\b/;
 export const CA_CITIES = /\b(Vancouver|Toronto|Montreal|Ottawa|Calgary|Edmonton|Winnipeg|Halifax|Victoria|Surrey|Burnaby|Richmond|Mississauga|Brampton|Hamilton|Saskatoon|Regina|Kelowna|Nanaimo|Kamloops|Kitchener|Waterloo|Markham|Vaughan|Mount Albert|Quebec City|North York|Scarborough|Etobicoke|East York|Woodbridge|Thornhill|Oakville|Whitby|Pickering|Oshawa|Barrie|Guelph|Niagara Falls|Abbotsford|Langley|Coquitlam|Maple Ridge|Pitt Meadows|New Westminster|Chilliwack|White Rock|Laval|Longueuil|Gatineau|Brantford)\b/i;
 
 // ─── Blooio ───
-export const BLOOIO_BASE_URL = 'https://backend.blooio.com/v2/api';
-export const BLOOIO_API_KEY = 'api_8EpbWHdYWa1Vh7wrDQmW0';
+// The Blooio key is a secret on the blooio-proxy edge function now; never put it back here (A2#8, 2026-11-13).
 
 // ─── Test Data ───
 export function getTestData() {

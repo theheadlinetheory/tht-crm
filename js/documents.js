@@ -4,7 +4,7 @@
 import { sbListFolders, sbCreateFolder, sbUpdateFolder, sbDeleteFolder,
          sbListDocuments, sbCreateDocument, sbDeleteDocument,
          sbUploadFile, sbDeleteFile, sbGetSignedUrl, showToast } from './api.js?v=20261113002412';
-import { esc, str, uid, svgIcon } from './utils.js?v=20261113002412';
+import { esc, escAttr, jsArg, str, uid, svgIcon } from './utils.js?v=20261113002412';
 import { isAdmin, isEmployee, currentUser } from './auth.js?v=20261113002412';
 
 // Per-client UI state: which folder tab is selected
@@ -71,9 +71,9 @@ export function renderDocumentsSection(client) {
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">${svgIcon('clipboard',10)} Documents</div>
       <div style="display:flex;gap:6px">
-        ${canManageFolders ? `<button onclick="docNewFolder('${esc(clientId)}')" style="padding:3px 8px;font-size:10px;font-weight:600;border:1px solid var(--border);border-radius:5px;background:var(--card);color:var(--text);cursor:pointer;font-family:var(--font)">+ Folder</button>` : ''}
+        ${canManageFolders ? `<button onclick="docNewFolder(${jsArg(clientId)})" style="padding:3px 8px;font-size:10px;font-weight:600;border:1px solid var(--border);border-radius:5px;background:var(--card);color:var(--text);cursor:pointer;font-family:var(--font)">+ Folder</button>` : ''}
         ${canUpload ? `<label style="padding:3px 8px;font-size:10px;font-weight:600;border:1px solid #059669;border-radius:5px;background:#ecfdf5;color:#059669;cursor:pointer;font-family:var(--font)">
-          Upload <input type="file" multiple accept="${ALLOWED_TYPES.join(',')}" onchange="docUploadFiles('${esc(clientId)}',this.files)" style="display:none">
+          Upload <input type="file" multiple accept="${ALLOWED_TYPES.join(',')}" onchange="docUploadFiles(${jsArg(clientId)},this.files)" style="display:none">
         </label>` : ''}
       </div>
     </div>`;
@@ -81,21 +81,21 @@ export function renderDocumentsSection(client) {
   // Folder tabs
   const tabStyle = (active) => `padding:4px 10px;font-size:10px;font-weight:${active ? '700' : '500'};border-radius:5px;cursor:pointer;border:1px solid ${active ? '#059669' : 'var(--border)'};background:${active ? '#ecfdf5' : 'var(--card)'};color:${active ? '#059669' : 'var(--text-muted)'};font-family:var(--font)`;
   h += `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px">`;
-  h += `<button onclick="docSelectFolder('${esc(clientId)}','all')" style="${tabStyle(sel === 'all')}">All Files</button>`;
+  h += `<button onclick="docSelectFolder(${jsArg(clientId)},'all')" style="${tabStyle(sel === 'all')}">All Files</button>`;
   for (const f of folders) {
-    h += `<button onclick="docSelectFolder('${esc(clientId)}','${esc(f.id)}')" style="${tabStyle(sel === f.id)};position:relative">
+    h += `<button onclick="docSelectFolder(${jsArg(clientId)},${jsArg(f.id)})" style="${tabStyle(sel === f.id)};position:relative">
       ${esc(f.name)}
-      ${canManageFolders ? `<span onclick="event.stopPropagation();docFolderMenu('${esc(clientId)}','${esc(f.id)}','${esc(f.name)}')" style="margin-left:4px;font-size:8px;color:var(--text-muted);cursor:pointer">\u22EF</span>` : ''}
+      ${canManageFolders ? `<span onclick="event.stopPropagation();docFolderMenu(${jsArg(clientId)},${jsArg(f.id)},${jsArg(f.name)})" style="margin-left:4px;font-size:8px;color:var(--text-muted);cursor:pointer">\u22EF</span>` : ''}
     </button>`;
   }
-  h += `<button onclick="docSelectFolder('${esc(clientId)}','unfiled')" style="${tabStyle(sel === 'unfiled')}">Unfiled</button>`;
+  h += `<button onclick="docSelectFolder(${jsArg(clientId)},'unfiled')" style="${tabStyle(sel === 'unfiled')}">Unfiled</button>`;
   h += `</div>`;
 
   // Drop zone
   if (canUpload) {
-    h += `<div id="doc-dropzone-${esc(clientId)}" ondragover="event.preventDefault();this.style.borderColor='#059669';this.style.background='#ecfdf5'" ondragleave="this.style.borderColor='var(--border)';this.style.background='transparent'" ondrop="event.preventDefault();this.style.borderColor='var(--border)';this.style.background='transparent';docUploadFiles('${esc(clientId)}',event.dataTransfer.files)" onclick="this.querySelector('input[type=file]').click()"
+    h += `<div id="doc-dropzone-${esc(clientId)}" ondragover="event.preventDefault();this.style.borderColor='#059669';this.style.background='#ecfdf5'" ondragleave="this.style.borderColor='var(--border)';this.style.background='transparent'" ondrop="event.preventDefault();this.style.borderColor='var(--border)';this.style.background='transparent';docUploadFiles(${jsArg(clientId)},event.dataTransfer.files)" onclick="this.querySelector('input[type=file]').click()"
       style="border:2px dashed var(--border);border-radius:8px;padding:${docs.length ? '8px' : '24px'};text-align:center;margin-bottom:8px;transition:all .15s;cursor:pointer">
-      <input type="file" multiple accept="${ALLOWED_TYPES.join(',')}" onchange="docUploadFiles('${esc(clientId)}',this.files);this.value=''" onclick="event.stopPropagation()" style="display:none">
+      <input type="file" multiple accept="${ALLOWED_TYPES.join(',')}" onchange="docUploadFiles(${jsArg(clientId)},this.files);this.value=''" onclick="event.stopPropagation()" style="display:none">
       ${docs.length ? '' : '<div style="font-size:11px;color:var(--text-muted)">Drag files here or click to upload</div>'}
     </div>`;
   }
@@ -107,18 +107,18 @@ export function renderDocumentsSection(client) {
       const isImg = isImage(doc.mime_type);
       const canDeleteThis = canDelete;
       h += `<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--card);position:relative">
-        <div onclick="${isImg ? `docPreviewImage('${esc(doc.file_path)}','${esc(doc.name)}')` : `docDownload('${esc(doc.file_path)}','${esc(doc.name)}')`}"
+        <div onclick="${isImg ? `docPreviewImage(${jsArg(doc.file_path)},${jsArg(doc.name)})` : `docDownload(${jsArg(doc.file_path)},${jsArg(doc.name)})`}"
           style="height:80px;display:flex;align-items:center;justify-content:center;background:#f1f5f9;cursor:pointer;overflow:hidden">
           ${isImg
-            ? `<img src="" data-doc-path="${esc(doc.file_path)}" class="doc-thumb" style="max-width:100%;max-height:100%;object-fit:cover" alt="${esc(doc.name)}">`
+            ? `<img src="" data-doc-path="${escAttr(doc.file_path)}" class="doc-thumb" style="max-width:100%;max-height:100%;object-fit:cover" alt="${escAttr(doc.name)}">`
             : `<span style="font-size:28px">${fileIcon(doc.mime_type)}</span>`}
         </div>
         <div style="padding:6px 8px">
-          <div style="font-size:10px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(doc.name)}">${esc(doc.name)}</div>
+          <div style="font-size:10px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escAttr(doc.name)}">${esc(doc.name)}</div>
           <div style="font-size:9px;color:var(--text-muted);margin-top:2px">${formatSize(doc.file_size)} \u00B7 ${new Date(doc.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
           <div style="display:flex;gap:4px;margin-top:4px">
-            <button onclick="docDownload('${esc(doc.file_path)}','${esc(doc.name)}')" style="flex:1;padding:2px;font-size:9px;border:1px solid var(--border);border-radius:4px;background:var(--card);cursor:pointer;font-family:var(--font);color:var(--text)">Download</button>
-            ${canDeleteThis ? `<button onclick="docDeleteFile('${esc(clientId)}','${esc(doc.id)}','${esc(doc.file_path)}','${esc(doc.name)}')" style="padding:2px 6px;font-size:9px;border:1px solid #fecaca;border-radius:4px;background:#fef2f2;cursor:pointer;font-family:var(--font);color:#dc2626">\u2715</button>` : ''}
+            <button onclick="docDownload(${jsArg(doc.file_path)},${jsArg(doc.name)})" style="flex:1;padding:2px;font-size:9px;border:1px solid var(--border);border-radius:4px;background:var(--card);cursor:pointer;font-family:var(--font);color:var(--text)">Download</button>
+            ${canDeleteThis ? `<button onclick="docDeleteFile(${jsArg(clientId)},${jsArg(doc.id)},${jsArg(doc.file_path)},${jsArg(doc.name)})" style="padding:2px 6px;font-size:9px;border:1px solid #fecaca;border-radius:4px;background:#fef2f2;cursor:pointer;font-family:var(--font);color:#dc2626">\u2715</button>` : ''}
           </div>
         </div>
       </div>`;
@@ -277,7 +277,7 @@ export function initDocumentHandlers() {
       overlay.onclick = () => overlay.remove();
       overlay.innerHTML = `
         <div style="max-width:90vw;max-height:90vh;position:relative" onclick="event.stopPropagation()">
-          <img src="${esc(url)}" alt="${esc(fileName)}" style="max-width:90vw;max-height:85vh;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.5)">
+          <img src="${escAttr(url)}" alt="${escAttr(fileName)}" style="max-width:90vw;max-height:85vh;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.5)">
           <div style="text-align:center;margin-top:8px;color:#fff;font-size:13px;font-weight:600">${esc(fileName)}</div>
           <button onclick="document.getElementById('doc-lightbox').remove()" style="position:absolute;top:-12px;right:-12px;width:28px;height:28px;border-radius:50%;border:none;background:#fff;color:#000;font-size:16px;cursor:pointer;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,.3)">\u00D7</button>
         </div>`;

@@ -28,6 +28,18 @@ export function escAttr(s){ return esc(s).replace(/"/g,'&quot;').replace(/'/g,'&
  *  inside '…' break on an apostrophe (the browser decodes &#39; back to ' before the JS parses), so
  *  "Woody's Landcare LLC" made the whole onclick a syntax error and the button silently did nothing. */
 export function jsArg(s){ return escAttr(JSON.stringify(str(s))); }
+/** An href built from lead, applicant or uploaded data: only http(s) gets through (audit A2#15, Tim 2026-11-13).
+ *  A bare domain ("acme.com") gets https:// in front; javascript:, data:, vbscript: and every other scheme
+ *  come back as ''. Browsers drop tabs/newlines/control chars inside a scheme ("java\tscript:"), so those
+ *  are stripped before the check. The result still goes through escAttr() in the template. */
+export function safeUrl(u){
+  const s = str(u).replace(/[\u0000-\u001F\u007F]/g, '').trim();
+  if(!s) return '';
+  if(/^https?:\/\//i.test(s)) return s;
+  if(/^\/\//.test(s)) return 'https:' + s;
+  if(/^[a-z][a-z0-9+.-]*:/i.test(s)) return '';
+  return 'https://' + s;
+}
 
 export function str(v){
   return v===null||v===undefined?'':String(v);
