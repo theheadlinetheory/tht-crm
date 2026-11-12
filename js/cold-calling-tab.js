@@ -68,6 +68,9 @@ const cc = {
   quotas: { ...DEFAULT_QUOTAS },
   pinned: [],                // client names the manager pinned to the top
   order: [],                 // client names in the order the manager dragged them (empty = automatic order)
+  snowForecast: {},          // lowercased client name → [{start,end,cm,cities}], written by fulfillment snowstorm-alert
+  snowUpdated: '',
+  snowManual: {},            // client name → {mode:'on'|'off', until:'YYYY-MM-DD', by}
   unlimited: [],             // client names with no weekly ceiling once every client has hit the cap
   syncing: false, syncNote: '',
   tracker: null, trackerLoading: false,
@@ -104,13 +107,15 @@ async function loadAll() {
     }
     cc.calls = rows;
     if (!(state.assignableUsers || []).length) await loadAssignableUsers().catch(() => null);
-    const { data: settings } = await supabase.from('crm_settings').select('key,value').in('key', ['cold_call_quotas', 'cold_call_pinned', 'cold_call_unlimited', 'cold_call_order']);
+    const { data: settings } = await supabase.from('crm_settings').select('key,value').in('key', ['cold_call_quotas', 'cold_call_pinned', 'cold_call_unlimited', 'cold_call_order', 'cold_call_snow_forecast', 'cold_call_snow_manual']);
     for (const s of settings || []) {
       try {
         if (s.key === 'cold_call_quotas') cc.quotas = { ...DEFAULT_QUOTAS, ...JSON.parse(s.value) };
         if (s.key === 'cold_call_pinned') cc.pinned = JSON.parse(s.value) || [];
         if (s.key === 'cold_call_unlimited') cc.unlimited = JSON.parse(s.value) || [];
         if (s.key === 'cold_call_order') cc.order = JSON.parse(s.value) || [];
+        if (s.key === 'cold_call_snow_forecast') { const v = JSON.parse(s.value) || {}; cc.snowForecast = v.clients || {}; cc.snowUpdated = v.updated_at || ''; }
+        if (s.key === 'cold_call_snow_manual') cc.snowManual = JSON.parse(s.value) || {};
       } catch (_) { /* a bad row keeps the defaults */ }
     }
     cc.error = '';
@@ -174,7 +179,41 @@ export function coldCallClients() {
   return (state.clients || []).filter(c => c.status !== 'inactive' && isOn(c.coldCalling));
 }
 
-/** Retainers first, then pay-per-meeting; within each, the manager's dragged order if there is one (clients not in
+// ─── Snowstorm priority ───
+// The day before a storm through SNOW_AFTER_DAYS after it is when property managers find out their snow vendor
+// can't keep up, so those clients jump to the top of the queue. Storms come from the fulfillment snowstorm-alert
+// function (Open-Meteo forecast for each snow client's watch cities); the manager can switch it on or off by hand.
+const SNOW_BEFORE_DAYS = 1, SNOW_AFTER_DAYS = 3, SNOW_HEADS_UP_DAYS = 5, SNOW_MANUAL_DAYS = 4;
+const addDays = (d, n) => { const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
+const fmtDay = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+/** {active, upcoming, storm, manual} for a client today. */
+function snowFor(name) {
+  const t = today();
+  const storms = (cc.snowForecast[str(name).toLowerCase().trim()] || []).filter(s => s && s.start && s.end);
+  const live = storms.find(s => t >= addDays(s.start, -SNOW_BEFORE_DAYS) && t <= addDays(s.end, SNOW_AFTER_DAYS));
+  const soon = !live && storms.filter(s => s.start > t && s.start <= addDays(t, SNOW_HEADS_UP_DAYS)).sort((a, b) => a.start.localeCompare(b.start))[0];
+  const m = cc.snowManual[name];
+  const manual = m && m.until >= t ? m : null;
+  if (manual && manual.mode === 'off') return { active: false, upcoming: null, storm: live || null, manual };
+  if (manual && manual.mode === 'on') return { active: true, upcoming: null, storm: live || null, manual };
+  return { active: !!live, upcoming: soon || null, storm: live || null, manual: null };
+}
+function snowBadge(r) {
+  const sn = r.snow;
+  if (sn.active) {
+    const s = sn.storm;
+    const tip = s ? `${s.cm} cm forecast ${fmtDay(s.start)}${s.end !== s.start ? ' – ' + fmtDay(s.end) : ''} in ${(s.cities || []).join(', ')}. Call the day before, the day of and a few days after.`
+      : `Snow priority switched on by ${sn.manual && sn.manual.by || 'the manager'} until ${sn.manual && fmtDay(sn.manual.until)}.`;
+    return ` <span title="${esc(tip)}" style="font-size:10px;font-weight:800;color:#fff;background:#0284c7;padding:2px 8px;border-radius:8px;letter-spacing:.3px;white-space:nowrap">❄️ SNOWSTORM: CALL NOW</span>`;
+  }
+  if (sn.upcoming) {
+    const s = sn.upcoming;
+    return ` <span title="${esc(`${s.cm} cm forecast in ${(s.cities || []).join(', ')}. This client moves to the top the day before.`)}" style="font-size:10px;font-weight:700;color:#0369a1;background:#e0f2fe;padding:1px 7px;border-radius:8px;white-space:nowrap">❄️ Snow ${esc(fmtDay(s.start))}</span>`;
+  }
+  return '';
+}
+
+/** Snowstorm clients first (unless capped); then retainers, then pay-per-meeting; within each, the manager's dragged order if there is one (clients not in
  *  it come after), otherwise pinned first; then fewest meetings this week; capped last.
  *  An unlimited client reopens (unlocked) only once every client switched on has reached the cap this week. */
 export function rankedClients() {
@@ -187,6 +226,7 @@ export function rankedClients() {
       name: c.name,
       retainer: str(c.billingModel) === 'retainer',
       pinned: cc.pinned.includes(c.name),
+      snow: snowFor(c.name),
       unlimited: cc.unlimited.includes(c.name),
       bookedWeek,
       dialsWeek: week.filter(r => r.client_name === c.name).length,
@@ -203,7 +243,7 @@ export function rankedClients() {
   // Once the manager has dragged, their order decides within each group (it already starts from the pins).
   const manual = cc.order.length > 0;
   rows.sort((a, b) =>
-    (a.capped - b.capped) || (b.retainer - a.retainer) ||
+    (a.capped - b.capped) || (b.snow.active - a.snow.active) || (b.retainer - a.retainer) ||
     (manual ? (pos(a.name) - pos(b.name)) : 0) || (b.pinned - a.pinned) ||
     (a.bookedWeek - b.bookedWeek) || a.name.localeCompare(b.name));
   return rows;
@@ -212,7 +252,7 @@ export function rankedClients() {
 // ─── Board (search.js asks these for the Cold Calling pipeline) ───
 export function coldCallStages() {
   const cols = rankedClients().map((r, i) => ({
-    id: r.name, label: r.name,
+    id: r.name, label: (r.snow.active ? '❄️ ' : '') + r.name,
     color: r.capped ? '#9ca3af' : r.retainer ? '#2563eb' : '#059669',
     rank: i + 1,
   }));
@@ -339,9 +379,9 @@ function queueHtml() {
       : r === firstOpen
         ? `<span style="font-weight:800;color:#15803d">CALL NOW</span>`
         : `<span style="color:#64748b">Next</span>`;
-    return `<tr style="${r.capped ? 'opacity:.55' : ''}">
+    return `<tr style="${r.capped ? 'opacity:.55' : r.snow.active ? 'background:#f0f9ff' : ''}">
       <td style="${td};font-weight:800;color:#0f172a">${i + 1}</td>
-      <td style="${td}"><div style="font-weight:700;color:#0f172a">${esc(r.name)}${r.pinned ? ' <span title="Pinned by the sales manager">📌</span>' : ''}${r.unlocked ? ' ' + UNLIMITED_BADGE : r.unlimited ? ' <span title="No weekly limit once every client has hit the cap" style="font-size:10px;color:#7c3aed;font-weight:700">∞</span>' : ''}</div>
+      <td style="${td}"><div style="font-weight:700;color:#0f172a">${esc(r.name)}${snowBadge(r)}${r.pinned ? ' <span title="Pinned by the sales manager">📌</span>' : ''}${r.unlocked ? ' ' + UNLIMITED_BADGE : r.unlimited ? ' <span title="No weekly limit once every client has hit the cap" style="font-size:10px;color:#7c3aed;font-weight:700">∞</span>' : ''}</div>
         <div style="font-size:11px;color:#64748b">${r.retainer ? 'Retainer' : 'Pay per meeting'}${r.client.coldCallEmail ? ' · pass-offs from ' + esc(r.client.coldCallEmail) : ''}</div></td>
       <td style="${td};min-width:160px">${capCell(r)}</td>
       <td style="${td}">${status}</td>
@@ -453,15 +493,16 @@ function managerHtml() {
       const all = tally(cc.calls.filter(x => x.client_name === r.name));
       return `<tr draggable="true" data-cc-row="${esc(r.name)}" style="${r.capped ? 'background:#f1f5f9' : ''}">
         <td style="${td};font-weight:800;white-space:nowrap"><span class="cc-drag" title="Drag to move this client up or down the call queue" style="cursor:grab;color:#94a3b8;margin-right:6px;user-select:none">⋮⋮</span>${i + 1}</td>
-        <td style="${td};font-weight:700">${esc(r.name)} ${r.unlocked ? UNLIMITED_BADGE : r.capped ? '<span style="font-size:9px;font-weight:800;color:#fff;background:#6b7280;padding:1px 6px;border-radius:8px">CAPPED</span>' : ''}</td>
+        <td style="${td};font-weight:700">${esc(r.name)}${snowBadge(r)} ${r.unlocked ? UNLIMITED_BADGE : r.capped ? '<span style="font-size:9px;font-weight:800;color:#fff;background:#6b7280;padding:1px 6px;border-radius:8px">CAPPED</span>' : ''}</td>
         <td style="${td}">${r.retainer ? 'Retainer' : 'PPM'}</td>
         <td style="${td};min-width:140px">${capCell(r)}</td>
         <td style="${td}">${t.dials}</td><td style="${td}">${t.connections}</td><td style="${td}">${t.connectRate == null ? '—' : t.connectRate + '%'}</td>
         <td style="${td}" title="Last ${LOOKBACK_DAYS} days">${all.showed} / ${all.noShow}</td>
         <td style="${td};white-space:nowrap"><button data-action="ccPin" data-name="${esc(r.name)}" style="font-size:11px;padding:3px 9px;border:1px solid var(--border);border-radius:6px;background:${r.pinned ? '#fef3c7' : '#fff'};color:#334155;cursor:pointer;font-weight:600">${r.pinned ? 'Unpin' : '📌 Pin'}</button>
+          <button data-action="ccSnow" data-name="${esc(r.name)}" title="${r.snow.active ? 'Take this client off snowstorm priority for now' : 'Put this client at the top of the queue for the next ' + SNOW_MANUAL_DAYS + ' days'}" style="font-size:11px;padding:3px 9px;border:1px solid ${r.snow.active ? '#0284c7' : 'var(--border)'};border-radius:6px;background:${r.snow.active ? '#e0f2fe' : '#fff'};color:${r.snow.active ? '#0369a1' : '#334155'};cursor:pointer;font-weight:600">${r.snow.active ? '❄️ End snow priority' : '❄️ Snow priority'}</button>
           <button data-action="ccUnlimited" data-name="${esc(r.name)}" title="No weekly limit for this client once every client has hit the cap" style="font-size:11px;padding:3px 9px;border:1px solid ${r.unlimited ? '#7c3aed' : 'var(--border)'};border-radius:6px;background:${r.unlimited ? '#f5f3ff' : '#fff'};color:${r.unlimited ? '#6d28d9' : '#334155'};cursor:pointer;font-weight:600">${r.unlimited ? '∞ Unlimited' : '∞ Make unlimited'}</button></td></tr>`;
     }).join('')}</tbody></table>
-    <div style="font-size:11px;color:#94a3b8;margin-top:6px">Drag a client by ⋮⋮ to move it up or down the call queue. Retainers always stay above pay-per-meeting clients and capped clients always sink to the bottom; dragging reorders within those groups. ${cc.order.length ? `<b style="color:#475569">Using your dragged order.</b> <button data-action="ccResetOrder" style="font-size:11px;padding:1px 8px;border:1px solid var(--border);border-radius:6px;background:#fff;color:#334155;cursor:pointer">Reset to automatic order</button>` : 'Automatic order: pinned first, then fewest meetings this week.'} The week resets every Monday. ∞ Unlimited clients stop at the cap like everyone else, and reopen with no limit once every client has hit it.</div>`
+    <div style="font-size:11px;color:#94a3b8;margin-top:6px">Drag a client by ⋮⋮ to move it up or down the call queue. Retainers always stay above pay-per-meeting clients and capped clients always sink to the bottom; dragging reorders within those groups. ❄️ Snowstorm clients jump to the top from the day before a storm until ${SNOW_AFTER_DAYS} days after it (forecast for each snow client's watch cities${cc.snowUpdated ? ', checked ' + esc(new Date(cc.snowUpdated).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })) : ''}). ${cc.order.length ? `<b style="color:#475569">Using your dragged order.</b> <button data-action="ccResetOrder" style="font-size:11px;padding:1px 8px;border:1px solid var(--border);border-radius:6px;background:#fff;color:#334155;cursor:pointer">Reset to automatic order</button>` : 'Automatic order: pinned first, then fewest meetings this week.'} The week resets every Monday. ∞ Unlimited clients stop at the cap like everyone else, and reopen with no limit once every client has hit it.</div>`
     : '<div style="font-size:12px;color:#94a3b8">No clients switched on yet. Use the list below.</div>');
 
   // Reps: one row each, every number coloured against its quota (the week pro-rated to today).
@@ -890,6 +931,21 @@ registerActions({
     render();
     await saveSetting('cold_call_pinned', cc.pinned);
     if (pinning && cc.order.length) await saveSetting('cold_call_order', cc.order);
+  },
+  async ccSnow(el) {
+    const name = el.dataset.name;
+    const sn = snowFor(name);
+    const by = currentUser && currentUser.name || '';
+    if (sn.active) {
+      // Off until the storm window would have closed (or a week, for a manual switch-on).
+      const until = sn.storm ? addDays(sn.storm.end, SNOW_AFTER_DAYS) : addDays(today(), 7);
+      cc.snowManual = { ...cc.snowManual, [name]: { mode: 'off', until, by } };
+    } else {
+      cc.snowManual = { ...cc.snowManual, [name]: { mode: 'on', until: addDays(today(), SNOW_MANUAL_DAYS - 1), by } };
+    }
+    for (const [k, v] of Object.entries(cc.snowManual)) if (!v || v.until < today()) delete cc.snowManual[k];
+    render();
+    await saveSetting('cold_call_snow_manual', cc.snowManual);
   },
   async ccResetOrder() {
     cc.order = [];
