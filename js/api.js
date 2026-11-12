@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 import { API_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261112201802';
 import { supabase } from './supabase-client.js?v=20261112201802';
-import { mergeRealtimeUpdate, createRealtimeQueue } from './realtime-merge.js?v=20261112201802';
+import { applyRealtimeUpdate, createRealtimeQueue } from './realtime-merge.js?v=20261112201802';
 import { selectAllPages } from './paging.js?v=20261112201802';
 import { dealsVersion } from './state.js?v=20261112201802';
 export { supabase };
@@ -716,12 +716,8 @@ function applyRealtimeEvent(table, payload) {
       // Merge, never replace: the payload leaves out large columns this UPDATE did not touch.
       // Merge INTO the row we hold, so an open card (state.selectedDeal) and any other holder
       // keep pointing at the live row instead of an orphaned copy (Tim, 2026-11-12).
-      const row = list[idx];
-      Object.assign(list[idx], mergeRealtimeUpdate(list[idx], newRow));
-      if (table === 'deals') {
-        const pending = pendingDealFields[String(newRow.id)];
-        if (pending) Object.assign(row, pending);
-      }
+      // mergeRealtimeUpdate(list[idx], newRow) runs inside applyRealtimeUpdate.
+      applyRealtimeUpdate(list[idx], newRow, table === 'deals' ? pendingDealFields[String(newRow.id)] : null);
     }
   } else if (eventType === 'DELETE' && oldRow) {
     // Another user's delete applies too — this used to accept only deletes we made ourselves,

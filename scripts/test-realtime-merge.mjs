@@ -6,7 +6,7 @@
 // pass-off to client" did nothing (Ioannis, 2026-11-10).
 // Run: node scripts/test-realtime-merge.mjs
 import assert from 'node:assert/strict';
-import { mergeRealtimeUpdate } from '../js/realtime-merge.js';
+import { mergeRealtimeUpdate, applyRealtimeUpdate } from '../js/realtime-merge.js';
 
 let passed = 0;
 const test = (name, fn) => {
@@ -35,6 +35,31 @@ test('the result is the payload object itself, so callers can keep patching it',
 test('no row held yet: the payload is used as it is', () => {
   const incoming = { id: '1' };
   assert.equal(mergeRealtimeUpdate(undefined, incoming), incoming);
+});
+
+// Finding 13 (F3 via coordinator, 2026-11-12): the pending-edit overlay must land on the STORED row.
+test('a pending local edit survives a realtime echo of the older value, on the stored row', () => {
+  const list = [{ id: '1', stage: 'Booked', notes: 'typed just now', company: 'Acme' }];
+  const pending = { notes: 'typed just now' };
+  applyRealtimeUpdate(list[0], { id: '1', stage: 'Booked', notes: 'old server value' }, pending);
+  assert.equal(list[0].notes, 'typed just now');
+  assert.equal(list[0].company, 'Acme');
+});
+
+test('the update lands in place: an open card holding the row sees it', () => {
+  const row = { id: '1', stage: 'A', passoffInstructions: 'draft' };
+  const list = [row];
+  const selectedDeal = row;
+  applyRealtimeUpdate(list[0], { id: '1', stage: 'B' }, null);
+  assert.equal(list[0], selectedDeal);
+  assert.equal(selectedDeal.stage, 'B');
+  assert.equal(selectedDeal.passoffInstructions, 'draft');
+});
+
+test('no pending edits: the server value wins', () => {
+  const row = { id: '1', notes: 'a' };
+  applyRealtimeUpdate(row, { id: '1', notes: 'b' }, undefined);
+  assert.equal(row.notes, 'b');
 });
 
 console.log(`\n${passed} passed`);

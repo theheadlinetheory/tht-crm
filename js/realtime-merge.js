@@ -19,6 +19,16 @@ export function mergeRealtimeUpdate(have, incoming) {
   return incoming;
 }
 
+// Land a realtime UPDATE on the row we hold, IN PLACE, then put this tab's not-yet-saved edits
+// (pendingDealFields) back on top, so the server's echo of an older state cannot revert a field
+// the user is still saving. In place keeps every holder — an open card's state.selectedDeal
+// included — pointing at the live row (Tim, 2026-11-12). Returns `have`.
+export function applyRealtimeUpdate(have, incoming, pending) {
+  Object.assign(have, mergeRealtimeUpdate(have, incoming));
+  if (pending) Object.assign(have, pending);
+  return have;
+}
+
 // ─── Realtime event queue ───
 // An event that arrives while its table is guarded (a write in flight, a card open, a pass-off
 // request running) waits here. Three rules, all from the 2026-11-12 audit (Tim):
