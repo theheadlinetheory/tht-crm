@@ -4,7 +4,7 @@
 import { state, store, pendingWrites } from './app.js?v=20261112201802';
 import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20261112201802';
 import { isAdmin, isEmployee } from './auth.js?v=20261112201802';
-import { esc, svgIcon, str } from './utils.js?v=20261112201802';
+import { esc, jsArg, svgIcon, str } from './utils.js?v=20261112201802';
 import { render } from './render.js?v=20261112201802';
 import { leadCardId, leadCardIcon, matchLeadCards } from './lead-card.js?v=20261112201802';
 import { dealChannel } from './acquisition-channel.js?v=20261112201802';
@@ -453,7 +453,7 @@ export function renderLeadTracker() {
     if (isAdmin()) {
       html += `<button class="tracker-action-btn ${isPaid ? 'active' : ''}" onclick="trackerMarkPaid('${entry.id}')" title="${isPaid ? 'Unmark paid' : 'Mark as Paid'}">${isPaid ? '✓ Paid' : '$ Pay'}</button>`;
       if (str(entry.stripeInvoiceId) && str(entry.paidStatus).toLowerCase() !== 'paid') {
-        html += `<button class="tracker-action-btn" onclick="trackerSendInvoiceEmail('${esc(str(entry.stripeInvoiceId))}','${esc(str(entry.clientName))}')" title="Send invoice email">✉ Email</button>`;
+        html += `<button class="tracker-action-btn" onclick="trackerSendInvoiceEmail(${jsArg(entry.stripeInvoiceId)},${jsArg(entry.clientName)})" title="Send invoice email">✉ Email</button>`;
       }
     }
     html += `<button class="tracker-action-btn ${isCalledBackStatus ? 'active' : ''}" onclick="trackerToggleCallback('${entry.id}')" title="${isCalledBackStatus ? 'Undo callback' : 'Flag as Bad Lead (not charged)'}">${isCalledBackStatus ? '↩ Undo' : '🚫 CB'}</button>`;

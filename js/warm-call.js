@@ -8,7 +8,7 @@
 import { state, pendingWrites } from './app.js?v=20261112201802';
 import { render, refreshModal } from './render.js?v=20261112201802';
 import { invokeEdgeFunction } from './api.js?v=20261112201802';
-import { esc, str, svgIcon, getToday, isValidDate, fmtDate, fmtTime12, uid } from './utils.js?v=20261112201802';
+import { esc, jsArg, str, svgIcon, getToday, isValidDate, fmtDate, fmtTime12, uid } from './utils.js?v=20261112201802';
 import { findClientForDeal, lookupClientInfo, getWarmCallQA } from './client-info.js?v=20261112201802';
 import { isAdmin, isEmployee } from './auth.js?v=20261112201802';
 
@@ -107,7 +107,7 @@ export function openWarmCallSheet(dealId){
                   <div style="font-size:14px;font-weight:600;color:#1e293b;margin-top:2px">${esc(info.primaryContact)}</div>
                   ${info.primaryEmail?`<div style="display:flex;align-items:center;gap:6px;margin-top:1px">
                     <span style="font-size:12px;color:#6b7280">${esc(info.primaryEmail)}</span>
-                    <button onclick="event.stopPropagation();copyToClipboard('${esc(info.primaryEmail)}',this)" style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #d1d5db;background:#fff;color:#6b7280;cursor:pointer;font-weight:600">Copy</button>
+                    <button onclick="event.stopPropagation();copyToClipboard(${jsArg(info.primaryEmail)},this)" style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #d1d5db;background:#fff;color:#6b7280;cursor:pointer;font-weight:600">Copy</button>
                   </div>`:''}
                   ${info.phone?`<div style="font-size:12px;color:#6b7280;margin-top:1px">${esc(info.phone)}</div>`:''}
                 </div>`:''}
@@ -117,7 +117,7 @@ export function openWarmCallSheet(dealId){
                   <div style="font-size:14px;font-weight:600;color:#1e293b;margin-top:2px">${esc(info.forwardName||info.primaryContact||'')}</div>
                   <div style="display:flex;align-items:center;gap:6px;margin-top:1px">
                     <span style="font-size:12px;color:#6b7280">${esc(info.forwardEmail)}</span>
-                    <button onclick="event.stopPropagation();copyToClipboard('${esc(info.forwardEmail)}',this)" style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #d1d5db;background:#fff;color:#6b7280;cursor:pointer;font-weight:600">Copy</button>
+                    <button onclick="event.stopPropagation();copyToClipboard(${jsArg(info.forwardEmail)},this)" style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #d1d5db;background:#fff;color:#6b7280;cursor:pointer;font-weight:600">Copy</button>
                   </div>
                 </div>`:''}
 
@@ -244,11 +244,11 @@ export function openWarmCallSheet(dealId){
                 <div style="font-size:14px;font-weight:600;color:#1e293b;margin-top:2px">${esc(deal.contact||'\u2014')}</div>
                 ${deal.email?`<div style="display:flex;align-items:center;gap:6px;margin-top:1px">
                   <span style="font-size:12px;color:#6b7280">${esc(deal.email)}</span>
-                  <button onclick="event.stopPropagation();copyToClipboard('${esc(deal.email)}',this)" style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #d1d5db;background:#fff;color:#6b7280;cursor:pointer;font-weight:600">Copy</button>
+                  <button onclick="event.stopPropagation();copyToClipboard(${jsArg(deal.email)},this)" style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #d1d5db;background:#fff;color:#6b7280;cursor:pointer;font-weight:600">Copy</button>
                 </div>`:''}
                 ${[deal.email2,deal.email3,deal.email4].filter(e=>e&&str(e).trim()).map(e=>`<div style="display:flex;align-items:center;gap:6px;margin-top:1px">
                   <span style="font-size:12px;color:#6b7280">${esc(e)}</span>
-                  <button onclick="event.stopPropagation();copyToClipboard('${esc(e)}',this)" style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #d1d5db;background:#fff;color:#6b7280;cursor:pointer;font-weight:600">Copy</button>
+                  <button onclick="event.stopPropagation();copyToClipboard(${jsArg(e)},this)" style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #d1d5db;background:#fff;color:#6b7280;cursor:pointer;font-weight:600">Copy</button>
                 </div>`).join('')}
               </div>
 

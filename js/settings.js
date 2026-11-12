@@ -14,6 +14,7 @@ import { findPolygonForClient, invalidateServiceAreaCache } from './maps.js?v=20
 import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20261112201802';
 import { DEFAULT_BOOKING_SMS_TEMPLATE } from './booking-sms.js?v=20261112201802';
 import { renderRetainerBilling } from './retainer-billing.js?v=20261112201802';
+import { snapshotRows, diffRows, commitRows, snapshotSettings, diffSettings, commitSettings } from './settings-diff.js?v=20261112201802';
 import { renderAutoChargeToggle } from './auto-charge.js?v=20261112201802';
 import { showClientEndPicker, clearClientEnd } from './client-end.js?v=20261112201802';
 import { setupBadge, setupBanner } from './client-setup-status.js?v=20261112201802';
@@ -45,6 +46,9 @@ export function openSettings(defaultTab){
   if(state.savedSettings?.sequence_templates?.length) draft.sequence_templates = JSON.parse(JSON.stringify(state.savedSettings.sequence_templates));
   else draft.sequence_templates = JSON.parse(JSON.stringify(SEQUENCE_TEMPLATES));
   setSettingsDraft(draft);
+  // What was loaded — saves send only the differences (settings-diff.js). (Tim, 2026-11-12)
+  _clientSnap = snapshotRows(state.clients.filter(c=>c.id).map(buildClientUpdate));
+  _settingsSnap = snapshotSettings(draft);
   setSettingsOpen(true);
   renderSettingsPanel();
 }
@@ -96,6 +100,26 @@ window.toggleClientAccordion = function(clientId){
     }
   });
 };
+
+// Snapshots taken when Settings opens; see saveChangedSettings(). (Tim, 2026-11-12)
+let _clientSnap = new Map();
+let _settingsSnap = {};
+// A client edited before it was in the snapshot (e.g. it arrived after Settings opened):
+// snapshot it as it is right now, before the edit lands.
+function ensureClientSnap(c){ if(c && c.id) snapshotRows([buildClientUpdate(c)], _clientSnap, false); }
+
+// Only the client rows / fields and crm_settings keys that changed since load.
+// It used to write every column of every client — undoing anyone else's edits
+// made since this person opened Settings.
+async function saveChangedSettings(){
+  for(const c of state.clients) ensureClientSnap(c);
+  const clientUpdates = diffRows(state.clients.filter(c=>c.id).map(buildClientUpdate), _clientSnap);
+  const settingsChanged = diffSettings(settingsDraft, _settingsSnap);
+  const writes = [];
+  if(Object.keys(settingsChanged).length) writes.push(sbSaveSettings(settingsChanged).then(()=>commitSettings(settingsChanged, _settingsSnap)));
+  if(clientUpdates.length) writes.push(sbBatchUpdateClients(clientUpdates.map(({id, ...f}) => ({id, ...camelToSnake(f)}))).then(()=>commitRows(clientUpdates, _clientSnap)));
+  await Promise.all(writes);
+}
 
 function buildClientUpdate(c) {
   const u = {
@@ -164,11 +188,7 @@ export function debouncedAutoSave(){
   _autoSaveTimer = setTimeout(async ()=>{
     try{
       applySettings(settingsDraft);
-      const clientUpdates = state.clients.filter(c=>c.id).map(buildClientUpdate);
-      await Promise.all([
-        sbSaveSettings(settingsDraft),
-        sbBatchUpdateClients(clientUpdates.map(c => ({id:c.id, ...camelToSnake(c)})))
-      ]);
+      await saveChangedSettings();
       const s = document.getElementById('settings-autosave-status');
       if(s) s.textContent = '\u2713 Auto-saved';
       setTimeout(()=>{ const s2=document.getElementById('settings-autosave-status'); if(s2 && s2.textContent==='\u2713 Auto-saved') s2.textContent=''; }, 2000);
@@ -968,7 +988,7 @@ async function loadUsersIntoPanel(){
             <span style="font-size:9px;color:var(--text-muted);margin-right:2px">Tag:</span>
             ${TAG_PALETTE.map(c => `<button onclick="saveUserTagColor('${u.uid}','${c}')" style="width:16px;height:16px;border-radius:50%;border:2px solid ${(u.tagColor||TAG_PALETTE[0])===c?'#111':'transparent'};background:${c};cursor:pointer;padding:0;flex-shrink:0" title="${c}"></button>`).join('')}
           </div>
-          ${!isSelf?`<button onclick="handleDeleteUser('${u.uid}','${esc(u.name||u.email||'')}')" style="font-size:10px;color:#ef4444;background:none;border:none;cursor:pointer;padding:2px 6px;font-family:var(--font)">Remove</button>`:''}
+          ${!isSelf?`<button onclick="handleDeleteUser(${jsArg(u.uid)},${jsArg(u.name||u.email||'')})" style="font-size:10px;color:#ef4444;background:none;border:none;cursor:pointer;padding:2px 6px;font-family:var(--font)">Remove</button>`:''}
         </div>
       </div>`;
     }
@@ -991,7 +1011,7 @@ async function loadInvites(){
   el.innerHTML = pending.length
     ? `<div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px">Waiting for first sign-in</div>` + pending.map(i => `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px;font-size:12px">
         <span>${esc(i.email)} · <b>${esc(ROLE_LABEL[i.role]||i.role)}</b></span>
-        <button onclick="removeInvite('${esc(i.email)}')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:11px">Remove</button></div>`).join('')
+        <button onclick="removeInvite(${jsArg(i.email)})" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:11px">Remove</button></div>`).join('')
     : '';
 }
 async function inviteUser(){
@@ -1149,7 +1169,7 @@ async function fetchAcquisitionCampaigns(){
           <div style="font-size:10px;color:var(--text-muted)">${esc(camp.status||'')}</div>
         </div>
         ${ownerInfo?`<span class="owner-tag" style="background:${ownerInfo.bg};color:${ownerInfo.fg}">${esc(assigned)}</span>`:''}
-        <select onchange="assignCampaignOwner('${esc(camp.name).replace(/'/g,"\\'")}',this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:var(--font);min-width:120px">
+        <select onchange="assignCampaignOwner(${jsArg(camp.name)},this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:var(--font);min-width:120px">
           <option value=""${!assigned?' selected':''}>Unassigned</option>
           ${adminUsers.map(u => `<option value="${esc(u)}"${assigned===u?' selected':''}>${esc(u)}</option>`).join('')}
         </select>
@@ -1161,7 +1181,7 @@ async function fetchAcquisitionCampaigns(){
         h += `<div style="display:flex;align-items:center;gap:10px;padding:6px 10px;margin-bottom:4px;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;font-size:11px">
           <span style="flex:1">${esc(name)}</span>
           <span style="color:#92400e;font-weight:600">${esc(assignments[name])}</span>
-          <button onclick="removeCampaignAssignment('${esc(name).replace(/'/g,"\\'")}')" style="background:none;border:none;color:#d1d5db;cursor:pointer;font-size:14px" title="Remove">&times;</button>
+          <button onclick="removeCampaignAssignment(${jsArg(name)})" style="background:none;border:none;color:#d1d5db;cursor:pointer;font-size:14px" title="Remove">&times;</button>
         </div>`;
       }
       h += '</div>';
@@ -1304,6 +1324,7 @@ function mirrorClientFieldInputs(clientId, field, value){
 
 export function updateClientField(clientId, field, value){
   const c=state.clients.find(x=>str(x.id)===str(clientId));
+  ensureClientSnap(c);
   if(c) c[field]=value;
   mirrorClientFieldInputs(clientId, field, value);
 }
@@ -1428,6 +1449,7 @@ export function toggleClientField(clientId, field, checked){
   }
   captureClientInputs();
   const c=state.clients.find(x=>str(x.id)===str(clientId));
+  ensureClientSnap(c);
   if(c){
     c[field]=checked?'TRUE':'FALSE';
   }
@@ -1450,11 +1472,7 @@ export async function saveSettingsToSheet(){
   const oldBanner=document.getElementById('settings-save-banner');
   if(oldBanner) oldBanner.remove();
   try {
-    const clientUpdates = state.clients.filter(c=>c.id).map(buildClientUpdate);
-    await Promise.all([
-      sbSaveSettings(settingsDraft),
-      sbBatchUpdateClients(clientUpdates.map(c => ({id:c.id, ...camelToSnake(c)})))
-    ]);
+    await saveChangedSettings();
     if(btn){ btn.textContent='Save Settings'; btn.disabled=false; }
     const banner=document.createElement('div');
     banner.id='settings-save-banner';

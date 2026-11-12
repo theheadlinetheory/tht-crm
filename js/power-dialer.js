@@ -89,7 +89,9 @@ async function saveDisposition(contact, outcome, notes, doNotCall) {
   const { error } = await supabase.from('dialer_contacts')
     .update({ status, call_outcome: outcome, call_notes: notes, do_not_call: doNotCall, called_at: new Date().toISOString() })
     .eq('id', contact.id);
-  if (error) console.warn('Disposition save failed:', error.message);
+  // Used to console.warn and move on, so the call outcome was lost while the dialer
+  // advanced as if saved. Stop here; pdSaveDisposition shows it. (Tim, 2026-11-12)
+  if (error) throw new Error('Disposition not saved: ' + error.message);
 
   const isAnswered = outcome && !['No Answer', 'Wrong Number', 'Disconnected Number'].includes(outcome);
   await supabase.from('dialer_campaigns').update({
@@ -341,7 +343,8 @@ window.pdSaveDisposition = async () => {
   const notes = document.getElementById('pd-notes')?.value || '';
   const dnc = document.getElementById('pd-dnc')?.checked || false;
   _saving = true; render();
-  await saveDisposition(contact, outcome, notes, dnc);
+  try { await saveDisposition(contact, outcome, notes, dnc); }
+  catch (e) { console.error(e); showToast(e.message || 'Disposition not saved', 'error'); _saving = false; render(); return; }
   _saving = false; advanceToNext();
 };
 

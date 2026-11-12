@@ -11,7 +11,7 @@ import { flushRealtimeQueue, showToast } from './api.js?v=20261112201802';
 import { ACQUISITION_STAGES, NURTURE_STAGES, DEAL_VERTICALS, SOP_DAYS, REACTIVATION_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY, detectCountry, ACQ_STRATEGY_BOOKERS, ACQ_DEMO_BOOKERS } from './config.js?v=20261112201802';
 import { render, refreshModal } from './render.js?v=20261112201802';
 import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20261112201802';
-import { esc, str, getToday, TODAY, uid, svgIcon, brandIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20261112201802';
+import { esc, jsArg, str, getToday, TODAY, uid, svgIcon, brandIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20261112201802';
 import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20261112201802';
 import { renderBookingSmsButton } from './booking-sms.js?v=20261112201802';
 import { renderColdCallEmailButton } from './cold-call-email.js?v=20261112201802';
@@ -30,6 +30,8 @@ import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocode
 import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js?v=20261112201802';
 import { renderGmailSection } from './gmail-threads.js?v=20261112201802';
 import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js?v=20261112201802';
+import * as passoffMod from './passoff.js?v=20261112201802';
+import { createDealSaveQueue } from './deal-save-queue.js?v=20261112201802';
 import './blooio.js?v=20261112201802';
 import './google-task.js?v=20261112201802';
 import './demo-tracker.js?v=20261112201802';
@@ -86,12 +88,24 @@ function renderSuggestedUpdates(deal) {
   </div>`;
 }
 
+// A write that fails puts the card back how it was. sbCall (api.js) has already
+// shown the error toast; this stops the screen claiming it saved. (Tim, 2026-11-12)
+function restoreDealOnFail(dealId, before) {
+  return (e) => {
+    console.error('Update deal failed:', e);
+    for (const d of dealObjs(dealId)) Object.assign(d, before);
+    if (state.selectedDeal && String(state.selectedDeal.id) === String(dealId)) refreshModal(true);
+  };
+}
+const cloneSu = (su) => su ? JSON.parse(JSON.stringify(su)) : su;
+
 async function acceptSuggestion(dealId, index) {
   const deal = state.deals.find(d => d.id === dealId);
   if (!deal || !deal.suggestedUpdates) return;
   const su = deal.suggestedUpdates;
   const suggestion = su.suggestions[index];
   if (!suggestion) return;
+  const before = { [suggestion.field]: deal[suggestion.field], suggestedUpdates: cloneSu(su) };
   // Apply the suggested value to the deal
   deal[suggestion.field] = suggestion.suggested;
   // Remove this suggestion
@@ -107,7 +121,7 @@ async function acceptSuggestion(dealId, index) {
   const dbFields = camelToSnake({ [suggestion.field]: suggestion.suggested });
   dbFields.suggested_updates = newSu;
   pendingWrites.value++;
-  sbUpdateDeal(dealId, dbFields).finally(() => { pendingWrites.value--; });
+  sbUpdateDeal(dealId, dbFields).catch(restoreDealOnFail(dealId, before)).finally(() => { pendingWrites.value--; });
   refreshModal(true);
 }
 
@@ -115,6 +129,8 @@ async function acceptAllSuggestions(dealId) {
   const deal = state.deals.find(d => d.id === dealId);
   if (!deal || !deal.suggestedUpdates) return;
   const su = deal.suggestedUpdates;
+  const before = { suggestedUpdates: cloneSu(su) };
+  for (const s of su.suggestions) before[s.field] = deal[s.field];
   const fields = {};
   for (const s of su.suggestions) {
     deal[s.field] = s.suggested;
@@ -131,7 +147,7 @@ async function acceptAllSuggestions(dealId) {
   const dbFields = camelToSnake(fields);
   dbFields.suggested_updates = null;
   pendingWrites.value++;
-  sbUpdateDeal(dealId, dbFields).finally(() => { pendingWrites.value--; });
+  sbUpdateDeal(dealId, dbFields).catch(restoreDealOnFail(dealId, before)).finally(() => { pendingWrites.value--; });
   refreshModal(true);
 }
 
@@ -139,6 +155,7 @@ async function skipSuggestion(dealId, index) {
   const deal = state.deals.find(d => d.id === dealId);
   if (!deal || !deal.suggestedUpdates) return;
   const su = deal.suggestedUpdates;
+  const before = { suggestedUpdates: cloneSu(su) };
   su.suggestions.splice(index, 1);
   const newSu = su.suggestions.length > 0 ? su : null;
   deal.suggestedUpdates = newSu;
@@ -146,19 +163,20 @@ async function skipSuggestion(dealId, index) {
     state.selectedDeal.suggestedUpdates = newSu;
   }
   pendingWrites.value++;
-  sbUpdateDeal(dealId, { suggested_updates: newSu }).finally(() => { pendingWrites.value--; });
+  sbUpdateDeal(dealId, { suggested_updates: newSu }).catch(restoreDealOnFail(dealId, before)).finally(() => { pendingWrites.value--; });
   refreshModal(true);
 }
 
 async function dismissSuggestions(dealId) {
   const deal = state.deals.find(d => d.id === dealId);
   if (!deal) return;
+  const before = { suggestedUpdates: cloneSu(deal.suggestedUpdates) };
   deal.suggestedUpdates = null;
   if (state.selectedDeal && state.selectedDeal.id === dealId) {
     state.selectedDeal.suggestedUpdates = null;
   }
   pendingWrites.value++;
-  sbUpdateDeal(dealId, { suggested_updates: null }).finally(() => { pendingWrites.value--; });
+  sbUpdateDeal(dealId, { suggested_updates: null }).catch(restoreDealOnFail(dealId, before)).finally(() => { pendingWrites.value--; });
   refreshModal(true);
 }
 
@@ -170,11 +188,17 @@ window.dismissSuggestions = dismissSuggestions;
 export function openDeal(id){
   const deal=state.deals.find(d=>d.id===id);
   if(!deal) return;
+  // Switching cards: start the previous card's unsaved edits before it goes. (Tim, 2026-11-12)
+  if(state.selectedDeal && String(state.selectedDeal.id)!==String(id)) flushDealFieldSaves(state.selectedDeal.id);
   // Clear new-reply / new-text indicators when opening the deal card
   const clearFlags = {};
   if(deal.hasNewReply){ deal.hasNewReply=false; clearFlags.has_new_reply=false; }
   if(deal.hasNewText){ deal.hasNewText=false; clearFlags.has_new_text=false; }
-  if(Object.keys(clearFlags).length) sbUpdateDeal(id, clearFlags);
+  // sbCall already toasts the failure; put the dot back so it isn't silently lost.
+  if(Object.keys(clearFlags).length) sbUpdateDeal(id, clearFlags).catch(()=>{
+    if('has_new_reply' in clearFlags) deal.hasNewReply=true;
+    if('has_new_text' in clearFlags) deal.hasNewText=true;
+  });
   state.selectedDeal=deal;
   render();
   // Lazy-load heavy fields (email_body, call_transcript) if not already cached
@@ -192,6 +216,8 @@ export function openDeal(id){
 
 export function closeDealModal(){
   stopTranscriptPolling();
+  // Closing inside the 800ms debounce used to drop the edit. (Tim, 2026-11-12)
+  if(state.selectedDeal) flushDealFieldSaves(state.selectedDeal.id);
   // An archived deal opened to look at (archive.js) is parked in state.deals only while its card is open.
   if(state.selectedDeal && state.selectedDeal._archived){ const id=String(state.selectedDeal.id); state.deals=state.deals.filter(d=>String(d.id)!==id); }
   state.selectedDeal=null;
@@ -271,7 +297,7 @@ window.markDealUnread = function(dealId){
   const deal = state.deals.find(d => String(d.id) === String(dealId));
   if(!deal) return;
   deal.hasNewReply = true;
-  sbUpdateDeal(dealId, { has_new_reply: true });
+  sbUpdateDeal(dealId, { has_new_reply: true }).catch(e => { console.error('Mark unread failed:', e); deal.hasNewReply = false; });
   closeDealModal();
 };
 
@@ -293,6 +319,7 @@ export function changeDealPipeline(newPipeline){
     return;
   }
 
+  const before = { pipeline: deal.pipeline, stage: deal.stage };
   deal.pipeline = newPipeline;
   if(newPipeline === 'Acquisition'){
     deal.stage = ACQUISITION_STAGES[0]?.id || 'Initial Response';
@@ -303,7 +330,7 @@ export function changeDealPipeline(newPipeline){
   }
   pendingWrites.value++;
   sbUpdateDeal(deal.id, camelToSnake({ pipeline: deal.pipeline, stage: deal.stage }))
-    .catch(e => console.error('Update deal pipeline failed:', e))
+    .catch(restoreDealOnFail(deal.id, before))
     .finally(() => { pendingWrites.value--; });
   refreshModal(true);
 }
@@ -312,51 +339,69 @@ export function changeDealOwner(val){
   // Acquisition: overrides the campaign owner. Nurture: setting it to
   // MANUAL_OUTREACH_OWNER moves the lead from Automated to Manual reactivation.
   if(!state.selectedDeal) return;
+  const before={ownerOverride:state.selectedDeal.ownerOverride};
   state.selectedDeal.ownerOverride=val;
   pendingWrites.value++;
-  sbUpdateDeal(state.selectedDeal.id, camelToSnake({ownerOverride:val})).catch(e=>console.error('Update deal failed:',e)).finally(()=>{pendingWrites.value--;});
+  sbUpdateDeal(state.selectedDeal.id, camelToSnake({ownerOverride:val})).catch(restoreDealOnFail(state.selectedDeal.id, before)).finally(()=>{pendingWrites.value--;});
   refreshModal();
 }
 
 window.updateDealVertical = function(dealId, val) {
   const deal = state.deals.find(d => String(d.id) === String(dealId));
   if (!deal) return;
+  const before = { vertical: deal.vertical };
   deal.vertical = val;
   pendingWrites.value++;
-  sbUpdateDeal(dealId, { vertical: val }).catch(e => console.error('Update vertical failed:', e)).finally(() => { pendingWrites.value--; });
+  sbUpdateDeal(dealId, { vertical: val }).catch(restoreDealOnFail(dealId, before)).finally(() => { pendingWrites.value--; });
 };
 
 // ─── Debounced Deal Field Save ───
-let _dealFieldSaveTimer=null;
-const _dirtyFields=new Set();
-export function debouncedDealFieldSave(){
-  clearTimeout(_dealFieldSaveTimer);
-  _dealFieldSaveTimer=setTimeout(()=>{
-    if(!state.selectedDeal) return;
-    const deal=state.selectedDeal;
-    const fields={};
-    for(const f of _dirtyFields){
-      const el=document.getElementById('deal-'+f);
-      if(el && el.value!==undefined){
-        deal[f]=el.value;
-        fields[f]=el.value;
-      }
+// Per-deal queue (js/deal-save-queue.js): the value is captured at edit time and
+// closeDealModal/openDeal flush it, so closing or switching cards inside the
+// 800ms no longer drops the edit or saves the wrong card's inputs. (Tim, 2026-11-12)
+function dealObjs(dealId){
+  const id=String(dealId);
+  const out=state.deals.filter(d=>String(d.id)===id);
+  if(state.selectedDeal && String(state.selectedDeal.id)===id && !out.includes(state.selectedDeal)) out.push(state.selectedDeal);
+  return out;
+}
+function clearPendingField(dealId, k, val){
+  const pending=pendingDealFields[String(dealId)];
+  if(pending && pending[k]===val) delete pending[k];
+  if(pending && Object.keys(pending).length===0) delete pendingDealFields[String(dealId)];
+}
+// A write that failed must not stay on screen as if saved, and must stop being
+// re-applied over every sync from pendingDealFields. Put back the value from
+// before the edit (unless the user has typed something newer since). (Tim, 2026-11-12)
+function rollbackDealFields(dealId, fields, prev, err){
+  let changed=false;
+  for(const k of Object.keys(fields)){
+    clearPendingField(dealId, k, fields[k]);
+    for(const d of dealObjs(dealId)){
+      if(d[k]===fields[k]){ d[k]=prev[k]; changed=true; }
     }
-    _dirtyFields.clear();
-    if(Object.keys(fields).length===0) return;
-    if(!pendingDealFields[String(deal.id)]) pendingDealFields[String(deal.id)]={};
-    Object.assign(pendingDealFields[String(deal.id)], fields);
+  }
+  console.error('Update deal failed:', err);
+  showToast('Not saved — change undone: '+(err?.message||'unknown error'),'error');
+  if(changed && state.selectedDeal && String(state.selectedDeal.id)===String(dealId)) refreshModal(true);
+}
+const dealSaveQueue=createDealSaveQueue({
+  save:(dealId, fields)=>{
     pendingWrites.value++;
-    sbUpdateDeal(deal.id, camelToSnake(fields)).then(()=>{
-      const pending=pendingDealFields[String(deal.id)];
-      if(pending){
-        for(const k of Object.keys(fields)){
-          if(pending[k]===fields[k]) delete pending[k];
-        }
-        if(Object.keys(pending).length===0) delete pendingDealFields[String(deal.id)];
-      }
-    }).finally(()=>{pendingWrites.value--;});
-  },800);
+    return sbUpdateDeal(dealId, camelToSnake(fields)).finally(()=>{pendingWrites.value--;});
+  },
+  onSaved:(dealId, fields)=>{ for(const k of Object.keys(fields)) clearPendingField(dealId, k, fields[k]); },
+  onFailed:rollbackDealFields,
+});
+// Start any unsaved edits now — called when the card closes or another opens.
+export function flushDealFieldSaves(dealId){
+  // F1's pass-off draft saves (passoff.js) flush on the same close/switch.
+  if(typeof passoffMod.flushPassoffSaves==='function'){ try{ passoffMod.flushPassoffSaves(dealId); }catch(e){ console.error('flushPassoffSaves failed:',e); } }
+  return dealSaveQueue.flush(dealId);
+}
+// Kept for the window.* hook: starts the pending writes for the open card now.
+export function debouncedDealFieldSave(){
+  if(state.selectedDeal) dealSaveQueue.flush(state.selectedDeal.id);
 }
 
 // An archived deal's card is for looking (archive.js): every write path refuses and points at the Funnel row, where the
@@ -369,6 +414,7 @@ function archivedReadOnly(){
 export function updateDealField(key,val){
   if(archivedReadOnly()) return;
   if(!state.selectedDeal) return;
+  const prevVal=state.selectedDeal[key];
   state.selectedDeal[key]=val;
   // Stage, pipeline, and booking fields save immediately — not debounced.
   // The debounced save is killed when the modal closes, so these were lost.
@@ -378,11 +424,9 @@ export function updateDealField(key,val){
     pendingDealFields[String(dealId)][key]=val;
     const snakeKey=camelToSnake({[key]:val});
     pendingWrites.value++;
-    sbUpdateDeal(dealId, snakeKey).then(()=>{
-      const pending=pendingDealFields[String(dealId)];
-      if(pending && pending[key]===val) delete pending[key];
-      if(pending && Object.keys(pending).length===0) delete pendingDealFields[String(dealId)];
-    }).finally(()=>{pendingWrites.value--;});
+    sbUpdateDeal(dealId, snakeKey).then(()=>clearPendingField(dealId, key, val),
+      err=>rollbackDealFields(dealId, {[key]:val}, {[key]:prevVal}, err)
+    ).finally(()=>{pendingWrites.value--;});
     if(key==='bookedDate'&&val){
       const deal=state.selectedDeal;
       const isSchedulingStage=['Discovery Scheduled','Demo Scheduled'].includes(deal.stage);
@@ -390,8 +434,11 @@ export function updateDealField(key,val){
     }
     return;
   }
-  _dirtyFields.add(key);
-  debouncedDealFieldSave();
+  // Overlay now, not when the timer fires, so a sync inside the 800ms can't revert it.
+  const dealId=state.selectedDeal.id;
+  if(!pendingDealFields[String(dealId)]) pendingDealFields[String(dealId)]={};
+  pendingDealFields[String(dealId)][key]=val;
+  dealSaveQueue.queue(dealId, key, val, prevVal);
 }
 
 export function refreshPushButton(){
@@ -631,6 +678,8 @@ async function confirmPhoneAssign() {
 
   if (Object.keys(updates).length === 0) return;
 
+  const before = {};
+  for (const k of Object.keys(updates)) before[k] = deal[k];
   for (const [k, v] of Object.entries(updates)) {
     deal[k] = v;
     pendingDealFields[dealId] = { ...pendingDealFields[dealId], [k]: v };
@@ -641,7 +690,13 @@ async function confirmPhoneAssign() {
   const snakeUpdates = camelToSnake(updates);
   pendingWrites.value++;
   try { await sbUpdateDeal(dealId, snakeUpdates); }
+  catch (e) {
+    for (const k of Object.keys(updates)) clearPendingField(dealId, k, updates[k]);
+    restoreDealOnFail(dealId, before)(e);
+    return;
+  }
   finally { pendingWrites.value--; }
+  for (const k of Object.keys(updates)) clearPendingField(dealId, k, updates[k]);
 
   const { showToast } = await import('./api.js?v=20261112201802');
   showToast('Phone number(s) saved', 'success');
@@ -1453,8 +1508,8 @@ export function renderDealModal(deal){
         if(cPhone||cEmail){
           h+=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px 0;padding:8px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:11px;align-items:center">
             <span style="font-weight:700;color:#059669">${esc(cContact||cn.name)}</span>
-            ${cPhone?`<button onclick="navigator.clipboard.writeText('${esc(cPhone)}');this.textContent='Copied!';setTimeout(()=>this.textContent='${esc(cPhone)}',1200);event.stopPropagation()" style="display:inline-flex;align-items:center;gap:3px;color:#1d4ed8;text-decoration:none;font-weight:600;padding:2px 8px;background:#dbeafe;border:1px solid #93c5fd;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">${svgIcon('phone',11,'#1d4ed8')} ${esc(cPhone)}</button>`:''}
-            ${cEmail?`<button onclick="navigator.clipboard.writeText('${esc(cEmail)}');this.textContent='Copied!';setTimeout(()=>this.textContent='${esc(cEmail)}',1200);event.stopPropagation()" style="display:inline-flex;align-items:center;gap:3px;color:#6b7280;text-decoration:none;padding:2px 8px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">${svgIcon('mail',11,'#6b7280')} ${esc(cEmail)}</button>`:''}
+            ${cPhone?`<button onclick="navigator.clipboard.writeText(${jsArg(cPhone)});this.textContent='Copied!';setTimeout(()=>this.textContent=${jsArg(cPhone)},1200);event.stopPropagation()" style="display:inline-flex;align-items:center;gap:3px;color:#1d4ed8;text-decoration:none;font-weight:600;padding:2px 8px;background:#dbeafe;border:1px solid #93c5fd;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">${svgIcon('phone',11,'#1d4ed8')} ${esc(cPhone)}</button>`:''}
+            ${cEmail?`<button onclick="navigator.clipboard.writeText(${jsArg(cEmail)});this.textContent='Copied!';setTimeout(()=>this.textContent=${jsArg(cEmail)},1200);event.stopPropagation()" style="display:inline-flex;align-items:center;gap:3px;color:#6b7280;text-decoration:none;padding:2px 8px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">${svgIcon('mail',11,'#6b7280')} ${esc(cEmail)}</button>`:''}
           </div>`;
         }
       }
@@ -1489,7 +1544,7 @@ export function renderDealModal(deal){
         const prefillText = applyTemplate(instrTemplate, deal, matchedClient.name, str(matchedClient.contactFirstName));
         h+=`<div style="margin:0 0 8px 0">
           <button class="btn btn-primary" style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#818cf8;border-color:#818cf8"
-            onclick="toggleCalendlyBooking('${esc(deal.id)}','${esc(matchedClient.calendlyUrl)}')">
+            onclick="toggleCalendlyBooking('${esc(deal.id)}',${jsArg(matchedClient.calendlyUrl)})">
             ${svgIcon('calendar',14)} Book Meeting on ${esc(matchedClient.name)}'s Calendar
           </button>
         </div>
@@ -1517,7 +1572,7 @@ export function renderDealModal(deal){
               style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px;resize:vertical">${esc(deal.calNotes||prefillText)}</textarea>
           </div>
           <button class="btn btn-primary" style="width:100%;justify-content:center;font-size:13px;background:#818cf8;border-color:#818cf8"
-            onclick="openCalendlyEmbed('${esc(deal.id)}','${esc(matchedClient.calendlyUrl)}',atob('${btoa(unescape(encodeURIComponent(matchedClient.name)))}'),document.getElementById('cal-prefill-name')?.value||'',document.getElementById('cal-prefill-email')?.value||'',document.getElementById('cal-prefill-notes')?.value||'')">
+            onclick="openCalendlyEmbed('${esc(deal.id)}',${jsArg(matchedClient.calendlyUrl)},atob('${btoa(unescape(encodeURIComponent(matchedClient.name)))}'),document.getElementById('cal-prefill-name')?.value||'',document.getElementById('cal-prefill-email')?.value||'',document.getElementById('cal-prefill-notes')?.value||'')">
             Open Calendar & Book
           </button>
         </div>`;
@@ -1713,7 +1768,7 @@ export function renderDealModal(deal){
       const mapId = 'sa-map-' + deal.id;
       h += `<div class="sa-map-container">
         <div id="${mapId}" style="min-height:220px"></div>
-        ${(_mc || hasGeo) ? `<button class="sa-enlarge-btn" onclick="event.stopPropagation();openEnlargedMap('${esc(deal.id).replace(/'/g,"\\'")}','${esc(_mc ? _mc.name : '').replace(/'/g,"\\'")}')" title="Enlarge map">
+        ${(_mc || hasGeo) ? `<button class="sa-enlarge-btn" onclick="event.stopPropagation();openEnlargedMap(${jsArg(deal.id)},${jsArg(_mc ? _mc.name : '')})" title="Enlarge map">
           ⛶ Enlarge
         </button>` : ''}
       </div>`;
@@ -1973,6 +2028,7 @@ export function confirmScheduleAndCopy(){
   if(!deal) return;
   const dateVal=document.getElementById('sched-date')?.value||'';
   const timeVal=document.getElementById('sched-time')?.value||'';
+  const before={bookedDate:deal.bookedDate,bookedTime:deal.bookedTime};
   deal.bookedDate=dateVal;
   deal.bookedTime=timeVal;
   const dateEl=document.getElementById('deal-bookedDate');
@@ -1980,7 +2036,7 @@ export function confirmScheduleAndCopy(){
   if(dateEl) dateEl.value=dateVal;
   if(timeEl) timeEl.value=timeVal;
   pendingWrites.value++;
-  sbUpdateDeal(dealId, camelToSnake({bookedDate:dateVal,bookedTime:timeVal})).catch(e=>console.error('Update deal failed:',e)).finally(()=>{pendingWrites.value--;});
+  sbUpdateDeal(dealId, camelToSnake({bookedDate:dateVal,bookedTime:timeVal})).catch(restoreDealOnFail(dealId, before)).finally(()=>{pendingWrites.value--;});
   const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
   if(client && dateVal){
     import('./calendly.js?v=20261112201802').then(mod=>{
@@ -2098,6 +2154,7 @@ window.bookAvailabilitySlot = function(dealId, ayc) {
     if (old) window.removeAppointment(old.id);
   }
   window.saveAppointment(client.name, leadName, dateVal, ayc ? '' : timeVal, ayc ? 'Booked in CRM — time of their convenience' : 'Booked in CRM', (deal.location || deal.address || '').trim());
+  const before = { bookedDate: deal.bookedDate, bookedTime: deal.bookedTime, bookedFor: deal.bookedFor };
   deal.bookedDate = dateVal;
   deal.bookedTime = ayc ? '' : timeVal;
   const upd = { bookedDate: dateVal, bookedTime: deal.bookedTime };
@@ -2105,7 +2162,7 @@ window.bookAvailabilitySlot = function(dealId, ayc) {
   else if (deal.bookedFor === 'AYC') { deal.bookedFor = ''; upd.bookedFor = ''; }
   pendingWrites.value++;
   sbUpdateDeal(deal.id, camelToSnake(upd))
-    .catch(e => console.error('Update deal failed:', e))
+    .catch(restoreDealOnFail(deal.id, before))
     .finally(() => { pendingWrites.value--; });
   if (state.selectedDeal && String(state.selectedDeal.id) === String(dealId)) {
     state.selectedDeal = deal;
