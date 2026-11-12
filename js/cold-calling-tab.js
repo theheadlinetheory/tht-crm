@@ -31,12 +31,12 @@
 //   ceiling. Where the client sits in the order earns nothing: the whole list has to be finished first.
 //   Order: retainer clients first, then pay-per-meeting; fewest meetings this week first.
 
-import { state } from './app.js?v=20261112233213';
-import { render } from './render.js?v=20261112233213';
-import { supabase } from './supabase-client.js?v=20261112233213';
-import { esc, str, svgIcon, getToday } from './utils.js?v=20261112233213';
-import { currentUser, isSdr, isAdmin, isEmployee, loadAssignableUsers } from './auth.js?v=20261112233213';
-import { registerActions } from './delegate.js?v=20261112233213';
+import { state } from './app.js?v=20261113001613';
+import { render } from './render.js?v=20261113001613';
+import { supabase } from './supabase-client.js?v=20261113001613';
+import { esc, str, svgIcon, getToday } from './utils.js?v=20261113001613';
+import { currentUser, isSdr, isAdmin, isEmployee, loadAssignableUsers } from './auth.js?v=20261113001613';
+import { registerActions } from './delegate.js?v=20261113001613';
 
 export const CALLBACK_STAGE = 'Cold Call Callback';
 const NO_CONNECTION = new Set(['no_answer', 'voicemail', 'bad_number', 'desk_dq']);
@@ -800,7 +800,7 @@ async function removeBooking(dealId) {
   if (error) { alert('Could not update the meeting count, nothing was removed: ' + error.message); return; }
   for (const r of cc.calls || []) if (r.deal_id === dealId) r.not_counted = 'Removed: ' + reason;
   const [{ sbCreateInteraction }, { deleteDeal }] = await Promise.all([
-    import('./api.js?v=20261112233213'), import('./deals.js?v=20261112233213')]);
+    import('./api.js?v=20261113001613'), import('./deals.js?v=20261113001613')]);
   try { await sbCreateInteraction({ deal_id: dealId, type: 'Note', content: `Removed — cold-call appointment: ${reason} · ${(rows || []).length} dial(s) no longer counted · marked in the CRM` }); }
   catch (e) { console.warn('[removeBooking] note not saved', e && e.message); }
   await deleteDeal(dealId, 'Removed — ' + reason);
@@ -862,7 +862,7 @@ registerActions({
   async ccSync() {
     cc.syncing = true; cc.syncNote = ''; render();
     try {
-      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261112233213');
+      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261113001613');
       const out = await invokeEdgeFunctionAsUser('cold-call-sync', {});
       const made = (out.cards || []).filter(c => c.created).length;
       cc.syncNote = `${out.synced} dials pulled${made ? `, ${made} new card${made === 1 ? '' : 's'}` : ''}`;
@@ -876,7 +876,7 @@ registerActions({
   ccOpenDeal(el) {
     const id = el.dataset.id;
     if (!state.deals.some(d => String(d.id) === String(id))) { alert('That card is no longer on the board (delivered or archived).'); return; }
-    import('./deal-modal.js?v=20261112233213').then(m => m.openDeal(id));
+    import('./deal-modal.js?v=20261113001613').then(m => m.openDeal(id));
   },
   ccTrackerScope(el) { cc.trackerScope = el.dataset.scope; render(); },
   ccTrackerClient(el, e) { if (e.type !== 'change') return; cc.trackerClient = el.value; render(); },
@@ -930,7 +930,7 @@ registerActions({
   async ccTranscribe(el) {
     el.disabled = true; el.textContent = 'Transcribing…';
     try {
-      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261112233213');
+      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261113001613');
       const out = await invokeEdgeFunctionAsUser('cold-call-sync', { action: 'transcribe', call_id: Number(el.dataset.id) });
       const box = document.createElement('div');
       box.style.cssText = 'white-space:pre-wrap;font-size:11px;max-height:260px;overflow:auto;background:#fff;border-radius:6px;padding:8px;margin-top:4px';

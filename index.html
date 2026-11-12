@@ -17,7 +17,7 @@
      again every 5s (Tim, 2026-11-12). -->
 <script>
 (function(){
-  window.__APP_V='20261112233213';
+  window.__APP_V='20261113001613';
   var waiting=null;
   function reloadWhenIdle(k){
     waiting=null;
@@ -46,7 +46,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
 <link href="https://assets.calendly.com/assets/external/widget.css" rel="stylesheet">
-<link rel="stylesheet" href="css/styles.css?v=20261112233213">
+<link rel="stylesheet" href="css/styles.css?v=20261113001613">
 </head>
 <body>
 
@@ -98,7 +98,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
 <script src="https://assets.calendly.com/assets/external/widget.js" async></script>
-<script src="service_area_data.min.js?v=20261112233213"></script>
+<script src="service_area_data.min.js?v=20261113001613"></script>
 <script>
 // Catch module load/syntax/runtime errors that would cause infinite loading
 function showCrashScreen(msg) {
@@ -128,6 +128,6 @@ setTimeout(function() {
 </script>
 <!-- Same URL every module imports app.js under (?v=<deploy token>, rewritten by bump-tokens.mjs).
      A different query here (it was ?t=<now>) loads a second copy of the app — ci-check fails it. -->
-<script type="module">import('./js/app.js?v=20261112233213')</script>
+<script type="module">import('./js/app.js?v=20261113001613')</script>
 </body>
 </html>

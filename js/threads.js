@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════
 // THREADS — SmartLead thread viewer, client thread sender
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261112233213';
-import { refreshModal } from './render.js?v=20261112233213';
-import { apiPost, invokeEdgeFunction } from './api.js?v=20261112233213';
-import { esc, unfilledPlaceholders, confirmNoPlaceholders } from './utils.js?v=20261112233213';
+import { state } from './app.js?v=20261113001613';
+import { refreshModal } from './render.js?v=20261113001613';
+import { apiPost, invokeEdgeFunction } from './api.js?v=20261113001613';
+import { esc, unfilledPlaceholders, confirmNoPlaceholders } from './utils.js?v=20261113001613';
 
 // ─── SmartLead Thread Viewer ───
 let slThreadCache = {};
@@ -82,8 +82,8 @@ export function getThreadCache() { return slThreadCache; }
 export async function openSendToClientPreview(dealId, clientName){
   const deal=state.deals.find(d=>d.id===dealId);
   if(!deal) return;
-  const { getClientThreadId, lookupClientInfo } = await import('./client-info.js?v=20261112233213');
-  const { buildLeadMessage } = await import('./email.js?v=20261112233213');
+  const { getClientThreadId, lookupClientInfo } = await import('./client-info.js?v=20261113001613');
+  const { buildLeadMessage } = await import('./email.js?v=20261113001613');
   const threadId=getClientThreadId(clientName)||'';
   const info=lookupClientInfo(clientName)||{};
   const message=buildLeadMessage(deal, clientName);
@@ -142,7 +142,7 @@ export async function doSendToClientThread(dealId, clientName, threadId){
   try {
     // send-email refuses a second send of the same deal (409 already_sent) unless resend:true, so a
     // double click or a second SDR can't email the client twice; sendOnce asks first (Tim, 2026-11-12).
-    const { sendOnce } = await import('./passoff-core.js?v=20261112233213');
+    const { sendOnce } = await import('./passoff-core.js?v=20261113001613');
     const sentBefore=(state.deals.find(d=>String(d.id)===String(dealId))||{}).passoffSentAt;
     const result=await sendOnce(b=>invokeEdgeFunction('send-email',b),{
       action: 'send_to_client_thread',
