@@ -19,7 +19,7 @@ import { render } from './render.js?v=20261113002412';
 import { supabase } from './supabase-client.js?v=20261113002412';
 import { showToast } from './api.js?v=20261113002412';
 import { candidateChannel, channelPill, channelSelectHtml } from './hiring-channel.js?v=20261113002412';
-import { esc, str, svgIcon } from './utils.js?v=20261113002412';
+import { esc, escAttr, safeUrl, str, svgIcon } from './utils.js?v=20261113002412';
 import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261113002412';
 import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261113002412';
 import { onHiringChange } from './hiring-unread.js?v=20261113002412';
@@ -118,7 +118,7 @@ const answerTo = (c, prefix) => str(Object.entries(c.answers || {}).find(([q]) =
 function yesNoTag(label, answer) {
   if (!answer) return '';
   const yes = /^y/i.test(answer);
-  return `<span class="deal-tag" style="background:${yes ? '#ecfdf5;color:#047857' : '#fef2f2;color:#b91c1c'}" title="${esc(answer)}">${yes ? '✓' : '✗'} ${label}</span>`;
+  return `<span class="deal-tag" style="background:${yes ? '#ecfdf5;color:#047857' : '#fef2f2;color:#b91c1c'}" title="${escAttr(answer)}">${yes ? '✓' : '✗'} ${label}</span>`;
 }
 
 function partnerTags(c) {
@@ -135,7 +135,7 @@ function applicantTags(c) {
     start ? `<span class="deal-tag" style="background:#f1f5f9;color:#475569" title="Free to start">Start: ${esc(start.slice(0, 24))}</span>` : '',
     yesNoTag('5 days', answerTo(c, 'Can you commit to working 5 days')),
     yesNoTag('PST', answerTo(c, 'Are you able to work in Pacific')),
-    c.video_url ? `<a class="deal-tag" href="${esc(c.video_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="background:#fdf4ff;color:#a21caf;text-decoration:none">▶ Loom</a>` : '',
+    safeUrl(c.video_url) ? `<a class="deal-tag" href="${escAttr(safeUrl(c.video_url))}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="background:#fdf4ff;color:#a21caf;text-decoration:none">▶ Loom</a>` : '',
   ];
 }
 
@@ -149,7 +149,7 @@ function previewHtml(c) {
 function cardHtml(c) {
   const tags = [
     ...(c.kind === 'partner' ? partnerTags(c) : applicantTags(c)),
-    c.linkedin ? `<a class="deal-tag" href="${esc(withScheme(c.linkedin))}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="background:#eff6ff;color:#0a66c2;text-decoration:none">in LinkedIn ↗</a>` : '',
+    c.linkedin ? `<a class="deal-tag" href="${escAttr(safeUrl(withScheme(c.linkedin)))}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="background:#eff6ff;color:#0a66c2;text-decoration:none">in LinkedIn ↗</a>` : '',
     c.applied_at ? `<span class="deal-tag" style="background:#f1f5f9;color:#475569">${esc(shortDate(c.applied_at))}</span>` : '',
     c.invite_sent_at ? '<span class="deal-tag" style="background:#eff6ff;color:#1d4ed8">Invite sent</span>' : '',
   ].join('');
@@ -197,7 +197,7 @@ function toolbarHtml(total) {
     <span style="flex:1"></span>
     ${channelSelectHtml(state.hiringChannel || 'all', 'hiringChannel(this.value)', true)}
     ${contactTypeFilterHtml()}
-    <input type="text" placeholder="Search name, email, country…" value="${esc(str(state.hiringSearch))}"
+    <input type="text" placeholder="Search name, email, country…" value="${escAttr(str(state.hiringSearch))}"
       onchange="hiringSearch(this.value)" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);width:200px">
     <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer">
       <input type="checkbox" ${state.hiringStarredOnly ? 'checked' : ''} onchange="hiringStarredOnly(this.checked)"> ★ only

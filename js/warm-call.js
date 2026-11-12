@@ -8,7 +8,7 @@
 import { state, pendingWrites } from './app.js?v=20261113002412';
 import { render, refreshModal } from './render.js?v=20261113002412';
 import { invokeEdgeFunction } from './api.js?v=20261113002412';
-import { esc, jsArg, str, svgIcon, getToday, isValidDate, fmtDate, fmtTime12, uid } from './utils.js?v=20261113002412';
+import { esc, escAttr, safeUrl, jsArg, str, svgIcon, getToday, isValidDate, fmtDate, fmtTime12, uid } from './utils.js?v=20261113002412';
 import { findClientForDeal, lookupClientInfo, getWarmCallQA } from './client-info.js?v=20261113002412';
 import { isAdmin, isEmployee } from './auth.js?v=20261113002412';
 
@@ -137,7 +137,7 @@ export function openWarmCallSheet(dealId){
 
                 ${info.website?`<div style="border-top:1px solid #f1f5f9;padding-top:12px">
                   <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">Website</div>
-                  <a href="${esc(info.website)}" target="_blank" rel="noopener" style="font-size:12px;color:#2563eb;text-decoration:none">${esc(info.website)}</a>
+                  <a href="${escAttr(safeUrl(info.website))}" target="_blank" rel="noopener" style="font-size:12px;color:#2563eb;text-decoration:none">${esc(info.website)}</a>
                 </div>`:''}
 
                 ${(()=>{
@@ -209,13 +209,13 @@ export function openWarmCallSheet(dealId){
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px">
                   <div>
                     <label style="font-size:10px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.3px">Guest Name</label>
-                    <input type="text" id="wc-cal-prefill-name" value="${esc(wcNameVal)}"
+                    <input type="text" id="wc-cal-prefill-name" value="${escAttr(wcNameVal)}"
                       oninput="savePrefillField('${esc(deal.id)}','calName',this.value);refreshWcCalendlyInline()"
                       style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px">
                   </div>
                   <div>
                     <label style="font-size:10px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.3px">Guest Email</label>
-                    <input type="text" id="wc-cal-prefill-email" value="${esc(wcEmailVal)}"
+                    <input type="text" id="wc-cal-prefill-email" value="${escAttr(wcEmailVal)}"
                       oninput="savePrefillField('${esc(deal.id)}','calEmail',this.value);refreshWcCalendlyInline()"
                       style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px">
                   </div>
@@ -227,7 +227,7 @@ export function openWarmCallSheet(dealId){
                     style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:11px;font-family:var(--font);margin-top:2px;resize:vertical">${esc(wcNotesVal)}</textarea>
                 </div>
               </div>
-              <div id="wc-calendly-inline" data-deal-id="${esc(deal.id)}" data-base-url="${esc(calUrl)}" data-client="${esc(mc.name)}" style="min-height:500px;height:500px;overflow:hidden"></div>
+              <div id="wc-calendly-inline" data-deal-id="${escAttr(deal.id)}" data-base-url="${escAttr(calUrl)}" data-client="${escAttr(mc.name)}" style="min-height:500px;height:500px;overflow:hidden"></div>
             </div>`;
           })()}
         </div>
@@ -277,7 +277,7 @@ export function openWarmCallSheet(dealId){
 
               ${deal.website?`<div style="border-top:1px solid #f1f5f9;padding-top:12px">
                 <div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">Website</div>
-                <a href="${esc(deal.website.match(/^https?:\/\//)?deal.website:'https://'+deal.website)}" target="_blank" rel="noopener" style="font-size:12px;color:#2563eb;text-decoration:none">${esc(deal.website)}</a>
+                <a href="${escAttr(safeUrl(deal.website))}" target="_blank" rel="noopener" style="font-size:12px;color:#2563eb;text-decoration:none">${esc(deal.website)}</a>
               </div>`:''}
 
               ${deal.campaignName?`<div style="border-top:1px solid #f1f5f9;padding-top:12px">
@@ -561,11 +561,11 @@ function showSchedulePrompt(dealId, onDone){
     <div style="display:flex;gap:8px;margin-bottom:14px">
       <div style="flex:1">
         <label style="font-size:11px;font-weight:600;color:var(--text-muted,#6b7280);display:block;margin-bottom:3px">Date</label>
-        <input type="date" id="sched-date" value="${deal.bookedDate||todayStr}" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;font-family:var(--font)">
+        <input type="date" id="sched-date" value="${escAttr(deal.bookedDate||todayStr)}" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;font-family:var(--font)">
       </div>
       <div style="flex:1">
         <label style="font-size:11px;font-weight:600;color:var(--text-muted,#6b7280);display:block;margin-bottom:3px">Time</label>
-        <input type="time" id="sched-time" value="${deal.bookedTime||'09:00'}" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;font-family:var(--font)">
+        <input type="time" id="sched-time" value="${escAttr(deal.bookedTime||'09:00')}" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;font-family:var(--font)">
       </div>
     </div>
     <div id="sched-conflict-warning" style="display:none;margin-bottom:10px;padding:6px 10px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;font-size:11px;color:#dc2626;font-weight:600"></div>

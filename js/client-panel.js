@@ -26,7 +26,7 @@
 // DOM nodes in place — the panel is never wholesale re-rendered while open.
 
 import { state } from './app.js?v=20261113002412';
-import { esc, str, getToday, isValidDate, svgIcon } from './utils.js?v=20261113002412';
+import { esc, escAttr, safeUrl, str, getToday, isValidDate, svgIcon } from './utils.js?v=20261113002412';
 import { isAdmin } from './auth.js?v=20261113002412';
 import { lookupClientInfo } from './client-info.js?v=20261113002412';
 import { sbUpdateClient, sbGetWonAcquisitionCards } from './api.js?v=20261113002412';
@@ -125,9 +125,9 @@ function editableBlock(field, client, opts = {}) {
     <div id="cp-view-${field}" style="font-size:13px;color:${tone.text || '#334155'};line-height:1.6">${filled ? viewHtml : `<span style="color:#94a3b8;font-style:italic">Not recorded yet</span>`}</div>
     <div id="cp-edit-${field}" hidden style="margin-top:6px">
       ${cfg.multiline
-        ? `<textarea id="cp-input-${field}" data-action="cpInput" data-field="${field}" rows="5" placeholder="${esc(cfg.placeholder)}"
+        ? `<textarea id="cp-input-${field}" data-action="cpInput" data-field="${field}" rows="5" placeholder="${escAttr(cfg.placeholder)}"
              style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;font-family:var(--font);resize:vertical">${esc(cfg.toText(raw))}</textarea>`
-        : `<input id="cp-input-${field}" data-action="cpInput" data-field="${field}" value="${esc(cfg.toText(raw))}" placeholder="${esc(cfg.placeholder)}"
+        : `<input id="cp-input-${field}" data-action="cpInput" data-field="${field}" value="${escAttr(cfg.toText(raw))}" placeholder="${escAttr(cfg.placeholder)}"
              style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;font-family:var(--font)">`}
       <button data-action="cpDone" data-field="${field}"
         style="margin-top:6px;padding:4px 12px;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;font-size:11px;cursor:pointer;font-weight:600;color:#334155">Done</button>
@@ -154,9 +154,9 @@ function acquisitionHtml(card) {
   const links = [];
   if (card.website) {
     const href = /^https?:/i.test(card.website) ? card.website : 'https://' + card.website;
-    links.push(`<a href="${esc(href)}" target="_blank" rel="noopener" style="color:#2563eb">${esc(card.website)}</a>`);
+    links.push(`<a href="${escAttr(safeUrl(href))}" target="_blank" rel="noopener" style="color:#2563eb">${esc(card.website)}</a>`);
   }
-  if (card.linkedinUrl) links.push(`<a href="${esc(card.linkedinUrl)}" target="_blank" rel="noopener" style="color:#2563eb">LinkedIn ↗</a>`);
+  if (safeUrl(card.linkedinUrl)) links.push(`<a href="${escAttr(safeUrl(card.linkedinUrl))}" target="_blank" rel="noopener" style="color:#2563eb">LinkedIn ↗</a>`);
   return `<div style="padding:6px 0">
     ${rows.join('')}
     ${links.length ? `<div style="padding:6px 0;border-top:1px solid #e2e8f0;font-size:12px">${links.join(' · ')}</div>` : ''}
@@ -180,7 +180,7 @@ function fillAcquisitionSection(clientName) {
     if (cl && !str(cl.location).trim() && card.location) {
       const hint = document.getElementById('cp-loc-hint');
       if (hint) {
-        hint.innerHTML = `<button data-action="cpUseAcqLocation" data-value="${esc(card.location)}"
+        hint.innerHTML = `<button data-action="cpUseAcqLocation" data-value="${escAttr(card.location)}"
           style="background:none;border:none;padding:0;font-size:11px;color:#2563eb;cursor:pointer;font-weight:600;text-align:left">Use "${esc(card.location)}" from the acquisition card</button>`;
       }
     }
@@ -329,7 +329,7 @@ export function openClientInfoPanel(clientName, mode = 'client_leads') {
       : `<div style="font-size:12px;color:#64748b">No service area polygon for this client yet.</div>`}
   </div>`;
   const serviceAreaLink = str(cl.serviceAreaUrl).trim()
-    ? `<div style="margin:-8px 0 16px"><a href="${esc(str(cl.serviceAreaUrl))}" target="_blank" rel="noopener" style="font-size:12px;color:#2563eb;text-decoration:none;font-weight:600">Open Service Area Map ↗</a></div>` : '';
+    ? `<div style="margin:-8px 0 16px"><a href="${escAttr(safeUrl(cl.serviceAreaUrl))}" target="_blank" rel="noopener" style="font-size:12px;color:#2563eb;text-decoration:none;font-weight:600">Open Service Area Map ↗</a></div>` : '';
   const calendlyHtml = cl.calendlyUrl ? `<div style="margin-bottom:16px">
       <button class="btn btn-primary" data-action="cpCalendly" style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#818cf8;border-color:#818cf8">
         ${svgIcon('calendar', 14)} Open ${esc(clientName)}'s Calendly

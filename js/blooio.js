@@ -5,10 +5,23 @@ import { state, pendingWrites } from './app.js?v=20261113002412';
 import { showToast, sbCreateActivity, sbUpdateDeal, camelToSnake } from './api.js?v=20261113002412';
 import { uid, getToday, esc, applyTemplate } from './utils.js?v=20261113002412';
 import { refreshModal } from './render.js?v=20261113002412';
-import { BLOOIO_BASE_URL, BLOOIO_API_KEY, SEQUENCE_TEMPLATES, CLIENT_LEAD_TEMPLATES, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261113002412';
+import { SEQUENCE_TEMPLATES, CLIENT_LEAD_TEMPLATES } from './config.js?v=20261113002412';
+import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20261113002412';
 import { findClientForDeal } from './client-info.js?v=20261113002412';
 
 let cachedFromNumber = null;
+
+// Every Blooio call goes through the staff-only blooio-proxy edge function, which
+// holds the API key as a secret. The key used to ship in config.js, so anyone could
+// read our SMS threads and text as THT (audit A2#8, Tim 2026-11-13).
+// The proxy answers Blooio's own errors as { ok:false, upstream_status, upstream_body },
+// which is reshaped here into the fetch-like { ok, status, text(), json() } the code below used.
+async function blooio(action, payload = {}){
+  const r = await invokeEdgeFunctionAsUser('blooio-proxy', { action, ...payload });
+  const status = r.ok ? 200 : (r.upstream_status || 500);
+  const raw = r.ok ? JSON.stringify(r.data ?? null) : String(r.upstream_body || '');
+  return { ok: !!r.ok, status, text: async () => raw, json: async () => (r.ok ? r.data : JSON.parse(raw)) };
+}
 
 function formatE164(phone){
   const digits = String(phone).replace(/\D/g, '');
@@ -42,9 +55,7 @@ function formatTime(ts){
 async function getFromNumber(){
   if(cachedFromNumber) return cachedFromNumber;
   try {
-    const res = await fetch(BLOOIO_BASE_URL + '/me/numbers', {
-      headers: { 'Authorization': 'Bearer ' + BLOOIO_API_KEY }
-    });
+    const res = await blooio('numbers');
     if(!res.ok){
       console.error('[Blooio] /me/numbers returned', res.status, await res.text().catch(()=>''));
       throw new Error('Failed to fetch numbers');
@@ -65,13 +76,9 @@ async function getFromNumber(){
 
 async function fetchThread(phone){
   const e164 = formatE164(phone);
-  const encoded = encodeURIComponent(e164);
   try {
-    // NOTE: this endpoint only accepts `limit` and `offset`. Any other query
-    // param (sort, direction, order) makes it 400 with an empty body.
-    const res = await fetch(BLOOIO_BASE_URL + '/chats/' + encoded + '/messages?limit=50', {
-      headers: { 'Authorization': 'Bearer ' + BLOOIO_API_KEY }
-    });
+    // NOTE: Blooio's endpoint only accepts `limit` and `offset`; the proxy sends limit=50.
+    const res = await blooio('thread', { phone: e164 });
     if(!res.ok){
       if(res.status === 404) return []; // No conversation yet
       throw new Error('Failed to load messages (HTTP ' + res.status + '): ' + (await res.text().catch(()=>'')).slice(0, 200));
@@ -89,20 +96,12 @@ async function fetchThread(phone){
 
 export async function sendBlooioText(phone, message){
   const e164 = formatE164(phone);
-  const encoded = encodeURIComponent(e164);
   const fromNumber = await getFromNumber();
   if(!fromNumber) throw new Error('No Blooio number linked. Go to Blooio dashboard → Numbers tab and link a number to this API key.');
   const body = { text: message, from_number: fromNumber };
 
   console.log('[Blooio] Sending to', e164, 'from', fromNumber, 'body:', JSON.stringify(body));
-  const res = await fetch(BLOOIO_BASE_URL + '/chats/' + encoded + '/messages', {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Bearer ' + BLOOIO_API_KEY,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(body)
-  });
+  const res = await blooio('send', { phone: e164, text: body.text, from_number: body.from_number });
 
   if(!res.ok){
     const errText = await res.text().catch(() => '');
@@ -258,11 +257,8 @@ export function openBlooioModal(dealId, phoneField){
     msgEl.focus();
     if(text.includes('TIME')){
       try {
-        const resp = await fetch(`${SUPABASE_URL}/functions/v1/suggest-times`, {
-          method: 'POST',
-          headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${SUPABASE_ANON_KEY}` }
-        });
-        const data = await resp.json();
+        // Signed-in user's token, not the anon key: suggest-times is staff-only now (A2#18, 2026-11-13).
+        const data = await invokeEdgeFunctionAsUser('suggest-times', {});
         if(data.ok && data.slot1){
           const s1 = data.slot1, s2 = data.slot2 || data.slot1;
           text = text.replace(

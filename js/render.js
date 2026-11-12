@@ -857,7 +857,7 @@ function renderInternal(){
           ondragend="clearAllDragOver();hideDeleteZone()"
           ondragover="event.preventDefault();event.dataTransfer.dropEffect='move';doDragOver(this.closest('.column'))"
           ondrop="doDrop('${stageKey}')"
-          data-deal-id="${deal.id}"
+          data-deal-id="${escAttr(deal.id)}"
           onclick="${state.bulkMode?`event.preventDefault();event.stopPropagation();toggleBulkSelect('${deal.id}')`:`openDeal('${deal.id}')`}">
           <div class="deal-card-top">
             <div class="deal-company">${state.bulkMode?`<span class="bulk-check">${isBulkSel?'✓':''}</span>`:''}${(()=>{const c=detectCountry(deal);return c.code!=='US'?'<span title="'+c.label+'" style="font-size:12px;margin-right:3px;vertical-align:middle">'+c.flag+'</span>':'';})()}${deal.hasNewText?'<span class="reply-indicator text-reply-indicator" title="New text reply received">'+svgIcon('message-circle',12,'#16a34a')+'</span>':''}${deal.hasNewReply?'<span class="reply-indicator" title="New '+(isAimfoxDeal(deal)?'LinkedIn':'email')+' reply received">'+svgIcon('mail',12,'#3b82f6')+'</span>':''}${state.pipeline==='acquisition'?channelCardBadge(deal):''}${esc(deal.company||deal.contact||deal.email||"New Deal")}${isRetainerClient(deal)?'<span style="display:inline-block;margin-left:6px;font-size:9px;font-weight:700;background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:3px;vertical-align:middle;white-space:nowrap;letter-spacing:.3px">RETAINER</span>':''}</div>

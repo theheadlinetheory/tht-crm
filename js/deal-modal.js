@@ -11,7 +11,7 @@ import { flushRealtimeQueue, showToast } from './api.js?v=20261113002412';
 import { ACQUISITION_STAGES, NURTURE_STAGES, DEAL_VERTICALS, SOP_DAYS, REACTIVATION_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY, detectCountry, ACQ_STRATEGY_BOOKERS, ACQ_DEMO_BOOKERS } from './config.js?v=20261113002412';
 import { render, refreshModal } from './render.js?v=20261113002412';
 import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake } from './api.js?v=20261113002412';
-import { esc, jsArg, str, getToday, TODAY, uid, svgIcon, brandIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20261113002412';
+import { esc, escAttr, safeUrl, jsArg, str, getToday, TODAY, uid, svgIcon, brandIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20261113002412';
 import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20261113002412';
 import { renderBookingSmsButton } from './booking-sms.js?v=20261113002412';
 import { renderColdCallEmailButton } from './cold-call-email.js?v=20261113002412';
@@ -1372,7 +1372,7 @@ export function renderDealModal(deal){
         </div>
         ${renderDealInvoiceButton(deal)}
         <div class="form-group form-span2" style="margin-bottom:8px">
-          ${deal.linkedinUrl?`<a href="${esc(deal.linkedinUrl)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:#0a66c2;color:#fff;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none">${svgIcon('external-link',12,'#fff')} LinkedIn Profile</a>`
+          ${safeUrl(deal.linkedinUrl)?`<a href="${escAttr(safeUrl(deal.linkedinUrl))}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:#0a66c2;color:#fff;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none">${svgIcon('external-link',12,'#fff')} LinkedIn Profile</a>`
           :`<input id="deal-linkedinUrl" value="" placeholder="LinkedIn profile URL" oninput="updateDealField('linkedinUrl',this.value)"
             style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font);width:100%;box-sizing:border-box">`}
         </div>
@@ -1400,10 +1400,10 @@ export function renderDealModal(deal){
         <div class="form-group form-span2" style="margin-bottom:16px">
           <label>${svgIcon('calendar',14)} Meeting Date & Time</label>
           <div style="display:flex;gap:8px">
-            <input type="date" id="deal-bookedDate" value="${esc(deal.bookedDate||'')}"
+            <input type="date" id="deal-bookedDate" value="${escAttr(deal.bookedDate||'')}"
               onchange="updateDealField('bookedDate',this.value)"
               style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font);background:var(--card);color:var(--text)">
-            <input type="time" id="deal-bookedTime" value="${esc(deal.bookedTime||'')}"
+            <input type="time" id="deal-bookedTime" value="${escAttr(deal.bookedTime||'')}"
               onchange="updateDealField('bookedTime',this.value)"
               style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font);background:var(--card);color:var(--text)">
             <button onclick="markAtYourConvenience('${esc(deal.id)}')" style="padding:6px 12px;font-size:11px;font-weight:600;font-family:var(--font);cursor:pointer;border:1px solid #c4b5fd;border-radius:6px;background:#f5f3ff;color:#7c3aed;white-space:nowrap${deal.bookedFor==='AYC'?';opacity:.5;pointer-events:none':''}">
@@ -1428,7 +1428,7 @@ export function renderDealModal(deal){
       ${deal.pipeline==='Acquisition'?`<div style="margin-top:4px;display:flex;align-items:center;gap:6px">Vertical: <select onchange="updateDealVertical('${esc(deal.id)}',this.value)" style="padding:2px 8px;border:1px solid #e5e7eb;border-radius:4px;font-size:12px;font-family:var(--font);cursor:pointer">
         ${DEAL_VERTICALS.map(v=>`<option value="${v}" ${(deal.vertical||'Other')===v?'selected':''}>${v}</option>`).join('')}
       </select></div>`:''}
-      ${(deal.smartleadUrl||deal.email)?`<a href="${esc(deal.smartleadUrl||('https://app.smartlead.ai/app/master-inbox?sortBy=REPLY_TIME_DESC&search='+encodeURIComponent(deal.email)))}" target="_blank" rel="noopener">Open in Smartlead →</a>`:''}
+      ${(deal.smartleadUrl||deal.email)?`<a href="${escAttr(safeUrl(deal.smartleadUrl)||('https://app.smartlead.ai/app/master-inbox?sortBy=REPLY_TIME_DESC&search='+encodeURIComponent(deal.email||'')))}" target="_blank" rel="noopener">Open in Smartlead →</a>`:''}
       ${showStartBtn
         ?`<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e9d5ff"><button class="sl-subseq-btn" onclick="event.stopPropagation();startAutoFollowUp('${esc(deal.id)}')" style="display:inline-flex;align-items:center;gap:6px;padding:7px 16px;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);box-shadow:0 1px 3px rgba(124,58,237,.3);transition:opacity .15s" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">${svgIcon('send',14,'#fff')} Start Auto Follow-Up</button></div>`
         :''}
@@ -1557,13 +1557,13 @@ export function renderDealModal(deal){
           </div>
           <div style="margin-bottom:6px">
             <label style="font-size:11px;color:#6b7280;font-weight:600">Guest Name</label>
-            <input type="text" id="cal-prefill-name" value="${esc(deal.calName||(deal.contact||deal.company||''))}"
+            <input type="text" id="cal-prefill-name" value="${escAttr(deal.calName||(deal.contact||deal.company||''))}"
               oninput="savePrefillField('${esc(deal.id)}','calName',this.value)"
               style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px">
           </div>
           <div style="margin-bottom:6px">
             <label style="font-size:11px;color:#6b7280;font-weight:600">Guest Email</label>
-            <input type="text" id="cal-prefill-email" value="${esc(deal.calEmail||(deal.email||''))}"
+            <input type="text" id="cal-prefill-email" value="${escAttr(deal.calEmail||(deal.email||''))}"
               oninput="savePrefillField('${esc(deal.id)}','calEmail',this.value)"
               style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px">
           </div>
@@ -1608,13 +1608,13 @@ export function renderDealModal(deal){
           <div style="margin-bottom:10px;padding:6px 10px;background:#dcfce7;border-radius:6px">${summaryHtml||`<div style="font-size:12px;color:#166534">No set hours on file — confirm the time works for ${esc(matchedClient.name)}${(()=>{const ci=lookupClientInfo(matchedClient.name);return ci&&ci.timeZone?' ('+esc(ci.timeZone)+')':'';})()}</div>`}</div>
           ${alreadyBooked?`<div style="font-size:12px;color:#059669;font-weight:600;margin-bottom:8px">Currently booked: ${bookedLabel}</div>`:''}
           <div style="display:flex;gap:8px;margin-bottom:8px">
-            <input type="date" id="avail-book-date" value="${esc(deal.bookedDate||'')}" min="${rules.minNoticeDays ? (()=>{const _d=new Date();_d.setDate(_d.getDate()+rules.minNoticeDays);return _d.toISOString().slice(0,10)})() : getToday()}"
+            <input type="date" id="avail-book-date" value="${escAttr(deal.bookedDate||'')}" min="${rules.minNoticeDays ? (()=>{const _d=new Date();_d.setDate(_d.getDate()+rules.minNoticeDays);return _d.toISOString().slice(0,10)})() : getToday()}"
               style="flex:1;padding:6px 10px;border:1px solid #86efac;border-radius:6px;font-size:13px;font-family:var(--font);background:#fff;color:var(--text)">
             ${slotTimes?`<select id="avail-book-time"
               style="flex:1;padding:6px 10px;border:1px solid #86efac;border-radius:6px;font-size:13px;font-family:var(--font);background:#fff;color:var(--text)">
               <option value="">Pick a time</option>
               ${slotTimes.map(t=>`<option value="${esc(t)}"${str(deal.bookedTime).slice(0,5)===t?' selected':''}>${fmt12(t)}</option>`).join('')}
-            </select>`:`<input type="time" id="avail-book-time" value="${esc(deal.bookedTime||'')}"
+            </select>`:`<input type="time" id="avail-book-time" value="${escAttr(deal.bookedTime||'')}"
               style="flex:1;padding:6px 10px;border:1px solid #86efac;border-radius:6px;font-size:13px;font-family:var(--font);background:#fff;color:var(--text)">`}
           </div>
           <div id="avail-book-error" style="display:none;color:#dc2626;font-size:11px;margin-bottom:6px"></div>
