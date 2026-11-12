@@ -212,6 +212,23 @@ if (tokens.size > 1) {
   console.log(`   all module imports on token ${[...tokens.keys()][0] || '(none found)'}`);
 }
 
+// ── 4. SINGLE APP ENTRY ──────────────────────────────────────────────────────
+// index.html must import app.js under EXACTLY the URL every module uses (./app.js?v=<token>
+// resolves to js/app.js?v=<token>). It used to import app.js?t=<now>: a different URL is a
+// second module instance, so every tab booted twice — two startup syncs, two 2-minute sync
+// loops, racing realtime subscriptions (Tim, 2026-11-12). Step 3 checks the token matches.
+console.log('4. Single app entry …');
+{
+  const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
+  const entries = [...html.matchAll(/import\s*\(\s*['"]([^'"]*app\.js[^'"]*)['"]/g)].map(m => m[1]);
+  const good = entries.filter(u => /^\.\/js\/app\.js\?v=[0-9A-Za-z]+$/.test(u));
+  if (entries.length !== 1 || good.length !== 1) {
+    fail('app-entry', `index.html must import app.js exactly once as './js/app.js?v=<token>' — found: ${entries.map(u => `'${u}'`).join(', ') || 'none'}`);
+  } else {
+    console.log(`   index.html → ${good[0]}`);
+  }
+}
+
 // ── result ───────────────────────────────────────────────────────────────────
 if (failures) {
   console.error(`\n✗ Deploy guardrail FAILED with ${failures} problem(s). Not deploying.`);

@@ -10,7 +10,7 @@ import './email.js?v=20261112201802';
 import './blooio.js?v=20261112201802';
 
 // ─── Local import for vars used in this file ───
-import { state } from './state.js?v=20261112201802';
+import { state, pendingWrites } from './state.js?v=20261112201802';
 
 // ─── Re-export state from centralized module ───
 export {
@@ -100,7 +100,36 @@ export async function initApp(){
 
 // ─── Event Delegation ───
 import { initDelegation } from './delegate.js?v=20261112201802';
-initDelegation();
+
+// ─── Deploy auto-reload gate ───
+// index.html reloads the tab when a new version is deployed. It asks this first, so a reload
+// never lands mid-save, mid pass-off request (contract C3) or on top of an open card with
+// unsaved typing; while this says no, index.html retries later (Tim, 2026-11-12).
+window.__crmCanReload = () => {
+  if (window.__crmBusy > 0) return false;
+  if (pendingWrites.value > 0) return false;
+  if (state.selectedDeal) {
+    const fields = document.querySelectorAll('.modal-overlay input, .modal-overlay textarea');
+    for (const el of fields) {
+      if (el.type === 'checkbox' || el.type === 'radio') continue;
+      if (el.value !== el.defaultValue) return false;
+    }
+    if (document.activeElement && document.activeElement.closest && document.activeElement.closest('.modal-overlay')
+        && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) return false;
+  }
+  return true;
+};
 
 // ─── Bootstrap ───
-setupAuthListener(initApp);
+// One boot per tab, whatever URL this module was loaded under. index.html imported
+// app.js?t=<now> while every other module imports app.js?v=<token>: two module instances,
+// two auth listeners, so every tab ran the startup sync twice, two 2-minute sync loops, two
+// visibility handlers and racing realtime subscriptions (Tim, 2026-11-12). index.html now uses
+// the token too; this guard makes any second copy a no-op.
+if (window.__crmAppBooted) {
+  console.warn('[boot] app.js was loaded a second time under another URL — ignored');
+} else {
+  window.__crmAppBooted = true;
+  initDelegation();
+  setupAuthListener(initApp);
+}

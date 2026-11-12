@@ -90,6 +90,30 @@ function renderListView(deals,stages){
 }
 
 // ─── refreshModal ───
+// The add-activity row (#new-act-type/-subject/-date) lives inside #activities-container, so every
+// refresh — a realtime event, a transcript landing — rebuilt it and wiped a half-typed subject
+// (Tim, 2026-11-12). Carry the LIVE row node across the swap instead of re-creating it: what was
+// typed, the caret and focus all survive, and doAddActivity's own clear still hits the live field.
+function keepAddActivityRow(root, swap){
+  const live = root.querySelector('.add-act-row');
+  const active = document.activeElement;
+  const hadFocus = live && active && live.contains(active) ? active : null;
+  let caret = null;
+  if(hadFocus){ try { caret = [hadFocus.selectionStart, hadFocus.selectionEnd]; } catch(e){} }
+  swap();
+  if(!live) return;
+  const fresh = root.querySelector('.add-act-row');
+  if(!fresh) return;
+  // A different deal's card (its + Add button targets another id) gets its own fresh row.
+  const target = el => { const b = el.querySelector('button'); return b ? b.getAttribute('onclick') : ''; };
+  if(target(live) !== target(fresh)) return;
+  fresh.replaceWith(live);
+  if(hadFocus){
+    try { hadFocus.focus({ preventScroll: true }); } catch(e){}
+    if(caret && caret[0] != null){ try { hadFocus.setSelectionRange(caret[0], caret[1]); } catch(e){} }
+  }
+}
+
 export function refreshModal(forceFullRebuild){
   if(!state.selectedDeal) return;
   const deal=state.selectedDeal;
@@ -102,7 +126,7 @@ export function refreshModal(forceFullRebuild){
     const tmp=document.createElement('div');
     tmp.innerHTML=fresh;
     const newAct=tmp.querySelector('#activities-container');
-    if(newAct) actContainer.innerHTML=newAct.innerHTML;
+    if(newAct) keepAddActivityRow(actContainer, ()=>{ actContainer.innerHTML=newAct.innerHTML; });
 
     // Also update upcoming meetings if present
     const meetContainer=document.getElementById('upcoming-meetings-container');
@@ -128,7 +152,7 @@ export function refreshModal(forceFullRebuild){
     // Same keep-what-they're-typing guard as render(): a transcript landing or a draft finishing
     // rebuilds the card while a caller is mid-sentence in the Calendly notes or the pass-off.
     const preserved=capturePreserve(document);
-    if(newOverlay) overlay.innerHTML=newOverlay.innerHTML;
+    if(newOverlay) keepAddActivityRow(overlay, ()=>{ overlay.innerHTML=newOverlay.innerHTML; });
     restorePreserve(document, preserved);
     const newModal=overlay.querySelector('.modal');
     if(newModal){

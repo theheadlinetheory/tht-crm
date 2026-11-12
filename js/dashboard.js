@@ -2,6 +2,7 @@
 // DASHBOARD — Dashboard rendering (client fulfillment + acquisition)
 // ═══════════════════════════════════════════════════════════
 import { state } from './app.js?v=20261112201802';
+import { dealsVersion } from './state.js?v=20261112201802';
 import { ACQUISITION_STAGES, NURTURE_STAGES, RENEWAL_STAGES, DEFAULT_CLIENT_STAGES, ALL_PIPELINES } from './config.js?v=20261112201802';
 import { render } from './render.js?v=20261112201802';
 import { esc, fmt$ } from './utils.js?v=20261112201802';
@@ -261,10 +262,13 @@ export const RETAINER_TRAILING_TARGET = 20; // >=5/wk sustained over 4 weeks
 // depends on it — lead-payout.js); the deal itself is checked as a backstop.
 const COLD_CALL_CAMPAIGN = /cold[\s_-]*call/i;
 const isEmailSource = (s) => !s || s === 'smartlead';
-let _dealIndex = { deals: null, map: null };
+// Keyed on the array AND its change counter + length: realtime pushes, splices and merges in
+// place, so the array alone stayed "the same" and a new deal was never found (Tim, 2026-11-12).
+let _dealIndex = { deals: null, version: -1, length: -1, map: null };
 function dealById(id) {
-  if (_dealIndex.deals !== state.deals) {
-    _dealIndex = { deals: state.deals, map: new Map((state.deals || []).map(d => [d.id, d])) };
+  const deals = state.deals || [];
+  if (_dealIndex.deals !== state.deals || _dealIndex.version !== dealsVersion.value || _dealIndex.length !== deals.length) {
+    _dealIndex = { deals: state.deals, version: dealsVersion.value, length: deals.length, map: new Map(deals.map(d => [d.id, d])) };
   }
   return _dealIndex.map.get(id);
 }
