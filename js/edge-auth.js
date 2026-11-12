@@ -2,35 +2,49 @@
 // EDGE-AUTH — call an Edge Function AS THE SIGNED-IN USER
 // ═══════════════════════════════════════════════════════════
 //
-// invokeEdgeFunction() in api.js sends the anon key, which is published in this
-// public repo — so a function authenticated that way cannot tell who is calling
-// and must treat every caller as anonymous. Any function that acts on a
-// person's behalf (their Google Tasks list, their mailbox) has to see their own
-// session instead.
+// Every CRM function call carries the signed-in user's own access token. The anon
+// key is published in this public repo and is itself a valid JWT, so a call made
+// with it told the function nothing about who was calling — anyone could send a
+// THT invoice email or offboard a client (A2#2, Tim, 2026-11-13). The functions
+// now check for a staff session (_shared/require-staff.ts), and signed out = no call.
 //
-// google-task.js and smartlead-portal.js each grew their own copy of this;
-// gmail-threads.js would have been the third.
+// invokeEdgeFunction() in api.js and invokeEdgeFunctionAsUser() here share
+// callEdgeFunction(); they differ only in what counts as a failure.
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261113002412';
 import { supabase } from './supabase-client.js?v=20261113002412';
 
-export async function invokeEdgeFunctionAsUser(fnName, body, { signal } = {}) {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error('Your session expired — reload and sign in again');
+/** The signed-in user's access token, or a thrown "Signed out — sign in again". */
+export async function sessionAccessToken() {
+  const { data } = await supabase.auth.getSession();
+  const token = data?.session?.access_token;
+  if (!token) {
+    const err = new Error('Signed out — sign in again');
+    err.code = 'signed_out';
+    err.status = 401;
+    throw err;
+  }
+  return token;
+}
 
-  const opts = {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${session.access_token}`,
-    },
-    body: JSON.stringify(body ?? {}),
-  };
+/**
+ * POST to a CRM edge function as the signed-in user. Returns { resp, data }.
+ * `apikey` adds the apikey header (only for functions whose CORS allows it).
+ */
+export async function callEdgeFunction(fnName, body, { signal, apikey = false } = {}) {
+  const token = await sessionAccessToken();
+  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+  if (apikey) headers.apikey = SUPABASE_ANON_KEY;
+  const opts = { method: 'POST', headers, body: JSON.stringify(body ?? {}) };
   if (signal) opts.signal = signal;
-
   const resp = await fetch(`${SUPABASE_URL}/functions/v1/${fnName}`, opts);
-  const data = await resp.json().catch(() => ({ error: `${fnName} returned ${resp.status}` }));
+  // A gateway/upstream outage answers with an HTML page — report the status, not a JSON parse error.
+  const data = await resp.json().catch(() => ({ error: `${fnName} returned ${resp.status} (not JSON — service may be down)` }));
+  return { resp, data };
+}
+
+export async function invokeEdgeFunctionAsUser(fnName, body, { signal } = {}) {
+  const { resp, data } = await callEdgeFunction(fnName, body, { signal, apikey: true });
   if (!resp.ok || data.error) {
     const err = new Error(data.error || `${fnName} failed (${resp.status})`);
     err.code = data.code;
@@ -38,4 +52,13 @@ export async function invokeEdgeFunctionAsUser(fnName, body, { signal } = {}) {
     throw err;
   }
   return data;
+}
+
+/**
+ * fetch() for the few modules that call a CRM function by URL: same call, but the
+ * Authorization header becomes the signed-in user's token. Rejects when signed out.
+ */
+export async function authedFetch(url, opts = {}) {
+  const token = await sessionAccessToken();
+  return fetch(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: `Bearer ${token}` } });
 }
