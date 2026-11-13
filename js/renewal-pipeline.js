@@ -21,13 +21,13 @@
 //
 // Admin-only, like the Renewals tab that hosts it.
 // ═══════════════════════════════════════════════════════════
-import { state, store } from './app.js?v=20261114001316';
-import { render } from './render.js?v=20261114001316';
-import { supabase } from './supabase-client.js?v=20261114001316';
-import { sbCreateDeal, camelToSnake, showToast } from './api.js?v=20261114001316';
-import { RENEWAL_STAGES } from './config.js?v=20261114001316';
-import { esc, str, uid, getToday } from './utils.js?v=20261114001316';
-import { moveDeal, clearAllDragOver } from './deals.js?v=20261114001316';
+import { state, store } from './app.js?v=20261114031541';
+import { render } from './render.js?v=20261114031541';
+import { supabase } from './supabase-client.js?v=20261114031541';
+import { sbCreateDeal, camelToSnake, showToast } from './api.js?v=20261114031541';
+import { RENEWAL_STAGES } from './config.js?v=20261114031541';
+import { esc, str, uid, getToday } from './utils.js?v=20261114031541';
+import { moveDeal, clearAllDragOver } from './deals.js?v=20261114031541';
 
 export const RENEWAL_PIPELINE = 'Renewal';
 const FIRST_STAGE = RENEWAL_STAGES[0].id;

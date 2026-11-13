@@ -8,11 +8,11 @@
 // Redial = the same as the dashboard's Cold Calling card: once a list is finished, its no answer /
 // voicemail / manager not around contacts go into "<Client> - Redial <List>" on the same caller ID.
 //
-// Not the power dialer (cold-calling.js): that one is for warm inbound leads.
+// The CRM's only dialer is the deal card's click-to-call (dialer.js).
 
-import { supabase } from './supabase-client.js?v=20261114001316';
-import { esc } from './utils.js?v=20261114001316';
-import { registerActions } from './delegate.js?v=20261114001316';
+import { supabase } from './supabase-client.js?v=20261114031541';
+import { esc } from './utils.js?v=20261114031541';
+import { registerActions } from './delegate.js?v=20261114031541';
 
 const FN = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/justcall-cold-calls';
 const RATE_LIMIT_WAIT_MS = 15000; // JustCall's limit is account-wide: a script loading a list can exhaust it

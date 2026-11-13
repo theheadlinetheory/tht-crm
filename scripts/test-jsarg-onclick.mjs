@@ -50,7 +50,7 @@ function recorderScope(calls) {
   return { scope, el };
 }
 
-const FILES = ['deal-modal', 'settings', 'warm-call', 'won-modal', 'lead-tracker', 'activities', 'cold-calling-tab', 'power-dialer'];
+const FILES = ['deal-modal', 'settings', 'warm-call', 'won-modal', 'lead-tracker', 'activities', 'cold-calling-tab'];
 const sites = [];
 for (const f of FILES) {
   const src = readFileSync(new URL(`../js/${f}.js`, import.meta.url), 'utf8');

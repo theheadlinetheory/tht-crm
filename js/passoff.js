@@ -2,13 +2,13 @@
 // PASSOFF — Passoff instructions generator + transcript polling
 // ═══════════════════════════════════════════════════════════
 
-import { state, pendingWrites } from './app.js?v=20261114001316';
-import { invokeEdgeFunction, sbUpdateDeal, camelToSnake, supabase } from './api.js?v=20261114001316';
-import { esc, jsArg, str, confirmNoPlaceholders } from './utils.js?v=20261114001316';
-import { refreshModal } from './render.js?v=20261114001316';
-import { isAdmin, isEmployee } from './auth.js?v=20261114001316';
-import { renderCallPoints } from './call-points.js?v=20261114001316';
-import { passoffInFlight, buttonState, textLocked, onScreenText, reviseBody, checkDraft, mayHaveFinished, recoveredDrafts, sendOnce } from './passoff-core.js?v=20261114001316';
+import { state, pendingWrites } from './app.js?v=20261114031541';
+import { invokeEdgeFunction, sbUpdateDeal, camelToSnake, supabase } from './api.js?v=20261114031541';
+import { esc, jsArg, str, confirmNoPlaceholders } from './utils.js?v=20261114031541';
+import { refreshModal } from './render.js?v=20261114031541';
+import { isAdmin, isEmployee } from './auth.js?v=20261114031541';
+import { renderCallPoints } from './call-points.js?v=20261114031541';
+import { passoffInFlight, buttonState, textLocked, onScreenText, reviseBody, checkDraft, mayHaveFinished, recoveredDrafts, sendOnce } from './passoff-core.js?v=20261114031541';
 
 // passoffInFlight (passoff-core.js): what is running per deal + action (generate / revise / send /
 // gmail-draft). Renders draw the buttons from it, so a re-render mid-request can no longer bring them

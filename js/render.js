@@ -2,42 +2,39 @@
 // RENDER — Main render loop, refreshModal, list view
 // ═══════════════════════════════════════════════════════════
 
-import { state, savedScrollLeft, setSavedScrollLeft } from './app.js?v=20261114001316';
-import { ACQUISITION_STAGES, NURTURE_STAGES, ACTIVITY_ICONS, DEAL_VERTICALS, detectCountry } from './config.js?v=20261114001316';
-import { esc, escAttr, svgIcon, getToday, fmtDate, fmtTime12, str, stripHtml } from './utils.js?v=20261114001316';
-import { isAdmin, isEmployee, isSdr, currentUser, renderUserMenu, getOwnerForDeal, getOwnerNameForDeal, loadAssignableUsers } from './auth.js?v=20261114001316';
-import { initialSync as syncFromSheet } from './api.js?v=20261114001316';
-import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js?v=20261114001316';
-import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWonDrop, renderDealModal, renderNewDealModal, renderAddClientModal, toggleBadgeDropdown } from './deal-modal.js?v=20261114001316';
-import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from './activities.js?v=20261114001316';
-import { renderDashboard, renderKpiTargetBar } from './dashboard.js?v=20261114001316';
-import { loadFunnel, renderFunnel } from './funnel.js?v=20261114001316';
-import { journeyCell, loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js?v=20261114001316';
-import { journeyFor, LEFT_AT_OPTIONS, WHY_OPTIONS } from './archive-journey.js?v=20261114001316';
-import { toggleBulkMode, bulkMoveStage, bulkSelectAll, bulkArchive, bulkAddActivity, toggleBulkSelect } from './deals.js?v=20261114001316';
-import { openSettings } from './settings.js?v=20261114001316';
-import { serviceAreaResults } from './maps.js?v=20261114001316';
-import { lookupClientInfo, isRetainerClient, deriveTimezone } from './client-info.js?v=20261114001316';
-import { openClientInfoPanel } from './client-panel.js?v=20261114001316';
-import { openCalendlyEmbed, removeAppointment, addManualAppointment } from './calendly.js?v=20261114001316';
-import { capturePreserve, restorePreserve } from './render-preserve.js?v=20261114001316';
-import { doDragOver, doDragLeave, clearAllDragOver, doDrop } from './deals.js?v=20261114001316';
-import { loadDiscoOutcomes, renderDiscoOutcomeBanner } from './disco-outcome.js?v=20261114001316';
-import { renderDueTodayBanner, renderNurtureDropdown, renderNurtureTab, renderNurtureEntryModal, renderReactivateModal, renderSnoozeModal, loadNurtureData, clearNurtureDraft } from './rerun.js?v=20261114001316';
-import { renderDemoTracker } from './demo-tracker.js?v=20261114001316';
-import { renderColdCallingTab } from './cold-calling.js?v=20261114001316';
-import { renderColdCallingHeader, renderColdCallingView, coldCallColumnMeta } from './cold-calling-tab.js?v=20261114001316';
-import { renderRetargetingTab } from './retargeting.js?v=20261114001316';
-import { renderRenewals } from './renewals.js?v=20261114001316';
-import { renderRenewalPipeline, renderRenewalsSubTabs } from './renewal-pipeline.js?v=20261114001316';
-import { renderHiring } from './hiring.js?v=20261114001316';
-import { hiringNavBubbleHtml } from './hiring-unread.js?v=20261114001316';
-import { isPowerDialerActive } from './power-dialer.js?v=20261114001316';
+import { state, savedScrollLeft, setSavedScrollLeft } from './app.js?v=20261114031541';
+import { ACQUISITION_STAGES, NURTURE_STAGES, ACTIVITY_ICONS, DEAL_VERTICALS, detectCountry } from './config.js?v=20261114031541';
+import { esc, escAttr, svgIcon, getToday, fmtDate, fmtTime12, str, stripHtml } from './utils.js?v=20261114031541';
+import { isAdmin, isEmployee, isSdr, currentUser, renderUserMenu, getOwnerForDeal, getOwnerNameForDeal, loadAssignableUsers } from './auth.js?v=20261114031541';
+import { initialSync as syncFromSheet } from './api.js?v=20261114031541';
+import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js?v=20261114031541';
+import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWonDrop, renderDealModal, renderNewDealModal, renderAddClientModal, toggleBadgeDropdown } from './deal-modal.js?v=20261114031541';
+import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from './activities.js?v=20261114031541';
+import { renderDashboard, renderKpiTargetBar } from './dashboard.js?v=20261114031541';
+import { loadFunnel, renderFunnel } from './funnel.js?v=20261114031541';
+import { journeyCell, loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js?v=20261114031541';
+import { journeyFor, LEFT_AT_OPTIONS, WHY_OPTIONS } from './archive-journey.js?v=20261114031541';
+import { toggleBulkMode, bulkMoveStage, bulkSelectAll, bulkArchive, bulkAddActivity, toggleBulkSelect } from './deals.js?v=20261114031541';
+import { openSettings } from './settings.js?v=20261114031541';
+import { serviceAreaResults } from './maps.js?v=20261114031541';
+import { lookupClientInfo, isRetainerClient, deriveTimezone } from './client-info.js?v=20261114031541';
+import { openClientInfoPanel } from './client-panel.js?v=20261114031541';
+import { openCalendlyEmbed, removeAppointment, addManualAppointment } from './calendly.js?v=20261114031541';
+import { capturePreserve, restorePreserve } from './render-preserve.js?v=20261114031541';
+import { doDragOver, doDragLeave, clearAllDragOver, doDrop } from './deals.js?v=20261114031541';
+import { loadDiscoOutcomes, renderDiscoOutcomeBanner } from './disco-outcome.js?v=20261114031541';
+import { renderDueTodayBanner, renderNurtureDropdown, renderNurtureTab, renderNurtureEntryModal, renderReactivateModal, renderSnoozeModal, loadNurtureData, clearNurtureDraft } from './rerun.js?v=20261114031541';
+import { renderDemoTracker } from './demo-tracker.js?v=20261114031541';
+import { renderColdCallingHeader, renderColdCallingView, coldCallColumnMeta } from './cold-calling-tab.js?v=20261114031541';
+import { renderRenewals } from './renewals.js?v=20261114031541';
+import { renderRenewalPipeline, renderRenewalsSubTabs } from './renewal-pipeline.js?v=20261114031541';
+import { renderHiring } from './hiring.js?v=20261114031541';
+import { hiringNavBubbleHtml } from './hiring-unread.js?v=20261114031541';
 
 const CFO_HUB_URL = 'https://theheadlinetheory.github.io/tht-payroll-site/#cfo';
-import { multiFilterDropdown } from './html-helpers.js?v=20261114001316';
-import { isAimfoxDeal } from './aimfox.js?v=20261114001316';
-import { ACQUISITION_CHANNELS, channelCardBadge } from './acquisition-channel.js?v=20261114001316';
+import { multiFilterDropdown } from './html-helpers.js?v=20261114031541';
+import { isAimfoxDeal } from './aimfox.js?v=20261114031541';
+import { ACQUISITION_CHANNELS, channelCardBadge } from './acquisition-channel.js?v=20261114031541';
 
 // ─── Multi-select filter toggle (used by multiFilterDropdown options) ───
 function toggleMultiFilter(key,value){
@@ -199,9 +196,6 @@ function renderInternal(){
     if (focused.dataset && (focused.dataset.weeklyEdit === '1' || focused.dataset.monthlyEdit === '1' || focused.dataset.keepFocus === '1')) return;
   }
 
-  // Skip background re-renders while power dialer is active (preserves scroll)
-  if (state.pipeline === 'acquisition' && state.acquisitionSubTab === 'cold_calls' && isPowerDialerActive() && !state._pdRenderRequested) return;
-  state._pdRenderRequested = false;
 
   const app=document.getElementById("app");
   // Save scroll position before destroying DOM
@@ -285,18 +279,6 @@ function renderInternal(){
     return;
   }
 
-  // Retargeting is now an Acquisition sub-tab — legacy pipeline ID redirect
-  if(state.pipeline==='retargeting'){
-    state.pipeline='acquisition'; state.acquisitionSubTab='retargeting'; render(); return;
-  }
-
-
-  // ─── Lead Tracker redirect (legacy URL compat) ───
-  if(state.pipeline==='lead_tracker'){
-    state.pipeline='client_leads';
-    state.clientLeadsSubTab='lead_tracker';
-    location.hash='client_leads';
-  }
 
   const stages=getStages();
   const deals=getPipelineDeals();
@@ -378,8 +360,6 @@ function renderInternal(){
         <button onclick="switchAcqSubTab('pipeline')" style="${subCs};background:${subTab==='pipeline'?'var(--purple)':'#f3f4f6'};color:${subTab==='pipeline'?'#fff':'var(--text-muted)'}">Pipeline</button>
         <button onclick="switchAcqSubTab('nurture')" style="${subCs};background:${subTab==='nurture'?'var(--purple)':'#f3f4f6'};color:${subTab==='nurture'?'#fff':'var(--text-muted)'}">Nurture</button>
         ${(isAdmin()||isEmployee())?`<button onclick="switchAcqSubTab('demo_tracker')" style="${subCs};background:${subTab==='demo_tracker'?'var(--purple)':'#f3f4f6'};color:${subTab==='demo_tracker'?'#fff':'var(--text-muted)'}">Demo Tracker</button>`:''}
-        ${(isAdmin()||isEmployee())?`<button onclick="switchAcqSubTab('cold_calls')" style="${subCs};background:${subTab==='cold_calls'?'var(--purple)':'#f3f4f6'};color:${subTab==='cold_calls'?'#fff':'var(--text-muted)'}">Cold Calls</button>`:''}
-        ${isAdmin()?`<button onclick="switchAcqSubTab('retargeting')" style="${subCs};background:${subTab==='retargeting'?'var(--purple)':'#f3f4f6'};color:${subTab==='retargeting'?'#fff':'var(--text-muted)'}">Retargeting</button>`:''}
       </div>
       ${subTab==='pipeline'?`<div style="display:flex;gap:6px;align-items:center">
         <button onclick="state.myDealsFilter=!state.myDealsFilter;render()" style="padding:4px 12px;font-size:11px;font-weight:600;font-family:var(--font);cursor:pointer;border:1px solid ${state.myDealsFilter?'var(--purple)':'var(--border)'};border-radius:6px;background:${state.myDealsFilter?'#f3e8ff':'#fff'};color:${state.myDealsFilter?'var(--purple)':'var(--text-muted)'}">
@@ -403,19 +383,6 @@ function renderInternal(){
     // If demo tracker sub-tab is selected, render demo tracker and return
     if(subTab === 'demo_tracker'){
       html += renderDemoTracker();
-      app.innerHTML = html;
-      return;
-    }
-
-    // If cold calls sub-tab is selected, render cold calling and return
-    if(subTab === 'cold_calls'){
-      html += renderColdCallingTab();
-      app.innerHTML = html;
-      return;
-    }
-
-    if(subTab === 'retargeting'){
-      html += renderRetargetingTab();
       app.innerHTML = html;
       return;
     }
@@ -450,7 +417,7 @@ function renderInternal(){
   }
 
   // ─── Country Filter Dropdown ───
-  if((state.pipeline==='acquisition' || state.pipeline==='client_leads') && state.acquisitionSubTab !== 'nurture' && state.clientLeadsSubTab !== 'tracker'){
+  if((state.pipeline==='acquisition' || state.pipeline==='client_leads') && state.acquisitionSubTab !== 'nurture' && state.clientLeadsSubTab !== 'lead_tracker'){
     const allDeals = getPipelineDeals();
     const countries = [];
     const seen = new Set();
@@ -519,7 +486,7 @@ function renderInternal(){
         html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading analysis...</div>';
         if(!window._analysisLoading){
           window._analysisLoading=true;
-          import('./analysis.js?v=20261114001316').then(m=>{ window._analysisModule=m; render(); }).catch(()=>{ window._analysisLoading=false; });
+          import('./analysis.js?v=20261114031541').then(m=>{ window._analysisModule=m; render(); }).catch(()=>{ window._analysisLoading=false; });
         }
       }
       // The grid is long and wide, and every render replaces the DOM wholesale.
@@ -545,7 +512,7 @@ function renderInternal(){
         html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading check-ins...</div>';
         if(!window._checkinsLoading){
           window._checkinsLoading=true;
-          import('./checkins.js?v=20261114001316').then(m=>{ window._checkinsModule=m; render(); }).catch(()=>{ window._checkinsLoading=false; });
+          import('./checkins.js?v=20261114031541').then(m=>{ window._checkinsModule=m; render(); }).catch(()=>{ window._checkinsLoading=false; });
         }
       }
       if(state.selectedDeal) html+=renderDealModal(state.selectedDeal);
@@ -563,7 +530,7 @@ function renderInternal(){
         html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading weekly updates...</div>';
         if(!window._weeklyLoading){
           window._weeklyLoading=true;
-          import('./weekly-updates.js?v=20261114001316').then(m=>{ window._weeklyModule=m; render(); }).catch(()=>{ window._weeklyLoading=false; });
+          import('./weekly-updates.js?v=20261114031541').then(m=>{ window._weeklyModule=m; render(); }).catch(()=>{ window._weeklyLoading=false; });
         }
       }
       app.innerHTML=html;
@@ -591,11 +558,11 @@ function renderInternal(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading trends...</div>';
           if(!window._trendsLoading){
             window._trendsLoading=true;
-            import('./trends.js?v=20261114001316').then(m=>{ window._trendsModule=m; render(); }).catch(()=>{ window._trendsLoading=false; });
+            import('./trends.js?v=20261114031541').then(m=>{ window._trendsModule=m; render(); }).catch(()=>{ window._trendsLoading=false; });
           }
           if(!state.trackerLoaded && !window._trackerLoading){
             window._trackerLoading=true;
-            import('./lead-tracker.js?v=20261114001316').then(m=>{
+            import('./lead-tracker.js?v=20261114031541').then(m=>{
               window._trackerModule=m;
               m.loadTrackerEntries().then(()=>render()).catch(()=>render());
             }).catch(()=>{ window._trackerLoading=false; });
@@ -608,7 +575,7 @@ function renderInternal(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading retainer leads...</div>';
           if(!window._passOffsLoading){
             window._passOffsLoading=true;
-            import('./pass-offs.js?v=20261114001316').then(m=>{ window._passOffsModule=m; render(); }).catch(()=>{ window._passOffsLoading=false; });
+            import('./pass-offs.js?v=20261114031541').then(m=>{ window._passOffsModule=m; render(); }).catch(()=>{ window._passOffsLoading=false; });
           }
         }
       } else {
@@ -618,14 +585,14 @@ function renderInternal(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading tracker...</div>';
           if(!window._trackerLoading){
             window._trackerLoading=true;
-            import('./lead-tracker.js?v=20261114001316').then(m=>{
+            import('./lead-tracker.js?v=20261114031541').then(m=>{
               window._trackerModule=m;
               if(!state.trackerLoaded){ m.loadTrackerEntries().then(()=>render()).catch(()=>render()); }
               else render();
             }).catch(()=>{ window._trackerLoading=false; });
             if(!window._invoiceLoading){
               window._invoiceLoading=true;
-              import('./invoice.js?v=20261114001316').then(m=>{ window._invoiceModule=m; }).catch(()=>{ window._invoiceLoading=false; });
+              import('./invoice.js?v=20261114031541').then(m=>{ window._invoiceModule=m; }).catch(()=>{ window._invoiceLoading=false; });
             }
           }
         }
@@ -633,7 +600,7 @@ function renderInternal(){
           html+=window._invoiceModule.renderInvoiceModal();
         } else if(state.invoiceModal && !window._invoiceLoading){
           window._invoiceLoading=true;
-          import('./invoice.js?v=20261114001316').then(m=>{ window._invoiceModule=m; render(); });
+          import('./invoice.js?v=20261114031541').then(m=>{ window._invoiceModule=m; render(); });
         }
       }
       html+=`</div>`; // close the --tracker-top wrapper
@@ -1030,7 +997,7 @@ window.switchAcqSubTab = switchAcqSubTab;
 // and the next reload (the automatic one a deploy triggers on tab focus) opened
 // that other tab instead of the Sales Pipeline (Lars, 2026-10-05). Follow the
 // hash so the URL and the screen never disagree.
-const ACQ_SUBTABS = ['pipeline','nurture','demo_tracker','cold_calls','retargeting'];
+const ACQ_SUBTABS = ['pipeline','nurture','demo_tracker'];
 const CL_SUBTABS = ['pipeline','checkins','lead_tracker','weekly_updates','analysis'];
 window.addEventListener('hashchange', () => {
   const [p, sub, ciName] = location.hash.replace('#','').split('/');

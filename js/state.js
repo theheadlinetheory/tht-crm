@@ -4,7 +4,7 @@
 // All mutations go through store.* methods to prevent direct
 // state tampering and ensure consistent re-renders.
 
-import { render, refreshModal } from './render.js?v=20261114001316';
+import { render, refreshModal } from './render.js?v=20261114031541';
 
 // ─── Raw State (private — modules should use store.*) ───
 export const state = {
@@ -12,7 +12,7 @@ export const state = {
   activities: [],
   clients: [],
   appointments: [],
-  pipeline: (() => { try { const h=location.hash.replace('#','').split('/')[0]; if(h==='archive'||h==='nurture'){location.hash='acquisition';return 'acquisition';} return ['dashboard','acquisition','client_leads','retargeting','renewals'].includes(h)?h:'dashboard'; } catch(e){ return 'acquisition'; } })(),
+  pipeline: (() => { try { const h=location.hash.replace('#','').split('/')[0]; if(h==='archive'||h==='nurture'){location.hash='acquisition';return 'acquisition';} return ['dashboard','acquisition','client_leads','renewals'].includes(h)?h:'dashboard'; } catch(e){ return 'acquisition'; } })(),
   selectedDeal: null,
   showNew: false,
   showAddClient: false,
@@ -61,7 +61,7 @@ export const state = {
   showChannelFilterDropdown: false,
   countryFilter: (() => { try { const v = JSON.parse(localStorage.getItem('tht_countryFilter') || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } })(),
   showCountryFilterDropdown: false,
-  acquisitionSubTab: (() => { try { const parts = location.hash.replace('#','').split('/'); if (parts[0] === 'acquisition' && parts[1]) { const valid = ['pipeline','nurture','demo_tracker','cold_calls','retargeting']; return valid.includes(parts[1]) ? parts[1] : 'pipeline'; } return 'pipeline'; } catch { return 'pipeline'; } })(),
+  acquisitionSubTab: (() => { try { const parts = location.hash.replace('#','').split('/'); if (parts[0] === 'acquisition' && parts[1]) { const valid = ['pipeline','nurture','demo_tracker']; return valid.includes(parts[1]) ? parts[1] : 'pipeline'; } return 'pipeline'; } catch { return 'pipeline'; } })(),
   // Mirrored in the URL (#client_leads/analysis) like acquisitionSubTab, so the
   // sub-tab survives a reload — including the automatic one a new deploy
   // triggers. Without this any reload silently dropped you back on Pipeline.
@@ -107,17 +107,6 @@ export const state = {
   demoSort: { field: 'callDate', dir: 'desc' },
   demoEditingCell: null,
   demoSelected: new Set(),
-  retargetHistory: [],
-  retargetExports: [],
-  retargetLoaded: false,
-  retargetSelected: new Set(),
-  retargetSelectAll: false,
-  retargetFilters: { stage: '', minDays: 90, campaign: '', location: '', pipeline: '' },
-  retargetBuilderStep: 0,
-  retargetBuilderName: '',
-  retargetBuilderLeads: [],
-  retargetValidationResults: null,
-  retargetValidating: false,
 };
 
 // ─── Pending writes guard ───
@@ -236,14 +225,6 @@ export const store = {
     if (!opts?.silent) render();
   },
 
-  setRetargetHistory(data, opts) {
-    state.retargetHistory = data;
-    if (!opts?.silent) render();
-  },
-  setRetargetExports(data, opts) {
-    state.retargetExports = data;
-    if (!opts?.silent) render();
-  },
 
   // ── Field setters (UI state) ──
   set(fields, opts) {

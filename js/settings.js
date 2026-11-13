@@ -2,23 +2,23 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20261114001316';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20261114001316';
-import { render } from './render.js?v=20261114001316';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20261114001316';
-import { renderRoutingRules } from './routing-rules.js?v=20261114001316';
-import { esc, jsArg, str, svgIcon } from './utils.js?v=20261114001316';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20261114001316';
-import { lookupClientInfo } from './client-info.js?v=20261114001316';
-import { findPolygonForClient, invalidateServiceAreaCache } from './maps.js?v=20261114001316';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20261114001316';
-import { DEFAULT_BOOKING_SMS_TEMPLATE } from './booking-sms.js?v=20261114001316';
-import { renderRetainerBilling } from './retainer-billing.js?v=20261114001316';
-import { snapshotRows, diffRows, commitRows, snapshotSettings, diffSettings, commitSettings } from './settings-diff.js?v=20261114001316';
-import { renderAutoChargeToggle } from './auto-charge.js?v=20261114001316';
-import { showClientEndPicker, clearClientEnd } from './client-end.js?v=20261114001316';
-import { setupBadge, setupBanner } from './client-setup-status.js?v=20261114001316';
-import { renderCallSheetSettings, renderCallSheetOnboardingFields, callSheetOnboardingUpdates } from './call-sheet.js?v=20261114001316';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20261114031541';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20261114031541';
+import { render } from './render.js?v=20261114031541';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20261114031541';
+import { renderRoutingRules } from './routing-rules.js?v=20261114031541';
+import { esc, jsArg, str, svgIcon } from './utils.js?v=20261114031541';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20261114031541';
+import { lookupClientInfo } from './client-info.js?v=20261114031541';
+import { findPolygonForClient, invalidateServiceAreaCache } from './maps.js?v=20261114031541';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20261114031541';
+import { DEFAULT_BOOKING_SMS_TEMPLATE } from './booking-sms.js?v=20261114031541';
+import { renderRetainerBilling } from './retainer-billing.js?v=20261114031541';
+import { snapshotRows, diffRows, commitRows, snapshotSettings, diffSettings, commitSettings } from './settings-diff.js?v=20261114031541';
+import { renderAutoChargeToggle } from './auto-charge.js?v=20261114031541';
+import { showClientEndPicker, clearClientEnd } from './client-end.js?v=20261114031541';
+import { setupBadge, setupBanner } from './client-setup-status.js?v=20261114031541';
+import { renderCallSheetSettings, renderCallSheetOnboardingFields, callSheetOnboardingUpdates } from './call-sheet.js?v=20261114031541';
 
 export function getDefaultSettings(){
   return {
@@ -330,9 +330,7 @@ export function refreshSettingsBody(){
   else if(settingsTab==='dialer') {
     if (!window._dialerFieldsLoaded) {
       window._dialerFieldsLoaded = true;
-      supabase.from('crm_settings').select('value').eq('key','dialer_default_fields').single()
-        .then(({ data }) => { window._dialerDefaultFields = data?.value ? JSON.parse(data.value) : []; refreshSettingsBody(); });
-      import('./number-health.js?v=20261114001316').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
+      import('./number-health.js?v=20261114031541').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
     }
     h=renderDialerSettings();
   }
@@ -1199,50 +1197,8 @@ function renderDialerSettings(){
   const mod = window.__numberHealthModule;
   if(mod) h += mod.renderNumberHealthSettings();
   else h += `<div class="settings-section"><h4>${svgIcon('phone',14)} Dialer Numbers</h4><p style="font-size:11px;color:var(--text-muted)">Loading number health data...</p></div>`;
-  const fields = window._dialerDefaultFields || [];
-  h += `<div class="settings-section" style="margin-top:20px">
-    <h4 style="display:flex;align-items:center;gap:6px">${svgIcon('list',14)} Default Dialer Fields</h4>
-    <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px">These fields appear on every new campaign alongside Phone, Name, Company, Email, etc.</p>
-    <div style="display:flex;flex-direction:column;gap:6px">`;
-  fields.forEach((f, i) => {
-    h += `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f9fafb;border:1px solid var(--border);border-radius:6px">
-      <span style="font-size:12px;font-weight:500;flex:1">${esc(f.label)}</span>
-      <span style="font-size:10px;color:var(--text-muted)">${esc(f.key)}</span>
-      <button onclick="pdRemoveDefaultField(${i})" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px;padding:2px 4px" title="Remove">×</button>
-    </div>`;
-  });
-  h += `</div>
-    <div style="display:flex;gap:6px;margin-top:10px">
-      <input id="pd-new-field-label" placeholder="Field name (e.g. City)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);flex:1">
-      <input id="pd-new-field-key" placeholder="Key (e.g. city)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);width:120px">
-      <button class="btn btn-primary" style="font-size:11px;padding:6px 12px" onclick="pdAddDefaultField()">Add</button>
-    </div>
-  </div>`;
   return h;
 }
-
-window.pdAddDefaultField = async () => {
-  const labelEl = document.getElementById('pd-new-field-label');
-  const keyEl = document.getElementById('pd-new-field-key');
-  const label = (labelEl?.value || '').trim();
-  let key = (keyEl?.value || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-  if (!label) { showToast('Enter a field name', 'error'); return; }
-  if (!key) key = label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-  const fields = window._dialerDefaultFields || [];
-  if (fields.some(f => f.key === key)) { showToast('Field key already exists', 'error'); return; }
-  fields.push({ key, label });
-  window._dialerDefaultFields = fields;
-  await supabase.from('crm_settings').upsert({ key: 'dialer_default_fields', value: JSON.stringify(fields), updated_at: new Date().toISOString() });
-  refreshSettingsBody();
-};
-
-window.pdRemoveDefaultField = async (idx) => {
-  const fields = window._dialerDefaultFields || [];
-  fields.splice(idx, 1);
-  window._dialerDefaultFields = fields;
-  await supabase.from('crm_settings').upsert({ key: 'dialer_default_fields', value: JSON.stringify(fields), updated_at: new Date().toISOString() });
-  refreshSettingsBody();
-};
 
 function setupSettingsDrag(){
   document.querySelectorAll('.settings-list').forEach(list=>{
@@ -1779,7 +1735,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20261114001316');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20261114031541');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);
@@ -2053,7 +2009,7 @@ window.restoreClient = async function(clientId) {
   }
   showToast(`${c.name} restored — rebuilding their Smartlead portal…`, 'success');
   try {
-    const { createSmartleadPortal } = await import('./smartlead-portal.js?v=20261114001316');
+    const { createSmartleadPortal } = await import('./smartlead-portal.js?v=20261114031541');
     const r = await createSmartleadPortal(c);
     render();
     // crm-smartlead-client writes the id onto the clients row itself, with a
@@ -2081,7 +2037,7 @@ window.restoreClient = async function(clientId) {
 window.createClientPortal = async function(clientId) {
   const c = state.clients.find(x => str(x.id) === str(clientId));
   if (!c) return;
-  const { portalEmail, createSmartleadPortal } = await import('./smartlead-portal.js?v=20261114001316');
+  const { portalEmail, createSmartleadPortal } = await import('./smartlead-portal.js?v=20261114031541');
   const email = portalEmail(c);
   if (!email) { showToast('Add a contact email for this client first', 'error'); return; }
   if (!confirm(`Create a Smartlead portal for ${c.name}?\n\nLogin: ${email}\n\nSmartlead has no way to delete a client portal, so this cannot be undone.`)) return;
@@ -2121,7 +2077,7 @@ window.orderColdCallInbox = async function(clientId, btn) {
   if (!confirm(`Buy a contact@ .info cold-calling inbox for ${c.name}?\n\n~$4 domain + $3/month mailbox. It goes live in Zapmail and SmartLead on its own over the next hour or two.`)) return;
   if (btn) { btn.disabled = true; btn.textContent = 'Ordering…'; }
   try {
-    const { createColdCallInbox } = await import('./cold-call-inbox.js?v=20261114001316');
+    const { createColdCallInbox } = await import('./cold-call-inbox.js?v=20261114031541');
     const r = await createColdCallInbox(c);
     render();
     showToast(`${r.existed ? 'Already ordered' : 'Ordered'}: ${r.email} — live in ~1–3h, then warming up`, 'success');

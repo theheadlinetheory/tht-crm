@@ -86,8 +86,6 @@ const REQUIRED_FEATURES = [
   { file: 'render.js',         needle: "state.pipeline==='acquisition'", feature: 'Acquisition tab' },
   { file: 'render.js',         needle: "state.pipeline==='client_leads'", feature: 'Client Leads tab' },
   // Acquisition sub-tabs
-  { file: 'render.js',         needle: "switchAcqSubTab('cold_calls')",  feature: 'Acquisition: Cold Calls sub-tab' },
-  { file: 'render.js',         needle: "switchAcqSubTab('retargeting')", feature: 'Acquisition: Retargeting sub-tab' },
   { file: 'render.js',         needle: "switchAcqSubTab('demo_tracker')", feature: 'Acquisition: Demo Tracker sub-tab' },
   // Lead Tracker views
   { file: 'render.js',         needle: "switchTrackerView('trends')",   feature: 'Lead Tracker: Trends view' },

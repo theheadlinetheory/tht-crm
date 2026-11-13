@@ -13,12 +13,12 @@
 // The call_* columns have no FIELD_MAP entry, so they live on the client
 // object under their snake_case names.
 
-import { state } from './app.js?v=20261114001316';
-import { esc, str, svgIcon } from './utils.js?v=20261114001316';
-import { isAdmin, isEmployee } from './auth.js?v=20261114001316';
-import { sbUpdateClient, showToast } from './api.js?v=20261114001316';
-import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20261114001316';
-import { findClientForDeal } from './client-info.js?v=20261114001316';
+import { state } from './app.js?v=20261114031541';
+import { esc, str, svgIcon } from './utils.js?v=20261114031541';
+import { isAdmin, isEmployee } from './auth.js?v=20261114031541';
+import { sbUpdateClient, showToast } from './api.js?v=20261114031541';
+import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20261114031541';
+import { findClientForDeal } from './client-info.js?v=20261114031541';
 
 // [client key, column, label, hint, rows]. rows 1 = single-line input.
 const FIELDS = [
