@@ -23,6 +23,8 @@ import {
   PPM_TRAILING_WEEKS, PPM_STALE_DAYS,
   trailingWeeklyDelivery, weekLabelShort,
 } from './dashboard.js?v=20261114043221';
+import { renderMonthlyAnalysis } from './analysis-monthly.js?v=20261114043221';
+import { isLastFridayOfMonth } from './analysis-month-window.js?v=20261114043221';
 
 // Lives on the fulfillment-dashboard Supabase project (verify_jwt=false),
 // same as the Weekly Updates stats proxy.
@@ -30,10 +32,10 @@ const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/s
 
 // Smartlead's own campaign URL. Clicking the campaign name lands on its
 // analytics page.
-const SMARTLEAD_CAMPAIGN_URL = id => `https://app.smartlead.ai/app/email-campaign/${id}/analytics`;
+export const SMARTLEAD_CAMPAIGN_URL = id => `https://app.smartlead.ai/app/email-campaign/${id}/analytics`;
 
 // Categories Smartlead counts as a positive reply (mirrors the proxy).
-const POSITIVE_CATEGORIES = new Set(['Interested', 'Meeting Request', 'Information Request']);
+export const POSITIVE_CATEGORIES = new Set(['Interested', 'Meeting Request', 'Information Request']);
 
 function getA() {
   if (!state.analysis) {
@@ -124,7 +126,7 @@ function hydrate(a, week) {
   }
 }
 
-function agoLabel(iso) {
+export function agoLabel(iso) {
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
   if (mins < 1) return 'just now';
   if (mins < 60) return `${mins} min ago`;
@@ -139,7 +141,7 @@ function agoLabel(iso) {
 // are collapsed behind a toggle, EXCEPT for a client whose campaigns all sent
 // nothing: there, "nothing went out" is the entire finding and must stay
 // visible.
-function visibleRows(a) {
+export function visibleRows(a) {
   if (a.showDormant) return a.rows;
   const sentByClient = {};
   for (const r of a.rows) sentByClient[r.clientName] = (sentByClient[r.clientName] || 0) + r.sent;
@@ -261,7 +263,7 @@ export function matchClientForCampaign(campaignName, clients) {
 // dashboard's cache-sync crons, which burst around :00/:30, so a collision is
 // routine rather than exceptional — retry once after the window clears before
 // giving up. Same treatment the Weekly Updates tab gives its stats pull.
-async function proxyCall(body, label, onRetry) {
+export async function proxyCall(body, label, onRetry) {
   const attempt = async () => {
     const resp = await fetch(STATS_PROXY_URL, {
       method: 'POST',
@@ -279,6 +281,72 @@ async function proxyCall(body, label, onRetry) {
     await new Promise(r => setTimeout(r, 20000));
     return attempt();
   }
+}
+
+// ─── Smartlead breakdown pull (shared by the weekly and monthly passes) ───
+// Batched: the proxy pages through every individual send of every campaign
+// in one edge-function call, so ~200 campaigns (or ~20 busy ones, e.g.
+// Nov 2026 retargets at 1–2.6k sends/week each) blow its compute budget and
+// the whole pull dies with 546 WORKER_RESOURCE_LIMIT. Small batches, a few
+// in flight; a batch that still 546s is retried one campaign at a time so
+// only a genuinely oversized campaign shows an error, not the whole tab.
+// A month-long window pages ~4x the sends per campaign, so the monthly pass
+// asks for smaller batches. Returns { campaignId: breakdownRow }.
+export async function pullBreakdowns(ids, start, end, { stale = () => false, onProgress = () => {}, batchSize = 4, inFlight = 3, label = '' } = {}) {
+  const batches = [];
+  for (let i = 0; i < ids.length; i += batchSize) batches.push(ids.slice(i, i + batchSize));
+  const pullBatch = campaign_ids => proxyCall({
+    action: 'client_week_breakdown', campaign_ids, start_date: start, end_date: end,
+  }, 'Stats pull', () => onProgress('Smartlead rate-limit collision — retrying in 20s…'));
+  const statRows = [];
+  let done = 0, next = 0;
+  const worker = async () => {
+    while (next < batches.length) {
+      if (stale()) return;
+      const batch = batches[next++];
+      try {
+        statRows.push(...((await pullBatch(batch)).data || []));
+      } catch (e) {
+        if (batch.length === 1) {
+          statRows.push({ id: batch[0], error: e.message });
+        } else {
+          for (const id of batch) {
+            try { statRows.push(...((await pullBatch([id])).data || [])); }
+            catch (e2) { statRows.push({ id, error: e2.message }); }
+          }
+        }
+      }
+      done += batch.length;
+      if (!stale()) onProgress(`Pulling Smartlead stats${label}… ${done} / ${ids.length} campaigns`);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(inFlight, batches.length) }, worker));
+  const byId = {};
+  for (const row of statRows) byId[String(row.id)] = row;
+  return byId;
+}
+
+// Client-owned, ever-sent campaigns from the full Smartlead list, attributed to
+// `clients` by the board's keyword rule. Shared by both passes.
+export function ownedCampaigns(campaigns, clients) {
+  const owned = [];
+  let considered = 0;
+  for (const camp of campaigns) {
+    if (String(camp.status || '').toUpperCase() === 'DRAFTED') continue;
+    if (/acquisi?tion/i.test(camp.name || '')) continue; // our own outreach, not a client's
+    considered++;
+    const owner = matchClientForCampaign(camp.name, clients);
+    if (owner) owned.push({ ...camp, clientName: owner.name });
+  }
+  return { owned, considered };
+}
+
+// Weekly ⇄ Monthly switch shown in both headers. The weekly pass is the Friday
+// review; the monthly pass is the same review run month over month on the last
+// Friday of the month.
+export function renderPeriodToggle(period) {
+  const btn = (key, label) => `<button onclick="analysisSetPeriod('${key}')" style="padding:4px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer;font-family:var(--font);background:${period === key ? 'var(--purple)' : '#f3f4f6'};color:${period === key ? '#fff' : 'var(--text-muted)'}">${label}</button>`;
+  return `<span style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">${btn('week', 'Weekly')}${btn('month', 'Monthly')}</span>`;
 }
 
 // ─── Run the analysis ────────────────────────────────────────
@@ -326,17 +394,9 @@ export async function runAnalysis() {
     const campaigns = campPayload.data;
     if (!Array.isArray(campaigns)) throw new Error('Could not load the campaign list from Smartlead.');
 
-    const owned = [];
-    let considered = 0;
-    for (const camp of campaigns) {
-      if (String(camp.status || '').toUpperCase() === 'DRAFTED') continue;
-      if (/acquisi?tion/i.test(camp.name || '')) continue; // our own outreach, not a client's
-      considered++;
-      const owner = matchClientForCampaign(camp.name, targetClients.map(t => t.client));
-      if (!owner) continue;
-      const t = targetClients.find(x => x.client.name === owner.name);
-      owned.push({ ...camp, clientName: owner.name, target: t });
-    }
+    const matched = ownedCampaigns(campaigns, targetClients.map(t => t.client));
+    const considered = matched.considered;
+    const owned = matched.owned.map(c => ({ ...c, target: targetClients.find(x => x.client.name === c.clientName) }));
 
     if (!owned.length) {
       a.step = 'done';
@@ -352,52 +412,11 @@ export async function runAnalysis() {
     a.progress = `Pulling Smartlead stats for ${owned.length} campaign${owned.length === 1 ? '' : 's'}… (1–2 minutes)`;
     render();
 
-    // Batched: the proxy pages through every individual send of every campaign
-    // in one edge-function call, so ~200 campaigns (or ~20 busy ones, e.g.
-    // Nov 2026 retargets at 1–2.6k sends/week each) blow its compute budget and
-    // the whole pull dies with 546 WORKER_RESOURCE_LIMIT. Small batches, a few
-    // in flight; a batch that still 546s is retried one campaign at a time so
-    // only a genuinely oversized campaign shows an error, not the whole tab.
-    const BATCH = 4, IN_FLIGHT = 3;
-    const ids = owned.map(c => Number(c.id));
-    const batches = [];
-    for (let i = 0; i < ids.length; i += BATCH) batches.push(ids.slice(i, i + BATCH));
-    const pullBatch = campaign_ids => proxyCall({
-      action: 'client_week_breakdown', campaign_ids, start_date: start, end_date: end,
-    }, 'Stats pull', () => {
-      a.progress = 'Smartlead rate-limit collision — retrying in 20s…';
-      render();
+    const byId = await pullBreakdowns(owned.map(c => Number(c.id)), start, end, {
+      stale,
+      onProgress: msg => { a.progress = msg; render(); },
     });
-    const statRows = [];
-    let done = 0, next = 0;
-    const worker = async () => {
-      while (next < batches.length) {
-        if (stale()) return;
-        const batch = batches[next++];
-        try {
-          statRows.push(...((await pullBatch(batch)).data || []));
-        } catch (e) {
-          if (batch.length === 1) {
-            statRows.push({ id: batch[0], error: e.message });
-          } else {
-            for (const id of batch) {
-              try { statRows.push(...((await pullBatch([id])).data || [])); }
-              catch (e2) { statRows.push({ id, error: e2.message }); }
-            }
-          }
-        }
-        done += batch.length;
-        if (!stale()) {
-          a.progress = `Pulling Smartlead stats… ${done} / ${ids.length} campaigns`;
-          render();
-        }
-      }
-    };
-    await Promise.all(Array.from({ length: Math.min(IN_FLIGHT, batches.length) }, worker));
     if (stale()) return;
-
-    const byId = {};
-    for (const row of statRows) byId[String(row.id)] = row;
 
     a.rows = owned.map(c => {
       const b = byId[String(c.id)] || {};
@@ -478,7 +497,7 @@ function htmlToText(html) {
     .trim();
 }
 
-function renderCopyModal() {
+export function renderCopyModal() {
   const a = getA();
   const c = a.copy;
   if (!c) return '';
@@ -525,7 +544,7 @@ function renderCopyModal() {
 const pct = (n, d) => (d > 0 ? (n / d * 100) : 0);
 const fmtPct = (n, d, digits = 2) => (d > 0 ? `${(n / d * 100).toFixed(digits)}%` : '—');
 
-function dayStrip(row) {
+export function dayStrip(row) {
   const daily = (row && Array.isArray(row.daily)) ? row.daily : [];
   if (!daily.length) return '';
   const max = Math.max(...daily.map(d => d.sent), 1);
@@ -536,7 +555,7 @@ function dayStrip(row) {
   }).join('')}</span>`;
 }
 
-function categoryChips(categories) {
+export function categoryChips(categories) {
   const entries = Object.entries(categories || {}).sort((a, b) => b[1] - a[1]);
   if (!entries.length) return '<span style="color:var(--text-muted)">—</span>';
   return entries.map(([cat, n]) => {
@@ -637,6 +656,7 @@ function renderStandingSignals(kpi) {
 }
 
 export function renderAnalysis() {
+  if (state.analysisPeriod === 'month') return renderMonthlyAnalysis();
   const a = getA();
   const week = selectedWeek();
   hydrate(a, week); // restore a previous run for this week/scope, if there is one
@@ -654,6 +674,13 @@ export function renderAnalysis() {
   let h = `<div class="tracker-container">`;
 
   // ── Header ──
+  // Last Friday of the month: the monthly pass is due alongside this one.
+  if (isLastFridayOfMonth()) {
+    h += `<div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:7px 12px;margin-bottom:10px;font-size:11.5px;color:#3730a3;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <b>Last Friday of the month</b> — run the monthly pass too: this month vs last month for every client.
+      <button class="btn btn-primary" style="font-size:11px;padding:3px 12px" onclick="analysisSetPeriod('month')">Open monthly</button>
+    </div>`;
+  }
   h += `<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:0 0 10px">
     <div>
       <div style="font-size:15px;font-weight:800">Analysis — why the KPI was missed</div>
@@ -666,6 +693,7 @@ export function renderAnalysis() {
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      ${renderPeriodToggle('week')}
       <select onchange="analysisSetWeek(this.value)" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:var(--font);background:#fff;cursor:pointer">
         ${weeks.map(w => `<option value="${w}" ${w === week ? 'selected' : ''}>${weekLabel(w)}${w === thisWeek ? ' (this week)' : ''}</option>`).join('')}
       </select>
@@ -880,6 +908,7 @@ export function buildCsv(rows, delivery) {
 
 // ─── Window handlers ─────────────────────────────────────────
 window.analysisRun = () => runAnalysis();
+window.analysisSetPeriod = (p) => { state.analysisPeriod = p === 'month' ? 'month' : 'week'; render(); };
 // Switching week or scope re-hydrates from the cache for that key, so flipping
 // between two already-analysed weeks is instant instead of two fresh pulls.
 window.analysisSetWeek = (w) => { const a = getA(); a.week = w; a.hydratedKey = null; render(); };
@@ -887,8 +916,9 @@ window.analysisSetScope = (s) => { const a = getA(); a.scope = s; a.hydratedKey 
 // Escape hatch behind the in-tab error panel: bin every cached run and the
 // in-memory state so a bad payload can't keep breaking the tab on every visit.
 window.analysisReset = () => {
-  try { localStorage.removeItem(RUNS_KEY); } catch (e) { /* nothing to clear */ }
+  try { localStorage.removeItem(RUNS_KEY); localStorage.removeItem('tht_analysis_monthly_runs'); } catch (e) { /* nothing to clear */ }
   state.analysis = null;
+  state.analysisMonthly = null;
   render();
 };
 window.analysisToggleDormant = () => { const a = getA(); a.showDormant = !a.showDormant; render(); };

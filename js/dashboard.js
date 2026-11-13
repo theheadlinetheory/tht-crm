@@ -185,7 +185,7 @@ const ONBOARDED_ON = {
   'mcfarlane douglass': '2026-08-11',
 };
 
-function onboardedOnDate(client, name) {
+export function onboardedOnDate(client, name) {
   const mapped = ONBOARDED_ON[String(name || '').trim().toLowerCase()];
   const raw = mapped || client?.activatedDate || client?.launchDate;
   if (!raw) return null;
