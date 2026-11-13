@@ -8,15 +8,15 @@
 // Gated per-client on clients.sms_enabled. Sends via Blooio,
 // the same account already used to text leads.
 
-import { state, pendingWrites } from './app.js?v=20261114041422';
-import { showToast, sbUpdateDeal, camelToSnake } from './api.js?v=20261114041422';
-import { registerActions } from './delegate.js?v=20261114041422';
-import { modalHeader } from './html-helpers.js?v=20261114041422';
-import { esc, str, applyTemplate, svgIcon, fmtDate } from './utils.js?v=20261114041422';
-import { isAdmin, isEmployee } from './auth.js?v=20261114041422';
-import { sendBlooioText, formatDisplay } from './blooio.js?v=20261114041422';
-import { findClientForDeal } from './client-info.js?v=20261114041422';
-import { refreshModal } from './render.js?v=20261114041422';
+import { state, pendingWrites } from './app.js?v=20261114043221';
+import { showToast, sbUpdateDeal, camelToSnake } from './api.js?v=20261114043221';
+import { registerActions } from './delegate.js?v=20261114043221';
+import { modalHeader } from './html-helpers.js?v=20261114043221';
+import { esc, str, applyTemplate, svgIcon, fmtDate, jsArg } from './utils.js?v=20261114043221';
+import { isAdmin, isEmployee } from './auth.js?v=20261114043221';
+import { sendBlooioText, formatDisplay } from './blooio.js?v=20261114043221';
+import { findClientForDeal } from './client-info.js?v=20261114043221';
+import { refreshModal } from './render.js?v=20261114043221';
 
 // Note: no line may end in a bare colon. applyTemplate() treats a trailing-colon
 // line as an empty label and deletes it, which silently ate the greeting.
@@ -108,7 +108,7 @@ export function renderBookingSmsButton(deal, client) {
   // its own data-action buttons are fine.
   return `<div style="margin:0 0 8px 0">
     <button class="btn ${sentAt ? 'btn-ghost' : 'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px;${style}"
-      onclick="openBookingSmsPreview('${esc(deal.id)}')"
+      onclick="openBookingSmsPreview(${jsArg(deal.id)})"
       title="Text ${esc(clientPhone(client))} about this booked meeting">${label}</button>
   </div>`;
 }

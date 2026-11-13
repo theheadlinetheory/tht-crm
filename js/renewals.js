@@ -20,10 +20,10 @@
 // Admin-only: it shows retainer amounts, and money is admin-gated per the
 // repo's role rule.
 // ═══════════════════════════════════════════════════════════
-import { esc, str } from './utils.js?v=20261114041422';
-import { addMonths, prettyDate, prepaidThrough } from './retainer-billing.js?v=20261114041422';
-import { cadenceOf, daysLeft, monthlyEquivalent, termEnd } from './client-terms.js?v=20261114041422';
-import { extensionsFor, extensionsStatus, loadTermExtensions } from './term-extensions.js?v=20261114041422';
+import { esc, str, jsArg } from './utils.js?v=20261114043221';
+import { addMonths, prettyDate, prepaidThrough } from './retainer-billing.js?v=20261114043221';
+import { cadenceOf, daysLeft, monthlyEquivalent, termEnd } from './client-terms.js?v=20261114043221';
+import { extensionsFor, extensionsStatus, loadTermExtensions } from './term-extensions.js?v=20261114043221';
 
 const CURRENCY_SYMBOLS = { usd: '$', cad: 'CA$', aud: 'A$', gbp: '£', eur: '€' };
 const NOTICE_DAYS = [7, 3, 1];
@@ -223,7 +223,7 @@ const URGENCY_COLOR = { crit: '#ef4444', warn: '#b45309', soon: '#059669', '': '
 function termCell(r, status) {
   if (status === 'error') return `<span style="color:#b91c1c">couldn't load</span>`;
   if (status !== 'loaded') return `<span style="color:var(--text-muted)">…</span>`;
-  const btn = `<div><button onclick="openExtendTerm('${esc(r.id)}','${esc(r.name).replace(/'/g, '&#39;')}')" style="margin-top:4px;padding:2px 8px;font-size:10.5px;font-weight:600;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer">Extend</button></div>`;
+  const btn = `<div><button onclick="openExtendTerm(${jsArg(r.id)},${jsArg(r.name)})" style="margin-top:4px;padding:2px 8px;font-size:10.5px;font-weight:600;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer">Extend</button></div>`;
   if (!r.hasTerm) return `<span style="color:var(--text-muted)">open-ended</span>${btn}`;
   if (!r.termEnd) return `<span style="color:var(--text-muted)">starts at launch</span>${btn}`;
   const ended = r.termLeft < 0;

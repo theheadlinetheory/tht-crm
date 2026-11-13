@@ -17,10 +17,12 @@ export function uid(){
   return Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 }
 
+// Quotes too (security review 2026-11-14): ~340 templates put esc() inside "…" attributes, where a " from a lead
+// reply, a Calendly name or a Gmail header could add attributes. Text content renders &quot;/&#39; as the quote.
 export function esc(s){
   const d=document.createElement('div');
   d.textContent=s;
-  return d.innerHTML;
+  return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 /** esc() for attribute values and inline-handler strings: quotes too (hardening review, 2026-09-15). */
 export function escAttr(s){ return esc(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }

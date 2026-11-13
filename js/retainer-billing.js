@@ -5,8 +5,8 @@
 // term = launch date → launch date + prepaidMonths months. The backend is
 // the authority; this only shows the operator what it will do.
 // ═══════════════════════════════════════════════════════════
-import { esc, str } from './utils.js?v=20261114041422';
-import { addMonths, cadenceOf, PAYMENT_CADENCES, TERM_UNITS } from './client-terms.js?v=20261114041422';
+import { esc, str, jsArg } from './utils.js?v=20261114043221';
+import { addMonths, cadenceOf, PAYMENT_CADENCES, TERM_UNITS } from './client-terms.js?v=20261114043221';
 
 export { addMonths };
 
@@ -133,12 +133,12 @@ export function renderRetainerBilling(c) {
       <div style="flex:2">
         <label style="${LABEL}">Amount per payment</label>
         <input type="number" step="0.01" placeholder="e.g. 3000" value="${esc(str(c.monthlyRetainer ?? ''))}"
-          oninput="updateClientField('${esc(c.id)}','monthlyRetainer',this.value)"
+          oninput="updateClientField(${jsArg(c.id)},'monthlyRetainer',this.value)"
           style="${FIELD}">
       </div>
       <div style="flex:1">
         <label style="${LABEL}">Currency</label>
-        <select onchange="updateClientField('${esc(c.id)}','retainerCurrency',this.value);debouncedAutoSave()"
+        <select onchange="updateClientField(${jsArg(c.id)},'retainerCurrency',this.value);debouncedAutoSave()"
           style="${FIELD}">
           ${CURRENCIES.map(cc => `<option value="${cc}" ${str(c.retainerCurrency || 'usd') === cc ? 'selected' : ''}>${cc.toUpperCase()}</option>`).join('')}
         </select>
@@ -148,13 +148,13 @@ ${renderTermsFields(c)}
     <div>
       <label style="${LABEL}">Launch Date (billing start) — leave blank for TBD</label>
       <input type="date" value="${esc(str(c.launchDate || ''))}"
-        onchange="updateClientField('${esc(c.id)}','launchDate',this.value);debouncedAutoSave()"
+        onchange="updateClientField(${jsArg(c.id)},'launchDate',this.value);debouncedAutoSave()"
         title="The first day their campaigns sent email. This is the billing anchor — its day-of-month is their billing day, and it's what the monthly update email reports against."
         style="${FIELD}">
     </div>
     <div style="margin-top:6px">
       <label style="${LABEL}">Agreement Type — sets what the monthly update email says about money</label>
-      <select onchange="setAgreementType('${esc(c.id)}',this.value)"
+      <select onchange="setAgreementType(${jsArg(c.id)},this.value)"
         title="Paid up front: the email makes no mention of billing. Multi-month: auto-charged each month, the email says so. Month-to-month: gets 7/3/1-day pre-renewal warnings instead of a billing-date email."
         style="${FIELD}">
         ${AGREEMENT_TYPES.map(([v, label]) => `<option value="${v}" ${agreement === v ? 'selected' : ''}>${esc(label)}</option>`).join('')}
@@ -163,7 +163,7 @@ ${renderTermsFields(c)}
     <div style="margin-top:6px">
       <label style="${LABEL}">Renewal Day — month-to-month only, not derived from the launch date</label>
       <input type="number" min="1" max="31" step="1" placeholder="e.g. 25" value="${esc(renewalDay)}"
-        oninput="setRenewalDay('${esc(c.id)}','${esc(agreement)}',this.value)"
+        oninput="setRenewalDay(${jsArg(c.id)},${jsArg(agreement)},this.value)"
         title="The day of the month a month-to-month client renews. Stored, not calculated: Denair launched on the 23rd but renews on the 29th. Drives the 7/3/1-day pre-renewal notices; a day past the end of a short month is clamped (31 renews Feb 28)."
         style="${FIELD}">
       <div id="renewal-note-${esc(c.id)}" style="font-size:10px;color:${renewalDayIsProblem(agreement, renewalDay) ? '#b45309' : '#16a34a'};margin-top:4px">${esc(renewalDayNote(agreement, renewalDay))}</div>
@@ -171,7 +171,7 @@ ${renderTermsFields(c)}
     <div style="margin-top:6px">
       <label style="${LABEL}">Prepaid Months — blank or 0 = invoiced every month</label>
       <input type="number" min="0" step="1" placeholder="e.g. 3" value="${esc(months)}"
-        oninput="setPrepaidMonths('${esc(c.id)}','${esc(str(c.launchDate || ''))}',this.value)"
+        oninput="setPrepaidMonths(${jsArg(c.id)},${jsArg(str(c.launchDate || ''))},this.value)"
         title="Months the client paid for up front, counted from the launch date. No invoice is created until the term ends; the #client-payments card then appears ~7 days before billing resumes."
         style="${FIELD}">
       <div id="prepaid-note-${esc(c.id)}" style="font-size:10px;color:#16a34a;margin-top:4px">${esc(prepaidNote(c.launchDate, c.prepaidMonths))}</div>

@@ -12,10 +12,10 @@
 // Fallback link: the old Gmail compose window, filled in, for an inbox that is
 // not connected yet.
 
-import { esc, str, applyTemplate, svgIcon } from './utils.js?v=20261114041422';
-import { state } from './app.js?v=20261114041422';
-import { invokeEdgeFunction, sbUpdateDeal, showToast } from './api.js?v=20261114041422';
-import { passoffInFlight, buttonState, onScreenText } from './passoff-core.js?v=20261114041422';
+import { esc, str, applyTemplate, svgIcon, jsArg } from './utils.js?v=20261114043221';
+import { state } from './app.js?v=20261114043221';
+import { invokeEdgeFunction, sbUpdateDeal, showToast } from './api.js?v=20261114043221';
+import { passoffInFlight, buttonState, onScreenText } from './passoff-core.js?v=20261114043221';
 
 const SUBJECT = '{FIRST_NAME} - Appointment Confirmation';
 // Client SDR Templates SOP, Template 2. Used only when Claude has not drafted the lead box yet.
@@ -124,7 +124,7 @@ export function renderColdCallEmailButton(deal, client) {
     <button id="cc-draft-btn" class="btn btn-primary" ${st.disabled ? 'disabled' : ''}
       style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#0891b2;border-color:#0891b2"
       title="Saves the lead confirmation in ${esc(client.coldCallEmail)} → Drafts, to ${esc(deal.email)} with ${esc(client.name)} CC'd. Nothing is sent."
-      onclick="createLeadDraftClick('${esc(deal.id)}',decodeURIComponent(escape(atob('${name}'))))">
+      onclick="createLeadDraftClick(${jsArg(deal.id)},decodeURIComponent(escape(atob('${name}'))))">
       ${label}
     </button>
     <div style="font-size:10px;color:var(--text-muted);margin-top:4px;text-align:center">

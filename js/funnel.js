@@ -19,11 +19,11 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon } from './utils.js?v=20261114041422';
-import { supabase } from './supabase-client.js?v=20261114041422';
-import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel, rangeDays, todayYmdLA, requestExactSends } from './funnel-period.js?v=20261114041422';
-import { leadsTable } from './funnel-leads.js?v=20261114041422';
-import { renderFunnelDaily, clearFunnelDaily } from './funnel-daily.js?v=20261114041422';
+import { esc, svgIcon, jsArg } from './utils.js?v=20261114043221';
+import { supabase } from './supabase-client.js?v=20261114043221';
+import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel, rangeDays, todayYmdLA, requestExactSends } from './funnel-period.js?v=20261114043221';
+import { leadsTable } from './funnel-leads.js?v=20261114043221';
+import { renderFunnelDaily, clearFunnelDaily } from './funnel-daily.js?v=20261114043221';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -118,7 +118,7 @@ export function reloadFunnel(rerender) {
 
 function loadPeriod(key, rerender) {
   if (periodRows(key) || _periodLoading === key) return;
-  if (!rerender) rerender = () => import('./render.js?v=20261114041422').then(m => m.render());
+  if (!rerender) rerender = () => import('./render.js?v=20261114043221').then(m => m.render());
   _periodLoading = key;
   const g = (_gen[ck(key)] = (_gen[ck(key)] || 0) + 1);
   fetchPeriod(periodRange(key), _levels || [], _offer, _channel).then(rows => {
@@ -153,23 +153,23 @@ window.setFunnelPeriod = (key) => {
     };
     setTimeout(whenLoaded, 500);
   }
-  import('./render.js?v=20261114041422').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+  import('./render.js?v=20261114043221').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
 };
 
 window.setFunnelOffer = (offer) => {
   _offer = offer === 'ppm' || offer === 'retainer' ? offer : '';
   try { localStorage.setItem(OFFER_KEY, _offer); } catch (_) { /* private mode */ }
-  import('./render.js?v=20261114041422').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
+  import('./render.js?v=20261114043221').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
 };
 window.setFunnelChannel = (channel) => {
   _channel = CHANNELS.some(c => c.key === channel) ? channel : '';
   try { localStorage.setItem(CHANNEL_KEY, _channel); } catch (_) { /* private mode */ }
-  import('./render.js?v=20261114041422').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
+  import('./render.js?v=20261114043221').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
 };
 
 // ── The calendar: pick any stretch of days (Lars, 2026-09-18) ──
 const _pick = { open: false, month: null, start: null, end: null }; // month 'YYYY-MM'; start/end 'YYYY-MM-DD' while choosing
-const rerenderNow = () => import('./render.js?v=20261114041422').then(m => m.render());
+const rerenderNow = () => import('./render.js?v=20261114043221').then(m => m.render());
 window.funnelPickToggle = () => {
   _pick.open = !_pick.open;
   if (_pick.open) { const r = periodRange(_period); _pick.month = (r ? r.to : todayYmdLA()).slice(0, 7); _pick.start = null; _pick.end = null; }
@@ -394,7 +394,7 @@ function levelCard(l) {
     const hasDetails = (d.breakdown && d.breakdown.length) || d.denominator_caveat || (d.sources && d.sources.length);
     if (hasDetails) {
       const open = _open.has(l.level);
-      h += `<button id="funnel-toggle-${esc(l.level)}" onclick="toggleFunnelDetails('${esc(l.level)}')" style="margin-top:8px;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);font-size:11px;font-weight:600;color:#374151;cursor:pointer">${open ? '▾' : '▸'} Details</button>`;
+      h += `<button id="funnel-toggle-${esc(l.level)}" onclick="toggleFunnelDetails(${jsArg(l.level)})" style="margin-top:8px;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);font-size:11px;font-weight:600;color:#374151;cursor:pointer">${open ? '▾' : '▸'} Details</button>`;
       h += `<div id="funnel-details-${esc(l.level)}" ${open ? '' : 'hidden'}>`;
       if (d.breakdown && d.breakdown.length) h += breakdownTable(d.breakdown);
       if (d.denominator_caveat) {
@@ -417,7 +417,7 @@ function leadsDropdown(key, rows, label) {
   const missing = rows.filter(r => r.needs_info).length;
   const stale = rows.filter(r => !r.needs_info && r.stale).length;
   return `<div style="margin-top:6px">
-    <button id="funnel-leads-toggle-${esc(key)}" onclick="toggleFunnelLeads('${esc(key)}')" style="padding:4px 10px;border:1px solid #c7d2fe;border-radius:6px;background:#eef2ff;font-size:11px;font-weight:600;color:#3730a3;cursor:pointer">${open ? '▾' : '▸'} ${esc(label)} · ${rows.length}${missing ? ` <span style="margin-left:4px;padding:0 6px;border-radius:4px;background:#fde68a;color:#92400e">${missing} no record</span>` : ''}${stale ? ` <span style="margin-left:4px;padding:0 6px;border-radius:4px;background:#fed7aa;color:#9a3412">${stale} stale</span>` : ''}</button>
+    <button id="funnel-leads-toggle-${esc(key)}" onclick="toggleFunnelLeads(${jsArg(key)})" style="padding:4px 10px;border:1px solid #c7d2fe;border-radius:6px;background:#eef2ff;font-size:11px;font-weight:600;color:#3730a3;cursor:pointer">${open ? '▾' : '▸'} ${esc(label)} · ${rows.length}${missing ? ` <span style="margin-left:4px;padding:0 6px;border-radius:4px;background:#fde68a;color:#92400e">${missing} no record</span>` : ''}${stale ? ` <span style="margin-left:4px;padding:0 6px;border-radius:4px;background:#fed7aa;color:#9a3412">${stale} stale</span>` : ''}</button>
     <div id="funnel-leads-${esc(key)}" ${open ? '' : 'hidden'}>${leadsTable(rows, label, key.slice(0, 2))}</div></div>`;
 }
 
@@ -574,5 +574,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20261114041422').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20261114043221').then(m => reloadFunnel(m.render));
 };

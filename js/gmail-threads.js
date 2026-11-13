@@ -13,16 +13,16 @@
 // whole problem: you scrolled past signatures and quoted chains looking for the
 // one line that mattered.
 
-import { state } from './app.js?v=20261114041422';
-import { esc, str, brandIcon } from './utils.js?v=20261114041422';
-import { isAdmin, currentUser } from './auth.js?v=20261114041422';
-import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20261114041422';
+import { state } from './app.js?v=20261114043221';
+import { esc, str, brandIcon, jsArg } from './utils.js?v=20261114043221';
+import { isAdmin, currentUser } from './auth.js?v=20261114043221';
+import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20261114043221';
 // Always refreshModal(TRUE): the no-argument form takes a targeted path that
 // only replaces #activities-container, so this section — which lives
 // elsewhere in the modal — would never repaint after loading.
-import { refreshModal } from './render.js?v=20261114041422';
-import { sbUpdateDeal } from './api.js?v=20261114041422';
-import { trimBody, formatThreadDate, gmailThreadUrl } from './gmail-body.js?v=20261114041422';
+import { refreshModal } from './render.js?v=20261114043221';
+import { sbUpdateDeal } from './api.js?v=20261114043221';
+import { trimBody, formatThreadDate, gmailThreadUrl } from './gmail-body.js?v=20261114043221';
 
 const _cache = {};   // `${dealId}|${mailbox}` -> { threads, participants }
 const _state = {};   // dealId -> { mailbox, loading, error }
@@ -112,7 +112,7 @@ function threadRowHtml(thread, mailbox, dealId, isOpen) {
   const own = !str(mailbox) || str(mailbox).toLowerCase() === str(currentUser?.email).toLowerCase();
   const url = own ? gmailThreadUrl(thread.threadId, mailbox || currentUser?.email) : null;
   return `<div>
-    <div class="gm-row${isOpen ? ' open' : ''}" onclick="gmailToggleThread('${esc(dealId)}','${tid}')">
+    <div class="gm-row${isOpen ? ' open' : ''}" onclick="gmailToggleThread(${jsArg(dealId)},'${tid}')">
       <span class="gm-caret">▶</span>
       <span class="gm-who">${esc(who)}</span>
       <span class="gm-line">${esc(thread.subject)}${snippet ? ` <span class="gm-snip">— ${esc(snippet)}</span>` : ''}</span>
@@ -139,10 +139,10 @@ export function renderGmailSection(deal) {
     inner = `<div style="font-size:12px;color:#94a3b8;padding:8px 0">Loading email history…</div>`;
   } else if (st.error) {
     inner = `<div style="font-size:12px;color:#b91c1c;padding:6px 0">${esc(st.error)}</div>
-      <button class="btn btn-ghost" style="font-size:10px" onclick="gmailLoad('${esc(deal.id)}')">Retry</button>`;
+      <button class="btn btn-ghost" style="font-size:10px" onclick="gmailLoad(${jsArg(deal.id)})">Retry</button>`;
   } else if (!cached) {
     return `<div style="margin-bottom:12px">
-      <button class="sl-thread-btn" onclick="gmailLoad('${esc(deal.id)}')">
+      <button class="sl-thread-btn" onclick="gmailLoad(${jsArg(deal.id)})">
         ${brandIcon('gmail', 15)} View Gmail History
       </button>
     </div>`;
@@ -156,13 +156,13 @@ export function renderGmailSection(deal) {
     if (cached.participants.length && slot) {
       inner += `<div style="margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0">
         <div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">Also on these threads</div>
-        ${cached.participants.map(a => `<button onclick="gmailAddParticipant('${esc(deal.id)}','${esc(a)}')"
+        ${cached.participants.map(a => `<button onclick="gmailAddParticipant(${jsArg(deal.id)},${jsArg(a)})"
           style="font-size:11px;margin:0 4px 4px 0;padding:3px 8px;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;border-radius:12px;cursor:pointer">+ ${esc(a)}</button>`).join('')}
       </div>`;
     }
   }
 
-  const mailboxPicker = isAdmin() ? `<select onchange="gmailLoad('${esc(deal.id)}',this.value)"
+  const mailboxPicker = isAdmin() ? `<select onchange="gmailLoad(${jsArg(deal.id)},this.value)"
       style="font-size:10px;padding:1px 4px;border:1px solid var(--border);border-radius:4px;background:var(--card)">
       ${staffMailboxes().map(m => `<option value="${esc(m)}" ${m === st.mailbox ? 'selected' : ''}>${esc(m.split('@')[0])}</option>`).join('')}
     </select>` : '';

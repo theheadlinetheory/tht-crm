@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════
 // THREADS — SmartLead thread viewer, client thread sender
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261114041422';
-import { refreshModal } from './render.js?v=20261114041422';
-import { apiPost, invokeEdgeFunction } from './api.js?v=20261114041422';
-import { esc, unfilledPlaceholders, confirmNoPlaceholders } from './utils.js?v=20261114041422';
+import { state } from './app.js?v=20261114043221';
+import { refreshModal } from './render.js?v=20261114043221';
+import { apiPost, invokeEdgeFunction } from './api.js?v=20261114043221';
+import { esc, unfilledPlaceholders, confirmNoPlaceholders, jsArg } from './utils.js?v=20261114043221';
 
 // ─── SmartLead Thread Viewer ───
 let slThreadCache = {};
@@ -82,8 +82,8 @@ export function getThreadCache() { return slThreadCache; }
 export async function openSendToClientPreview(dealId, clientName){
   const deal=state.deals.find(d=>d.id===dealId);
   if(!deal) return;
-  const { getClientThreadId, lookupClientInfo } = await import('./client-info.js?v=20261114041422');
-  const { buildLeadMessage } = await import('./email.js?v=20261114041422');
+  const { getClientThreadId, lookupClientInfo } = await import('./client-info.js?v=20261114043221');
+  const { buildLeadMessage } = await import('./email.js?v=20261114043221');
   const threadId=getClientThreadId(clientName)||'';
   const info=lookupClientInfo(clientName)||{};
   const message=buildLeadMessage(deal, clientName);
@@ -122,7 +122,7 @@ export async function openSendToClientPreview(dealId, clientName){
       <textarea id="send-preview-body" rows="14" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;font-family:var(--font);line-height:1.6;resize:vertical;color:#1f2937">${esc(message)}</textarea>
     </div>
     <div style="padding:12px 20px 20px;display:flex;gap:8px">
-      <button id="send-to-thread-btn" onclick="doSendToClientThread('${esc(dealId)}',atob('${btoa(unescape(encodeURIComponent(clientName)))}'),'${esc(threadId)}')" style="flex:1;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--font)">Send to ${esc(clientName)}</button>
+      <button id="send-to-thread-btn" onclick="doSendToClientThread(${jsArg(dealId)},atob('${btoa(unescape(encodeURIComponent(clientName)))}'),${jsArg(threadId)})" style="flex:1;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--font)">Send to ${esc(clientName)}</button>
       <button onclick="document.getElementById('send-preview-overlay').remove()" style="padding:12px 20px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font)">Cancel</button>
     </div>
   </div>`;
@@ -142,7 +142,7 @@ export async function doSendToClientThread(dealId, clientName, threadId){
   try {
     // send-email refuses a second send of the same deal (409 already_sent) unless resend:true, so a
     // double click or a second SDR can't email the client twice; sendOnce asks first (Tim, 2026-11-12).
-    const { sendOnce } = await import('./passoff-core.js?v=20261114041422');
+    const { sendOnce } = await import('./passoff-core.js?v=20261114043221');
     const sentBefore=(state.deals.find(d=>String(d.id)===String(dealId))||{}).passoffSentAt;
     const result=await sendOnce(b=>invokeEdgeFunction('send-email',b),{
       action: 'send_to_client_thread',

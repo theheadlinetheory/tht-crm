@@ -3,14 +3,14 @@
 // Admin-only. One live invoice per deal. Body-level overlay so render()
 // cannot destroy it. Nothing is emailed except via diDoSend().
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261114041422';
-import { str, esc, escAttr } from './utils.js?v=20261114041422';
-import { showToast } from './api.js?v=20261114041422';
-import { isAdmin } from './auth.js?v=20261114041422';
-import { render } from './render.js?v=20261114041422';
-import { newDraft, addLineItem, removeLineItem, addCustomField, centsFromInput, normalizePriceText, formatCents, toPayload } from './deal-invoice-state.js?v=20261114041422';
-import { renderComposeStep, renderReviewStep, renderDraftStep, renderSentStep, renderConfirmSend } from './deal-invoice-form.js?v=20261114041422';
-import * as api from './deal-invoice-api.js?v=20261114041422';
+import { state } from './app.js?v=20261114043221';
+import { str, esc, escAttr, jsArg } from './utils.js?v=20261114043221';
+import { showToast } from './api.js?v=20261114043221';
+import { isAdmin } from './auth.js?v=20261114043221';
+import { render } from './render.js?v=20261114043221';
+import { newDraft, addLineItem, removeLineItem, addCustomField, centsFromInput, normalizePriceText, formatCents, toPayload } from './deal-invoice-state.js?v=20261114043221';
+import { renderComposeStep, renderReviewStep, renderDraftStep, renderSentStep, renderConfirmSend } from './deal-invoice-form.js?v=20261114043221';
+import * as api from './deal-invoice-api.js?v=20261114043221';
 
 const INVOICE_STAGES = ['Under Review', 'Waiting for Payment/Contract'];
 const LIVE = ['draft', 'open', 'paid'];
@@ -68,7 +68,7 @@ export function renderDealInvoiceButton(d) {
   const status = str(d.invoiceStatus);
   if (!str(d.invoiceId) || !LIVE.includes(status)) {
     return `<div class="form-group form-span2" style="margin-bottom:16px">
-      <button onclick="openDealInvoiceModal('${escAttr(d.id)}')" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:#4f46e5;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Send Invoice</button>
+      <button onclick="openDealInvoiceModal(${jsArg(d.id)})" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:#4f46e5;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Send Invoice</button>
     </div>`;
   }
 

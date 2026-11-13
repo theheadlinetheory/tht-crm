@@ -12,7 +12,7 @@ globalThis.document = { createElement: () => { let t = ''; return {
   set textContent(v) { t = String(v); },
   get innerHTML() { return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); } }; } };
 globalThis.window = globalThis;
-const { safeUrl, escAttr, jsArg } = await import('../js/utils.js');
+const { safeUrl, esc, escAttr, jsArg } = await import('../js/utils.js');
 
 let passed = 0;
 const test = (name, fn) => {
@@ -46,7 +46,12 @@ test('empty / null / undefined give empty string', () => {
   assert.equal(safeUrl(''), ''); assert.equal(safeUrl(null), ''); assert.equal(safeUrl(undefined), '');
 });
 
-// ── 2. escAttr / jsArg ──
+// ── 2. esc / escAttr / jsArg ──
+test('esc: quotes are encoded too, so esc() inside "…" attributes is safe (review 2026-11-14)', () => {
+  assert.equal(esc(`a"b'c<d>&`), 'a&quot;b&#39;c&lt;d&gt;&amp;');
+  const html = `<input value="${esc('x" onfocus="alert(1)')}">`;
+  assert.equal(html.replace(/"[^"]*"/g, '""').includes('onfocus'), false);
+});
 const attrValue = (html, attr) => {
   // A browser-equivalent parse of a single double-quoted attribute: the value ends at the first ".
   const m = new RegExp(attr + '="([^"]*)"').exec(html);

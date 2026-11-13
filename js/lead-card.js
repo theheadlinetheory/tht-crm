@@ -12,12 +12,12 @@
 // to a deal by email + company. The placeholder itself must stay — the Google
 // Sheet sync (sync-lead-tracker) finds a row's sheet line by that id.
 
-import { state } from './app.js?v=20261114041422';
-import { supabase } from './api.js?v=20261114041422';
-import { escAttr, str } from './utils.js?v=20261114041422';
-import { render } from './render.js?v=20261114041422';
-import { openDeal } from './deal-modal.js?v=20261114041422';
-import { openArchivedDeal } from './archive.js?v=20261114041422';
+import { state } from './app.js?v=20261114043221';
+import { supabase } from './api.js?v=20261114043221';
+import { escAttr, str, jsArg } from './utils.js?v=20261114043221';
+import { render } from './render.js?v=20261114043221';
+import { openDeal } from './deal-modal.js?v=20261114043221';
+import { openArchivedDeal } from './archive.js?v=20261114043221';
 
 const isRealDealId = (id) => !!id && !/^migrated-/i.test(id);
 
@@ -76,7 +76,7 @@ export function matchLeadCards(rows) {
 /** Small "open the card" icon for a cell whose text is itself click-to-edit. */
 export function leadCardIcon(dealId) {
   if (!dealId) return '';
-  return `<a href="#" onclick="event.preventDefault();event.stopPropagation();openLeadCard('${escAttr(dealId)}')" title="Open the deal card" style="display:inline-flex;vertical-align:-2px;margin-right:5px;color:#4f46e5"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg></a>`;
+  return `<a href="#" onclick="event.preventDefault();event.stopPropagation();openLeadCard(${jsArg(dealId)})" title="Open the deal card" style="display:inline-flex;vertical-align:-2px;margin-right:5px;color:#4f46e5"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg></a>`;
 }
 
 // On the board → the live card; passed off / archived → the read-only card (archive.js).

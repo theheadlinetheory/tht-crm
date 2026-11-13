@@ -19,12 +19,12 @@
 // and level 02 of the sales pipeline counts it as removed by us) and the same
 // "Miscategorized" archive status. Only before any call: a lead that had a
 // discovery call or a demo is told to use Archive, which asks how that ended.
-import { state } from './app.js?v=20261114041422';
-import { esc } from './utils.js?v=20261114041422';
-import { sbCreateInteraction, showToast } from './api.js?v=20261114041422';
-import { isAdmin, isEmployee } from './auth.js?v=20261114041422';
-import { deleteDeal } from './deals.js?v=20261114041422';
-import { REMOVAL_PREFIX, writeRemovalNote, leadStage } from './removal-reason.js?v=20261114041422';
+import { state } from './app.js?v=20261114043221';
+import { esc, jsArg } from './utils.js?v=20261114043221';
+import { sbCreateInteraction, showToast } from './api.js?v=20261114043221';
+import { isAdmin, isEmployee } from './auth.js?v=20261114043221';
+import { deleteDeal } from './deals.js?v=20261114043221';
+import { REMOVAL_PREFIX, writeRemovalNote, leadStage } from './removal-reason.js?v=20261114043221';
 
 const REASONS = [
   { label: 'Not actually interested',        hint: 'the AI tagged a no / an auto-reply / a question as positive' },
@@ -45,7 +45,7 @@ export function isAcqLead(deal) {
 export function renderNotALeadButton(deal) {
   if (!(isClientLead(deal) || isAcqLead(deal)) || !(isAdmin() || isEmployee())) return '';
   return `<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e9d5ff">
-    <button onclick="event.stopPropagation();openNotALead('${esc(deal.id)}')" title="Take this lead off the board and stop Smartlead counting it as a positive reply"
+    <button onclick="event.stopPropagation();openNotALead(${jsArg(deal.id)})" title="Take this lead off the board and stop Smartlead counting it as a positive reply"
       style="padding:7px 14px;background:#fff;color:#b91c1c;border:1px solid #fca5a5;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font)">
       Not a real lead: remove + recategorize in Smartlead
     </button>
@@ -63,7 +63,7 @@ function acqModalHtml(deal) {
       </div>
       <input id="not-a-lead-detail" type="text" placeholder="Detail (optional), e.g. auto-reply, said no" style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
       <button id="not-a-lead-go" class="btn btn-primary" style="width:100%;margin-top:12px;justify-content:center;background:#dc2626;border-color:#dc2626"
-        onclick="confirmNotALead('${esc(deal.id)}')">Remove from CRM + recategorize in Smartlead</button>
+        onclick="confirmNotALead(${jsArg(deal.id)})">Remove from CRM + recategorize in Smartlead</button>
     </div>
   </div>`;
 }
@@ -88,7 +88,7 @@ function modalHtml(deal) {
       </div>
       <input id="not-a-lead-detail" type="text" placeholder="Detail (optional)" style="width:100%;box-sizing:border-box;margin-top:10px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
       <button id="not-a-lead-go" class="btn btn-primary" style="width:100%;margin-top:12px;justify-content:center;background:#dc2626;border-color:#dc2626"
-        onclick="confirmNotALead('${esc(deal.id)}')">Remove from CRM + recategorize in Smartlead</button>
+        onclick="confirmNotALead(${jsArg(deal.id)})">Remove from CRM + recategorize in Smartlead</button>
     </div>
   </div>`;
 }

@@ -8,9 +8,9 @@
 // lets an admin Skip it or Send it now. Per-client on/off lives in Settings ›
 // Clients ("Check-in confirmation email"). Rows: table checkin_confirmations.
 
-import { supabase } from './supabase-client.js?v=20261114041422';
-import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20261114041422';
-import { esc, str } from './utils.js?v=20261114041422';
+import { supabase } from './supabase-client.js?v=20261114043221';
+import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20261114043221';
+import { esc, str, jsArg } from './utils.js?v=20261114043221';
 
 const _s = { loading: false, rows: null, error: '', busy: '', note: {} };
 
@@ -78,7 +78,7 @@ export function confirmPanel(call) {
   const r = rowFor(call);
   const status = r?.status || '';
   const [label] = STATUS[status] || ['Not queued yet — goes on the 8am card the business day before'];
-  const btn = (fn, text) => `<button class="btn btn-ghost" style="font-size:11px;padding:3px 8px" ${_s.busy ? 'disabled' : ''} onclick="${fn}('${esc(eventId)}')">${text}</button>`;
+  const btn = (fn, text) => `<button class="btn btn-ghost" style="font-size:11px;padding:3px 8px" ${_s.busy ? 'disabled' : ''} onclick="${fn}(${jsArg(eventId)})">${text}</button>`;
   const detail = r?.reply_text ? ` · “${esc(str(r.reply_text).slice(0, 140))}”` : r?.rebooked_label ? ` · to ${esc(r.rebooked_label)}` : r?.status === 'failed' && r?.result ? ` · ${esc(r.result)}` : '';
   const note = _s.note[eventId] ? `<div style="font-size:11px;color:#64748b;margin-top:4px">${esc(_s.note[eventId])}</div>` : '';
   return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:12px">

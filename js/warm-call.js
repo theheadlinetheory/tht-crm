@@ -5,12 +5,12 @@
 // Full warm call overlay with maps, Calendly inline, property view,
 // schedule prompt, and warm call Q&A.
 
-import { state, pendingWrites } from './app.js?v=20261114041422';
-import { render, refreshModal } from './render.js?v=20261114041422';
-import { invokeEdgeFunction } from './api.js?v=20261114041422';
-import { esc, escAttr, safeUrl, jsArg, str, svgIcon, getToday, isValidDate, fmtDate, fmtTime12, uid } from './utils.js?v=20261114041422';
-import { findClientForDeal, lookupClientInfo, getWarmCallQA } from './client-info.js?v=20261114041422';
-import { isAdmin, isEmployee } from './auth.js?v=20261114041422';
+import { state, pendingWrites } from './app.js?v=20261114043221';
+import { render, refreshModal } from './render.js?v=20261114043221';
+import { invokeEdgeFunction } from './api.js?v=20261114043221';
+import { esc, escAttr, safeUrl, jsArg, str, svgIcon, getToday, isValidDate, fmtDate, fmtTime12, uid } from './utils.js?v=20261114043221';
+import { findClientForDeal, lookupClientInfo, getWarmCallQA } from './client-info.js?v=20261114043221';
+import { isAdmin, isEmployee } from './auth.js?v=20261114043221';
 
 export function openWarmCallSheet(dealId){
   try{
@@ -210,20 +210,20 @@ export function openWarmCallSheet(dealId){
                   <div>
                     <label style="font-size:10px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.3px">Guest Name</label>
                     <input type="text" id="wc-cal-prefill-name" value="${escAttr(wcNameVal)}"
-                      oninput="savePrefillField('${esc(deal.id)}','calName',this.value);refreshWcCalendlyInline()"
+                      oninput="savePrefillField(${jsArg(deal.id)},'calName',this.value);refreshWcCalendlyInline()"
                       style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px">
                   </div>
                   <div>
                     <label style="font-size:10px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.3px">Guest Email</label>
                     <input type="text" id="wc-cal-prefill-email" value="${escAttr(wcEmailVal)}"
-                      oninput="savePrefillField('${esc(deal.id)}','calEmail',this.value);refreshWcCalendlyInline()"
+                      oninput="savePrefillField(${jsArg(deal.id)},'calEmail',this.value);refreshWcCalendlyInline()"
                       style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px">
                   </div>
                 </div>
                 <div>
                   <label style="font-size:10px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.3px">Additional Info</label>
                   <textarea id="wc-cal-prefill-notes" rows="2"
-                    oninput="savePrefillField('${esc(deal.id)}','calNotes',this.value);refreshWcCalendlyInline()"
+                    oninput="savePrefillField(${jsArg(deal.id)},'calNotes',this.value);refreshWcCalendlyInline()"
                     style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:11px;font-family:var(--font);margin-top:2px;resize:vertical">${esc(wcNotesVal)}</textarea>
                 </div>
               </div>
@@ -373,11 +373,11 @@ export function openWarmCallSheet(dealId){
           if(_svContainer){_svContainer.dataset.lat=String(lat);_svContainer.dataset.lng=String(lng);}
           const propIcon=L.divIcon({
             className:'',
-            html:'<div style="background:#ef4444;color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4);white-space:nowrap">'+(deal.company||'Property')+'</div>',
+            html:'<div style="background:#ef4444;color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4);white-space:nowrap">'+esc(deal.company||'Property')+'</div>',
             iconAnchor:[40,20]
           });
           L.marker([lat,lng],{icon:propIcon}).addTo(propMap)
-            .bindPopup('<div style="font-size:13px;font-weight:700;color:#1e293b">'+(deal.company||deal.contact||'Property')+'</div><div style="font-size:12px;color:#475569;margin-top:4px">'+propAddr+'</div>',{maxWidth:280});
+            .bindPopup('<div style="font-size:13px;font-weight:700;color:#1e293b">'+esc(deal.company||deal.contact||'Property')+'</div><div style="font-size:12px;color:#475569;margin-top:4px">'+esc(propAddr)+'</div>',{maxWidth:280});
         }
       }).catch(()=>{});
   }
@@ -404,7 +404,7 @@ let _wcCalRefreshTimer=null;
 export function initWcCalendlyInline(baseUrl, clientName, dealId){
   const container=document.getElementById('wc-calendly-inline');
   if(!container||typeof Calendly==='undefined') return;
-  import('./calendly.js?v=20261114041422').then(mod=>mod.setCalendlyBookingDealId(dealId, container));
+  import('./calendly.js?v=20261114043221').then(mod=>mod.setCalendlyBookingDealId(dealId, container));
   const nameEl=document.getElementById('wc-cal-prefill-name');
   const emailEl=document.getElementById('wc-cal-prefill-email');
   const notesEl=document.getElementById('wc-cal-prefill-notes');
@@ -451,7 +451,7 @@ export async function pushToLeadTracker(dealId){
     // Same routing as the Won drop: PPM → Lead Tracker, retainer → Pass Off
     const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
     const clientName=client?client.name:deal.stage;
-    const { deliverBookedLead } = await import('./booked-lead-routing.js?v=20261114041422');
+    const { deliverBookedLead } = await import('./booked-lead-routing.js?v=20261114043221');
     await deliverBookedLead(deal, clientName);
     // A retainer lead only opened the Pass Off preview — the card is still here if it's cancelled
     if(btn&&btn.isConnected){btn.disabled=false;btn.innerHTML='Push to Lead Tracker';}
@@ -483,7 +483,7 @@ export function deriveTimezone(location){
 export async function pushToClientInfo(dealId){
   const deal=state.deals.find(d=>d.id===dealId);
   if(!deal) return;
-  const { CLIENT_INFO_SHEET_ID } = await import('./config.js?v=20261114041422');
+  const { CLIENT_INFO_SHEET_ID } = await import('./config.js?v=20261114043221');
   const tz=deriveTimezone(deal.location||deal.address||'');
 
   // Map deal fields to Client Tracker columns
@@ -604,7 +604,7 @@ function showSchedulePrompt(dealId, onDone){
 export async function doCopyLeadInfo(dealId){
   const deal=state.deals.find(d=>d.id===dealId);
   if(!deal) return;
-  const { buildLeadMessage } = await import('./email.js?v=20261114041422');
+  const { buildLeadMessage } = await import('./email.js?v=20261114043221');
   const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
   const msg=buildLeadMessage(deal, client?client.name:'');
   if(msg){
@@ -666,7 +666,7 @@ function initStreetView() {
     return;
   }
 
-  import('./config.js?v=20261114041422').then(({ GOOGLE_MAPS_API_KEY }) => {
+  import('./config.js?v=20261114043221').then(({ GOOGLE_MAPS_API_KEY }) => {
     if (!GOOGLE_MAPS_API_KEY) {
       container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:13px">Google Maps API key not configured</div>';
       return;

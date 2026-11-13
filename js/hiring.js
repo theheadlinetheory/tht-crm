@@ -14,15 +14,15 @@
 // red count on the Hiring tab (hiring-unread.js). The detail modal, timeline
 // and follow-ups live in hiring-modal.js / hiring-activity.js.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261114041422';
-import { render } from './render.js?v=20261114041422';
-import { supabase } from './supabase-client.js?v=20261114041422';
-import { showToast } from './api.js?v=20261114041422';
-import { candidateChannel, channelPill, channelSelectHtml } from './hiring-channel.js?v=20261114041422';
-import { esc, escAttr, safeUrl, str, svgIcon } from './utils.js?v=20261114041422';
-import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261114041422';
-import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261114041422';
-import { onHiringChange } from './hiring-unread.js?v=20261114041422';
+import { state } from './app.js?v=20261114043221';
+import { render } from './render.js?v=20261114043221';
+import { supabase } from './supabase-client.js?v=20261114043221';
+import { showToast } from './api.js?v=20261114043221';
+import { candidateChannel, channelPill, channelSelectHtml } from './hiring-channel.js?v=20261114043221';
+import { esc, escAttr, safeUrl, str, svgIcon, jsArg } from './utils.js?v=20261114043221';
+import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261114043221';
+import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261114043221';
+import { onHiringChange } from './hiring-unread.js?v=20261114043221';
 
 // Applicants want a job with us; partners are companies that hire (recruiting
 // partners who could send us candidates). Each gets its own board.
@@ -155,13 +155,13 @@ function cardHtml(c) {
   ].join('');
   const isNew = c.has_new_activity;
   return `<div class="deal-card${isNew ? ' has-reply' : ''}" draggable="true"
-      ondragstart="event.dataTransfer.effectAllowed='move';hiringDragStart('${esc(c.id)}')"
+      ondragstart="event.dataTransfer.effectAllowed='move';hiringDragStart(${jsArg(c.id)})"
       ondragend="clearAllDragOver()"
       ondragover="event.preventDefault();doDragOver(this.closest('.column'))"
-      onclick="hiringOpen('${esc(c.id)}')">
+      onclick="hiringOpen(${jsArg(c.id)})">
     <div class="deal-card-top">
       <div class="deal-company">${channelPill(c)}${isNew ? `<span class="reply-indicator" title="${c.kind === 'applicant' ? 'New applicant' : 'New reply'}">${svgIcon('mail', 12, '#3b82f6')}</span>` : ''}${esc(c.name || c.email || 'Unknown')}</div>
-      <span onclick="event.stopPropagation();hiringToggleStar('${esc(c.id)}')" title="Strong candidate" style="cursor:pointer;font-size:14px;color:${c.starred ? '#f59e0b' : '#d1d5db'}">★</span>
+      <span onclick="event.stopPropagation();hiringToggleStar(${jsArg(c.id)})" title="Strong candidate" style="cursor:pointer;font-size:14px;color:${c.starred ? '#f59e0b' : '#d1d5db'}">★</span>
     </div>
     ${orgLine(c) ? `<div class="deal-detail">${esc(orgLine(c))}</div>` : ''}
     ${previewHtml(c)}

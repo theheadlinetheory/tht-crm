@@ -1,8 +1,8 @@
 // js/number-health.js — Dialer number health tracking and smart number selection
 
-import { supabase } from './api.js?v=20261114041422';
-import { sbCall } from './api.js?v=20261114041422';
-import { esc, svgIcon } from './utils.js?v=20261114041422';
+import { supabase } from './api.js?v=20261114043221';
+import { sbCall } from './api.js?v=20261114043221';
+import { esc, svgIcon, jsArg } from './utils.js?v=20261114043221';
 
 /* ── Constants ─────────────────────────────────────────────── */
 const ANSWER_THRESHOLD = 0.30;
@@ -240,7 +240,7 @@ export function renderNumberHealthSettings() {
       : `<span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:9999px;font-size:12px;font-weight:600;">Active</span>`;
 
     const reEnableLink = n.disabled
-      ? ` <a href="#" onclick="reEnableNumber('${esc(n.number)}');return false;" style="color:#3b82f6;font-size:12px;text-decoration:underline;margin-left:6px;">Re-enable</a>`
+      ? ` <a href="#" onclick="reEnableNumber(${jsArg(n.number)});return false;" style="color:#3b82f6;font-size:12px;text-decoration:underline;margin-left:6px;">Re-enable</a>`
       : '';
 
     return `<tr>
@@ -282,6 +282,6 @@ export function renderNumberHealthSettings() {
 window.__numberHealthModule = { renderNumberHealthSettings };
 window.reEnableNumber = async function(number) {
   await toggleNumberDisabled(number);
-  const { render } = await import('./render.js?v=20261114041422');
+  const { render } = await import('./render.js?v=20261114043221');
   render();
 };

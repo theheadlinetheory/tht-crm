@@ -11,18 +11,18 @@
 // /sequence-analytics endpoint the Weekly Updates tab uses, so the two tabs
 // can never report different numbers for the same week.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261114041422';
-import { render } from './render.js?v=20261114041422';
-import { esc, escAttr, str } from './utils.js?v=20261114041422';
-import { isAdmin } from './auth.js?v=20261114041422';
-import { showToast } from './api.js?v=20261114041422';
+import { state } from './app.js?v=20261114043221';
+import { render } from './render.js?v=20261114043221';
+import { esc, escAttr, str, jsArg } from './utils.js?v=20261114043221';
+import { isAdmin } from './auth.js?v=20261114043221';
+import { showToast } from './api.js?v=20261114043221';
 import {
   currentWeekKey, weekLabel, shiftWeeks, ymd, weekStartOf,
   getWeeklyKpiStatus, getPpmClients, getRetainerClients,
   PPM_WEEKLY_TARGET, RETAINER_WEEKLY_TARGET,
   PPM_TRAILING_WEEKS, PPM_STALE_DAYS,
   trailingWeeklyDelivery, weekLabelShort,
-} from './dashboard.js?v=20261114041422';
+} from './dashboard.js?v=20261114043221';
 
 // Lives on the fulfillment-dashboard Supabase project (verify_jwt=false),
 // same as the Weekly Updates stats proxy.
@@ -818,7 +818,7 @@ export function renderAnalysis() {
       <td style="${TD};text-align:right">${r.bounces}</td>
       <td style="${TD};text-align:right;font-weight:700;color:${r.sent === 0 ? 'var(--text-muted)' : bounceRate >= 5 ? '#b91c1c' : bounceRate >= 3 ? '#b45309' : '#166534'}">${fmtPct(r.bounces, r.sent)}</td>
       <td style="${TD};white-space:normal;max-width:280px">${categoryChips(r.categories)}</td>
-      <td style="${TD}"><button class="tracker-action-btn" onclick="analysisShowCopy('${esc(str(r.campaignId))}','${esc(r.campaignName).replace(/'/g, "\\'")}')">View copy</button></td>
+      <td style="${TD}"><button class="tracker-action-btn" onclick="analysisShowCopy(${jsArg(str(r.campaignId))},${jsArg(r.campaignName)})">View copy</button></td>
     </tr>`;
   }
 

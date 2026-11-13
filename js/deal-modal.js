@@ -6,42 +6,42 @@
 // populated during the final migration. This module provides
 // the key functions other modules depend on.
 
-import { state, pendingWrites, pendingDealFields } from './app.js?v=20261114041422';
-import { flushRealtimeQueue, showToast } from './api.js?v=20261114041422';
-import { ACQUISITION_STAGES, NURTURE_STAGES, DEAL_VERTICALS, SOP_DAYS, REACTIVATION_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY, detectCountry, ACQ_STRATEGY_BOOKERS, ACQ_DEMO_BOOKERS } from './config.js?v=20261114041422';
-import { render, refreshModal } from './render.js?v=20261114041422';
-import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake, normalizeRow } from './api.js?v=20261114041422';
-import { supabase } from './supabase-client.js?v=20261114041422';
-import { casSave, liveUpdate, watchDeal } from './deal-cas.js?v=20261114041422';
-import { esc, escAttr, safeUrl, jsArg, str, getToday, TODAY, uid, svgIcon, brandIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20261114041422';
-import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20261114041422';
-import { renderBookingSmsButton } from './booking-sms.js?v=20261114041422';
-import { renderColdCallEmailButton } from './cold-call-email.js?v=20261114041422';
-import { coldCallHistoryHtml } from './cold-calling-tab.js?v=20261114041422';
-import { JUSTCALL_DISPOSITIONS, applyDisposition, isCallTouchpoint } from './call-touchpoints.js?v=20261114041422';
-import { HELD, NO_SHOW, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, markDisco, markDemo, outcomeSelect, demoOutcomeSelect } from './disco-outcome.js?v=20261114041422';
-import { renderDealInvoiceButton } from './deal-invoice.js?v=20261114041422';
-import { isAdmin, isEmployee, isSdr, loadAssignableUsers } from './auth.js?v=20261114041422';
-import { createDeal, moveDeal, deleteDeal as deleteDealFn, purgeDeal } from './deals.js?v=20261114041422';
-import { showAcquisitionRemovalPicker } from './removal-reason.js?v=20261114041422';
-import { renderNotALeadButton } from './not-a-lead.js?v=20261114041422';
-import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, reschedulePreCallSequence, assignNoShowSequence } from './activities.js?v=20261114041422';
-import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js?v=20261114041422';
-import { getStagesForPipeline } from './dashboard.js?v=20261114041422';
-import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal, serviceAreaBannerHtml } from './maps.js?v=20261114041422';
-import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js?v=20261114041422';
-import { renderGmailSection } from './gmail-threads.js?v=20261114041422';
-import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js?v=20261114041422';
-import * as passoffMod from './passoff.js?v=20261114041422';
-import { createDealSaveQueue } from './deal-save-queue.js?v=20261114041422';
-import './blooio.js?v=20261114041422';
-import './google-task.js?v=20261114041422';
-import './demo-tracker.js?v=20261114041422';
-import { renderClientPropertiesButton } from './client-properties.js?v=20261114041422';
-import { renderCallSheetLink } from './call-sheet.js?v=20261114041422';
-import { isAimfoxDeal, renderAimfoxSource } from './aimfox.js?v=20261114041422';
-import { isGhlSmsDeal, renderGhlSmsSource, renderGhlConversationLink } from './ghl-sms.js?v=20261114041422';
-import { authedFetch } from './edge-auth.js?v=20261114041422'; // session token, not the anon key (A2#2, S1, 2026-11-13)
+import { state, pendingWrites, pendingDealFields } from './app.js?v=20261114043221';
+import { flushRealtimeQueue, showToast } from './api.js?v=20261114043221';
+import { ACQUISITION_STAGES, NURTURE_STAGES, DEAL_VERTICALS, SOP_DAYS, REACTIVATION_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, SUPABASE_URL, SUPABASE_ANON_KEY, detectCountry, ACQ_STRATEGY_BOOKERS, ACQ_DEMO_BOOKERS } from './config.js?v=20261114043221';
+import { render, refreshModal } from './render.js?v=20261114043221';
+import { apiGet, invokeEdgeFunction, sbUpdateDeal, sbGetDealHeavyFields, camelToSnake, normalizeRow } from './api.js?v=20261114043221';
+import { supabase } from './supabase-client.js?v=20261114043221';
+import { casSave, liveUpdate, watchDeal } from './deal-cas.js?v=20261114043221';
+import { esc, escAttr, safeUrl, jsArg, str, getToday, TODAY, uid, svgIcon, brandIcon, fmtDate, fmtTime12, fmtTimestamp, stripHtml, applyTemplate } from './utils.js?v=20261114043221';
+import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20261114043221';
+import { renderBookingSmsButton } from './booking-sms.js?v=20261114043221';
+import { renderColdCallEmailButton } from './cold-call-email.js?v=20261114043221';
+import { coldCallHistoryHtml } from './cold-calling-tab.js?v=20261114043221';
+import { JUSTCALL_DISPOSITIONS, applyDisposition, isCallTouchpoint } from './call-touchpoints.js?v=20261114043221';
+import { HELD, NO_SHOW, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, markDisco, markDemo, outcomeSelect, demoOutcomeSelect } from './disco-outcome.js?v=20261114043221';
+import { renderDealInvoiceButton } from './deal-invoice.js?v=20261114043221';
+import { isAdmin, isEmployee, isSdr, loadAssignableUsers } from './auth.js?v=20261114043221';
+import { createDeal, moveDeal, deleteDeal as deleteDealFn, purgeDeal } from './deals.js?v=20261114043221';
+import { showAcquisitionRemovalPicker } from './removal-reason.js?v=20261114043221';
+import { renderNotALeadButton } from './not-a-lead.js?v=20261114043221';
+import { addActivity, assignSequence, getSopDays, renderUpcomingMeetings, generateAppointmentSequence, reschedulePreCallSequence, assignNoShowSequence } from './activities.js?v=20261114043221';
+import { addClient, findClientForDeal, lookupClientInfo, isRetainerClient, getWarmCallQA } from './client-info.js?v=20261114043221';
+import { getStagesForPipeline } from './dashboard.js?v=20261114043221';
+import { renderServiceAreaMap, findPolygonForClient, serviceAreaResults, geocodeCache, geocodeAndCheckDeal, serviceAreaBannerHtml } from './maps.js?v=20261114043221';
+import { loadSmartleadThread, renderSmartleadThread, renderThreadMessage, toggleFullThread, getThreadCache, openSendToClientPreview, doSendToClientThread } from './threads.js?v=20261114043221';
+import { renderGmailSection } from './gmail-threads.js?v=20261114043221';
+import { renderPassoffSection, startTranscriptPolling, stopTranscriptPolling } from './passoff.js?v=20261114043221';
+import * as passoffMod from './passoff.js?v=20261114043221';
+import { createDealSaveQueue } from './deal-save-queue.js?v=20261114043221';
+import './blooio.js?v=20261114043221';
+import './google-task.js?v=20261114043221';
+import './demo-tracker.js?v=20261114043221';
+import { renderClientPropertiesButton } from './client-properties.js?v=20261114043221';
+import { renderCallSheetLink } from './call-sheet.js?v=20261114043221';
+import { isAimfoxDeal, renderAimfoxSource } from './aimfox.js?v=20261114043221';
+import { isGhlSmsDeal, renderGhlSmsSource, renderGhlConversationLink } from './ghl-sms.js?v=20261114043221';
+import { authedFetch } from './edge-auth.js?v=20261114043221'; // session token, not the anon key (A2#2, S1, 2026-11-13)
 
 function actTypeClass(type){
   const t=(type||'').toLowerCase();
@@ -71,8 +71,8 @@ function renderSuggestedUpdates(deal) {
       <span style="min-width:70px;font-weight:600;font-size:11px;color:#374151">${label}</span>
       <span style="font-size:11px;color:#6b7280">${current} → <strong style="color:#059669">"${esc(s.suggested)}"</strong></span>
       <div style="margin-left:auto;display:flex;gap:4px">
-        <button onclick="acceptSuggestion('${esc(deal.id)}',${i})" style="font-size:10px;padding:2px 8px;background:#059669;color:#fff;border:none;border-radius:4px;cursor:pointer">Accept</button>
-        <button onclick="skipSuggestion('${esc(deal.id)}',${i})" style="font-size:10px;padding:2px 8px;background:#e5e7eb;color:#374151;border:none;border-radius:4px;cursor:pointer">Skip</button>
+        <button onclick="acceptSuggestion(${jsArg(deal.id)},${i})" style="font-size:10px;padding:2px 8px;background:#059669;color:#fff;border:none;border-radius:4px;cursor:pointer">Accept</button>
+        <button onclick="skipSuggestion(${jsArg(deal.id)},${i})" style="font-size:10px;padding:2px 8px;background:#e5e7eb;color:#374151;border:none;border-radius:4px;cursor:pointer">Skip</button>
       </div>
     </div>`;
   }).join('');
@@ -82,8 +82,8 @@ function renderSuggestedUpdates(deal) {
       <span style="font-size:12px;font-weight:700;color:#065f46">Suggested Updates</span>
       <span style="font-size:10px;color:#6b7280;margin-left:4px">from email signature</span>
       <div style="margin-left:auto;display:flex;gap:6px">
-        <button onclick="acceptAllSuggestions('${esc(deal.id)}')" style="font-size:10px;padding:2px 10px;background:#059669;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600">Accept All</button>
-        <button onclick="dismissSuggestions('${esc(deal.id)}')" style="font-size:10px;padding:2px 10px;background:transparent;color:#6b7280;border:1px solid #d1d5db;border-radius:4px;cursor:pointer">Dismiss</button>
+        <button onclick="acceptAllSuggestions(${jsArg(deal.id)})" style="font-size:10px;padding:2px 10px;background:#059669;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600">Accept All</button>
+        <button onclick="dismissSuggestions(${jsArg(deal.id)})" style="font-size:10px;padding:2px 10px;background:transparent;color:#6b7280;border:1px solid #d1d5db;border-radius:4px;cursor:pointer">Dismiss</button>
       </div>
     </div>
     ${rows}
@@ -669,17 +669,17 @@ export async function doWonDrop(){
   // Client Won → push to Lead Tracker
   if(deal.pipeline==='Acquisition'){
     // Won-drop modal handles create + archive on success (or leaves the card in place on cancel)
-    const { openWonModal } = await import('./won-modal.js?v=20261114041422');
+    const { openWonModal } = await import('./won-modal.js?v=20261114043221');
     openWonModal(deal);
     return;
   }
 
   try {
-    const { deliverBookedLead } = await import('./booked-lead-routing.js?v=20261114041422');
+    const { deliverBookedLead } = await import('./booked-lead-routing.js?v=20261114043221');
     await deliverBookedLead(deal, clientName);
   } catch(e){
     console.error('Won drop action failed:', e);
-    const { showToast } = await import('./api.js?v=20261114041422');
+    const { showToast } = await import('./api.js?v=20261114043221');
     showToast('Won action failed: ' + e.message, 'error');
   }
 }
@@ -796,7 +796,7 @@ async function confirmPhoneAssign() {
   finally { pendingWrites.value--; }
   for (const k of Object.keys(updates)) clearPendingField(dealId, k, updates[k]);
 
-  const { showToast } = await import('./api.js?v=20261114041422');
+  const { showToast } = await import('./api.js?v=20261114043221');
   showToast('Phone number(s) saved', 'success');
 }
 
@@ -811,7 +811,7 @@ let _interactionsCache = {};
 
 async function loadInteractions(dealId) {
   try {
-    const { sbGetInteractions } = await import('./api.js?v=20261114041422');
+    const { sbGetInteractions } = await import('./api.js?v=20261114043221');
     const rows = await sbGetInteractions(dealId);
     _interactionsCache[dealId] = (rows || []).map(r => ({
       id: r.id, dealId: r.deal_id, type: r.type, content: r.content,
@@ -936,7 +936,7 @@ function needsDemoOutcome(ev, allEvents) {
 function renderDemoOutcomeButtons(dealId) {
   return `<div style="margin-top:6px;display:flex;align-items:center;gap:6px">
     <span style="font-size:11px;color:#6b7280">Demo outcome</span>
-    <span onchange="markDemoFromTimeline('${esc(dealId)}',event.target.value)">${demoOutcomeSelect(dealId).replace(/onchange="[^"]*"/, '')}</span>
+    <span onchange="markDemoFromTimeline(${jsArg(dealId)},event.target.value)">${demoOutcomeSelect(dealId).replace(/onchange="[^"]*"/, '')}</span>
   </div>`;
 }
 
@@ -952,7 +952,7 @@ async function markDemoFromTimeline(dealId, outcome) {
 function renderDiscoOutcomeButtons(dealId) {
   return `<div style="margin-top:6px;display:flex;align-items:center;gap:6px">
     <span style="font-size:11px;color:#6b7280">Outcome</span>
-    <span onchange="markDiscoFromTimeline('${esc(dealId)}',event.target.value)">${outcomeSelect(dealId).replace(/onchange="[^"]*"/, '')}</span>
+    <span onchange="markDiscoFromTimeline(${jsArg(dealId)},event.target.value)">${outcomeSelect(dealId).replace(/onchange="[^"]*"/, '')}</span>
   </div>`;
 }
 
@@ -1030,7 +1030,7 @@ async function attachRecording(interactionId, dealId) {
   const input = document.getElementById('rec-' + interactionId);
   const url = input && input.value.trim();
   if (!url) return;
-  const { sbUpdateInteraction, showToast } = await import('./api.js?v=20261114041422');
+  const { sbUpdateInteraction, showToast } = await import('./api.js?v=20261114043221');
   if (!/^https?:\/\/\S+$/i.test(url)) {
     showToast('That does not look like a link — paste the full https:// URL.', 'warn');
     return;
@@ -1157,7 +1157,7 @@ async function addInteraction(dealId) {
 
   contentEl.value = '';
   if (dateEl) dateEl.value = '';
-  const { sbCreateInteraction } = await import('./api.js?v=20261114041422');
+  const { sbCreateInteraction } = await import('./api.js?v=20261114043221');
   const row = await sbCreateInteraction(fields);
   if (row) {
     if (!_interactionsCache[dealId]) _interactionsCache[dealId] = [];
@@ -1170,7 +1170,7 @@ async function addInteraction(dealId) {
 }
 
 async function deleteInteraction(id, dealId) {
-  const { sbDeleteInteraction } = await import('./api.js?v=20261114041422');
+  const { sbDeleteInteraction } = await import('./api.js?v=20261114043221');
   await sbDeleteInteraction(id);
   if (_interactionsCache[dealId]) {
     _interactionsCache[dealId] = _interactionsCache[dealId].filter(i => i.id !== id);
@@ -1191,7 +1191,7 @@ async function editInteractionDate(id, dealId) {
   const parsed = new Date(input);
   if (isNaN(parsed.getTime())) return;
 
-  const { sbUpdateInteraction } = await import('./api.js?v=20261114041422');
+  const { sbUpdateInteraction } = await import('./api.js?v=20261114043221');
   await sbUpdateInteraction(id, { created_at: parsed.toISOString() });
   item.createdAt = parsed.toISOString();
   closeTimelinePanel();
@@ -1220,7 +1220,7 @@ async function enrichLead(dealId) {
   const canEnrich = hasLinkedin || (hasContact && hasWebsite);
 
   if (!canEnrich) {
-    const { showToast } = await import('./api.js?v=20261114041422');
+    const { showToast } = await import('./api.js?v=20261114043221');
     showToast('Needs a LinkedIn URL or company name + website to enrich', 'warning');
     return;
   }
@@ -1232,7 +1232,7 @@ async function enrichLead(dealId) {
 
   try {
     const result = await invokeEdgeFunction('enrich-lead', { dealId });
-    const { showToast } = await import('./api.js?v=20261114041422');
+    const { showToast } = await import('./api.js?v=20261114043221');
     console.log('[enrich-lead] Response:', JSON.stringify(result));
 
     if (result.ok && result.phones && result.phones.length > 0) {
@@ -1248,7 +1248,7 @@ async function enrichLead(dealId) {
     }
   } catch (e) {
     showEnrichOverlay(false);
-    const { showToast } = await import('./api.js?v=20261114041422');
+    const { showToast } = await import('./api.js?v=20261114043221');
     console.error('[enrich-lead] Exception:', e);
     showToast('Enrichment failed: ' + e.message, 'error');
   }
@@ -1264,7 +1264,7 @@ async function enrichContact(dealId, contactIndex) {
   const hasDomain = website || email.includes('@');
 
   if (!name || !hasDomain) {
-    const { showToast } = await import('./api.js?v=20261114041422');
+    const { showToast } = await import('./api.js?v=20261114043221');
     showToast('Need contact name + company website or email to enrich', 'warning');
     return;
   }
@@ -1275,7 +1275,7 @@ async function enrichContact(dealId, contactIndex) {
 
   try {
     const result = await invokeEdgeFunction('enrich-lead', { dealId, contactIndex });
-    const { showToast } = await import('./api.js?v=20261114041422');
+    const { showToast } = await import('./api.js?v=20261114043221');
 
     if (result.ok && result.phones && result.phones.length > 0) {
       showEnrichOverlay(false);
@@ -1289,7 +1289,7 @@ async function enrichContact(dealId, contactIndex) {
     }
   } catch (e) {
     showEnrichOverlay(false);
-    const { showToast } = await import('./api.js?v=20261114041422');
+    const { showToast } = await import('./api.js?v=20261114043221');
     showToast('Enrichment failed: ' + e.message, 'error');
   }
 }
@@ -1311,7 +1311,7 @@ window.markAtYourConvenience = async (dealId) => {
   await updateDealField('bookedFor', 'AYC');
   const dateInput = document.getElementById('deal-bookedDate');
   if (dateInput) dateInput.value = today;
-  const { showToast: toast } = await import('./api.js?v=20261114041422');
+  const { showToast: toast } = await import('./api.js?v=20261114043221');
   toast('Marked as At Your Convenience', 'success');
   refreshModal();
 };
@@ -1479,7 +1479,7 @@ export function renderDealModal(deal){
         <div class="form-group form-span2" style="margin-bottom:16px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
             <label style="margin:0">Timeline</label>
-            <button onclick="openTimelinePanel('${esc(deal.id)}')" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border:1px solid #7c3aed;border-radius:6px;background:#f5f3ff;color:#7c3aed;font-size:11px;font-weight:600;cursor:pointer">${svgIcon('clock',12,'#7c3aed')} View Full Timeline</button>
+            <button onclick="openTimelinePanel(${jsArg(deal.id)})" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border:1px solid #7c3aed;border-radius:6px;background:#f5f3ff;color:#7c3aed;font-size:11px;font-weight:600;cursor:pointer">${svgIcon('clock',12,'#7c3aed')} View Full Timeline</button>
           </div>
           <div id="interaction-preview" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);min-height:24px">
             ${buildPreviewHTML(deal.id)}
@@ -1502,7 +1502,7 @@ export function renderDealModal(deal){
             <input type="time" id="deal-bookedTime" value="${escAttr(deal.bookedTime||'')}"
               onchange="updateDealField('bookedTime',this.value)"
               style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font);background:var(--card);color:var(--text)">
-            <button onclick="markAtYourConvenience('${esc(deal.id)}')" style="padding:6px 12px;font-size:11px;font-weight:600;font-family:var(--font);cursor:pointer;border:1px solid #c4b5fd;border-radius:6px;background:#f5f3ff;color:#7c3aed;white-space:nowrap${deal.bookedFor==='AYC'?';opacity:.5;pointer-events:none':''}">
+            <button onclick="markAtYourConvenience(${jsArg(deal.id)})" style="padding:6px 12px;font-size:11px;font-weight:600;font-family:var(--font);cursor:pointer;border:1px solid #c4b5fd;border-radius:6px;background:#f5f3ff;color:#7c3aed;white-space:nowrap${deal.bookedFor==='AYC'?';opacity:.5;pointer-events:none':''}">
               ${deal.bookedFor==='AYC'?'✓ AYC':'At Your Convenience'}
             </button>
           </div>
@@ -1521,12 +1521,12 @@ export function renderDealModal(deal){
       <div class="sl-info-title">Smartlead Source</div>
       <div>Campaign: ${esc(deal.campaignName)}</div>
       ${deal.leadCategory?`<div>Category: ${esc(deal.leadCategory)}</div>`:''}
-      ${deal.pipeline==='Acquisition'?`<div style="margin-top:4px;display:flex;align-items:center;gap:6px">Vertical: <select onchange="updateDealVertical('${esc(deal.id)}',this.value)" style="padding:2px 8px;border:1px solid #e5e7eb;border-radius:4px;font-size:12px;font-family:var(--font);cursor:pointer">
+      ${deal.pipeline==='Acquisition'?`<div style="margin-top:4px;display:flex;align-items:center;gap:6px">Vertical: <select onchange="updateDealVertical(${jsArg(deal.id)},this.value)" style="padding:2px 8px;border:1px solid #e5e7eb;border-radius:4px;font-size:12px;font-family:var(--font);cursor:pointer">
         ${DEAL_VERTICALS.map(v=>`<option value="${v}" ${(deal.vertical||'Other')===v?'selected':''}>${v}</option>`).join('')}
       </select></div>`:''}
       ${(deal.smartleadUrl||deal.email)?`<a href="${escAttr(safeUrl(deal.smartleadUrl)||('https://app.smartlead.ai/app/master-inbox?sortBy=REPLY_TIME_DESC&search='+encodeURIComponent(deal.email||'')))}" target="_blank" rel="noopener">Open in Smartlead →</a>`:''}
       ${showStartBtn
-        ?`<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e9d5ff"><button class="sl-subseq-btn" onclick="event.stopPropagation();startAutoFollowUp('${esc(deal.id)}')" style="display:inline-flex;align-items:center;gap:6px;padding:7px 16px;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);box-shadow:0 1px 3px rgba(124,58,237,.3);transition:opacity .15s" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">${svgIcon('send',14,'#fff')} Start Auto Follow-Up</button></div>`
+        ?`<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e9d5ff"><button class="sl-subseq-btn" onclick="event.stopPropagation();startAutoFollowUp(${jsArg(deal.id)})" style="display:inline-flex;align-items:center;gap:6px;padding:7px 16px;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);box-shadow:0 1px 3px rgba(124,58,237,.3);transition:opacity .15s" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">${svgIcon('send',14,'#fff')} Start Auto Follow-Up</button></div>`
         :''}
       ${isSubseqActive?`<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e9d5ff"><div style="display:inline-flex;align-items:center;gap:6px;padding:7px 16px;background:#f3e8ff;color:#6d28d9;border-radius:8px;font-size:12px;font-weight:600">${svgIcon('check',14,'#6d28d9')} Auto Follow-Up Active${followUpDate?' · Started '+followUpDate:''}</div></div>`:''}
       ${renderNotALeadButton(deal)}
@@ -1555,7 +1555,7 @@ export function renderDealModal(deal){
     if(_tc[deal.id]){
       h+=renderSmartleadThread(deal.id, _tc[deal.id]);
     } else {
-      h+=`<button id="sl-thread-btn-${esc(deal.id)}" class="sl-thread-btn" onclick="event.stopPropagation();var _b=this;_b.disabled=true;_b.innerHTML='Loading...';loadSmartleadThread('${esc(deal.id)}').then(function(ok){if(ok)_b.style.display='none'})">
+      h+=`<button id="sl-thread-btn-${esc(deal.id)}" class="sl-thread-btn" onclick="event.stopPropagation();var _b=this;_b.disabled=true;_b.innerHTML='Loading...';loadSmartleadThread(${jsArg(deal.id)}).then(function(ok){if(ok)_b.style.display='none'})">
         ${brandIcon('smartlead',15)} View Email Thread
       </button>`;
     }
@@ -1594,7 +1594,7 @@ export function renderDealModal(deal){
         // Warm Call Sheet button (contains all client info + lead info)
         h+=`<div style="margin:0 0 8px 0">
           <button class="btn" style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#059669;border-color:#059669;color:#fff;font-weight:700"
-            onclick="openWarmCallSheet('${esc(deal.id)}')">
+            onclick="openWarmCallSheet(${jsArg(deal.id)})">
             ${svgIcon('clipboard',14)} ${esc(cn.name)} — Client Info & Warm Call Sheet
           </button>
         </div>`;
@@ -1616,7 +1616,7 @@ export function renderDealModal(deal){
       if(isOn('enablePassoff')){
         h+=`<div style="margin:0 0 8px 0">
           <button class="btn btn-primary" style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#7c3aed;border-color:#7c3aed"
-            onclick="openPassOffPreview('${esc(deal.id)}',atob('${btoa(unescape(encodeURIComponent(matchedClient.name)))}'))">
+            onclick="openPassOffPreview(${jsArg(deal.id)},atob('${btoa(unescape(encodeURIComponent(matchedClient.name)))}'))">
             ${svgIcon('send',14)} Pass Off to ${esc(matchedClient.name)}
           </button>
         </div>`;
@@ -1642,7 +1642,7 @@ export function renderDealModal(deal){
         const prefillText = applyTemplate(instrTemplate, deal, matchedClient.name, str(matchedClient.contactFirstName));
         h+=`<div style="margin:0 0 8px 0">
           <button class="btn btn-primary" style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#818cf8;border-color:#818cf8"
-            onclick="toggleCalendlyBooking('${esc(deal.id)}',${jsArg(matchedClient.calendlyUrl)})">
+            onclick="toggleCalendlyBooking(${jsArg(deal.id)},${jsArg(matchedClient.calendlyUrl)})">
             ${svgIcon('calendar',14)} Book Meeting on ${esc(matchedClient.name)}'s Calendar
           </button>
         </div>
@@ -1654,23 +1654,23 @@ export function renderDealModal(deal){
           <div style="margin-bottom:6px">
             <label style="font-size:11px;color:#6b7280;font-weight:600">Guest Name</label>
             <input type="text" id="cal-prefill-name" value="${escAttr(deal.calName||(deal.contact||deal.company||''))}"
-              oninput="savePrefillField('${esc(deal.id)}','calName',this.value)"
+              oninput="savePrefillField(${jsArg(deal.id)},'calName',this.value)"
               style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px">
           </div>
           <div style="margin-bottom:6px">
             <label style="font-size:11px;color:#6b7280;font-weight:600">Guest Email</label>
             <input type="text" id="cal-prefill-email" value="${escAttr(deal.calEmail||(deal.email||''))}"
-              oninput="savePrefillField('${esc(deal.id)}','calEmail',this.value)"
+              oninput="savePrefillField(${jsArg(deal.id)},'calEmail',this.value)"
               style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px">
           </div>
           <div style="margin-bottom:8px">
             <label style="font-size:11px;color:#6b7280;font-weight:600">Additional Info / Instructions</label>
             <textarea id="cal-prefill-notes" rows="5" data-keep-focus="1"
-              oninput="savePrefillField('${esc(deal.id)}','calNotes',this.value)"
+              oninput="savePrefillField(${jsArg(deal.id)},'calNotes',this.value)"
               style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);margin-top:2px;resize:vertical">${esc(deal.calNotes||prefillText)}</textarea>
           </div>
           <button class="btn btn-primary" style="width:100%;justify-content:center;font-size:13px;background:#818cf8;border-color:#818cf8"
-            onclick="openCalendlyEmbed('${esc(deal.id)}',${jsArg(matchedClient.calendlyUrl)},atob('${btoa(unescape(encodeURIComponent(matchedClient.name)))}'),document.getElementById('cal-prefill-name')?.value||'',document.getElementById('cal-prefill-email')?.value||'',document.getElementById('cal-prefill-notes')?.value||'')">
+            onclick="openCalendlyEmbed(${jsArg(deal.id)},${jsArg(matchedClient.calendlyUrl)},atob('${btoa(unescape(encodeURIComponent(matchedClient.name)))}'),document.getElementById('cal-prefill-name')?.value||'',document.getElementById('cal-prefill-email')?.value||'',document.getElementById('cal-prefill-notes')?.value||'')">
             Open Calendar & Book
           </button>
         </div>`;
@@ -1715,11 +1715,11 @@ export function renderDealModal(deal){
           </div>
           <div id="avail-book-error" style="display:none;color:#dc2626;font-size:11px;margin-bottom:6px"></div>
           <button class="btn btn-primary" style="width:100%;justify-content:center;font-size:13px;background:#059669;border-color:#059669;margin-bottom:6px"
-            onclick="bookAvailabilitySlot('${esc(deal.id)}')">
+            onclick="bookAvailabilitySlot(${jsArg(deal.id)})">
             ${alreadyBooked?'Update Booking':'Book This Time'}
           </button>
           <button class="btn" style="width:100%;justify-content:center;font-size:12px;font-weight:600;background:#f5f3ff;color:#7c3aed;border:1px solid #c4b5fd"
-            onclick="bookAvailabilitySlot('${esc(deal.id)}', true)" title="Book this date with no specific time — time left to their convenience">
+            onclick="bookAvailabilitySlot(${jsArg(deal.id)}, true)" title="Book this date with no specific time — time left to their convenience">
             ${deal.bookedFor==='AYC'?'✓ Booked — Time of Their Convenience':'Time of Their Convenience'}
           </button>
         </div>`;
@@ -1735,7 +1735,7 @@ export function renderDealModal(deal){
         h+=`<div style="margin:0 0 10px 0;padding:10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px">
           <label style="font-size:11px;font-weight:700;color:#0369a1;display:block;margin-bottom:4px">Send Instructions</label>
           <textarea rows="5" id="send-instructions-notes" data-keep-focus="1"
-            oninput="savePrefillField('${esc(deal.id)}','calNotes',this.value)"
+            oninput="savePrefillField(${jsArg(deal.id)},'calNotes',this.value)"
             style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font);resize:vertical">${esc(deal.calNotes||instrText)}</textarea>
         </div>`;
       }
@@ -1745,7 +1745,7 @@ export function renderDealModal(deal){
         const forwarded=deal.forwardedAt && str(deal.forwardedAt).trim()!=='';
         h+=`<div style="margin:0 0 8px 0">
           <button class="btn ${forwarded?'btn-ghost':'btn-primary'}" style="width:100%;justify-content:center;gap:6px;font-size:13px;${forwarded?'':'background:#2563eb;border-color:#2563eb'}"
-            onclick="openSendToClientPreview('${esc(deal.id)}',atob('${btoa(unescape(encodeURIComponent(matchedClient.name)))}'))" ${forwarded?'':''}>
+            onclick="openSendToClientPreview(${jsArg(deal.id)},atob('${btoa(unescape(encodeURIComponent(matchedClient.name)))}'))" ${forwarded?'':''}>
             ${forwarded?'<span style="color:#059669">Sent to '+esc(matchedClient.name)+' — Send Again?</span>':svgIcon('send',14)+' Send Lead Info to '+esc(matchedClient.name)}
           </button>
         </div>
@@ -1817,12 +1817,12 @@ export function renderDealModal(deal){
     h+=`<div style="margin:0 0 8px 0;display:flex;gap:6px">
       <button class="btn btn-primary"
         style="flex:1;justify-content:center;gap:6px;font-size:12px;display:flex;background:#2563eb;border-color:#2563eb"
-        onclick="event.stopPropagation();showDemoCallPicker('${esc(deal.id)}')">
+        onclick="event.stopPropagation();showDemoCallPicker(${jsArg(deal.id)})">
         ${svgIcon('calendar',14)} Demo Call
       </button>
       <button class="btn btn-primary"
         style="flex:1;justify-content:center;gap:6px;font-size:12px;display:flex;background:#7c3aed;border-color:#7c3aed"
-        onclick="event.stopPropagation();showStrategyCallPicker('${esc(deal.id)}')">
+        onclick="event.stopPropagation();showStrategyCallPicker(${jsArg(deal.id)})">
         ${svgIcon('calendar',14)} Strategy Call
       </button>
     </div>`;
@@ -1949,12 +1949,12 @@ export function renderDealModal(deal){
         <button class="sop-day-btn" onclick="doAssignSequenceWithDate('${deal.id}','${day}','${seq}')">${day} <span style="font-weight:400;color:#6ee7b7">(${acts.length})</span></button>`).join("")}`:''}
       ${!isClient&&seq==='pre-call'?`
         ${deal.bookedDate&&/^\d{4}-\d{2}-\d{2}$/.test(deal.bookedDate)?`
-        <button class="sop-day-btn" style="background:#2563eb;color:#fff;border-color:#2563eb;width:100%" onclick="generateAppointmentSequence(state.deals.find(d=>d.id==='${esc(deal.id)}'));state.showSop=false;refreshModal()">
+        <button class="sop-day-btn" style="background:#2563eb;color:#fff;border-color:#2563eb;width:100%" onclick="generateAppointmentSequence(state.deals.find(d=>d.id===${jsArg(deal.id)}));state.showSop=false;refreshModal()">
           ${svgIcon('calendar',12,'#fff')} Generate Pre-Call Sequence
           <span style="font-weight:400;color:#bfdbfe">(${(()=>{const dd=Math.round((new Date(deal.bookedDate+'T00:00:00')-new Date(TODAY()+'T00:00:00'))/(1000*60*60*24));return dd+'d out'})()})</span>
         </button>`:`<div style="font-size:12px;color:#6b7280;padding:8px 0">Set a booked date on this deal first.</div>`}`:''}
       ${!isClient&&seq==='no-show'?`
-        <button class="sop-day-btn" style="background:#ef4444;color:#fff;border-color:#ef4444;width:100%" onclick="assignNoShowSequence(state.deals.find(d=>d.id==='${esc(deal.id)}'));state.showSop=false;refreshModal()">
+        <button class="sop-day-btn" style="background:#ef4444;color:#fff;border-color:#ef4444;width:100%" onclick="assignNoShowSequence(state.deals.find(d=>d.id===${jsArg(deal.id)}));state.showSop=false;refreshModal()">
           ${svgIcon('send',12,'#fff')} Start No Show Sequence
           <span style="font-weight:400;color:#fecaca">(3 emails over 5 days)</span>
         </button>`:''}</div>`;
@@ -2137,7 +2137,7 @@ export function confirmScheduleAndCopy(){
   sbUpdateDeal(dealId, camelToSnake({bookedDate:dateVal,bookedTime:timeVal})).catch(restoreDealOnFail(dealId, before)).finally(()=>{pendingWrites.value--;});
   const client=findClientForDeal(deal)||state.clients.find(c=>c.name===deal.stage);
   if(client && dateVal){
-    import('./calendly.js?v=20261114041422').then(mod=>{
+    import('./calendly.js?v=20261114043221').then(mod=>{
       const apptAddr=(deal.address||deal.location||'').trim();
       mod.saveAppointment(client.name, deal.company||deal.contact||'Unknown', dateVal, timeVal, '', apptAddr, deal.id); // deal_id: rebook replaces, archive clears (round 2, T)
     });
@@ -2294,7 +2294,7 @@ window.pushToClientSheet = async function(dealId) {
     if (!result || result.error || result.ok === false) throw new Error((result && result.error) || 'No response from server');
     if (result.alreadyPushed) {
       btn.innerHTML = origText; btn.disabled = false;
-      const { showToast: t0 } = await import('./api.js?v=20261114041422');
+      const { showToast: t0 } = await import('./api.js?v=20261114043221');
       t0('Already on ' + (result.client || 'the client') + "'s sheet, nothing added", 'info');
       return;
     }
@@ -2308,7 +2308,7 @@ window.pushToClientSheet = async function(dealId) {
     btn.innerHTML = svgIcon('check',14)+' Pushed to Client Sheet';
     btn.className = 'btn btn-ghost';
     btn.style.cssText = 'width:100%;justify-content:center;gap:6px;font-size:13px';
-    const { showToast: toast } = await import('./api.js?v=20261114041422');
+    const { showToast: toast } = await import('./api.js?v=20261114043221');
     toast('Pushed to ' + (result.client || 'client') + "'s sheet", 'success');
     // The row is on the sheet but something after it failed (e.g. the pass_offs record): say so (T's NEEDS, 2026-11-13).
     if (result.warning) toast('Pushed, but: ' + result.warning, 'error');
@@ -2317,7 +2317,7 @@ window.pushToClientSheet = async function(dealId) {
     const msg = e.name === 'AbortError' ? 'Request timed out' : (e.message || 'Unknown error');
     btn.innerHTML = origText;
     btn.disabled = false;
-    const { showToast: toast2 } = await import('./api.js?v=20261114041422');
+    const { showToast: toast2 } = await import('./api.js?v=20261114043221');
     toast2('Push failed: ' + msg, 'error');
     alert('Client sheet push failed: ' + msg);
   }
@@ -2351,7 +2351,7 @@ window.pushToGhl = async function(dealId) {
     }
     btn.innerHTML = '<span style="color:#059669">✓ Pushed to GHL</span>';
     btn.disabled = true;
-    const { showToast: toast } = await import('./api.js?v=20261114041422');
+    const { showToast: toast } = await import('./api.js?v=20261114043221');
     const client = findClientForDeal(d) || {};
     toast('Pushed to ' + (client.name || 'GHL'), 'success');
     setTimeout(() => refreshModal(true), 800);

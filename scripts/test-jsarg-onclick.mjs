@@ -33,9 +33,11 @@ function payloadScope(payload) {
     get: (t, k) => (k === Symbol.toPrimitive || k === 'toString' || k === 'valueOf') ? () => payload : (/^(id|uid)$/.test(k) ? '4252315' : payload),
   });
   const known = { esc, jsArg, str };
+  // A loop index: prints as 0 in ${i}, but i.email etc. still yield the payload.
+  const indexLike = new Proxy(function () {}, { get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : payload) });
   return new Proxy({}, {
     has: (t, k) => typeof k === 'string' && !(k in globalThis) || k in known,
-    get: (t, k) => (k === Symbol.unscopables ? undefined : k in known ? known[k] : k === 'dealId' ? '4252315' : deep),
+    get: (t, k) => (k === Symbol.unscopables ? undefined : k in known ? known[k] : k === 'dealId' ? '4252315' : k === 'i' ? indexLike : deep),
   });
 }
 // Run-time scope: every identifier is a recorder that logs calls and runs callbacks.
@@ -82,9 +84,12 @@ for (const s of sites) {
       let fn;
       try { fn = new Function('scope', 'with(scope){' + js + '}'); }
       catch (e) { throw new Error(`syntax error for ${JSON.stringify(p)}: ${e.message}\n        ${js}`); }
+      if (s.tpl.includes('=>')) continue; // an inline arrow (state.deals.find(d=>…)) can't run against stubs; parsing is the check
       const calls = []; const { scope, el } = recorderScope(calls);
       fn.call(el, scope);
-      assert.ok(calls.some(args => args.includes(p)), `no call received ${JSON.stringify(p)}: ${js}`);
+      // Sites that only pass ids (all handlers went to jsArg on 2026-11-14) just have to parse and run.
+      const freeText = [...s.tpl.matchAll(/jsArg\(([^)]*)\)/g)].some(m => !/(\bid|uid|Id)$/.test(m[1].trim()));
+      if (freeText) assert.ok(calls.some(args => args.includes(p)), `no call received ${JSON.stringify(p)}: ${js}`);
     }
   });
 }

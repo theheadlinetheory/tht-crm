@@ -4,12 +4,12 @@
 // the term end itself is derived in client-terms.js, never stored.
 // Admin-only, like the Renewals tab that hosts it.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20261114041422';
-import { render } from './render.js?v=20261114041422';
-import { showToast } from './api.js?v=20261114041422';
-import { esc, str } from './utils.js?v=20261114041422';
-import { currentUser, isAdmin } from './auth.js?v=20261114041422';
-import { TERM_UNITS } from './client-terms.js?v=20261114041422';
+import { supabase } from './supabase-client.js?v=20261114043221';
+import { render } from './render.js?v=20261114043221';
+import { showToast } from './api.js?v=20261114043221';
+import { esc, str, jsArg } from './utils.js?v=20261114043221';
+import { currentUser, isAdmin } from './auth.js?v=20261114043221';
+import { TERM_UNITS } from './client-terms.js?v=20261114043221';
 
 const PAGE = 1000; // PostgREST caps a response at 1000 rows
 let _byClient = null; // { [clientId]: row[] } once loaded
@@ -51,7 +51,7 @@ function historyHtml(clientId) {
       <div><strong>+${esc(str(r.length))} ${esc(str(r.unit))}</strong>
         <span style="color:#64748b"> · ${esc(str(r.created_at).slice(0, 10))}${r.created_by ? ' · ' + esc(str(r.created_by).split('@')[0]) : ''}</span>
         ${r.note ? `<div style="color:#475569;margin-top:2px">${esc(str(r.note))}</div>` : ''}</div>
-      <button onclick="removeTermExtension('${esc(str(r.id))}','${esc(clientId)}')" title="Remove this extension" style="background:none;border:none;color:#b91c1c;font-size:16px;cursor:pointer">&times;</button>
+      <button onclick="removeTermExtension(${jsArg(str(r.id))},${jsArg(clientId)})" title="Remove this extension" style="background:none;border:none;color:#b91c1c;font-size:16px;cursor:pointer">&times;</button>
     </div>`).join('');
 }
 
@@ -77,7 +77,7 @@ export function openExtendTerm(clientId, clientName) {
       </div>
       <div style="padding:12px 20px;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;gap:8px">
         <button onclick="closeExtendTerm()" style="padding:8px 14px;background:#f1f5f9;color:#475569;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Cancel</button>
-        <button id="extend-save" onclick="saveTermExtension('${esc(clientId)}')" style="padding:8px 16px;background:#4f46e5;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Add extension</button>
+        <button id="extend-save" onclick="saveTermExtension(${jsArg(clientId)})" style="padding:8px 16px;background:#4f46e5;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Add extension</button>
       </div>
     </div>
   </div>`);

@@ -21,13 +21,13 @@
 //
 // Admin-only, like the Renewals tab that hosts it.
 // ═══════════════════════════════════════════════════════════
-import { state, store } from './app.js?v=20261114041422';
-import { render } from './render.js?v=20261114041422';
-import { supabase } from './supabase-client.js?v=20261114041422';
-import { sbCreateDeal, camelToSnake, showToast } from './api.js?v=20261114041422';
-import { RENEWAL_STAGES } from './config.js?v=20261114041422';
-import { esc, str, uid, getToday } from './utils.js?v=20261114041422';
-import { moveDeal, clearAllDragOver } from './deals.js?v=20261114041422';
+import { state, store } from './app.js?v=20261114043221';
+import { render } from './render.js?v=20261114043221';
+import { supabase } from './supabase-client.js?v=20261114043221';
+import { sbCreateDeal, camelToSnake, showToast } from './api.js?v=20261114043221';
+import { RENEWAL_STAGES } from './config.js?v=20261114043221';
+import { esc, str, uid, getToday, jsArg } from './utils.js?v=20261114043221';
+import { moveDeal, clearAllDragOver } from './deals.js?v=20261114043221';
 
 export const RENEWAL_PIPELINE = 'Renewal';
 const FIRST_STAGE = RENEWAL_STAGES[0].id;
@@ -110,11 +110,11 @@ function cardHtml(deal, stageKey) {
     .filter(s => r[STAGE_DATE_COL[s.id]])
     .map(s => `${s.label}: ${shortDate(r[STAGE_DATE_COL[s.id]])}`).join('\n');
   return `<div class="deal-card" draggable="true" data-renewal-id="${esc(deal.id)}"
-      ondragstart="event.dataTransfer.effectAllowed='move';state.dragId='${esc(deal.id)}'"
+      ondragstart="event.dataTransfer.effectAllowed='move';state.dragId=${jsArg(deal.id)}"
       ondragend="clearAllDragOver()"
       ondragover="event.preventDefault();doDragOver(this.closest('.column'))"
       ondrop="renewalDrop('${stageKey}')"
-      onclick="openDeal('${esc(deal.id)}')" title="${esc(reached || 'No stage history yet')}">
+      onclick="openDeal(${jsArg(deal.id)})" title="${esc(reached || 'No stage history yet')}">
     <div class="deal-card-top"><div class="deal-company">${esc(deal.company || deal.contact || 'Client')}</div></div>
     ${deal.contact ? `<div class="deal-detail">${esc(deal.contact)}</div>` : ''}
     <div class="deal-bottom"><span style="display:flex;gap:4px;flex-wrap:wrap">
@@ -158,7 +158,7 @@ export function renderRenewalPipeline() {
   }
   // A card whose stage isn't a board column (renamed stage, hand edit) would vanish — list it instead.
   const stray = deals.filter(d => !RENEWAL_STAGES.some(s => s.id === d.stage));
-  if (stray.length) html += `<div style="padding:8px 20px;font-size:12px;color:#b91c1c">Off-board stage: ${stray.map(d => `<a href="#" onclick="event.preventDefault();openDeal('${esc(d.id)}')">${esc(d.company)} (${esc(d.stage || 'blank')})</a>`).join(', ')}</div>`;
+  if (stray.length) html += `<div style="padding:8px 20px;font-size:12px;color:#b91c1c">Off-board stage: ${stray.map(d => `<a href="#" onclick="event.preventDefault();openDeal(${jsArg(d.id)})">${esc(d.company)} (${esc(d.stage || 'blank')})</a>`).join(', ')}</div>`;
   return html + '</div>';
 }
 

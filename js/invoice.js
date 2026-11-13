@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // INVOICE — Stripe invoice generation from Lead Tracker
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20261114041422';
-import { invokeEdgeFunction } from './api.js?v=20261114041422';
-import { esc, str } from './utils.js?v=20261114041422';
-import { render } from './render.js?v=20261114041422';
-import { disputeNote } from './lead-dispute.js?v=20261114041422';
-import { renderTimeline } from './invoice-timeline.js?v=20261114041422';
+import { state, pendingWrites } from './app.js?v=20261114043221';
+import { invokeEdgeFunction } from './api.js?v=20261114043221';
+import { esc, str, jsArg } from './utils.js?v=20261114043221';
+import { render } from './render.js?v=20261114043221';
+import { disputeNote } from './lead-dispute.js?v=20261114043221';
+import { renderTimeline } from './invoice-timeline.js?v=20261114043221';
 
 // ─── Month helpers ───
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -478,7 +478,7 @@ function renderEmailPreviewStep(m) {
   const toEmails = toValue.split(',').map(e => e.trim()).filter(Boolean);
   const ccEmails = ccValue.split(',').map(e => e.trim()).filter(Boolean);
   const chipStyle = 'display:inline-flex;align-items:center;gap:3px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:4px;padding:2px 6px 2px 8px;font-size:11px;color:#4338ca';
-  const xBtn = (field, email) => `<span onclick="invoiceRemoveEmail('${field}','${esc(email)}')" style="cursor:pointer;font-size:13px;color:#6366f1;font-weight:700;line-height:1">&times;</span>`;
+  const xBtn = (field, email) => `<span onclick="invoiceRemoveEmail('${field}',${jsArg(email)})" style="cursor:pointer;font-size:13px;color:#6366f1;font-weight:700;line-height:1">&times;</span>`;
 
   return `
     <div class="invoice-header">
@@ -573,7 +573,7 @@ function renderBulkSummaryStep(m) {
     const surcharge = getSetupFeeInfo(c.clientName);
     const terms = getClientPaymentTerms(c.clientName);
     return `<tr style="${checked ? '' : 'opacity:0.35'}">
-      <td style="padding:6px 8px"><input type="checkbox" ${checked ? 'checked' : ''} onchange="invoiceBulkToggle('${esc(c.clientName)}')"></td>
+      <td style="padding:6px 8px"><input type="checkbox" ${checked ? 'checked' : ''} onchange="invoiceBulkToggle(${jsArg(c.clientName)})"></td>
       <td style="padding:6px 8px;font-weight:500;font-size:13px">${esc(c.clientName)}</td>
       <td style="padding:6px 8px;text-align:center">${c.entries.length}</td>
       <td style="padding:6px 8px;text-align:right;font-size:12px;color:var(--text-muted)">${terms}</td>
@@ -730,7 +730,7 @@ function renderBulkReviewStep(m) {
   const toEmails = (m.emailTo || '').split(',').map(e => e.trim()).filter(Boolean);
   const ccEmails = (m.emailCc || '').split(',').map(e => e.trim()).filter(Boolean);
   const chipStyle = 'display:inline-flex;align-items:center;gap:3px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:4px;padding:2px 6px 2px 8px;font-size:11px;color:#4338ca';
-  const xBtn = (field, email) => `<span onclick="invoiceRemoveEmail('${field}','${esc(email)}')" style="cursor:pointer;font-size:13px;color:#6366f1;font-weight:700;line-height:1">&times;</span>`;
+  const xBtn = (field, email) => `<span onclick="invoiceRemoveEmail('${field}',${jsArg(email)})" style="cursor:pointer;font-size:13px;color:#6366f1;font-weight:700;line-height:1">&times;</span>`;
 
   return `
     <div class="invoice-header">

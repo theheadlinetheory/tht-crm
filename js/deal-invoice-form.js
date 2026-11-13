@@ -2,12 +2,12 @@
 // DEAL-INVOICE-FORM — pure rendering for the four composer steps.
 // No fetch, no state mutation: hands back HTML, takes handlers by name.
 // ═══════════════════════════════════════════════════════════
-import { esc, escAttr, str } from './utils.js?v=20261114041422';
-import { renderTimeline, statusesByIndex } from './invoice-timeline.js?v=20261114041422';
+import { esc, escAttr, str, jsArg } from './utils.js?v=20261114043221';
+import { renderTimeline, statusesByIndex } from './invoice-timeline.js?v=20261114043221';
 import {
   TERMS, CURRENCIES, PAYMENT_METHODS,
   formatCents, draftTotalCents, lineAmountCents, dueDateLabel, validateDraft, priceInputValue,
-} from './deal-invoice-state.js?v=20261114041422';
+} from './deal-invoice-state.js?v=20261114043221';
 
 export const STEPS = [
   { key: 'compose', label: 'Compose' },
@@ -62,7 +62,7 @@ function customerBlock(draft) {
     </div>`;
   }
   const results = (draft.customerResults || []).map((c) => `
-    <div onclick="diPickCustomer('${escAttr(c.id)}','${escAttr(c.name || c.email)}')"
+    <div onclick="diPickCustomer(${jsArg(c.id)},${jsArg(c.name || c.email)})"
       style="padding:8px 10px;border-top:1px solid #f1f5f9;cursor:pointer;font-size:13px"
       onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
       <strong>${esc(c.name || '(no name)')}</strong>

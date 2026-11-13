@@ -2,23 +2,23 @@
 // SETTINGS — Settings panel, auto-save, apply settings
 // ═══════════════════════════════════════════════════════════
 import { state, pendingWrites, settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
-         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20261114041422';
-import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20261114041422';
-import { render } from './render.js?v=20261114041422';
-import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20261114041422';
-import { renderRoutingRules } from './routing-rules.js?v=20261114041422';
-import { esc, jsArg, str, svgIcon } from './utils.js?v=20261114041422';
-import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20261114041422';
-import { lookupClientInfo } from './client-info.js?v=20261114041422';
-import { findPolygonForClient, invalidateServiceAreaCache } from './maps.js?v=20261114041422';
-import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20261114041422';
-import { DEFAULT_BOOKING_SMS_TEMPLATE } from './booking-sms.js?v=20261114041422';
-import { renderRetainerBilling } from './retainer-billing.js?v=20261114041422';
-import { snapshotRows, diffRows, commitRows, snapshotSettings, diffSettings, commitSettings } from './settings-diff.js?v=20261114041422';
-import { renderAutoChargeToggle } from './auto-charge.js?v=20261114041422';
-import { showClientEndPicker, clearClientEnd } from './client-end.js?v=20261114041422';
-import { setupBadge, setupBanner } from './client-setup-status.js?v=20261114041422';
-import { renderCallSheetSettings, renderCallSheetOnboardingFields, callSheetOnboardingUpdates } from './call-sheet.js?v=20261114041422';
+         settingsDraft, setSettingsDraft, clientsSubTab, setClientsSubTab } from './app.js?v=20261114043221';
+import { ACQUISITION_STAGES, NURTURE_STAGES, SOP_DAYS, CLIENT_SOP_DAYS, ACTIVITY_TYPES, ACTIVITY_ICONS, CLIENT_INFO_SHEET_ID, SEQUENCE_TEMPLATES } from './config.js?v=20261114043221';
+import { render } from './render.js?v=20261114043221';
+import { apiPost, apiGet, sbBatchUpdateClients, sbUpdateClient, sbSaveSettings, camelToSnake, supabase, invokeEdgeFunction, showToast, sbDeleteFile, sbGetSignedUrl } from './api.js?v=20261114043221';
+import { renderRoutingRules } from './routing-rules.js?v=20261114043221';
+import { esc, jsArg, str, svgIcon } from './utils.js?v=20261114043221';
+import { isAdmin, isEmployee, currentUser, loadAllUsers, updateUserRole, updateUserName, updateUserTagColor, updateUserPhoto, deleteUser, getOwnerColor as authGetOwnerColor, TAG_PALETTE } from './auth.js?v=20261114043221';
+import { lookupClientInfo } from './client-info.js?v=20261114043221';
+import { findPolygonForClient, invalidateServiceAreaCache } from './maps.js?v=20261114043221';
+import { renderDocumentsSection, initDocumentHandlers } from './documents.js?v=20261114043221';
+import { DEFAULT_BOOKING_SMS_TEMPLATE } from './booking-sms.js?v=20261114043221';
+import { renderRetainerBilling } from './retainer-billing.js?v=20261114043221';
+import { snapshotRows, diffRows, commitRows, snapshotSettings, diffSettings, commitSettings } from './settings-diff.js?v=20261114043221';
+import { renderAutoChargeToggle } from './auto-charge.js?v=20261114043221';
+import { showClientEndPicker, clearClientEnd } from './client-end.js?v=20261114043221';
+import { setupBadge, setupBanner } from './client-setup-status.js?v=20261114043221';
+import { renderCallSheetSettings, renderCallSheetOnboardingFields, callSheetOnboardingUpdates } from './call-sheet.js?v=20261114043221';
 
 export function getDefaultSettings(){
   return {
@@ -330,7 +330,7 @@ export function refreshSettingsBody(){
   else if(settingsTab==='dialer') {
     if (!window._dialerFieldsLoaded) {
       window._dialerFieldsLoaded = true;
-      import('./number-health.js?v=20261114041422').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
+      import('./number-health.js?v=20261114043221').then(m => m.loadNumberHealth().then(() => refreshSettingsBody())).catch(() => {});
     }
     h=renderDialerSettings();
   }
@@ -517,7 +517,7 @@ function renderClientsSettings(){
     const standingBg = standing==='happy'?'#f0fdf4':standing==='unhappy'?'#fef2f2':'#fefce8';
 
     h+=`<div class="client-card-accordion" data-client-id="${esc(c.id)}" style="margin-bottom:8px;background:var(--bg);border:1px solid var(--border);border-radius:10px;overflow:hidden">
-      <div class="client-header" onclick="toggleClientAccordion('${esc(c.id)}')"
+      <div class="client-header" onclick="toggleClientAccordion(${jsArg(c.id)})"
         style="display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;user-select:none;justify-content:space-between">
         <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
           <span style="width:10px;height:10px;border-radius:50%;background:${c.color||'#818cf8'};flex-shrink:0"></span>
@@ -525,7 +525,7 @@ function renderClientsSettings(){
         </div>
         <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
           ${setupBadge(c)}
-          <select onclick="event.stopPropagation()" onchange="updateClientField('${esc(c.id)}','clientStanding',this.value);debouncedAutoSave()"
+          <select onclick="event.stopPropagation()" onchange="updateClientField(${jsArg(c.id)},'clientStanding',this.value);debouncedAutoSave()"
             style="padding:3px 6px;border-radius:5px;font-size:10px;font-weight:700;font-family:var(--font);cursor:pointer;border:1px solid ${standingColor};color:${standingColor};background:${standingBg}">
             <option value="happy" ${standing==='happy'?'selected':''}>Happy</option>
             <option value="neutral" ${standing==='neutral'||!standing.trim()?'selected':''}>Neutral</option>
@@ -542,7 +542,7 @@ function renderClientsSettings(){
       <div style="margin-bottom:10px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Campaign Keywords</label>
         <input type="text" placeholder="keyword1, keyword2 (matches campaign name)" value="${esc(str(c.campaignKeywords))}"
-          oninput="updateClientField('${esc(c.id)}','campaignKeywords',this.value)"
+          oninput="updateClientField(${jsArg(c.id)},'campaignKeywords',this.value)"
           style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
       </div>
 
@@ -550,48 +550,48 @@ function renderClientsSettings(){
         <div style="flex:1">
           <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Contact First Name</label>
           <input type="text" placeholder="e.g. Joel" value="${esc(str(c.contactFirstName))}"
-            oninput="updateClientField('${esc(c.id)}','contactFirstName',this.value)"
+            oninput="updateClientField(${jsArg(c.id)},'contactFirstName',this.value)"
             style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
         </div>
         <div style="flex:1">
           <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Contact Last Name</label>
           <input type="text" placeholder="e.g. Smith" value="${esc(str(c.contactLastName))}"
-            oninput="updateClientField('${esc(c.id)}','contactLastName',this.value)"
+            oninput="updateClientField(${jsArg(c.id)},'contactLastName',this.value)"
             style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
         </div>
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">
         <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableForward')?'#eff6ff':'var(--card)'}">
-          <input type="checkbox" ${isOn('enableForward')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableForward',this.checked)"> ${svgIcon('mail',12)} Forward Email
+          <input type="checkbox" ${isOn('enableForward')?'checked':''} onchange="toggleClientField(${jsArg(c.id)},'enableForward',this.checked)"> ${svgIcon('mail',12)} Forward Email
         </label>
         <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableCalendly')?'#ecfdf5':'var(--card)'}">
-          <input type="checkbox" ${isOn('enableCalendly')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableCalendly',this.checked)"> ${svgIcon('calendar',12)} Calendly
+          <input type="checkbox" ${isOn('enableCalendly')?'checked':''} onchange="toggleClientField(${jsArg(c.id)},'enableCalendly',this.checked)"> ${svgIcon('calendar',12)} Calendly
         </label>
         <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableCopyInfo')?'#f0fdf4':'var(--card)'}">
-          <input type="checkbox" ${isOn('enableCopyInfo')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableCopyInfo',this.checked)"> ${svgIcon('clipboard',12)} Copy Info
+          <input type="checkbox" ${isOn('enableCopyInfo')?'checked':''} onchange="toggleClientField(${jsArg(c.id)},'enableCopyInfo',this.checked)"> ${svgIcon('clipboard',12)} Copy Info
         </label>
         <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableTracker')?'#fefce8':'var(--card)'}">
-          <input type="checkbox" ${isOn('enableTracker')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableTracker',this.checked)"> ${svgIcon('upload',12)} Lead Tracker
+          <input type="checkbox" ${isOn('enableTracker')?'checked':''} onchange="toggleClientField(${jsArg(c.id)},'enableTracker',this.checked)"> ${svgIcon('upload',12)} Lead Tracker
         </label>
         <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid ${isOn('enableAutoForward')?'#f97316':'var(--border)'};border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableAutoForward')?'#fff7ed':'var(--card)'}">
-          <input type="checkbox" ${isOn('enableAutoForward')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableAutoForward',this.checked)"> ${svgIcon('mail',12)} Auto-Forward
+          <input type="checkbox" ${isOn('enableAutoForward')?'checked':''} onchange="toggleClientField(${jsArg(c.id)},'enableAutoForward',this.checked)"> ${svgIcon('mail',12)} Auto-Forward
         </label>
         <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid ${isOn('enablePassoff')?'#7c3aed':'var(--border)'};border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enablePassoff')?'#f5f3ff':'var(--card)'}">
-          <input type="checkbox" ${isOn('enablePassoff')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enablePassoff',this.checked);if(this.checked)toggleClientField('${esc(c.id)}','enableTracker',false)"> ${svgIcon('send',12)} Pass-Off Mode
+          <input type="checkbox" ${isOn('enablePassoff')?'checked':''} onchange="toggleClientField(${jsArg(c.id)},'enablePassoff',this.checked);if(this.checked)toggleClientField(${jsArg(c.id)},'enableTracker',false)"> ${svgIcon('send',12)} Pass-Off Mode
         </label>
         <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid ${isOn('enableCrmLink')?'#0891b2':'var(--border)'};border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('enableCrmLink')?'#ecfeff':'var(--card)'}">
-          <input type="checkbox" ${isOn('enableCrmLink')?'checked':''} onchange="toggleClientField('${esc(c.id)}','enableCrmLink',this.checked)"> ${svgIcon('link',12)} CRM Link in Email
+          <input type="checkbox" ${isOn('enableCrmLink')?'checked':''} onchange="toggleClientField(${jsArg(c.id)},'enableCrmLink',this.checked)"> ${svgIcon('link',12)} CRM Link in Email
         </label>
         <label title="Shows a 'Text Client' button on booked deals. Texts go to the Notify Phone below." style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid ${isOn('smsEnabled')?'#059669':'var(--border)'};border-radius:6px;cursor:pointer;font-size:12px;background:${isOn('smsEnabled')?'#ecfdf5':'var(--card)'}">
-          <input type="checkbox" ${isOn('smsEnabled')?'checked':''} onchange="toggleClientField('${esc(c.id)}','smsEnabled',this.checked)"> ${svgIcon('message-circle',12)} Text on Booking
+          <input type="checkbox" ${isOn('smsEnabled')?'checked':''} onchange="toggleClientField(${jsArg(c.id)},'smsEnabled',this.checked)"> ${svgIcon('message-circle',12)} Text on Booking
         </label>
         <label title="The business day before each check-in call, email them a 'still good for tomorrow?' with a reschedule link. Turn off for clients who always show." style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid ${!isOff('checkinConfirmEmail')?'#2563eb':'var(--border)'};border-radius:6px;cursor:pointer;font-size:12px;background:${!isOff('checkinConfirmEmail')?'#eff6ff':'var(--card)'}">
-          <input type="checkbox" ${!isOff('checkinConfirmEmail')?'checked':''} onchange="toggleClientField('${esc(c.id)}','checkinConfirmEmail',this.checked)"> ${svgIcon('calendar',12)} Check-in confirmation email
+          <input type="checkbox" ${!isOff('checkinConfirmEmail')?'checked':''} onchange="toggleClientField(${jsArg(c.id)},'checkinConfirmEmail',this.checked)"> ${svgIcon('calendar',12)} Check-in confirmation email
         </label>
         <div style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--card)">
           ${svgIcon('clock',12)}
-          <select onchange="updateClientField('${esc(c.id)}','timeZone',this.value);debouncedAutoSave()"
+          <select onchange="updateClientField(${jsArg(c.id)},'timeZone',this.value);debouncedAutoSave()"
             style="border:none;background:transparent;font-size:12px;font-family:var(--font);color:var(--text);cursor:pointer;flex:1">
             <option value="" ${!str(c.timeZone).trim()?'selected':''}>No TZ</option>
             <option value="EST" ${str(c.timeZone)==='EST'?'selected':''}>EST</option>
@@ -607,36 +607,36 @@ function renderClientsSettings(){
       <div style="margin-bottom:8px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Client Email (Lead Delivery)</label>
         <input type="text" placeholder="client@example.com, owner@example.com" value="${esc(str(c.notifyEmails))}"
-          oninput="updateClientField('${esc(c.id)}','notifyEmails',this.value)"
+          oninput="updateClientField(${jsArg(c.id)},'notifyEmails',this.value)"
           style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
         <div style="font-size:9px;color:var(--text-muted);margin-top:2px">Comma-separated. Everyone here is on the lead delivery thread. Same field as "Forward Email" below.</div>
       </div>
       <div style="margin-bottom:8px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Cold Call Email (Sean inbox)</label>
         <input type="text" placeholder="sean.reynolds@example.co" value="${esc(str(c.coldCallEmail))}"
-          oninput="updateClientField('${esc(c.id)}','coldCallEmail',this.value)"
+          oninput="updateClientField(${jsArg(c.id)},'coldCallEmail',this.value)"
           style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
         <div style="font-size:9px;color:var(--text-muted);margin-top:2px">One inbox. Cold-call leads get their follow-up email from it (client CC'd). Sign into it once in Gmail on the caller's browser.</div>
-        ${isAdmin() && !str(c.coldCallEmail).trim() ? `<button onclick="orderColdCallInbox('${esc(c.id)}', this)" style="margin-top:4px;padding:4px 10px;background:#7c3aed;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">Order contact@ .info inbox</button>` : ''}
+        ${isAdmin() && !str(c.coldCallEmail).trim() ? `<button onclick="orderColdCallInbox(${jsArg(c.id)}, this)" style="margin-top:4px;padding:4px 10px;background:#7c3aed;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">Order contact@ .info inbox</button>` : ''}
       </div>
       <div style="margin-bottom:8px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Invoice Emails</label>
         <input type="text" placeholder="billing@example.com, cfo@example.com" value="${esc(str(c.invoiceEmails))}"
-          oninput="updateClientField('${esc(c.id)}','invoiceEmails',this.value)"
+          oninput="updateClientField(${jsArg(c.id)},'invoiceEmails',this.value)"
           style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
         <div style="font-size:9px;color:var(--text-muted);margin-top:2px">Comma-separated. These receive invoice emails (Lars always CC'd).</div>
       </div>
       <div style="margin-bottom:8px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Invoice Contact First Name</label>
         <input type="text" placeholder="${esc(str(c.contactFirstName) || 'e.g. Sal')}" value="${esc(str(c.invoiceContactFirstName))}"
-          oninput="updateClientField('${esc(c.id)}','invoiceContactFirstName',this.value)"
+          oninput="updateClientField(${jsArg(c.id)},'invoiceContactFirstName',this.value)"
           style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
         <div style="font-size:9px;color:var(--text-muted);margin-top:2px">Greets invoice, reminder and late-fee emails. Blank = Contact First Name (pass-offs always use Contact First Name).</div>
       </div>
       <div style="margin-bottom:8px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Weekly Update Emails</label>
         <input type="text" placeholder="owner@example.com, ops@example.com" value="${esc(str(c.weeklyUpdateEmails))}"
-          oninput="updateClientField('${esc(c.id)}','weeklyUpdateEmails',this.value)"
+          oninput="updateClientField(${jsArg(c.id)},'weeklyUpdateEmails',this.value)"
           style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
         <div style="font-size:9px;color:var(--text-muted);margin-top:2px">Comma-separated. These receive the weekly update email (aidan@ + Additional Contacts CC'd). Blank = the lead delivery emails above.</div>
       </div>
@@ -659,13 +659,13 @@ function renderClientsSettings(){
             <div style="flex:1">
               <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Contact Name</label>
               <input type="text" placeholder="e.g. James" value="${esc(str(c.contactFirstName))}"
-                oninput="updateClientField('${esc(c.id)}','contactFirstName',this.value)"
+                oninput="updateClientField(${jsArg(c.id)},'contactFirstName',this.value)"
                 style="${inputStyle}">
             </div>
             <div style="flex:1">
               <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Contact Email</label>
               <input type="text" placeholder="e.g. book@company.com" value="${esc(str(c.notifyEmail))}"
-                oninput="updateClientField('${esc(c.id)}','notifyEmail',this.value)"
+                oninput="updateClientField(${jsArg(c.id)},'notifyEmail',this.value)"
                 style="${inputStyle}">
             </div>
           </div>
@@ -673,28 +673,28 @@ function renderClientsSettings(){
             <div style="flex:1">
               <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Phone</label>
               <input type="text" placeholder="(555) 123-4567" value="${esc(str(c.clientPhone))}"
-                oninput="updateClientField('${esc(c.id)}','clientPhone',this.value)"
+                oninput="updateClientField(${jsArg(c.id)},'clientPhone',this.value)"
                 style="${inputStyle}">
             </div>
             <div style="flex:1">
               <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Text Alerts Phone
                 ${isOn('smsEnabled') && !str(c.notifyPhone).trim() ? '<span style="color:#dc2626;font-weight:700" title="Text on Booking is on but there is no number to text — the button will not appear.">— required</span>' : ''}</label>
               <input type="text" placeholder="(555) 123-4567" value="${esc(str(c.notifyPhone))}"
-                oninput="updateClientField('${esc(c.id)}','notifyPhone',this.value)"
+                oninput="updateClientField(${jsArg(c.id)},'notifyPhone',this.value)"
                 title="Where booking texts go when 'Text on Booking' is on."
                 style="${inputStyle}">
             </div>
             <div style="flex:1">
               <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Forward Email</label>
               <input type="text" placeholder="Same as contact or different" value="${esc(str(c.notifyEmails))}"
-                oninput="updateClientField('${esc(c.id)}','notifyEmails',this.value)"
+                oninput="updateClientField(${jsArg(c.id)},'notifyEmails',this.value)"
                 style="${inputStyle}">
             </div>
           </div>
           <div>
             <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Additional Contacts <span style="font-weight:400">— CC'd on the weekly update</span></label>
             <input type="text" placeholder="e.g. ops@company.com, owner@company.com" value="${esc(str(c.otherContacts))}"
-              oninput="updateClientField('${esc(c.id)}','otherContacts',this.value)"
+              oninput="updateClientField(${jsArg(c.id)},'otherContacts',this.value)"
               title="Comma-separated. Anyone here is CC'd on this client's weekly update email every week. aidan@ is always CC'd on top. Also editable from the Weekly Updates tab."
               style="${inputStyle}">
           </div>
@@ -704,7 +704,7 @@ function renderClientsSettings(){
       ${isAdmin()?`<div style="margin-bottom:8px;padding:10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px">
         <div style="font-size:10px;font-weight:700;color:#0369a1;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">SmartLead Tags</div>
         <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${esc(c.name)} Group A / Group B. Safe to press any time — existing tags are reused, never duplicated.</div>
-        <button onclick="createClientTags('${esc(c.id)}', this)" style="padding:6px 12px;background:#0369a1;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">Create SmartLead tags</button>
+        <button onclick="createClientTags(${jsArg(c.id)}, this)" style="padding:6px 12px;background:#0369a1;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">Create SmartLead tags</button>
       </div>`:''}
 
       ${isAdmin()?(()=>{
@@ -723,13 +723,13 @@ function renderClientsSettings(){
               <div style="color:var(--text-muted)">Password is in Slack — never stored here</div>
             </div>`
             : `<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">No portal yet — this client can't sign in to read their own leads.</div>
-              <button onclick="createClientPortal('${esc(c.id)}')" style="padding:6px 12px;background:#7c3aed;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">Create portal</button>`}
+              <button onclick="createClientPortal(${jsArg(c.id)})" style="padding:6px 12px;background:#7c3aed;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">Create portal</button>`}
         </div>`;
       })():''}
 
       ${isAdmin()?`<div style="margin-bottom:8px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Billing Type</label>
-        <select onchange="updateClientField('${esc(c.id)}','billingModel',this.value);debouncedAutoSave();renderSettingsPanel()"
+        <select onchange="updateClientField(${jsArg(c.id)},'billingModel',this.value);debouncedAutoSave();renderSettingsPanel()"
           style="width:160px;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
           <option value="per_lead" ${str(c.billingModel||'per_lead')!=='retainer'?'selected':''}>Per-Lead (PPL)</option>
           <option value="retainer" ${str(c.billingModel)==='retainer'?'selected':''}>Retainer</option>
@@ -738,13 +738,13 @@ function renderClientsSettings(){
       ${str(c.billingModel)!=='retainer'?`<div style="margin-bottom:8px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Lead Cost ($)</label>
         <input type="text" placeholder="e.g. 200" value="${esc(str(c.leadCost))}"
-          oninput="updateClientField('${esc(c.id)}','leadCost',this.value)"
+          oninput="updateClientField(${jsArg(c.id)},'leadCost',this.value)"
           style="width:120px;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
       </div>`:''}
 
       ${str(c.billingModel)!=='retainer'?`<div style="margin-bottom:8px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Payment Terms</label>
-        <select oninput="updateClientField('${esc(c.id)}','paymentTerms',this.value)"
+        <select oninput="updateClientField(${jsArg(c.id)},'paymentTerms',this.value)"
           style="width:120px;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
           <option value="Net 7" ${str(c.paymentTerms||'Net 7')==='Net 7'?'selected':''}>Net 7</option>
           <option value="Net 15" ${str(c.paymentTerms||'Net 7')==='Net 15'?'selected':''}>Net 15</option>
@@ -759,25 +759,25 @@ function renderClientsSettings(){
           <div>
             <label style="font-size:10px;color:var(--text-muted);display:block;margin-bottom:2px">Total Fee</label>
             <input type="number" step="0.01" placeholder="0" value="${str(c.setupFeeTotal)||''}"
-              oninput="updateClientField('${esc(c.id)}','setupFeeTotal',this.value)"
+              oninput="updateClientField(${jsArg(c.id)},'setupFeeTotal',this.value)"
               style="width:90px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font)">
           </div>
           <div>
             <label style="font-size:10px;color:var(--text-muted);display:block;margin-bottom:2px">Deposit Paid</label>
             <input type="number" step="0.01" placeholder="0" value="${str(c.setupFeeDeposit)||''}"
-              oninput="updateClientField('${esc(c.id)}','setupFeeDeposit',this.value)"
+              oninput="updateClientField(${jsArg(c.id)},'setupFeeDeposit',this.value)"
               style="width:90px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font)">
           </div>
           <div>
             <label style="font-size:10px;color:var(--text-muted);display:block;margin-bottom:2px">Spread Over # Leads</label>
             <input type="number" placeholder="0" value="${str(c.setupFeeSpreadCount)||''}"
-              oninput="updateClientField('${esc(c.id)}','setupFeeSpreadCount',this.value)"
+              oninput="updateClientField(${jsArg(c.id)},'setupFeeSpreadCount',this.value)"
               style="width:70px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font)">
           </div>
           <div>
             <label style="font-size:10px;color:var(--text-muted);display:block;margin-bottom:2px">Leads Billed</label>
             <input type="number" placeholder="0" value="${str(c.setupFeeLeadsBilled)||''}"
-              oninput="updateClientField('${esc(c.id)}','setupFeeLeadsBilled',this.value)"
+              oninput="updateClientField(${jsArg(c.id)},'setupFeeLeadsBilled',this.value)"
               style="width:70px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--font)">
           </div>
         </div>
@@ -793,7 +793,7 @@ function renderClientsSettings(){
       ${isOn('enableCalendly')?`<div style="margin-bottom:8px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Calendly URL</label>
         <input type="text" placeholder="https://calendly.com/..." value="${esc(str(c.calendlyUrl))}"
-          oninput="updateClientField('${esc(c.id)}','calendlyUrl',this.value)"
+          oninput="updateClientField(${jsArg(c.id)},'calendlyUrl',this.value)"
           style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
       </div>`:''}
 
@@ -803,10 +803,10 @@ function renderClientsSettings(){
           <div style="flex:1">
             <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Google Doc URL</label>
             <input type="text" id="onboarding-url-${esc(c.id)}" placeholder="https://docs.google.com/document/d/..." value="${esc(str(c.onboardingDocUrl))}"
-              oninput="updateClientField('${esc(c.id)}','onboardingDocUrl',this.value)"
+              oninput="updateClientField(${jsArg(c.id)},'onboardingDocUrl',this.value)"
               style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
           </div>
-          <button onclick="parseOnboardingDoc('${esc(c.id)}')" style="padding:6px 12px;background:#92400e;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;margin-bottom:1px">Parse Doc</button>
+          <button onclick="parseOnboardingDoc(${jsArg(c.id)})" style="padding:6px 12px;background:#92400e;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;margin-bottom:1px">Parse Doc</button>
         </div>
         ${c.onboardingParsedAt?`<div style="font-size:10px;color:#6b7280;margin-top:4px">Last parsed: ${new Date(c.onboardingParsedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})}</div>`:''}
       </div>
@@ -818,13 +818,13 @@ function renderClientsSettings(){
         <div style="margin-bottom:6px">
           <label style="font-size:10px;font-weight:600;color:var(--text-muted)">GHL Location ID</label>
           <input type="text" placeholder="e.g. ve9EPM428h8vShlRW1KT" value="${esc(str(c.ghlLocationId))}"
-            oninput="updateClientField('${esc(c.id)}','ghlLocationId',this.value);debouncedAutoSave()"
+            oninput="updateClientField(${jsArg(c.id)},'ghlLocationId',this.value);debouncedAutoSave()"
             style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
         </div>
         <div style="margin-bottom:6px;position:relative">
           <label style="font-size:10px;font-weight:600;color:var(--text-muted)">GHL API Key</label>
           <input type="password" id="ghl-key-${esc(c.id)}" placeholder="pit-..." value="${esc(str(c.ghlApiKey))}"
-            oninput="updateClientField('${esc(c.id)}','ghlApiKey',this.value);debouncedAutoSave()"
+            oninput="updateClientField(${jsArg(c.id)},'ghlApiKey',this.value);debouncedAutoSave()"
             style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
           <button onclick="const i=document.getElementById('ghl-key-${esc(c.id)}');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'Show':'Hide'"
             style="position:absolute;right:6px;top:20px;border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:10px;font-family:var(--font)">Show</button>
@@ -833,13 +833,13 @@ function renderClientsSettings(){
           <div style="flex:1">
             <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Pipeline ID</label>
             <input type="text" placeholder="e.g. abc123..." value="${esc(str(c.ghlPipelineId))}"
-              oninput="updateClientField('${esc(c.id)}','ghlPipelineId',this.value);debouncedAutoSave()"
+              oninput="updateClientField(${jsArg(c.id)},'ghlPipelineId',this.value);debouncedAutoSave()"
               style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
           </div>
           <div style="flex:1">
             <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Stage ID</label>
             <input type="text" placeholder="e.g. xyz789..." value="${esc(str(c.ghlStageId))}"
-              oninput="updateClientField('${esc(c.id)}','ghlStageId',this.value);debouncedAutoSave()"
+              oninput="updateClientField(${jsArg(c.id)},'ghlStageId',this.value);debouncedAutoSave()"
               style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px">
           </div>
         </div>
@@ -863,7 +863,7 @@ function renderClientsSettings(){
       <div style="margin-bottom:8px">
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">\uD83D\uDCDD Client Notes</label>
         <textarea placeholder="Services offered, booking preferences, special instructions..." rows="3"
-          oninput="updateClientField('${esc(c.id)}','clientNotes',this.value)"
+          oninput="updateClientField(${jsArg(c.id)},'clientNotes',this.value)"
           style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px;resize:vertical">${esc(str(c.clientNotes||''))}</textarea>
       </div>
 
@@ -875,7 +875,7 @@ function renderClientsSettings(){
         <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">${svgIcon('clipboard',10)} SDR / Warm Call Notes</label>
         <div style="font-size:10px;color:var(--text-muted);margin:2px 0 4px">Key talking points for the appointment setter (one per line)</div>
         <textarea placeholder="e.g. Veteran-owned&#10;24 years in business&#10;10% discount for churches&#10;Current clients: Marriott, YMCA" rows="6"
-          oninput="updateClientField('${esc(c.id)}','warmCallNotesText',this.value)"
+          oninput="updateClientField(${jsArg(c.id)},'warmCallNotesText',this.value)"
           style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px;resize:vertical">${esc(wcVal)}</textarea>
       </div>`;
       })()}
@@ -886,7 +886,7 @@ function renderClientsSettings(){
            hit by accident; the picker it opens asks for the last day of service
            and why (client-end.js), which is what level 07 runs on. -->
       <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:flex-end">
-        <button onclick="deactivateClient('${esc(c.id)}')" title="Offboard this client — asks for the last day of service and the reason"
+        <button onclick="deactivateClient(${jsArg(c.id)})" title="Offboard this client — asks for the last day of service and the reason"
           style="padding:8px 14px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">Offboard client</button>
       </div>
       </div>
@@ -905,7 +905,7 @@ function renderClientsSettings(){
       <div id="past-clients-list" style="display:none">
         ${_inactiveClients.map(c=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 14px;border-top:1px solid var(--border)">
           <span style="font-size:13px;font-weight:500;color:var(--text-muted)">${esc(c.name)}</span>
-          <button class="btn btn-ghost" style="font-size:11px;padding:3px 10px;background:#f0fdf4;color:#059669;border:1px solid #a7f3d0" onclick="restoreClient('${esc(c.id)}')">Restore</button>
+          <button class="btn btn-ghost" style="font-size:11px;padding:3px 10px;background:#f0fdf4;color:#059669;border:1px solid #a7f3d0" onclick="restoreClient(${jsArg(c.id)})">Restore</button>
         </div>`).join('')}
       </div>
     </div>`;
@@ -1735,7 +1735,7 @@ window.markSelectedPaid = async function(){
   const ids = checked.map(cb => cb.dataset.id);
   const now = new Date().toISOString().slice(0,10);
   try{
-    const { sbUpdateTrackerEntry } = await import('./api.js?v=20261114041422');
+    const { sbUpdateTrackerEntry } = await import('./api.js?v=20261114043221');
     await Promise.all(ids.map(id => sbUpdateTrackerEntry(id, { paid_status: 'Paid', date_paid: now })));
     for(const id of ids){
       const entry = state.trackerEntries.find(e => e.id === id);
@@ -2009,7 +2009,7 @@ window.restoreClient = async function(clientId) {
   }
   showToast(`${c.name} restored — rebuilding their Smartlead portal…`, 'success');
   try {
-    const { createSmartleadPortal } = await import('./smartlead-portal.js?v=20261114041422');
+    const { createSmartleadPortal } = await import('./smartlead-portal.js?v=20261114043221');
     const r = await createSmartleadPortal(c);
     render();
     // crm-smartlead-client writes the id onto the clients row itself, with a
@@ -2037,7 +2037,7 @@ window.restoreClient = async function(clientId) {
 window.createClientPortal = async function(clientId) {
   const c = state.clients.find(x => str(x.id) === str(clientId));
   if (!c) return;
-  const { portalEmail, createSmartleadPortal } = await import('./smartlead-portal.js?v=20261114041422');
+  const { portalEmail, createSmartleadPortal } = await import('./smartlead-portal.js?v=20261114043221');
   const email = portalEmail(c);
   if (!email) { showToast('Add a contact email for this client first', 'error'); return; }
   if (!confirm(`Create a Smartlead portal for ${c.name}?\n\nLogin: ${email}\n\nSmartlead has no way to delete a client portal, so this cannot be undone.`)) return;
@@ -2077,7 +2077,7 @@ window.orderColdCallInbox = async function(clientId, btn) {
   if (!confirm(`Buy a contact@ .info cold-calling inbox for ${c.name}?\n\n~$4 domain + $3/month mailbox. It goes live in Zapmail and SmartLead on its own over the next hour or two.`)) return;
   if (btn) { btn.disabled = true; btn.textContent = 'Ordering…'; }
   try {
-    const { createColdCallInbox } = await import('./cold-call-inbox.js?v=20261114041422');
+    const { createColdCallInbox } = await import('./cold-call-inbox.js?v=20261114043221');
     const r = await createColdCallInbox(c);
     render();
     showToast(`${r.existed ? 'Already ordered' : 'Ordered'}: ${r.email} — live in ~1–3h, then warming up`, 'success');

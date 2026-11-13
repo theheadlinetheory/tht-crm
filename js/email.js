@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // EMAIL — Forward to client, lead tracker push, send to thread
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20261114041422';
-import { render, refreshModal } from './render.js?v=20261114041422';
-import { invokeEdgeFunction, sbUpdateDeal, camelToSnake, showToast } from './api.js?v=20261114041422';
-import { esc, str, svgIcon, stripHtml, applyTemplate } from './utils.js?v=20261114041422';
-import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20261114041422';
-import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20261114041422';
-import { CRM_BASE_URL, GEOCODIO_KEY } from './config.js?v=20261114041422';
+import { state, pendingWrites } from './app.js?v=20261114043221';
+import { render, refreshModal } from './render.js?v=20261114043221';
+import { invokeEdgeFunction, sbUpdateDeal, camelToSnake, showToast } from './api.js?v=20261114043221';
+import { esc, str, svgIcon, stripHtml, applyTemplate, jsArg } from './utils.js?v=20261114043221';
+import { DEFAULT_DELIVERY_TEMPLATE } from './settings.js?v=20261114043221';
+import { findClientForDeal, lookupClientInfo, getClientThreadId } from './client-info.js?v=20261114043221';
+import { CRM_BASE_URL, GEOCODIO_KEY } from './config.js?v=20261114043221';
 
 function formatEmailBody(html){
   if(!html) return '';
@@ -227,7 +227,7 @@ export async function autoPushToTracker(deal){
   const month = `${months[billingDate.getMonth()]}/${String(billingDate.getFullYear()).slice(-2)}`;
 
   // Insert into lead_tracker table
-  const { sbCreateTrackerEntry, normalizeRow } = await import('./api.js?v=20261114041422');
+  const { sbCreateTrackerEntry, normalizeRow } = await import('./api.js?v=20261114043221');
   const entry = await sbCreateTrackerEntry({
     deal_id: deal.id,
     client_name: clientName,
@@ -358,7 +358,7 @@ export async function openPassOffPreview(dealId, clientName){
       </div>
     </div>
     <div style="padding:12px 20px 20px;display:flex;gap:8px">
-      <button id="passoff-confirm-btn" onclick="executePassOff('${esc(deal.id)}',atob('${btoa(unescape(encodeURIComponent(client.name)))}'))" style="flex:1;padding:12px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--font)">Pass Off to ${esc(client.name)}</button>
+      <button id="passoff-confirm-btn" onclick="executePassOff(${jsArg(deal.id)},atob('${btoa(unescape(encodeURIComponent(client.name)))}'))" style="flex:1;padding:12px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--font)">Pass Off to ${esc(client.name)}</button>
       <button onclick="document.getElementById('passoff-preview-overlay').remove()" style="padding:12px 20px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font)">Cancel</button>
     </div>
   </div>`;
@@ -411,7 +411,7 @@ export async function executePassOff(dealId, clientName){
     }
 
     if(btn) btn.textContent='Archiving...';
-    const { deleteDeal }=await import('./deals.js?v=20261114041422');
+    const { deleteDeal }=await import('./deals.js?v=20261114043221');
     await deleteDeal(dealId,'Passed Off',clientName);
 
     document.getElementById('passoff-preview-overlay')?.remove();

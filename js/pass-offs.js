@@ -1,9 +1,9 @@
-import { state, pendingWrites } from './app.js?v=20261114041422';
-import { sbUpdatePassOff, sbDeletePassOff, camelToSnake, normalizeRow, showToast } from './api.js?v=20261114041422';
-import { isAdmin, isEmployee } from './auth.js?v=20261114041422';
-import { esc, escAttr, str } from './utils.js?v=20261114041422';
-import { leadCardId } from './lead-card.js?v=20261114041422';
-import { render } from './render.js?v=20261114041422';
+import { state, pendingWrites } from './app.js?v=20261114043221';
+import { sbUpdatePassOff, sbDeletePassOff, camelToSnake, normalizeRow, showToast } from './api.js?v=20261114043221';
+import { isAdmin, isEmployee } from './auth.js?v=20261114043221';
+import { esc, escAttr, str, jsArg } from './utils.js?v=20261114043221';
+import { leadCardId } from './lead-card.js?v=20261114043221';
+import { render } from './render.js?v=20261114043221';
 
 // The billing month ('July/26') is deliberately not a column — the sheet shows
 // the exact date the lead was passed off instead.
@@ -173,7 +173,7 @@ export function renderPassOffs() {
         html += `<td>${formatDate(entry.datePassed) || '<span style="color:#d1d5db">—</span>'}</td>`;
       } else if (col.key === 'company' && leadCardId(entry)) {
         // The company opens the lead's deal card — archived (Passed Off) cards open read-only (lead-card.js).
-        html += `<td><a href="#" onclick="event.preventDefault();openLeadCard('${escAttr(leadCardId(entry))}')" title="Open the deal card" style="color:#1e1b4b;font-weight:600;text-decoration:underline dotted">${esc(str(entry.company) || str(entry.contact) || str(entry.email) || 'Open card')}</a>${bookedApptBadge(entry)}</td>`;
+        html += `<td><a href="#" onclick="event.preventDefault();openLeadCard(${jsArg(leadCardId(entry))})" title="Open the deal card" style="color:#1e1b4b;font-weight:600;text-decoration:underline dotted">${esc(str(entry.company) || str(entry.contact) || str(entry.email) || 'Open card')}</a>${bookedApptBadge(entry)}</td>`;
       } else if (col.key === 'clientName' && clientColor) {
         html += `<td style="color:${clientColor};font-weight:600">${esc(str(entry[col.key]))}</td>`;
       } else if (col.key === 'notes' && isEditing) {

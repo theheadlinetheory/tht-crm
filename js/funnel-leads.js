@@ -9,16 +9,16 @@
 // the events of the period for leads from any cohort. Temporary by intent —
 // the tables stay small while the window is a week.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261114041422';
-import { esc, escAttr } from './utils.js?v=20261114041422';
-import { state } from './app.js?v=20261114041422';
-import { openDeal } from './deal-modal.js?v=20261114041422';
-import { openArchivedDeal } from './archive.js?v=20261114041422';
-import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES, DEMO_RESCHEDULING } from './disco-outcome.js?v=20261114041422';
-import { writeRemovalNote, showAcquisitionRemovalPicker, DESK_DQ_REASONS, deskDqNote, lostNote, SAID_NO_REASONS, saidNoNote } from './removal-reason.js?v=20261114041422';
-import { deleteDeal } from './deals.js?v=20261114041422';
-import { showClientEndPicker } from './client-end.js?v=20261114041422';
-import { authedFetch } from './edge-auth.js?v=20261114041422'; // session token, not the anon key (A2#2, S1, 2026-11-13)
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261114043221';
+import { esc, escAttr, jsArg } from './utils.js?v=20261114043221';
+import { state } from './app.js?v=20261114043221';
+import { openDeal } from './deal-modal.js?v=20261114043221';
+import { openArchivedDeal } from './archive.js?v=20261114043221';
+import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES, DEMO_RESCHEDULING } from './disco-outcome.js?v=20261114043221';
+import { writeRemovalNote, showAcquisitionRemovalPicker, DESK_DQ_REASONS, deskDqNote, lostNote, SAID_NO_REASONS, saidNoNote } from './removal-reason.js?v=20261114043221';
+import { deleteDeal } from './deals.js?v=20261114043221';
+import { showClientEndPicker } from './client-end.js?v=20261114043221';
+import { authedFetch } from './edge-auth.js?v=20261114043221'; // session token, not the anon key (A2#2, S1, 2026-11-13)
 
 // ── Record the outcome from the list (Lars, 2026-09-10) ──
 // A flagged row gets the same options the reps use live, and writes through the
@@ -49,7 +49,7 @@ function editableWhy(level, r, rowId) {
   const onBoard = state.deals.some(d => String(d.id) === String(r.deal_id));
   if ((level === '02' || level === '04') && onBoard) return '';
   if (!optionsFor(level, onBoard)) return '';
-  return ` onclick="funnelEditWhy(this,'${level}','${escAttr(r.deal_id)}','${rowId}','${escAttr(r.as_of || '')}')" title="Click to change" style="cursor:pointer;`;
+  return ` onclick="funnelEditWhy(this,'${level}',${jsArg(r.deal_id)},'${rowId}',${jsArg(r.as_of || '')})" title="Click to change" style="cursor:pointer;`;
 }
 window.funnelEditWhy = (td, level, dealId, rowId, asOf) => {
   if (td.querySelector('select')) return;
@@ -67,12 +67,12 @@ window.funnelEditWhy = (td, level, dealId, rowId, asOf) => {
 };
 function outcomeControl(level, r, rowId) {
   if (level === '07') {
-    return r.client_id ? `<button onclick="funnelRecordEnd('${escAttr(r.client_id)}','${rowId}')" style="margin-left:8px;padding:2px 8px;border:1px solid #fde68a;border-radius:5px;background:#fff;font-size:11px;color:#92400e;cursor:pointer">Record the end…</button>` : '';
+    return r.client_id ? `<button onclick="funnelRecordEnd(${jsArg(r.client_id)},'${rowId}')" style="margin-left:8px;padding:2px 8px;border:1px solid #fde68a;border-radius:5px;background:#fff;font-size:11px;color:#92400e;cursor:pointer">Record the end…</button>` : '';
   }
   const onBoard = r.deal_id && state.deals.some(d => String(d.id) === String(r.deal_id));
   const opts = optionsFor(level, onBoard);
   if (!opts || !r.deal_id) return '';
-  return `<select onchange="funnelSetOutcome('${level}','${escAttr(r.deal_id)}',this.value,'${rowId}','${escAttr(r.as_of || '')}');this.selectedIndex=0" style="margin-left:8px;padding:2px 6px;border:1px solid #fde68a;border-radius:5px;background:#fff;font-size:11px;color:#92400e">
+  return `<select onchange="funnelSetOutcome('${level}',${jsArg(r.deal_id)},this.value,'${rowId}',${jsArg(r.as_of || '')});this.selectedIndex=0" style="margin-left:8px;padding:2px 6px;border:1px solid #fde68a;border-radius:5px;background:#fff;font-size:11px;color:#92400e">
     <option value="">record what happened…</option>${opts.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>`;
 }
 // An outcome recorded from the list is remembered (per browser) until the ledger has read it — hourly — so a
@@ -192,7 +192,7 @@ export function leadsTable(rows, label, level) {
     const onBoard = r.deal_id && state.deals.some(d => String(d.id) === String(r.deal_id));
     const name = esc(r.company || r.contact || '—');
     const company = r.deal_id
-      ? `<a href="#" onclick="event.preventDefault();funnelOpenDeal('${escAttr(r.deal_id)}')" title="${onBoard ? 'Open the deal card' : 'Open the archived deal card (read-only)'}" style="color:#1e1b4b;font-weight:600;text-decoration:underline dotted">${name}</a>`
+      ? `<a href="#" onclick="event.preventDefault();funnelOpenDeal(${jsArg(r.deal_id)})" title="${onBoard ? 'Open the deal card' : 'Open the archived deal card (read-only)'}" style="color:#1e1b4b;font-weight:600;text-decoration:underline dotted">${name}</a>`
       : `<span style="color:#1f2937;font-weight:600">${name}</span>`;
     // No record of what happened next: highlighted so Aidan and Ioannis can fill it in while they QC (Lars, 2026-09-10).
     // Two flags (Lars, 2026-09-11): yellow = no record of what happened (left without a reason, a slot passed, moved on

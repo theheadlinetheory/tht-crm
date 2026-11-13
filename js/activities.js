@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // ACTIVITIES — Activity CRUD, SOP sequences, overdue tracking
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, completedActivityIds, deletedActivityIds, inFlightActivityIds } from './app.js?v=20261114041422';
-import { SOP_DAYS, CLIENT_SOP_DAYS, PRE_CALL_SEQUENCE, NO_SHOW_SEQUENCE, REACTIVATION_DAYS } from './config.js?v=20261114041422';
-import { render, refreshModal } from './render.js?v=20261114041422';
-import { sbCreateActivity, sbUpdateActivity, sbDeleteActivity, camelToSnake } from './api.js?v=20261114041422';
-import { uid, getToday, isValidDate, fmtTime12, esc } from './utils.js?v=20261114041422';
-import { findClientForDeal } from './client-info.js?v=20261114041422';
-import { isDay1EmailTask, askEmailTemplate } from './email-template-pick.js?v=20261114041422';
+import { state, store, pendingWrites, completedActivityIds, deletedActivityIds, inFlightActivityIds } from './app.js?v=20261114043221';
+import { SOP_DAYS, CLIENT_SOP_DAYS, PRE_CALL_SEQUENCE, NO_SHOW_SEQUENCE, REACTIVATION_DAYS } from './config.js?v=20261114043221';
+import { render, refreshModal } from './render.js?v=20261114043221';
+import { sbCreateActivity, sbUpdateActivity, sbDeleteActivity, camelToSnake } from './api.js?v=20261114043221';
+import { uid, getToday, isValidDate, fmtTime12, esc, jsArg } from './utils.js?v=20261114043221';
+import { findClientForDeal } from './client-info.js?v=20261114043221';
+import { isDay1EmailTask, askEmailTemplate } from './email-template-pick.js?v=20261114043221';
 
 async function retryActivityWrite(fn, label, maxRetries=3){
   pendingWrites.value++;
@@ -144,7 +144,7 @@ export function renderBookedMeetingsBanner(){
   const shown=booked.slice(0,2);
   let h=`<span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#78350f">\u{1F4C5}`;
   for(const d of shown){
-    h+=`<span style="white-space:nowrap;cursor:pointer" onclick="openDeal('${esc(d.id)}')">${esc(d.company||d.contact||'?')}${d.bookedTime?' @ '+fmtTime12(d.bookedTime):''}</span>`;
+    h+=`<span style="white-space:nowrap;cursor:pointer" onclick="openDeal(${jsArg(d.id)})">${esc(d.company||d.contact||'?')}${d.bookedTime?' @ '+fmtTime12(d.bookedTime):''}</span>`;
   }
   if(booked.length>2) h+=`<span style="color:#92400e">+${booked.length-2}</span>`;
   h+=`</span>`;

@@ -6,14 +6,14 @@
 // Every text field is state-backed (state.hiringDraft) because render()
 // rebuilds #app. Clicking outside, ✕ and Close all save pending edits.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261114041422';
-import { render } from './render.js?v=20261114041422';
-import { showToast } from './api.js?v=20261114041422';
-import { esc, str, svgIcon, fmtTimestamp, getToday } from './utils.js?v=20261114041422';
-import { STAGES, CONTACT_TYPES, stageLabel, shortDate, replyText, findCandidate, saveFields, moveCandidate, toggleStar } from './hiring.js?v=20261114041422';
-import { activitiesFor, loadActivities, addHiringActivity, updateHiringActivity, deleteHiringActivity, findActivity } from './hiring-activity.js?v=20261114041422';
-import { candidateChannel, channelSelectHtml } from './hiring-channel.js?v=20261114041422';
-import { refreshHiringUnread } from './hiring-unread.js?v=20261114041422';
+import { state } from './app.js?v=20261114043221';
+import { render } from './render.js?v=20261114043221';
+import { showToast } from './api.js?v=20261114043221';
+import { esc, str, svgIcon, fmtTimestamp, getToday, jsArg } from './utils.js?v=20261114043221';
+import { STAGES, CONTACT_TYPES, stageLabel, shortDate, replyText, findCandidate, saveFields, moveCandidate, toggleStar } from './hiring.js?v=20261114043221';
+import { activitiesFor, loadActivities, addHiringActivity, updateHiringActivity, deleteHiringActivity, findActivity } from './hiring-activity.js?v=20261114043221';
+import { candidateChannel, channelSelectHtml } from './hiring-channel.js?v=20261114043221';
+import { refreshHiringUnread } from './hiring-unread.js?v=20261114043221';
 
 const LINK_STYLE = 'color:var(--purple);word-break:break-all';
 const INPUT_STYLE = 'padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)';
@@ -148,7 +148,7 @@ function templateChipsHtml(c, pending) {
   const open = new Set(pending.map(a => a.body));
   return `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">
     ${FOLLOW_UP_TEMPLATES[c.kind].map((t, i) => open.has(t.body) ? '' :
-      `<button class="btn btn-ghost" style="font-size:11px;padding:3px 8px;border:1px dashed var(--border)" onclick="hiringFollowUpTemplate('${esc(c.id)}', ${i})">+ ${esc(t.body)}${t.days ? ` <span style="color:var(--text-muted)">(${t.days}d)</span>` : ''}</button>`).join('')}
+      `<button class="btn btn-ghost" style="font-size:11px;padding:3px 8px;border:1px dashed var(--border)" onclick="hiringFollowUpTemplate(${jsArg(c.id)}, ${i})">+ ${esc(t.body)}${t.days ? ` <span style="color:var(--text-muted)">(${t.days}d)</span>` : ''}</button>`).join('')}
   </div>`;
 }
 
@@ -161,7 +161,7 @@ function followUpsHtml(c, d, rows) {
     <div style="display:flex;gap:6px;margin-bottom:6px">
       <input type="text" id="hiring-fu-subject" placeholder="Next step, e.g. Send the intake form" value="${esc(d.fuSubject)}" oninput="hiringDraftSet('fuSubject', this.value)" style="flex:1;${INPUT_STYLE}">
       <input type="date" id="hiring-fu-due" value="${esc(d.fuDue)}" oninput="hiringDraftSet('fuDue', this.value)" style="${INPUT_STYLE}">
-      <button class="btn btn-primary" style="font-size:12px" onclick="hiringFollowUpAdd('${esc(c.id)}')">+ Add</button>
+      <button class="btn btn-primary" style="font-size:12px" onclick="hiringFollowUpAdd(${jsArg(c.id)})">+ Add</button>
     </div>
     ${templateChipsHtml(c, pending)}
     ${pending.length ? pending.map(followUpRow).join('') : '<div style="color:var(--text-muted)">No follow-ups scheduled</div>'}
@@ -193,8 +193,8 @@ function timelineHtml(c, d, rows) {
     <textarea id="hiring-entry" placeholder="Add a note, or paste a message you sent" oninput="hiringDraftSet('entry', this.value)"
       style="width:100%;min-height:48px;${INPUT_STYLE};resize:vertical">${esc(d.entry)}</textarea>
     <div style="display:flex;gap:6px;justify-content:flex-end;margin:6px 0 8px">
-      <button class="btn btn-ghost" style="font-size:12px" onclick="hiringLogEntry('${esc(c.id)}','note')">📝 Log note</button>
-      <button class="btn btn-ghost" style="font-size:12px" onclick="hiringLogEntry('${esc(c.id)}','message_out')">📤 Log message sent</button>
+      <button class="btn btn-ghost" style="font-size:12px" onclick="hiringLogEntry(${jsArg(c.id)},'note')">📝 Log note</button>
+      <button class="btn btn-ghost" style="font-size:12px" onclick="hiringLogEntry(${jsArg(c.id)},'message_out')">📤 Log message sent</button>
     </div>
     <div style="max-height:300px;overflow-y:auto;border-left:2px solid #d1d5db;margin-left:6px;padding-left:12px">
       ${events.map(e => `<div style="margin-bottom:8px">

@@ -12,13 +12,13 @@
 //   CCs are ALSO editable here, on the idle checklist and on review rows.
 //   Lars's signature appended. The Client Info sheet is NOT used.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20261114041422';
-import { state } from './app.js?v=20261114041422';
-import { render } from './render.js?v=20261114041422';
-import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20261114041422';
-import { esc, str, svgIcon } from './utils.js?v=20261114041422';
-import { crmWeekContext, ctxCheckinLines, ctxDay, ctxSummary, ctxSection } from './weekly-context.js?v=20261114041422';
-import { DEFAULT_WEEKLY_UPDATE_TEMPLATE, WEEKLY_TOKENS, PPM_NOTE, applyWeeklyTemplate, weeklyGreeting } from './weekly-template.js?v=20261114041422';
+import { supabase } from './supabase-client.js?v=20261114043221';
+import { state } from './app.js?v=20261114043221';
+import { render } from './render.js?v=20261114043221';
+import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20261114043221';
+import { esc, str, svgIcon, jsArg } from './utils.js?v=20261114043221';
+import { crmWeekContext, ctxCheckinLines, ctxDay, ctxSummary, ctxSection } from './weekly-context.js?v=20261114043221';
+import { DEFAULT_WEEKLY_UPDATE_TEMPLATE, WEEKLY_TOKENS, PPM_NOTE, applyWeeklyTemplate, weeklyGreeting } from './weekly-template.js?v=20261114043221';
 
 // Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
@@ -628,9 +628,9 @@ function renderWeeklyClientSelect(w){
     // checkbox, hence preventDefault+stopPropagation.
     const action = c.status==='inactive'
       ? `<button style="margin-left:auto;flex-shrink:0;font-size:11px;font-weight:600;color:#059669;background:none;border:none;cursor:pointer;padding:2px 4px" title="Set back to active in the master clients table"
-          onclick="event.preventDefault();event.stopPropagation();restoreClient('${esc(str(c.id))}')">Restore</button>`
+          onclick="event.preventDefault();event.stopPropagation();restoreClient(${jsArg(str(c.id))})">Restore</button>`
       : `<button style="margin-left:auto;flex-shrink:0;font-size:11px;font-weight:600;color:var(--text-muted);background:none;border:none;cursor:pointer;padding:2px 4px" title="Mark inactive in the master clients table — drops out of weekly updates from now on (restorable below or in Settings → Clients)"
-          onclick="event.preventDefault();event.stopPropagation();weeklyDeactivateClient('${esc(str(c.id))}')">Make inactive</button>`;
+          onclick="event.preventDefault();event.stopPropagation();weeklyDeactivateClient(${jsArg(str(c.id))})">Make inactive</button>`;
     // The CC input sits OUTSIDE the <label> — a text input nested inside it
     // inherits the label's click target and fights the checkbox.
     const ccVal = str(c.otherContacts);
