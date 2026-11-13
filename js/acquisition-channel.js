@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 // Derived from deals.lead_source. Everything without a source predates
 // multi-channel outreach and came from SmartLead, so it counts as Email.
-import { svgIcon } from './utils.js?v=20261113032638';
+import { svgIcon } from './utils.js?v=20261114001316';
 
 export const ACQUISITION_CHANNELS = ['Email', 'Cold Calling', 'SMS', 'LinkedIn', 'AEO/GEO', 'Other'];
 

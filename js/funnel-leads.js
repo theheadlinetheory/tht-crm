@@ -9,16 +9,16 @@
 // the events of the period for leads from any cohort. Temporary by intent —
 // the tables stay small while the window is a week.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261113032638';
-import { esc, escAttr } from './utils.js?v=20261113032638';
-import { state } from './app.js?v=20261113032638';
-import { openDeal } from './deal-modal.js?v=20261113032638';
-import { openArchivedDeal } from './archive.js?v=20261113032638';
-import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES, DEMO_RESCHEDULING } from './disco-outcome.js?v=20261113032638';
-import { writeRemovalNote, showAcquisitionRemovalPicker, DESK_DQ_REASONS, deskDqNote, lostNote, SAID_NO_REASONS, saidNoNote } from './removal-reason.js?v=20261113032638';
-import { deleteDeal } from './deals.js?v=20261113032638';
-import { showClientEndPicker } from './client-end.js?v=20261113032638';
-import { authedFetch } from './edge-auth.js?v=20261113032638'; // session token, not the anon key (A2#2, S1, 2026-11-13)
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261114001316';
+import { esc, escAttr } from './utils.js?v=20261114001316';
+import { state } from './app.js?v=20261114001316';
+import { openDeal } from './deal-modal.js?v=20261114001316';
+import { openArchivedDeal } from './archive.js?v=20261114001316';
+import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES, DEMO_RESCHEDULING } from './disco-outcome.js?v=20261114001316';
+import { writeRemovalNote, showAcquisitionRemovalPicker, DESK_DQ_REASONS, deskDqNote, lostNote, SAID_NO_REASONS, saidNoNote } from './removal-reason.js?v=20261114001316';
+import { deleteDeal } from './deals.js?v=20261114001316';
+import { showClientEndPicker } from './client-end.js?v=20261114001316';
+import { authedFetch } from './edge-auth.js?v=20261114001316'; // session token, not the anon key (A2#2, S1, 2026-11-13)
 
 // ── Record the outcome from the list (Lars, 2026-09-10) ──
 // A flagged row gets the same options the reps use live, and writes through the

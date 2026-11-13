@@ -11,11 +11,11 @@
 // client-panel.js owns the overlay and the editable blocks; this module only lays them out in tabs and owns the
 // Appointments tab. The panel is never re-rendered while open, so switching tabs only flips which pane shows.
 
-import { state } from './app.js?v=20261113032638';
-import { esc, str, svgIcon, getToday } from './utils.js?v=20261113032638';
-import { supabase } from './supabase-client.js?v=20261113032638';
-import { registerActions } from './delegate.js?v=20261113032638';
-import { clientIanaTz, setCalendlyBookingDealId } from './calendly.js?v=20261113032638';
+import { state } from './app.js?v=20261114001316';
+import { esc, str, svgIcon, getToday } from './utils.js?v=20261114001316';
+import { supabase } from './supabase-client.js?v=20261114001316';
+import { registerActions } from './delegate.js?v=20261114001316';
+import { clientIanaTz, setCalendlyBookingDealId } from './calendly.js?v=20261114001316';
 
 // ─── Call sheet fields (clients.call_*: no FIELD_MAP entry, so snake_case on the client object) ───
 const lineList = v => {
@@ -170,6 +170,21 @@ function isoDate(v) {
   return `${y}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`;
 }
 
+/** "14:00:00", "2:00 PM", "Tuesday, November 10, 10:30 AM" → "2:00 PM" / "10:30 AM"; no clock time → "". */
+function fmtTime(v) {
+  const m = str(v).match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*([AaPp])?\.?\s*[Mm]?\b/);
+  if (!m) return '';
+  let h = +m[1];
+  const ap = m[3] ? m[3].toUpperCase() + 'M' : (h >= 12 ? 'PM' : 'AM');
+  if (!m[3]) h = h % 12 || 12;
+  return `${h}:${m[2]} ${ap}`;
+}
+/** "10:30 AM" → minutes after midnight, for sorting ("" sorts first). */
+function timeMins(t) {
+  const m = str(t).match(/^(\d{1,2}):(\d{2}) ([AP])M$/);
+  return m ? ((+m[1] % 12) + (m[3] === 'P' ? 12 : 0)) * 60 + +m[2] : -1;
+}
+
 // Read through the client_appointments RPC, not the tables: an SDR's row access stops at cold-call deals, but a
 // caller has to see every meeting booked for the client (email ones too) so a property is never booked twice.
 async function loadAppointments(clientName) {
@@ -177,27 +192,34 @@ async function loadAppointments(clientName) {
     const { data, error } = await supabase.rpc('client_appointments', { p_client: clientName });
     if (error) throw error;
     const rows = [];
-    const seen = new Set();
+    const seen = new Map();
     const key = r => str(r.lead).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 14) + '|' + r.appt;
     // Deal-linked rows first, so a CRM mirror row ("Booked in CRM", no deal id) only shows when nothing else does.
     for (const r of (data || []).sort((a, b) => (a.deal_id ? 0 : 1) - (b.deal_id ? 0 : 1))) {
-      const row = { lead: r.lead, booked: isoDate(r.booked), appt: isoDate(r.appt_date), time: str(r.appt_time).slice(0, 5), source: r.source, dealId: r.deal_id };
+      const row = { lead: r.lead, booked: isoDate(r.booked), appt: isoDate(r.appt_date), time: fmtTime(r.appt_time), source: r.source, dealId: r.deal_id };
       const k = key(row);
-      if (row.appt && seen.has(k)) continue;
-      seen.add(k);
+      // The tracker sometimes holds only the day ("Thursday, October 15"): take the time from the same meeting's other row.
+      if (row.appt && seen.has(k)) { const first = seen.get(k); if (!first.time && row.time) first.time = row.time; continue; }
+      seen.set(k, row);
       rows.push(row);
     }
     fillAppointments(clientName, rows);
   } catch (e) {
     const host = _client === clientName && document.getElementById('cp-appts');
-    if (host) host.innerHTML = `<div style="font-size:12px;color:#dc2626">Couldn't load appointments: ${esc(e.message || String(e))}</div>`;
+    const msg = `<div style="font-size:12px;color:#dc2626">Couldn't load appointments: ${esc(e.message || String(e))}</div>`;
+    if (host) host.innerHTML = msg;
+    const calHost = _client === clientName && document.getElementById('cp-cal-upcoming');
+    if (calHost) calHost.innerHTML = msg;
   }
 }
 
 // ─── The client's Calendly, open inline on the Calendar tab ───
+// Tim 2026-11-14: the Upcoming card sits above the calendar too, so the caller sees what is already booked
+// (date + time) while picking a slot.
 function calendarHtml(cl) {
-  if (!str(cl.calendlyUrl).trim()) return box(heading('Calendar') + '<div style="font-size:12px;color:#94a3b8">No Calendly link for this client yet.</div>');
-  return box(heading(`${svgIcon('calendar', 12)} ${esc(cl.name)}'s calendar`, '#4338ca')
+  const upcoming = `<div id="cp-cal-upcoming"><div style="font-size:12px;color:#94a3b8;margin-bottom:16px">Loading upcoming meetings…</div></div>`;
+  if (!str(cl.calendlyUrl).trim()) return upcoming + box(heading('Calendar') + '<div style="font-size:12px;color:#94a3b8">No Calendly link for this client yet.</div>');
+  return upcoming + box(heading(`${svgIcon('calendar', 12)} ${esc(cl.name)}'s calendar`, '#4338ca')
     + `<div id="cp-cal" style="min-width:280px;height:700px"></div>`, { bg: '#eef2ff', border: '#c7d2fe' });
 }
 
@@ -229,11 +251,16 @@ function mountCalendar(clientName, baseUrl, tries = 0) {
 }
 
 function fillAppointments(clientName, rows) {
-  const host = _client === clientName && document.getElementById('cp-appts');
-  if (!host) return;
-  if (!rows.length) { host.innerHTML = `<div style="font-size:12px;color:#94a3b8">No meetings booked for ${esc(clientName)} yet.</div>`; return; }
+  if (_client !== clientName) return;
+  const host = document.getElementById('cp-appts');
+  const calHost = document.getElementById('cp-cal-upcoming');
+  if (!rows.length) {
+    if (host) host.innerHTML = `<div style="font-size:12px;color:#94a3b8">No meetings booked for ${esc(clientName)} yet.</div>`;
+    if (calHost) calHost.innerHTML = '';
+    return;
+  }
   const today = getToday();
-  const upcoming = rows.filter(r => r.appt >= today).sort((a, b) => (a.appt + str(a.time)).localeCompare(b.appt + str(b.time)));
+  const upcoming = rows.filter(r => r.appt >= today).sort((a, b) => a.appt.localeCompare(b.appt) || timeMins(a.time) - timeMins(b.time));
   const past = rows.filter(r => !(r.appt >= today)).sort((a, b) => (b.appt || b.booked || '').localeCompare(a.appt || a.booked || ''));
   const th = 'padding:5px 6px;text-align:left;font-weight:600;color:#64748b;font-size:11px;white-space:nowrap';
   const td = 'padding:6px;border-top:1px solid #e2e8f0;font-size:12px;vertical-align:top';
@@ -243,7 +270,12 @@ function fillAppointments(clientName, rows) {
       <td style="${td};white-space:nowrap;font-weight:600">${when(r)}</td><td style="${td}">${esc(r.lead || '')}</td>
       <td style="${td};white-space:nowrap;color:#64748b">${esc(r.booked || '')}</td><td style="${td};color:#64748b">${esc(r.source)}</td></tr>`).join('')}
     </tbody></table>`;
-  host.innerHTML = box(heading(`${svgIcon('calendar', 12)} Upcoming (${upcoming.length})`, '#92400e') + (upcoming.length ? table(upcoming) : '<div style="font-size:12px;color:#94a3b8">Nothing coming up.</div>'), { bg: '#fffbeb', border: '#fde68a' })
+  const upcomingCard = scroll => box(heading(`${svgIcon('calendar', 12)} Upcoming (${upcoming.length})`, '#92400e')
+    + (upcoming.length ? (scroll ? `<div style="max-height:240px;overflow-y:auto">${table(upcoming)}</div>` : table(upcoming)) : '<div style="font-size:12px;color:#94a3b8">Nothing coming up.</div>'), { bg: '#fffbeb', border: '#fde68a' });
+  // Above the calendar it scrolls inside itself, so a long list never pushes the calendar off screen.
+  if (calHost) calHost.innerHTML = upcomingCard(true);
+  if (!host) return;
+  host.innerHTML = upcomingCard(false)
     + box(heading(`Already happened or no date (${past.length})`) + (past.length ? table(past) : '<div style="font-size:12px;color:#94a3b8">None.</div>'))
     + `<div style="font-size:11px;color:#94a3b8">Every meeting booked for ${esc(clientName)}: the lead tracker, retainer pass-offs, and cards on the board with a booked time. Check here before booking a property twice.</div>`;
 }
@@ -253,6 +285,6 @@ registerActions({
   cpOpenDeal(el) {
     const id = el.dataset.id;
     if (window.closeClientInfoPanel) window.closeClientInfoPanel();
-    import('./deal-modal.js?v=20261113032638').then(m => m.openDeal(id));
+    import('./deal-modal.js?v=20261114001316').then(m => m.openDeal(id));
   },
 });
