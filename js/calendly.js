@@ -1,14 +1,14 @@
 // ═══════════════════════════════════════════════════════════
 // CALENDLY — Calendly popup/inline widget integration
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20261114031541';
-import { TZ_TO_IANA, ACQ_CALENDLY_URLS } from './config.js?v=20261114031541';
-import { render, refreshModal } from './render.js?v=20261114031541';
-import { sbUpdateDeal, sbDeleteAppointment, camelToSnake, showToast, supabase } from './api.js?v=20261114031541';
-import { replaceDealAppointment, saveDealAppointmentRow } from './deal-appointment.js?v=20261114031541';
-import { esc, str, getToday, fmtTime12, uid } from './utils.js?v=20261114031541';
-import { lookupClientInfo, findClientForDeal } from './client-info.js?v=20261114031541';
-import { zonedDateTime } from './passoff-core.js?v=20261114031541';
+import { state, store, pendingWrites } from './app.js?v=20261114041422';
+import { TZ_TO_IANA, ACQ_CALENDLY_URLS } from './config.js?v=20261114041422';
+import { render, refreshModal } from './render.js?v=20261114041422';
+import { sbUpdateDeal, sbDeleteAppointment, camelToSnake, showToast, supabase } from './api.js?v=20261114041422';
+import { replaceDealAppointment, saveDealAppointmentRow } from './deal-appointment.js?v=20261114041422';
+import { esc, str, getToday, fmtTime12, uid } from './utils.js?v=20261114041422';
+import { lookupClientInfo, findClientForDeal } from './client-info.js?v=20261114041422';
+import { zonedDateTime } from './passoff-core.js?v=20261114041422';
 
 export function buildCalendlyUrl(baseUrl, deal){
   if(!baseUrl) return '';
@@ -81,7 +81,7 @@ function watchCalendlyPopupClose(dealId){
 // Which deal's "Review & Edit Info Sent to Calendly" panel is open. Kept here, not only in the DOM:
 // any re-render (a client/appointment/tracker realtime event, the 2-minute sync) rebuilds the card,
 // and the panel used to come back collapsed mid-typing — the box "went up" and the next keystrokes
-// went nowhere (Ioannis + Marcel, 2026-11-06).
+// went nowhere (Ioannis + Marcell, 2026-11-06).
 let calendlyOpenDealId=null;
 export function isCalendlyBookingOpen(dealId){
   return calendlyOpenDealId!==null && String(calendlyOpenDealId)===String(dealId);

@@ -1,16 +1,16 @@
 // ═══════════════════════════════════════════════════════════
 // LEAD TRACKER — Editable grid view for lead billing & status
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20261114031541';
-import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20261114031541';
-import { isAdmin, isEmployee } from './auth.js?v=20261114031541';
-import { esc, jsArg, svgIcon, str } from './utils.js?v=20261114031541';
-import { render } from './render.js?v=20261114031541';
-import { leadCardId, leadCardIcon, matchLeadCards } from './lead-card.js?v=20261114031541';
-import { dealChannel } from './acquisition-channel.js?v=20261114031541';
-import { renderDisputeButton, renderDisputeModal, isOpenDispute } from './lead-dispute.js?v=20261114031541';
-import { EMAIL_LEAD_PAY, COLD_CALL_LEAD_PAY, isColdCallLead, leadPayout } from './lead-payout.js?v=20261114031541';
-import { setterOf, setterInfo, setterCellHtml, setterFilterHtml, setterPickerHtml } from './lead-setter.js?v=20261114031541';
+import { state, store, pendingWrites } from './app.js?v=20261114041422';
+import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20261114041422';
+import { isAdmin, isEmployee } from './auth.js?v=20261114041422';
+import { esc, jsArg, svgIcon, str } from './utils.js?v=20261114041422';
+import { render } from './render.js?v=20261114041422';
+import { leadCardId, leadCardIcon, matchLeadCards } from './lead-card.js?v=20261114041422';
+import { dealChannel } from './acquisition-channel.js?v=20261114041422';
+import { renderDisputeButton, renderDisputeModal, isOpenDispute } from './lead-dispute.js?v=20261114041422';
+import { EMAIL_LEAD_PAY, COLD_CALL_LEAD_PAY, isColdCallLead, leadPayout } from './lead-payout.js?v=20261114041422';
+import { setterOf, setterInfo, setterCellHtml, setterFilterHtml, setterPickerHtml } from './lead-setter.js?v=20261114041422';
 
 // ─── Column Definitions ───
 // The billing "Month" ('July/26') is deliberately not a column — the sheet shows
@@ -38,7 +38,7 @@ const COLUMNS = [
 // billing month, which is no longer shown as a column.
 const BULK_EDIT_COLUMNS = [
   ...COLUMNS.filter(c => c.editable),
-  { key: 'setter', label: 'Setter (Ioannis / Marcel)' },
+  { key: 'setter', label: 'Setter (Ioannis / Marcell)' },
   { key: 'month', label: 'Billing Month (July/26)' },
 ];
 
@@ -819,7 +819,7 @@ async function loadPayoutHistory() {
   if (!el) return;
   try {
     const resp = await invokeEdgeFunction('paypal-payout', { action: 'list' });
-    // History is shared across setters; rows without a name predate Marcel and are Ioannis's.
+    // History is shared across setters; rows without a name predate Marcell and are Ioannis's.
     const who = payoutSetter().name;
     if (resp.ok && resp.payments) resp.payments = resp.payments.filter(p => (p.employee_name || 'Ioannis') === who);
     if (!resp.ok || !resp.payments?.length) { el.innerHTML = '<div style="color:var(--text-muted)">No payments recorded yet.</div>'; return; }

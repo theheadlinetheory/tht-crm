@@ -1,19 +1,19 @@
 // ═══════════════════════════════════════════════════════════
-// LEAD SETTER — who booked each Lead Tracker lead (Ioannis vs Marcel), 2026-11-10
+// LEAD SETTER — who booked each Lead Tracker lead (Ioannis vs Marcell), 2026-11-10
 // ═══════════════════════════════════════════════════════════
 // lead_tracker.setter is stamped by the DB on insert (trigger
 // lead_tracker_fill_setter, tht-crm-backend migration 20261110120000):
-//   cold-call leads → the JustCall seat that booked it (contact@ = Ioannis, leads@ = Marcel)
+//   cold-call leads → the JustCall seat that booked it (contact@ = Ioannis, leads@ = Marcell)
 //   every other lead → Ioannis.
 // The Setter cell is a dropdown so a wrong guess can be corrected by hand.
 // A new setter = add them here AND to setter_for_email() in that migration.
-import { esc, str } from './utils.js?v=20261114031541';
+import { esc, str } from './utils.js?v=20261114041422';
 
 // paypal / biweeklyBase drive the Payout Report. null = not on file yet: the
 // report still counts the leads but shows no base pay and no Send button.
 export const SETTERS = [
   { name: 'Ioannis', paypal: 'ioannis.serafeim@gmail.com', biweeklyBase: 250, color: '#2563eb', bg: '#dbeafe' },
-  { name: 'Marcel',  paypal: null,                         biweeklyBase: null, color: '#c2410c', bg: '#ffedd5' },
+  { name: 'Marcell', paypal: null,                         biweeklyBase: null, color: '#c2410c', bg: '#ffedd5' },
   { name: 'Aidan',   paypal: null,                         biweeklyBase: null, color: '#7c3aed', bg: '#ede9fe' },
 ];
 
