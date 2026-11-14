@@ -77,7 +77,7 @@ const REQUIRED_FEATURES = [
   { file: 'weekly-template.js', needle: 'export function weeklyGreeting',    feature: 'Weekly Updates: "Hey Team" when >1 client address is on the email (To or Cc)' },
   { file: 'weekly-template.js', needle: "'{PPM_NOTE}': ctx.ppm ? PPM_NOTE : ''", feature: 'Weekly Updates: {PPM_NOTE} sentence for pay-per-meeting clients only' },
   { file: 'weekly-updates.js', needle: 'weeklyGreeting(first, p.to, ccList)', feature: 'Weekly Updates: greeting resolved from To AND Cc at Prepare' },
-  { file: 'settings.js',       needle: "'otherContacts',this.value",         feature: 'Settings → Clients: Additional Contacts (weekly-update CC) field' },
+  { file: 'client-panel.js',       needle: "editableBlock('otherContacts', cl)",         feature: 'Client card: Weekly Update CCs field' },
   // The update's TO line is its own field, not the lead-delivery address
   // (Denair delivers leads to an attribution inbox nobody reads).
   { file: 'settings.js',       needle: "'weeklyUpdateEmails',this.value",    feature: 'Settings → Clients: Weekly Update Emails (weekly-update TO) field' },

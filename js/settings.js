@@ -689,11 +689,8 @@ function renderClientsSettings(){
             </div>
           </div>
           <div>
-            <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Additional Contacts <span style="font-weight:400">— CC'd on the weekly update</span></label>
-            <input type="text" placeholder="e.g. ops@company.com, owner@company.com" value="${esc(str(c.otherContacts))}"
-              oninput="updateClientField(${jsArg(c.id)},'otherContacts',this.value)"
-              title="Comma-separated. Anyone here is CC'd on this client's weekly update email every week. aidan@ is always CC'd on top. Also editable from the Weekly Updates tab."
-              style="${inputStyle}">
+            <label style="font-size:10px;font-weight:600;color:var(--text-muted)">Weekly Update CCs<span style="font-weight:400"> · edit on the client card</span></label>
+            <div style="font-size:12px;color:var(--text);white-space:pre-wrap;padding:6px 10px;background:#f8fafc;border:1px solid var(--border);border-radius:6px;margin-top:3px;min-height:14px">${esc(str(c.otherContacts))||'—'}</div>
           </div>
         </div>`;
       })()}
@@ -869,11 +866,8 @@ function renderClientsSettings(){
         if(!str(c.warmCallNotesText).trim()){const ci=lookupClientInfo(c.name);if(ci&&ci.warmCallNotes)wcDefault=ci.warmCallNotes.join('\\n');}
         const wcVal=str(c.warmCallNotesText).trim()||wcDefault;
         return `<div style="margin-bottom:8px">
-        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">${svgIcon('clipboard',10)} SDR / Warm Call Notes</label>
-        <div style="font-size:10px;color:var(--text-muted);margin:2px 0 4px">Key talking points for the appointment setter (one per line)</div>
-        <textarea placeholder="e.g. Veteran-owned&#10;24 years in business&#10;10% discount for churches&#10;Current clients: Marriott, YMCA" rows="6"
-          oninput="updateClientField(${jsArg(c.id)},'warmCallNotesText',this.value)"
-          style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);margin-top:3px;resize:vertical">${esc(wcVal)}</textarea>
+        <label style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">${svgIcon('clipboard',10)} SDR / Warm Call Notes<span style="font-weight:400"> · edit on the client card</span></label>
+        <div style="font-size:12px;color:var(--text);white-space:pre-wrap;padding:6px 10px;background:#f8fafc;border:1px solid var(--border);border-radius:6px;margin-top:3px;min-height:14px">${esc(wcVal)||'—'}</div>
       </div>`;
       })()}
 

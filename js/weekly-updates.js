@@ -644,10 +644,7 @@ function renderWeeklyClientSelect(w){
       </label>
       <div style="display:flex;align-items:center;gap:6px;padding:0 2px 8px 24px">
         <span style="font-size:11px;color:var(--text-muted);flex-shrink:0">CC:</span>
-        <input value="${attr(ccVal)}" placeholder="add an email to CC — saved to this client's profile"
-          onchange="weeklyClientCcChange('${attr(str(c.id))}',this.value)"
-          title="Additional Contacts for ${attr(c.name)} — CC'd on every weekly update from now on. Same field as Settings → Clients → Client Contact Info. aidan@ is always CC'd on top, and anyone already on the To line is dropped."
-          style="font-size:11px;font-family:var(--font);color:var(--text-secondary);border:1px solid var(--border);border-radius:6px;padding:3px 7px;background:var(--card);flex:1;max-width:420px">
+        <span style="font-size:11px;color:var(--text-secondary)" title="Edit on the client card">${esc(ccVal) || '—'}</span>
       </div>
     </div>`;
   };

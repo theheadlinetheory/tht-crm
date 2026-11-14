@@ -112,16 +112,12 @@ export function renderCallSheetSettings(c) {
       ${built ? `<span style="font-size:10px;color:var(--text-muted)">Built ${esc(new Date(built).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}</span>` : ''}
     </div>
     ${err ? `<div style="font-size:11px;color:#b91c1c;margin-bottom:8px">Last build failed: ${esc(err)}</div>` : ''}
-    <div style="font-size:10px;color:var(--text-muted);margin-bottom:8px">Edits here rebuild the Google Doc within a minute. Don't edit the doc itself; it is overwritten. Anything left blank shows on the sheet as "⚠️ MISSING".</div>`;
+    <div style="font-size:10px;color:var(--text-muted);margin-bottom:8px">Edit these on the client card (Cold Calling board).</div>`;
   for (const [key, , label, hint, rows] of FIELDS) {
     const val = esc(shownValue(c, key));
-    const on = `oninput="saveCallSheetField('${id}','${key}',this.value)"`;
     h += `<div style="margin-bottom:8px">
       <label style="font-size:10px;font-weight:600;color:var(--text-muted)">${esc(label)}</label>
-      ${rows > 1
-        ? `<textarea rows="${rows}" placeholder="${esc(hint)}" ${on} style="${input};resize:vertical">${val}</textarea>`
-        : `<input type="text" placeholder="${esc(hint)}" value="${val}" ${on} style="${input}">`}
-      ${rows > 1 ? `<div style="font-size:9px;color:var(--text-muted);margin-top:2px">${esc(hint)}</div>` : ''}
+      <div style="font-size:12px;color:var(--text);white-space:pre-wrap;padding:6px 10px;background:#f8fafc;border:1px solid var(--border);border-radius:6px;margin-top:3px;min-height:14px">${val || '—'}</div>
     </div>`;
   }
   h += `<div style="margin-bottom:2px">

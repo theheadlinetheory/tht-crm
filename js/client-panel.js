@@ -27,7 +27,7 @@
 
 import { state } from './app.js?v=20261114103724';
 import { esc, escAttr, safeUrl, str, getToday, isValidDate, svgIcon } from './utils.js?v=20261114103724';
-import { isAdmin } from './auth.js?v=20261114103724';
+import { isAdmin, isEmployee } from './auth.js?v=20261114103724';
 import { lookupClientInfo } from './client-info.js?v=20261114103724';
 import { sbUpdateClient, sbGetWonAcquisitionCards } from './api.js?v=20261114103724';
 import { registerActions } from './delegate.js?v=20261114103724';
@@ -89,6 +89,14 @@ const EDITABLE = {
     toText: v => str(v),
     toValue: text => text.replace(/\n{3,}/g, '\n\n').trim(),
     view: v => { const l = parseProperties(v); return l.length ? `<div style="font-size:12px;color:#64748b;margin-bottom:4px">${l.length} on file</div><ul style="margin:0;padding-left:18px">` + l.map(p => '<li>' + esc(p.name || areaOf(p.address)) + (p.name && areaOf(p.address) ? ' <span style="color:#94a3b8">— ' + esc(areaOf(p.address)) + '</span>' : '') + '</li>').join('') + '</ul>' : ''; },
+  },
+  // Weekly update CCs: edited only here since 2026-11-15 (Settings and Weekly Updates show it read-only).
+  otherContacts: {
+    label: 'Weekly Update CCs', column: 'other_contacts', multiline: false,
+    placeholder: 'Comma-separated emails',
+    toText: v => str(v),
+    toValue: text => text.trim(),
+    view: v => esc(str(v)),
   },
   location: {
     label: 'Home Base', column: 'location', multiline: false,
@@ -369,6 +377,7 @@ export function openClientInfoPanel(clientName, mode = 'client_leads') {
   h += editableBlock('location', cl) + `<div id="cp-loc-hint" style="margin:-12px 0 16px"></div>`;
   h += editableBlock('warmCallNotesText', cl, { tone: { wrap: 'padding:12px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0', label: '#166534' } });
   h += editableBlock('managedProperties', cl, { tone: { wrap: 'padding:12px;background:#f0fdfa;border-radius:8px;border:1px solid #99f6e4', label: '#0f766e' } });
+  if (isAdmin() || isEmployee()) h += editableBlock('otherContacts', cl);
   h += renderCallSheetLink(cl);
 
   h += questionsBlock + calendlyHtml;

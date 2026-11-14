@@ -134,7 +134,7 @@ export function openClientProperties(clientId) {
   const client = currentClient();
   if (!client) return;
   const n = propertyCount(client);
-  const canEdit = isAdmin() || isEmployee();
+  const canEdit = false; // edited on the client card only since 2026-11-15; flip back to `isAdmin() || isEmployee()` to restore
   const h = `<div id="${OVERLAY_ID}" style="position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.45);display:flex;justify-content:center;align-items:start;padding:40px 20px;overflow-y:auto" onclick="if(event.target===this)closeClientProperties()">
     <div style="background:#fff;border-radius:12px;max-width:560px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.2);animation:fadeIn .15s ease">
       <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;gap:12px">
