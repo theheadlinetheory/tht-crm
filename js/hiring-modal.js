@@ -6,14 +6,15 @@
 // Every text field is state-backed (state.hiringDraft) because render()
 // rebuilds #app. Clicking outside, ✕ and Close all save pending edits.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261114163106';
-import { render } from './render.js?v=20261114163106';
-import { showToast } from './api.js?v=20261114163106';
-import { esc, str, svgIcon, fmtTimestamp, getToday, jsArg } from './utils.js?v=20261114163106';
-import { STAGES, CONTACT_TYPES, stageLabel, shortDate, replyText, findCandidate, saveFields, moveCandidate, toggleStar } from './hiring.js?v=20261114163106';
-import { activitiesFor, loadActivities, addHiringActivity, updateHiringActivity, deleteHiringActivity, findActivity } from './hiring-activity.js?v=20261114163106';
-import { candidateChannel, channelSelectHtml } from './hiring-channel.js?v=20261114163106';
-import { refreshHiringUnread } from './hiring-unread.js?v=20261114163106';
+import { state } from './app.js?v=20261114103724';
+import { render } from './render.js?v=20261114103724';
+import { showToast } from './api.js?v=20261114103724';
+import { esc, str, svgIcon, fmtTimestamp, getToday, jsArg } from './utils.js?v=20261114103724';
+import { STAGES, CONTACT_TYPES, stageLabel, shortDate, replyText, findCandidate, saveFields, moveCandidate, toggleStar } from './hiring.js?v=20261114103724';
+import { activitiesFor, loadActivities, addHiringActivity, updateHiringActivity, deleteHiringActivity, findActivity } from './hiring-activity.js?v=20261114103724';
+import { candidateChannel, channelSelectHtml } from './hiring-channel.js?v=20261114103724';
+import { refreshHiringUnread } from './hiring-unread.js?v=20261114103724';
+import { rejectStatusHtml } from './hiring-reject.js?v=20261114103724';
 
 const LINK_STYLE = 'color:var(--purple);word-break:break-all';
 const INPUT_STYLE = 'padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)';
@@ -88,6 +89,7 @@ function controlsHtml(c) {
     </select>` : ''}
     ${channelSelectHtml(candidateChannel(c), `hiringSetChannel('${id}', this.value)`, false)}
     <span style="color:var(--text-muted)">${c.invite_sent_at ? `Interview invite sent ${esc(shortDate(c.invite_sent_at))}` : ''}</span>
+    ${rejectStatusHtml(c)}
   </div>`;
 }
 

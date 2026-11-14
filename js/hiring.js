@@ -9,20 +9,22 @@
 // - Partners: replies to the "Recruiting Partners" SmartLead campaigns, routed
 //   here by smartlead-webhook.
 // Landing an applicant on Interviewing emails the interview invite once
-// (hiring-invite), exactly as the old sheet script did.
+// (hiring-invite), exactly as the old sheet script did. Moving one to Not a Fit
+// asks first whether to send the "not moving forward" email (hiring-reject.js).
 // A new applicant or reply flags the card (has_new_activity): blue card here,
 // red count on the Hiring tab (hiring-unread.js). The detail modal, timeline
 // and follow-ups live in hiring-modal.js / hiring-activity.js.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261114163106';
-import { render } from './render.js?v=20261114163106';
-import { supabase } from './supabase-client.js?v=20261114163106';
-import { showToast } from './api.js?v=20261114163106';
-import { candidateChannel, channelPill, channelSelectHtml } from './hiring-channel.js?v=20261114163106';
-import { esc, escAttr, safeUrl, str, svgIcon, jsArg } from './utils.js?v=20261114163106';
-import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261114163106';
-import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261114163106';
-import { onHiringChange } from './hiring-unread.js?v=20261114163106';
+import { state } from './app.js?v=20261114103724';
+import { render } from './render.js?v=20261114103724';
+import { supabase } from './supabase-client.js?v=20261114103724';
+import { showToast } from './api.js?v=20261114103724';
+import { candidateChannel, channelPill, channelSelectHtml } from './hiring-channel.js?v=20261114103724';
+import { esc, escAttr, safeUrl, str, svgIcon, jsArg } from './utils.js?v=20261114103724';
+import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261114103724';
+import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261114103724';
+import { onHiringChange } from './hiring-unread.js?v=20261114103724';
+import { needsRejectPrompt, openRejectBox, renderRejectBox } from './hiring-reject.js?v=20261114103724';
 
 // Applicants want a job with us; partners are companies that hire (recruiting
 // partners who could send us candidates). Each gets its own board.
@@ -241,7 +243,7 @@ export function renderHiring() {
       <div class="col-body">${sc.length ? sc.map(cardHtml).join('') : '<div class="col-empty">Nobody here</div>'}</div>
     </div>`;
   }
-  return html + '</div>' + renderHiringModal();
+  return html + '</div>' + renderHiringModal() + renderRejectBox();
 }
 
 // ─── Writes ───
@@ -265,6 +267,11 @@ async function sendInvite(c) {
 export async function moveCandidate(id, stage) {
   const c = findCandidate(id);
   if (!c || c.stage === stage) return;
+  if (needsRejectPrompt(c, stage)) { openRejectBox(c); return; }
+  await applyMove(c, stage);
+}
+
+export async function applyMove(c, stage) {
   const ok = await saveFields(c, { stage });
   if (ok) addHiringActivity(c.id, { type: 'stage', body: stage }).then(() => render());
   if (ok && stage === INVITE_STAGE && c.kind === 'applicant' && !c.invite_sent_at) await sendInvite(c);
