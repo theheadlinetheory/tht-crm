@@ -6,10 +6,10 @@
 // including ones later called back. Rendered under the Weekly Intake chart on
 // the Client Fulfillment dashboard; channel = All / Cold email / Cold call.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261114043221';
-import { render } from './render.js?v=20261114043221';
-import { esc } from './utils.js?v=20261114043221';
-import { registerActions } from './delegate.js?v=20261114043221';
+import { state } from './app.js?v=20261114162507';
+import { render } from './render.js?v=20261114162507';
+import { esc } from './utils.js?v=20261114162507';
+import { registerActions } from './delegate.js?v=20261114162507';
 
 // Ioannis's first payroll month
 const SETTER_START = '2026-03-01';
