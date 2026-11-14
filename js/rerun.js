@@ -345,22 +345,25 @@ function markDueIdsSeen(items) {
   catch { /* storage blocked — chip just stays lit */ }
 }
 
-// Compact chip for the top alert strip; the list itself opens as a dropdown.
+// Compact chip for the top alert strip. A click opens Nurture → Manual (the
+// dropdown copy of that list was removed 2026-11-15; renderNurtureDropdown now
+// returns '' — restore by reverting that commit).
 export function renderDueTodayBanner() {
   const dueItems = getManualDueItems();
   if (!dueItems.length) return '';
   const seen = readSeenDueIds();
   const unseen = dueItems.filter(r => !seen.has(String(r.id))).length;
-  const lit = unseen > 0 && !state._nurtureDropdownOpen;
+  const lit = unseen > 0;
   const css = lit
     ? 'background:#f59e0b;color:#fff;border:1px solid #d97706;box-shadow:0 0 0 3px #fde68a'
     : 'background:#fffbeb;color:#92400e;border:1px solid #fde68a';
-  return `<button class="btn" data-action="toggleNurtureDropdown" title="Nurture follow-ups needing manual outreach"
+  return `<button class="btn" data-action="openNurtureFromChip" title="Open Nurture → Manual"
     style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;${css}">
-    ${svgIcon('bell', 11)} Nurture due (${dueItems.length})${lit ? ` · ${unseen} new` : ''} ${state._nurtureDropdownOpen ? '▴' : '▾'}</button>`;
+    ${svgIcon('bell', 11)} Nurture due (${dueItems.length})${lit ? ` · ${unseen} new` : ''}</button>`;
 }
 
 export function renderNurtureDropdown() {
+  return ''; // removed 2026-11-15: the chip opens the Nurture tab instead
   if (!state._nurtureDropdownOpen) return '';
   const dueItems = getManualDueItems();
   if (!dueItems.length) return '';
@@ -845,6 +848,13 @@ registerActions({
 
   // Opening the dropdown marks everything currently due as seen, which is what
   // turns the chip's "new" highlight off until another lead comes due.
+  // The chip: mark what is due as seen (turns the "new" highlight off) and open the Manual list.
+  openNurtureFromChip() {
+    markDueIdsSeen(getManualDueItems());
+    state.nurtureSubTab = 'manual';
+    if (window.switchAcqSubTab) window.switchAcqSubTab('nurture');
+  },
+
   toggleNurtureDropdown() {
     state._nurtureDropdownOpen = !state._nurtureDropdownOpen;
     if (state._nurtureDropdownOpen) markDueIdsSeen(getManualDueItems());
