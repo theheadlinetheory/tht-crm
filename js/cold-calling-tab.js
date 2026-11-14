@@ -30,13 +30,17 @@
 //   like everyone else; only once EVERY cold-calling client has 2 this week do the unlimited ones reopen with no
 //   ceiling. Where the client sits in the order earns nothing: the whole list has to be finished first.
 //   Order: retainer clients first, then pay-per-meeting; fewest meetings this week first.
+//   SDR assignments (Tim, 2026-11-14, from Aidan's 11-13 video): the manager decides per SDR how work is split —
+//   all clients, every client in chosen time zones (a client switched on later in that zone is included by itself),
+//   or a hand-picked set of clients. An SDR's Call Queue, callbacks and Pipeline columns show only their clients.
+//   The cap and the "every client has hit the cap" unlock stay global: a client is one client whoever calls it.
 
-import { state } from './app.js?v=20261115010925';
-import { render } from './render.js?v=20261115010925';
-import { supabase } from './supabase-client.js?v=20261115010925';
-import { esc, str, svgIcon, getToday, jsArg } from './utils.js?v=20261115010925';
-import { currentUser, isSdr, isAdmin, isEmployee, loadAssignableUsers } from './auth.js?v=20261115010925';
-import { registerActions } from './delegate.js?v=20261115010925';
+import { state } from './app.js?v=20261115020135';
+import { render } from './render.js?v=20261115020135';
+import { supabase } from './supabase-client.js?v=20261115020135';
+import { esc, str, svgIcon, getToday, jsArg } from './utils.js?v=20261115020135';
+import { currentUser, isSdr, isAdmin, isEmployee, loadAssignableUsers } from './auth.js?v=20261115020135';
+import { registerActions } from './delegate.js?v=20261115020135';
 
 export const CALLBACK_STAGE = 'Cold Call Callback';
 const NO_CONNECTION = new Set(['no_answer', 'voicemail', 'bad_number', 'desk_dq']);
@@ -72,6 +76,8 @@ const cc = {
   snowUpdated: '',
   snowManual: {},            // client name → {mode:'on'|'off', until:'YYYY-MM-DD', by}
   unlimited: [],             // client names with no weekly ceiling once every client has hit the cap
+  assign: {},                // lowercased SDR email → {mode:'all'|'zones'|'clients', zones:[...], clients:[...]}
+  queueAs: '',               // manager only: whose Call Queue to show ('' = my own)
   syncing: false, syncNote: '',
   tracker: null, trackerLoading: false,
   trackerScope: 'all', trackerClient: '', trackerSearch: '',
@@ -107,7 +113,7 @@ async function loadAll() {
     }
     cc.calls = rows;
     if (!(state.assignableUsers || []).length) await loadAssignableUsers().catch(() => null);
-    const { data: settings } = await supabase.from('crm_settings').select('key,value').in('key', ['cold_call_quotas', 'cold_call_pinned', 'cold_call_unlimited', 'cold_call_order', 'cold_call_snow_forecast', 'cold_call_snow_manual']);
+    const { data: settings } = await supabase.from('crm_settings').select('key,value').in('key', ['cold_call_quotas', 'cold_call_pinned', 'cold_call_unlimited', 'cold_call_order', 'cold_call_snow_forecast', 'cold_call_snow_manual', 'cold_call_sdr_assign']);
     for (const s of settings || []) {
       try {
         if (s.key === 'cold_call_quotas') cc.quotas = { ...DEFAULT_QUOTAS, ...JSON.parse(s.value) };
@@ -116,6 +122,7 @@ async function loadAll() {
         if (s.key === 'cold_call_order') cc.order = JSON.parse(s.value) || [];
         if (s.key === 'cold_call_snow_forecast') { const v = JSON.parse(s.value) || {}; cc.snowForecast = v.clients || {}; cc.snowUpdated = v.updated_at || ''; }
         if (s.key === 'cold_call_snow_manual') cc.snowManual = JSON.parse(s.value) || {};
+        if (s.key === 'cold_call_sdr_assign') cc.assign = JSON.parse(s.value) || {};
       } catch (_) { /* a bad row keeps the defaults */ }
     }
     cc.error = '';
@@ -213,6 +220,46 @@ function snowBadge(r) {
   return '';
 }
 
+// ─── SDR assignments: which clients each SDR calls ───
+// A client's time zone is the CRM's clients.time_zone (EST, CST, PST…), folded so EST/EDT/ET all read "Eastern".
+const TZ_FOLD = { EST: 'Eastern', EDT: 'Eastern', ET: 'Eastern', EASTERN: 'Eastern', CST: 'Central', CDT: 'Central', CT: 'Central', CENTRAL: 'Central',
+  MST: 'Mountain', MDT: 'Mountain', MT: 'Mountain', MOUNTAIN: 'Mountain', PST: 'Pacific', PDT: 'Pacific', PT: 'Pacific', PACIFIC: 'Pacific' };
+const TZ_ORDER = ['Eastern', 'Central', 'Mountain', 'Pacific'];
+const NO_TZ = 'No time zone set';
+function zoneOf(c) {
+  const raw = str(c && c.timeZone).trim();
+  if (!raw) return NO_TZ;
+  return TZ_FOLD[raw.toUpperCase()] || raw.toUpperCase();
+}
+const byZone = (a, b) => { const i = z => { const k = TZ_ORDER.indexOf(z); return k < 0 ? (z === NO_TZ ? 99 : 50) : k; }; return (i(a) - i(b)) || a.localeCompare(b); };
+const myEmail = () => (currentUser && currentUser.email || '').toLowerCase();
+function assignmentFor(email) {
+  const a = cc.assign[str(email).toLowerCase()];
+  if (!a || !['zones', 'clients'].includes(a.mode)) return { mode: 'all', zones: [], clients: [] };
+  return { mode: a.mode, zones: Array.isArray(a.zones) ? a.zones : [], clients: Array.isArray(a.clients) ? a.clients : [] };
+}
+function covers(a, c) {
+  if (a.mode === 'zones') return a.zones.includes(zoneOf(c));
+  if (a.mode === 'clients') return a.clients.includes(c.name);
+  return true;
+}
+function assignmentText(a) {
+  if (a.mode === 'zones') return a.zones.length ? `${a.zones.join(', ')} time zone${a.zones.length === 1 ? '' : 's'}` : 'no time zones picked yet';
+  if (a.mode === 'clients') return a.clients.length ? `${a.clients.length} chosen client${a.clients.length === 1 ? '' : 's'}` : 'no clients picked yet';
+  return 'all clients';
+}
+/** Everyone who can be given work: SDR logins, plus anyone who has dialed (Ioannis dials as an employee). */
+function callers() {
+  const emails = new Set((state.assignableUsers || []).filter(u => u.role === 'sdr').map(u => (u.email || '').toLowerCase()));
+  for (const r of cc.calls) if (r.agent_email) emails.add(r.agent_email.toLowerCase());
+  for (const e of Object.keys(cc.assign)) emails.add(e);
+  return [...emails].filter(e => e && !e.startsWith('pentest-')).sort((a, b) => repName(a).localeCompare(repName(b)));
+}
+/** Callers who would get this client in their queue. */
+const coveredBy = c => callers().filter(e => covers(assignmentFor(e), c));
+/** The signed-in user's own split; a manager with no assignment of their own sees everything. */
+const myAssignment = () => assignmentFor(myEmail());
+
 /** Snowstorm clients first (unless capped); then retainers, then pay-per-meeting; within each, the manager's dragged order if there is one (clients not in
  *  it come after), otherwise pinned first; then fewest meetings this week; capped last.
  *  An unlimited client reopens (unlocked) only once every client switched on has reached the cap this week. */
@@ -252,7 +299,8 @@ export function rankedClients() {
 
 // ─── Board (search.js asks these for the Cold Calling pipeline) ───
 export function coldCallStages() {
-  const cols = rankedClients().map((r, i) => ({
+  const mine = myAssignment();
+  const cols = rankedClients().filter(r => covers(mine, r.client)).map((r, i) => ({
     id: r.name, label: (r.snow.active ? '❄️ ' : '') + r.name,
     color: r.capped ? '#9ca3af' : r.retainer ? '#2563eb' : '#059669',
     rank: i + 1,
@@ -405,9 +453,20 @@ export function renderColdCallingHeader() {
 
 // ─── Call Queue (the SDR's start page) ───
 function queueHtml() {
-  const ranked = rankedClients();
+  const manager = !isSdr();
+  const viewer = manager && cc.queueAs ? cc.queueAs : myEmail();
+  const a = assignmentFor(viewer);
+  const everyone = rankedClients();
+  const ranked = everyone.filter(r => covers(a, r.client));
   const firstOpen = ranked.find(r => !r.capped);
   let h = '';
+  const who = viewer === myEmail() ? 'You call' : `${esc(repName(viewer))} calls`;
+  const asPicker = manager ? `<label style="font-size:11px;color:#64748b;display:flex;align-items:center;gap:6px">View the queue as
+      <select data-action="ccQueueAs" style="padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px">
+        <option value="">Me (${esc(repName(myEmail()) || 'me')})</option>${callers().filter(e => e !== myEmail()).map(e => `<option value="${esc(e)}" ${cc.queueAs === e ? 'selected' : ''}>${esc(repName(e))}</option>`).join('')}
+      </select></label>` : '';
+  const scopeLine = a.mode === 'all' ? ''
+    : `<div style="font-size:12px;color:#334155;background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:6px 10px;margin-bottom:8px">${who} <b>${esc(assignmentText(a))}</b>: ${ranked.length} of ${everyone.length} cold-calling client${everyone.length === 1 ? '' : 's'}. The sales manager sets this in Manager → SDR assignments.</div>`;
   const rows = ranked.map((r, i) => {
     const status = r.capped
       ? (r.unlimited
@@ -419,23 +478,27 @@ function queueHtml() {
     return `<tr style="${r.capped ? 'opacity:.55' : r.snow.active ? 'background:#f0f9ff' : ''}">
       <td style="${td};font-weight:800;color:#0f172a">${i + 1}</td>
       <td style="${td}"><div style="font-weight:700;color:#0f172a">${esc(r.name)}${snowBadge(r)}${r.pinned ? ' <span title="Pinned by the sales manager">📌</span>' : ''}${r.lastSlot ? ' ' + LAST_SLOT_BADGE : ''}${r.unlocked ? ' ' + UNLIMITED_BADGE : r.unlimited ? ' <span title="No weekly limit once every client has hit the cap" style="font-size:10px;color:#7c3aed;font-weight:700">∞</span>' : ''}</div>
-        <div style="font-size:11px;color:#64748b">${r.retainer ? 'Retainer' : 'Pay per meeting'}${r.client.coldCallEmail ? ' · pass-offs from ' + esc(r.client.coldCallEmail) : ''}</div></td>
+        <div style="font-size:11px;color:#64748b">${r.retainer ? 'Retainer' : 'Pay per meeting'} · ${esc(zoneOf(r.client))}${r.client.coldCallEmail ? ' · pass-offs from ' + esc(r.client.coldCallEmail) : ''}</div></td>
       <td style="${td};min-width:160px">${capCell(r)}</td>
       <td style="${td}">${status}</td>
     </tr>`;
   }).join('');
   h += section('Who to call, in this order',
-    ranked.length
+    scopeLine + (ranked.length
       ? `<div style="font-size:12px;color:#475569;margin-bottom:8px">Stay on the client at the top until they have ${cc.quotas.capPerClient} meetings this week, then move down. Retainer clients come first. A capped client's lists are closed until Monday: those meetings don't get paid.${ranked.some(r => r.unlimited) ? ` Clients marked ∞ have no limit, but only after <b>every</b> client on this list has ${cc.quotas.capPerClient}, including the ones below them.` : ''}</div>
         <table style="width:100%;border-collapse:collapse"><thead><tr><th style="${th}">#</th><th style="${th}">Client</th><th style="${th}">Meetings this week</th><th style="${th}">Status</th></tr></thead><tbody>${rows}</tbody></table>`
-      : `<div style="font-size:12px;color:#94a3b8">No clients are switched on for cold calling. A manager turns them on in Manager → Clients.</div>`);
+      : everyone.length
+        ? `<div style="font-size:12px;color:#b45309">No cold-calling clients in ${esc(assignmentText(a))}. The sales manager changes this in Manager → SDR assignments.</div>`
+        : `<div style="font-size:12px;color:#94a3b8">No clients are switched on for cold calling. A manager turns them on in Manager → Clients.</div>`), asPicker);
 
-  const me = (currentUser && currentUser.email || '').toLowerCase();
+  const me = viewer;
   const mine = cc.calls.filter(r => r.agent_email === me);
-  h += section(`My numbers${mine.length ? '' : ' (no dials under ' + esc(me) + ' yet)'}`, repStatsHtml(mine),
+  h += section(`${me === myEmail() ? 'My numbers' : esc(repName(me)) + "'s numbers"}${mine.length ? '' : ' (no dials under ' + esc(me) + ' yet)'}`, repStatsHtml(mine),
     `<span style="font-size:11px;color:#94a3b8">Connections = someone picked up (not no answer, voicemail, bad number or desk DQ)</span>`);
 
-  const callbacks = state.deals.filter(d => d.pipeline === 'Client' && d.stage === CALLBACK_STAGE)
+  const clientByName = new Map(coldCallClients().map(c => [c.name, c]));
+  const callbacks = state.deals.filter(d => d.pipeline === 'Client' && d.stage === CALLBACK_STAGE &&
+      (a.mode === 'all' || !clientByName.has(d.coldCallClient) || covers(a, clientByName.get(d.coldCallClient))))
     .map(d => ({ d, due: callbackDue(d.id) })).sort((a, b) => a.due.localeCompare(b.due));
   const dueNow = callbacks.filter(c => c.due <= today());
   h += section(`Callbacks due (${dueNow.length})`,
@@ -530,7 +593,8 @@ function managerHtml() {
       const all = tally(cc.calls.filter(x => x.client_name === r.name));
       return `<tr draggable="true" data-cc-row="${esc(r.name)}" style="${r.capped ? 'background:#f1f5f9' : ''}">
         <td style="${td};font-weight:800;white-space:nowrap"><span class="cc-drag" title="Drag to move this client up or down the call queue" style="cursor:grab;color:#94a3b8;margin-right:6px;user-select:none">⋮⋮</span>${i + 1}</td>
-        <td style="${td};font-weight:700">${esc(r.name)}${snowBadge(r)} ${r.unlocked ? UNLIMITED_BADGE : r.capped ? '<span style="font-size:9px;font-weight:800;color:#fff;background:#6b7280;padding:1px 6px;border-radius:8px">CAPPED</span>' : ''}</td>
+        <td style="${td};font-weight:700">${esc(r.name)}${snowBadge(r)} ${r.unlocked ? UNLIMITED_BADGE : r.capped ? '<span style="font-size:9px;font-weight:800;color:#fff;background:#6b7280;padding:1px 6px;border-radius:8px">CAPPED</span>' : ''}
+          <div style="font-size:10px;font-weight:400;color:${coveredBy(r.client).length ? '#94a3b8' : '#b45309'}">${esc(zoneOf(r.client))} · ${coveredBy(r.client).length ? esc(coveredBy(r.client).map(repName).join(', ')) : 'no SDR assigned'}</div></td>
         <td style="${td}">${r.retainer ? 'Retainer' : 'PPM'}</td>
         <td style="${td};min-width:140px">${capCell(r)}</td>
         <td style="${td}">${t.dials}</td><td style="${td}">${t.connections}</td><td style="${td}">${t.connectRate == null ? '—' : t.connectRate + '%'}</td>
@@ -549,6 +613,8 @@ function managerHtml() {
     return `<td style="${td};font-weight:700;color:${color}" title="target ${target}${suffix}">${v == null ? '—' : v + suffix}</td>`;
   };
   const reps = [...new Set(cc.calls.filter(r => r.call_date >= thisWeek() || r.call_date === today()).map(r => r.agent_email).filter(Boolean))].sort();
+  h += section('SDR assignments', assignmentsHtml(ranked));
+
   h += section('Industries', industryVerdictTable(), `<span style="font-size:11px;color:#94a3b8">${cc.calls.length} dials in the last ${LOOKBACK_DAYS} days</span>`);
 
   h += section('Reps', reps.length ? `<table style="width:100%;border-collapse:collapse"><thead>
@@ -601,6 +667,35 @@ function managerHtml() {
 
   h += section('SDR access', `<div style="font-size:12px;color:#475569">An SDR signs in with their @theheadlinetheory.com Google account and sees only this tab. To set one up: give them the <b>sdr</b> role in Settings → Users, and a JustCall Sales Dialer seat under the same email, so their dials count as theirs.</div>`);
   return h;
+}
+
+// ─── Manager: how work is split between SDRs ───
+function assignmentsHtml(ranked) {
+  const people = callers();
+  if (!people.length) return '<div style="font-size:12px;color:#94a3b8">No SDRs yet. Give someone the sdr role in Settings → Users.</div>';
+  const clients = ranked.map(r => r.client);
+  const zones = [...new Set(clients.map(zoneOf))].sort(byZone);
+  const chip = (on, attrs, label, sub) => `<label style="display:inline-flex;align-items:center;gap:5px;padding:4px 9px;margin:0 6px 6px 0;border:1px solid ${on ? '#7c3aed' : 'var(--border)'};border-radius:6px;background:${on ? '#f5f3ff' : '#fff'};font-size:12px;cursor:pointer">
+      <input type="checkbox" ${attrs} ${on ? 'checked' : ''}> ${esc(label)}${sub ? ` <span style="color:#94a3b8;font-size:10px">${esc(sub)}</span>` : ''}</label>`;
+  const rows = people.map(email => {
+    const a = assignmentFor(email);
+    const mine = clients.filter(c => covers(a, c));
+    const picker = a.mode === 'zones'
+      ? zones.map(z => { const n = clients.filter(c => zoneOf(c) === z).length; return chip(a.zones.includes(z), `data-action="ccAssignZone" data-email="${esc(email)}" data-zone="${esc(z)}"`, z, `${n} client${n === 1 ? '' : 's'}`); }).join('')
+      : a.mode === 'clients'
+        ? clients.map(c => chip(a.clients.includes(c.name), `data-action="ccAssignClient" data-email="${esc(email)}" data-name="${esc(c.name)}"`, c.name, zoneOf(c))).join('')
+        : '';
+    return `<tr><td style="${td};width:190px"><b>${esc(repName(email))}</b><div style="font-size:10px;color:#94a3b8">${esc(email)}</div></td>
+      <td style="${td};width:170px"><select data-action="ccAssignMode" data-email="${esc(email)}" style="padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px">
+        ${[['all', 'All clients'], ['zones', 'By time zone'], ['clients', 'Choose clients']].map(([v, l]) => `<option value="${v}" ${a.mode === v ? 'selected' : ''}>${l}</option>`).join('')}</select></td>
+      <td style="${td}">${picker}<div style="font-size:11px;color:${mine.length ? '#475569' : '#b45309'};${picker ? 'margin-top:2px' : ''}">${mine.length ? `Calls ${mine.length} of ${clients.length}: ${esc(mine.map(c => c.name).join(', '))}` : 'Calls no one right now'}</div></td></tr>`;
+  }).join('');
+  const orphans = clients.filter(c => !coveredBy(c).length);
+  const noZone = clients.filter(c => zoneOf(c) === NO_TZ);
+  return `<div style="font-size:12px;color:#475569;margin-bottom:8px">Choose per SDR how they get their clients. <b>By time zone</b> gives them every cold-calling client in those zones, including clients switched on later. <b>Choose clients</b> gives them exactly the clients ticked. An SDR's Call Queue, callbacks and Pipeline show only their clients; the order and the weekly cap stay the same for everyone.</div>
+    <table style="width:100%;border-collapse:collapse"><thead><tr><th style="${th}">SDR</th><th style="${th}">How they get work</th><th style="${th}">Their clients</th></tr></thead><tbody>${rows}</tbody></table>
+    ${orphans.length ? `<div style="font-size:12px;color:#b45309;margin-top:8px"><b>No SDR calls:</b> ${esc(orphans.map(c => c.name).join(', '))}</div>` : ''}
+    ${noZone.length ? `<div style="font-size:11px;color:#94a3b8;margin-top:4px">No time zone set for ${esc(noZone.map(c => c.name).join(', '))}: set it in Settings → Clients, or they only reach an SDR given all clients or picked by name.</div>` : ''}`;
 }
 
 // ─── Industries: which segment books meetings, ranked from the dials ───
@@ -878,7 +973,7 @@ async function removeBooking(dealId) {
   if (error) { alert('Could not update the meeting count, nothing was removed: ' + error.message); return; }
   for (const r of cc.calls || []) if (r.deal_id === dealId) r.not_counted = 'Removed: ' + reason;
   const [{ sbCreateInteraction }, { deleteDeal }] = await Promise.all([
-    import('./api.js?v=20261115010925'), import('./deals.js?v=20261115010925')]);
+    import('./api.js?v=20261115020135'), import('./deals.js?v=20261115020135')]);
   try { await sbCreateInteraction({ deal_id: dealId, type: 'Note', content: `Removed — cold-call appointment: ${reason} · ${(rows || []).length} dial(s) no longer counted · marked in the CRM` }); }
   catch (e) { console.warn('[removeBooking] note not saved', e && e.message); }
   await deleteDeal(dealId, 'Removed — ' + reason);
@@ -940,7 +1035,7 @@ registerActions({
   async ccSync() {
     cc.syncing = true; cc.syncNote = ''; render();
     try {
-      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261115010925');
+      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261115020135');
       const out = await invokeEdgeFunctionAsUser('cold-call-sync', {});
       // One sync at a time (audit A3 #4, 2026-11-13): a Refresh during the 2-minute cron's run is skipped.
       if (out.skipped) {
@@ -959,9 +1054,25 @@ registerActions({
   ccOpenDeal(el) {
     const id = el.dataset.id;
     if (!state.deals.some(d => String(d.id) === String(id))) { alert('That card is no longer on the board (delivered or archived).'); return; }
-    import('./deal-modal.js?v=20261115010925').then(m => m.openDeal(id));
+    import('./deal-modal.js?v=20261115020135').then(m => m.openDeal(id));
   },
   ccTrackerScope(el) { cc.trackerScope = el.dataset.scope; render(); },
+  ccQueueAs(el, e) { if (e.type !== 'change') return; cc.queueAs = el.value; render(); },
+  async ccAssignMode(el, e) {
+    if (e.type !== 'change') return;
+    const email = el.dataset.email;
+    const prev = assignmentFor(email);
+    // Switching to a list starts from what they call now, so nobody silently loses or gains clients.
+    const now = coldCallClients().filter(c => covers(prev, c));
+    const next = { mode: el.value, zones: prev.zones, clients: prev.clients };
+    if (el.value === 'zones' && !prev.zones.length) next.zones = [...new Set(now.map(zoneOf))].filter(z => z !== NO_TZ);
+    if (el.value === 'clients' && !prev.clients.length) next.clients = now.map(c => c.name);
+    cc.assign = { ...cc.assign, [email]: { ...next, by: currentUser && currentUser.name || '', at: new Date().toISOString() } };
+    render();
+    await saveSetting('cold_call_sdr_assign', cc.assign);
+  },
+  async ccAssignZone(el, e) { if (e.type !== 'change') return; await toggleAssign(el.dataset.email, 'zones', el.dataset.zone, el.checked); },
+  async ccAssignClient(el, e) { if (e.type !== 'change') return; await toggleAssign(el.dataset.email, 'clients', el.dataset.name, el.checked); },
   ccTrackerClient(el, e) { if (e.type !== 'change') return; cc.trackerClient = el.value; render(); },
   ccTrackerSearch(el, e) { if (e.type !== 'input') return; cc.trackerSearch = el.value; render(); },
   async ccPin(el) {
@@ -1028,7 +1139,7 @@ registerActions({
   async ccTranscribe(el) {
     el.disabled = true; el.textContent = 'Transcribing…';
     try {
-      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261115010925');
+      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261115020135');
       const out = await invokeEdgeFunctionAsUser('cold-call-sync', { action: 'transcribe', call_id: Number(el.dataset.id) });
       const box = document.createElement('div');
       box.style.cssText = 'white-space:pre-wrap;font-size:11px;max-height:260px;overflow:auto;background:#fff;border-radius:6px;padding:8px;margin-top:4px';
@@ -1041,6 +1152,14 @@ registerActions({
     }
   },
 });
+
+async function toggleAssign(email, field, value, on) {
+  const a = assignmentFor(email);
+  const list = on ? [...new Set([...a[field], value])] : a[field].filter(v => v !== value);
+  cc.assign = { ...cc.assign, [email]: { ...a, [field]: list, by: currentUser && currentUser.name || '', at: new Date().toISOString() } };
+  render();
+  await saveSetting('cold_call_sdr_assign', cc.assign);
+}
 
 // ─── Manager: drag a client row to reorder the call queue ───
 // The delegate only routes click/change/input, so the drag events are wired here once.
