@@ -187,7 +187,8 @@ export function askLostReason() {
 export async function markDemo(dealId, outcome, opts) {
   if (!outcome || !(DEMO_OUTCOMES.includes(outcome) || outcome === DEMO_RESCHEDULING)) return false;
   let value = outcome;
-  if (outcome === DEMO_LOST) {
+  const fromTracker = !!(opts && opts.fromTracker); // the Demo Tracker saving its Show/Outcome into the deal (2026-11-15)
+  if (outcome === DEMO_LOST && !fromTracker) {
     const reason = await askLostReason();
     if (reason === null) return false;
     value = outcome + ': ' + reason;
@@ -204,8 +205,8 @@ export async function markDemo(dealId, outcome, opts) {
       if (row) row.remove();
       if (!_pendingDemos.length && !(_pending && _pending.length)) closeDiscoOutcomeQueue();
     }
-    showToast('Marked: ' + value, 'success');
-    if (outcome === 'Qualified — Not Right Now') openNurture(dealId, true);
+    if (!fromTracker) showToast('Marked: ' + value, 'success');
+    if (outcome === 'Qualified — Not Right Now' && !fromTracker) openNurture(dealId, true);
     return true;
   } catch (e) {
     if (row) row.style.opacity = '1';

@@ -5,6 +5,7 @@ import { state, pendingWrites, pendingDealFields } from './app.js?v=202611141037
 import { sbCreateDemoEntry, sbUpdateDemoEntry, sbDeleteDemoEntry, sbUpdateDeal, camelToSnake, normalizeRow, showToast } from './api.js?v=20261114103724';
 import { render, refreshModal } from './render.js?v=20261114103724';
 import { isAdmin, isEmployee } from './auth.js?v=20261114103724';
+import { markDemo } from './disco-outcome.js?v=20261114103724';
 import { esc, str, svgIcon } from './utils.js?v=20261114103724';
 
 const DEMO_BASE_PAYOUT = 100;
@@ -218,6 +219,19 @@ export function renderDemoTracker() {
 
 // ─── Cell editing ───
 
+// One answer per demo (2026-11-15). The deal's demo outcome (deal card timeline,
+// Funnel, the "what happened?" banner) is the saved answer; the nightly ledger
+// copies it into this row. Before, an edit made only here was overwritten by
+// that copy, so a Show/Outcome change here is now also saved on the deal.
+// Rows with no deal behind them, and discovery calls, keep working as before.
+function saveAnswerToDeal(entry) {
+  if (!entry.dealId || str(entry.callType) === 'Discovery') return;
+  const show = str(entry.showStatus), outcome = str(entry.outcome);
+  const answer = show === 'No-Show' ? 'No-Show' : show === 'Showed' ? (outcome || 'Qualified — Pending') : '';
+  if (!answer) return;
+  markDemo(entry.dealId, answer, { fromTracker: true }).catch(e => console.error('Demo answer not saved on the deal:', e));
+}
+
 async function saveDemoCell(entryId, field, value) {
   const entry = state.demoEntries.find(e => e.id === entryId);
   if (!entry) return;
@@ -245,6 +259,7 @@ async function saveDemoCell(entryId, field, value) {
     else if (field === 'showStatus' || field === 'outcome' || field === 'bookedBy') { updates.payout = entry.payout; }
     await sbUpdateDemoEntry(entryId, camelToSnake(updates));
     flashSaveStatus(true);
+    if (field === 'showStatus' || field === 'outcome') saveAnswerToDeal(entry);
   } catch (e) {
     entry[field] = oldValue;
     entry.payout = calcPayout(str(entry.showStatus), str(entry.outcome), str(entry.bookedBy));
