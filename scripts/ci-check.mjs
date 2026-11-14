@@ -93,7 +93,6 @@ const REQUIRED_FEATURES = [
   // Weekly KPI targets (>=1 booked meeting / >=5 positive replies per week)
   { file: 'dashboard.js',      needle: 'export function renderKpiTargetBar', feature: 'Weekly KPI targets: banner' },
   { file: 'dashboard.js',      needle: '${renderKpiTargetBar(selWeek)}',     feature: 'Weekly KPI targets: shown on the dashboard' },
-  { file: 'render.js',         needle: 'renderKpiTargetBar(null, { compact:true })', feature: 'Weekly KPI targets: strip above the Lead Tracker sheets' },
   // Retainer Leads rendered a blank Date column and an always-empty date filter
   // for as long as this mapping was missing — normalizeRow left the column as
   // date_passed, so entry.datePassed was undefined everywhere.

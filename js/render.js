@@ -10,7 +10,7 @@ import { initialSync as syncFromSheet } from './api.js?v=20261114103724';
 import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js?v=20261114103724';
 import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWonDrop, renderDealModal, renderNewDealModal, renderAddClientModal, toggleBadgeDropdown } from './deal-modal.js?v=20261114103724';
 import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from './activities.js?v=20261114103724';
-import { renderDashboard, renderKpiTargetBar } from './dashboard.js?v=20261114103724';
+import { renderDashboard } from './dashboard.js?v=20261114103724';
 import { loadFunnel, renderFunnel } from './funnel.js?v=20261114103724';
 import { journeyCell, loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js?v=20261114103724';
 import { journeyFor, LEFT_AT_OPTIONS, WHY_OPTIONS } from './archive-journey.js?v=20261114103724';
@@ -539,11 +539,9 @@ function renderInternal(){
 
 
     if(clSubTab === 'lead_tracker' && (isAdmin()||isEmployee())){
-      // Weekly KPI targets, kept at the top so they are always visible. The
-      // wrapper's --tracker-top compensates the fixed-height .tracker-container
-      // for the strip's own height.
-      html+=`<div style="--tracker-top:96px">
-        <div style="padding:0 12px">${renderKpiTargetBar(null, { compact:true })}</div>`;
+      // The weekly KPI strip that sat here was removed 2026-11-15 (it repeats the
+      // Dashboard's). Without it the sheet takes the default --tracker-top.
+      html+=`<div>`;
       // Sub-tabs: PPM Meetings / Trends / Retainer Leads
       html+=`<div style="display:flex;gap:0;border-bottom:1px solid var(--border);padding:0 12px">
         <button class="topbar-tab ${state.trackerView==='entries'?'active':''}" onclick="switchTrackerView('entries')">PPM Meetings</button>
