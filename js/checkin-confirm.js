@@ -8,9 +8,9 @@
 // lets an admin Skip it or Send it now. Per-client on/off lives in Settings ›
 // Clients ("Check-in confirmation email"). Rows: table checkin_confirmations.
 
-import { supabase } from './supabase-client.js?v=20261115020135';
-import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20261115020135';
-import { esc, str, jsArg } from './utils.js?v=20261115020135';
+import { supabase } from './supabase-client.js?v=20261115043914';
+import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20261115043914';
+import { esc, str, jsArg } from './utils.js?v=20261115043914';
 
 const _s = { loading: false, rows: null, error: '', busy: '', note: {} };
 

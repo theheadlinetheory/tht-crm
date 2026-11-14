@@ -35,17 +35,18 @@
 //   or a hand-picked set of clients. An SDR's Call Queue, callbacks and Pipeline columns show only their clients.
 //   The cap and the "every client has hit the cap" unlock stay global: a client is one client whoever calls it.
 
-import { state } from './app.js?v=20261115020135';
-import { render } from './render.js?v=20261115020135';
-import { supabase } from './supabase-client.js?v=20261115020135';
-import { esc, str, svgIcon, getToday, jsArg } from './utils.js?v=20261115020135';
-import { currentUser, isSdr, isAdmin, isEmployee, loadAssignableUsers } from './auth.js?v=20261115020135';
-import { registerActions } from './delegate.js?v=20261115020135';
+import { state } from './app.js?v=20261115043914';
+import { render } from './render.js?v=20261115043914';
+import { supabase } from './supabase-client.js?v=20261115043914';
+import { esc, str, svgIcon, getToday, jsArg } from './utils.js?v=20261115043914';
+import { currentUser, isSdr, isAdmin, isEmployee, loadAssignableUsers } from './auth.js?v=20261115043914';
+import { registerActions } from './delegate.js?v=20261115043914';
 
 export const CALLBACK_STAGE = 'Cold Call Callback';
 const NO_CONNECTION = new Set(['no_answer', 'voicemail', 'bad_number', 'desk_dq']);
 const OUTCOME_LABEL = {
   booked: 'Appointment booked', not_interested: 'Not interested', under_contract: 'Under contract', follow_up: 'Follow up',
+  email_requested: 'Email requested',
   manager_not_around: 'Manager not around', no_answer: 'No answer', voicemail: 'Voicemail',
   bad_number: 'Bad number', desk_dq: 'Desk DQ', picked_up: 'Picked up (no disposition)',
 };
@@ -635,7 +636,7 @@ function managerHtml() {
     : '<div style="font-size:12px;color:#94a3b8">No dials this week yet.</div>');
 
   // Dispositions this week, per client: where the dials go (list quality shows up in bad number / desk DQ).
-  const order = ['booked', 'under_contract', 'follow_up', 'not_interested', 'manager_not_around', 'picked_up', 'no_answer', 'voicemail', 'bad_number', 'desk_dq'];
+  const order = ['booked', 'under_contract', 'follow_up', 'email_requested', 'not_interested', 'manager_not_around', 'picked_up', 'no_answer', 'voicemail', 'bad_number', 'desk_dq'];
   const byClient = ranked.map(r => ({ name: r.name, rows: week.filter(x => x.client_name === r.name) })).filter(x => x.rows.length);
   h += section('Dispositions this week', byClient.length ? `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="${th}">Client</th>
       ${order.map(o => `<th style="${th}">${esc(OUTCOME_LABEL[o])}</th>`).join('')}<th style="${th}">Dials</th></tr></thead><tbody>
@@ -973,7 +974,7 @@ async function removeBooking(dealId) {
   if (error) { alert('Could not update the meeting count, nothing was removed: ' + error.message); return; }
   for (const r of cc.calls || []) if (r.deal_id === dealId) r.not_counted = 'Removed: ' + reason;
   const [{ sbCreateInteraction }, { deleteDeal }] = await Promise.all([
-    import('./api.js?v=20261115020135'), import('./deals.js?v=20261115020135')]);
+    import('./api.js?v=20261115043914'), import('./deals.js?v=20261115043914')]);
   try { await sbCreateInteraction({ deal_id: dealId, type: 'Note', content: `Removed — cold-call appointment: ${reason} · ${(rows || []).length} dial(s) no longer counted · marked in the CRM` }); }
   catch (e) { console.warn('[removeBooking] note not saved', e && e.message); }
   await deleteDeal(dealId, 'Removed — ' + reason);
@@ -1035,7 +1036,7 @@ registerActions({
   async ccSync() {
     cc.syncing = true; cc.syncNote = ''; render();
     try {
-      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261115020135');
+      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261115043914');
       const out = await invokeEdgeFunctionAsUser('cold-call-sync', {});
       // One sync at a time (audit A3 #4, 2026-11-13): a Refresh during the 2-minute cron's run is skipped.
       if (out.skipped) {
@@ -1054,7 +1055,7 @@ registerActions({
   ccOpenDeal(el) {
     const id = el.dataset.id;
     if (!state.deals.some(d => String(d.id) === String(id))) { alert('That card is no longer on the board (delivered or archived).'); return; }
-    import('./deal-modal.js?v=20261115020135').then(m => m.openDeal(id));
+    import('./deal-modal.js?v=20261115043914').then(m => m.openDeal(id));
   },
   ccTrackerScope(el) { cc.trackerScope = el.dataset.scope; render(); },
   ccQueueAs(el, e) { if (e.type !== 'change') return; cc.queueAs = el.value; render(); },
@@ -1139,7 +1140,7 @@ registerActions({
   async ccTranscribe(el) {
     el.disabled = true; el.textContent = 'Transcribing…';
     try {
-      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261115020135');
+      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261115043914');
       const out = await invokeEdgeFunctionAsUser('cold-call-sync', { action: 'transcribe', call_id: Number(el.dataset.id) });
       const box = document.createElement('div');
       box.style.cssText = 'white-space:pre-wrap;font-size:11px;max-height:260px;overflow:auto;background:#fff;border-radius:6px;padding:8px;margin-top:4px';
