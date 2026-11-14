@@ -9,7 +9,7 @@ import { esc, fmt$ } from './utils.js?v=20261114103724';
 import { isAdmin, isEmployee } from './auth.js?v=20261114103724';
 import { getOverdueActivities } from './activities.js?v=20261114103724';
 import { renderSetterStats } from './setter-stats.js?v=20261114103724';
-import { funnelMonths, funnelMonth, acquisitionCounts, conversionLevels, retentionLevel } from './dashboard-funnel.js?v=20261114103724';
+import { retentionLevel } from './dashboard-funnel.js?v=20261114103724';
 
 function dateAddedToDate(dateAdded) {
   if (!dateAdded) return null;
@@ -118,19 +118,9 @@ function getClientForDeal(deal) {
 }
 
 export function renderDashboard(){
-  const tab = state.dashboardTab || 'client_leads';
-  const cs = `padding:10px 20px;font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;background:none;margin-bottom:-2px`;
-
-  let h = `<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin:0 20px">
-    <button onclick="state.dashboardTab='client_leads';render()" style="${cs};color:${tab==='client_leads'?'var(--purple)':'var(--text-muted)'};border-bottom:2px solid ${tab==='client_leads'?'var(--purple)':'transparent'}">Client Fulfillment</button>
-    ${isAdmin()||isEmployee()?`<button onclick="state.dashboardTab='acquisition';render()" style="${cs};color:${tab==='acquisition'?'#2563eb':'var(--text-muted)'};border-bottom:2px solid ${tab==='acquisition'?'#2563eb':'transparent'}">Acquisition</button>`:''}
-  </div>`;
-
-  if (tab === 'client_leads') {
-    h += renderClientDashboard();
-  } else if (isAdmin()||isEmployee()) {
-    h += renderAcquisitionDashboard();
-  }
+  // Dashboard → Acquisition was removed 2026-11-15: it repeated the Funnel tab.
+  // Its one unique part, the Pipeline Stages grid, now sits under the Funnel.
+  let h = renderClientDashboard();
   return h;
 }
 
@@ -848,66 +838,11 @@ function renderIntakeChart() {
   </div>`;
 }
 
-export function renderAcquisitionDashboard(){
-  const months = funnelMonths();
-  const selMonth = months.includes(state.dashboardAcqMonth) ? state.dashboardAcqMonth : months[0];
+// The Acquisition board's stage counts, shown under the Funnel (moved from the
+// old Dashboard → Acquisition sub-tab on 2026-11-15).
+export function renderAcqStageGrid(){
   const acqDeals = state.deals.filter(d => d.pipeline === 'Acquisition');
-  const [sy, sm] = selMonth.split('-').map(Number);
-  const monthLabel = MONTH_ABBR[sm - 1] + ' ' + sy;
-  const rows = funnelMonth(selMonth, render);
-
-  // KPI: Overdue Tasks
-  const overdueActs = getOverdueActivities().filter(a => {
-    const deal = state.deals.find(d => d.id === a.dealId);
-    return deal && deal.pipeline === 'Acquisition';
-  });
-
-  const cardStyle = 'background:#fff;border-radius:10px;padding:16px;border:1px solid var(--border)';
-  const labelStyle = 'font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600';
-  const numStyle = 'font-size:28px;font-weight:800';
-  const subStyle = 'font-size:10px;color:var(--text-muted);margin-top:2px';
-  const num = (n) => (n === null || n === undefined) ? '—' : Number(n).toLocaleString('en-US');
-  const card = (label, value, color, sub = '') => `<div style="${cardStyle}"><div style="${labelStyle}">${label}</div><div style="${numStyle};color:${color}">${value}</div>${sub ? `<div style="${subStyle}">${sub}</div>` : ''}</div>`;
-
-  let funnelHtml;
-  if (!rows) {
-    funnelHtml = `<div style="padding:40px;text-align:center;color:var(--text-muted)"><div class="loading-spinner"></div><div style="margin-top:12px;font-size:13px">Loading ${monthLabel} from the Funnel...</div></div>`;
-  } else {
-    const c = acquisitionCounts(rows);
-    funnelHtml = `<div style="margin-top:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px">
-      ${card(`Positive Responses (${monthLabel})`, num(c.positives), '#2563eb')}
-      ${card('Discos Scheduled', num(c.discosScheduled), '#7c3aed')}
-      ${card('Discos Conducted', num(c.discosConducted), '#6366f1')}
-      ${card('Demos Booked', num(c.demosBooked), '#818cf8')}
-      ${card('Demos Conducted', num(c.demosConducted), '#0891b2')}
-      ${card('Closed Won', num(c.won), '#22c55e')}
-      ${card('Removed (DQ)', num(c.removed), '#ef4444', 'desk DQ / DQ on a call')}
-      ${card('Overdue Tasks', overdueActs.length, overdueActs.length ? '#ef4444' : '#22c55e')}
-    </div>
-    <h3 style="font-size:14px;font-weight:700;margin-bottom:10px">Conversion (${monthLabel})</h3>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:24px">
-      ${conversionLevels(rows).map(l => `<div style="background:#fff;border-radius:8px;padding:10px 12px;border:1px solid var(--border)">
-        <div style="font-size:10px;color:var(--text-muted);font-weight:600">${esc(l.label || '')}</div>
-        <div style="font-size:22px;font-weight:800;color:var(--text)">${l.rate === null || l.rate === undefined ? '—' : Number(l.rate).toFixed(1) + '%'}</div>
-        <div style="font-size:10px;color:var(--text-muted)">${l.error ? 'unavailable' : `${num(l.numerator)} / ${num(l.denominator)}`}</div>
-      </div>`).join('')}
-    </div>`;
-  }
-
-  return `<div style="padding:24px;max-width:960px;margin:0 auto">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-      <div>
-        <h2 style="font-size:18px;font-weight:800;margin:0 0 4px">Acquisition</h2>
-        <p style="font-size:12px;color:var(--text-muted);margin:0">Same numbers as the Funnel tab for the month (Los Angeles days)</p>
-      </div>
-      <select onchange="state.dashboardAcqMonth=this.value;render()" style="padding:6px 12px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;font-family:var(--font);background:#fff;cursor:pointer">
-        ${months.map(m => {
-          const [y2, m2] = m.split('-').map(Number);
-          return `<option value="${m}" ${m === selMonth ? 'selected' : ''}>${MONTH_ABBR[m2 - 1]} ${y2}</option>`;
-        }).join('')}
-      </select>
-    </div>
-    ${funnelHtml}
+  return `<div style="margin-top:24px">
     <h3 style="font-size:14px;font-weight:700;margin-bottom:10px">Pipeline Stages</h3>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px">
       ${getStagesForPipeline('Acquisition').map(s => {

@@ -24,6 +24,7 @@ import { supabase } from './supabase-client.js?v=20261114103724';
 import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel, rangeDays, todayYmdLA, requestExactSends } from './funnel-period.js?v=20261114103724';
 import { leadsTable } from './funnel-leads.js?v=20261114103724';
 import { renderFunnelDaily, clearFunnelDaily } from './funnel-daily.js?v=20261114103724';
+import { renderAcqStageGrid } from './dashboard.js?v=20261114103724';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -566,6 +567,7 @@ export function renderFunnel() {
     else h += rows.map(safeCard).join('');
   }
   h += `</div>`;
+  h += renderAcqStageGrid();
   h += `<div style="margin-top:16px;font-size:11px;color:#9ca3af;line-height:1.5">
           A <strong>verified baseline</strong> was settled by hand against source evidence and is never recomputed from a live count — the baseline's discovery calls were established by reading the call recordings one by one, which no automated count can reproduce. Live tracking adds to that baseline rather than replacing it.
         </div>`;
