@@ -8,9 +8,9 @@
 // Exception: a retainer client we also set appointments for (Lead Tracker on,
 // Pass-Off off in Settings — e.g. Kinsley) goes the PPM route at its $0 lead cost,
 // so the meeting is logged without changing how the client is billed.
-import { isRetainerClient, findClientForDeal } from './client-info.js?v=20261114162507';
-import { str } from './utils.js?v=20261114162507';
-import { state } from './app.js?v=20261114162507';
+import { isRetainerClient, findClientForDeal } from './client-info.js?v=20261114163106';
+import { str } from './utils.js?v=20261114163106';
+import { state } from './app.js?v=20261114163106';
 
 function tracksMeetings(deal) {
   const c = findClientForDeal(deal) || state.clients.find(x => x.name === deal.stage);
@@ -20,13 +20,13 @@ function tracksMeetings(deal) {
 
 export async function deliverBookedLead(deal, clientName) {
   if (isRetainerClient(deal) && !tracksMeetings(deal)) {
-    const { openPassOffPreview } = await import('./email.js?v=20261114162507');
+    const { openPassOffPreview } = await import('./email.js?v=20261114163106');
     return openPassOffPreview(deal.id, clientName);
   }
   // autoPushToTracker now waits for the sheet sync, and archiving as 'Meeting Booked' no longer asks
   // push-lead-tracker to remove the row it just wrote (A1#1, A4#8 — Tim, 2026-11-13).
-  const { autoPushToTracker } = await import('./email.js?v=20261114162507');
+  const { autoPushToTracker } = await import('./email.js?v=20261114163106');
   await autoPushToTracker(deal);
-  const { deleteDeal } = await import('./deals.js?v=20261114162507');
+  const { deleteDeal } = await import('./deals.js?v=20261114163106');
   await deleteDeal(deal.id, 'Meeting Booked', clientName);
 }

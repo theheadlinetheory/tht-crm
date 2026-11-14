@@ -1,15 +1,15 @@
 // ═══════════════════════════════════════════════════════════
 // API — API layer (Google Sheets calls + Supabase CRUD)
 // ═══════════════════════════════════════════════════════════
-import { API_URL } from './config.js?v=20261114162507';
-import { supabase } from './supabase-client.js?v=20261114162507';
-import { callEdgeFunction } from './edge-auth.js?v=20261114162507';
-import { applyRealtimeUpdate, createRealtimeQueue } from './realtime-merge.js?v=20261114162507';
-import { selectAllPages } from './paging.js?v=20261114162507';
-import { dealsVersion } from './state.js?v=20261114162507';
+import { API_URL } from './config.js?v=20261114163106';
+import { supabase } from './supabase-client.js?v=20261114163106';
+import { callEdgeFunction } from './edge-auth.js?v=20261114163106';
+import { applyRealtimeUpdate, createRealtimeQueue } from './realtime-merge.js?v=20261114163106';
+import { selectAllPages } from './paging.js?v=20261114163106';
+import { dealsVersion } from './state.js?v=20261114163106';
 export { supabase };
-import { state, store, pendingWrites, failedWriteQueue, pendingDealFields, deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds, inFlightActivityIds } from './app.js?v=20261114162507';
-import { render, refreshModal } from './render.js?v=20261114162507';
+import { state, store, pendingWrites, failedWriteQueue, pendingDealFields, deletedDealIds, deletedActivityIds, completedActivityIds, deletedClientIds, inFlightActivityIds } from './app.js?v=20261114163106';
+import { render, refreshModal } from './render.js?v=20261114163106';
 
 // Cached auth check — populated lazily on first initialSync to avoid circular import
 let _cachedIsAdmin = null;
@@ -137,7 +137,7 @@ export async function syncFromSheet(){
       state.clients=data.clients.filter(c => !deletedClientIds.has(String(c.id)));
     }
     if(data.appointments && Array.isArray(data.appointments)){
-      const { getToday } = await import('./utils.js?v=20261114162507');
+      const { getToday } = await import('./utils.js?v=20261114163106');
       state.appointments=data.appointments;
       state.appointments.forEach(a=>{
         Object.keys(a).forEach(k=>{ if(a[k]!=null && typeof a[k]!=='string') a[k]=String(a[k]); });
@@ -192,16 +192,16 @@ export async function syncFromSheet(){
     state.loadFailed=false;
     // Run service area checks in background (all roles — clients need maps too)
     // Re-render after checks complete to show badges/maps
-    const { runServiceAreaChecks } = await import('./maps.js?v=20261114162507');
+    const { runServiceAreaChecks } = await import('./maps.js?v=20261114163106');
     runServiceAreaChecks().then(() => render()).catch(e => console.warn('Service area checks failed:', e));
     // Pre-load archive
     if((isAdmin()||isEmployee()) && !state.archiveLoaded){
-      const { loadArchive } = await import('./archive.js?v=20261114162507');
+      const { loadArchive } = await import('./archive.js?v=20261114163106');
       loadArchive(true);
     }
   } else {
     if(state.deals.length===0){
-      const { getTestData } = await import('./config.js?v=20261114162507');
+      const { getTestData } = await import('./config.js?v=20261114163106');
       const { TEST_DEALS, TEST_ACTIVITIES, TEST_CLIENTS } = getTestData();
       state.deals=[...TEST_DEALS];
       state.activities=[...TEST_ACTIVITIES];
@@ -465,7 +465,7 @@ export async function initialSync(isStartup) {
     }
     // Apply settings from Supabase if available
     if (savedSettings && Object.keys(savedSettings).length > 0) {
-      const { applySettings } = await import('./settings.js?v=20261114162507');
+      const { applySettings } = await import('./settings.js?v=20261114163106');
       applySettings(savedSettings);
     }
     state.deals = (deals || []).map(normalizeRow);
@@ -482,7 +482,7 @@ export async function initialSync(isStartup) {
     state.clients = clients.map(normalizeRow);
     // Cache isAdmin for use in synchronous realtime handler
     if (!_cachedIsAdmin) {
-      const { isAdmin: _isAdmin } = await import('./auth.js?v=20261114162507');
+      const { isAdmin: _isAdmin } = await import('./auth.js?v=20261114163106');
       _cachedIsAdmin = _isAdmin;
     }
     // Strip sensitive GHL credentials for non-admin users but preserve a flag
@@ -547,7 +547,7 @@ export async function initialSync(isStartup) {
 
     // Replay any pending activities from write-ahead log
     if (isStartup) {
-      import('./activities.js?v=20261114162507').then(m => m.replayPendingActivities && m.replayPendingActivities()).catch(() => {});
+      import('./activities.js?v=20261114163106').then(m => m.replayPendingActivities && m.replayPendingActivities()).catch(() => {});
     }
 
     // Realtime events received before these reads started are already in this snapshot.
@@ -560,7 +560,7 @@ export async function initialSync(isStartup) {
     if (isStartup || !selfManagedTabActive()) render();
 
     // Run service area checks in background, re-render when done
-    const { runServiceAreaChecks } = await import('./maps.js?v=20261114162507');
+    const { runServiceAreaChecks } = await import('./maps.js?v=20261114163106');
     runServiceAreaChecks().then(() => { if (isStartup || !selfManagedTabActive()) render(); }).catch(e => console.warn('Service area checks failed:', e));
   } catch (e) {
     console.error('Initial sync failed:', e);
@@ -666,7 +666,7 @@ export async function subscribeRealtime() {
   watch('demo-tracker-changes', 'demo_tracker');
 
   // Hiring tab's unread bubble (admin-only; its own table, no deal/activity counts).
-  import('./hiring-unread.js?v=20261114162507').then(m => m.watchHiringUnread(rid)).catch(e => console.warn('Hiring unread watch failed:', e));
+  import('./hiring-unread.js?v=20261114163106').then(m => m.watchHiringUnread(rid)).catch(e => console.warn('Hiring unread watch failed:', e));
 
   watch('pass-offs-changes', 'pass_offs');
 }
@@ -701,6 +701,13 @@ function applyRealtimeEvent(table, payload) {
     if (table === 'deals' && newRow.leadStatus && newRow.leadStatus !== 'active') return;
     if (!list.find(item => String(item.id) === String(newRow.id))) {
       list.push(newRow);
+      // Realtime leaves out the price/billing columns (not directly selectable since 2026-11-14): fill them in
+      // from tracker_visible() so an admin's new row has its lead cost before anyone invoices it.
+      if (table === 'lead_tracker') {
+        sbGetTrackerEntry(newRow.id)
+          .then(full => { if (full) Object.assign(newRow, normalizeRow(full)); })
+          .catch(e => console.warn('Tracker row refresh failed:', e));
+      }
     }
   } else if (eventType === 'UPDATE' && newRow) {
     // If deal was soft-deleted, remove from state
@@ -972,14 +979,32 @@ export const sbGetDueNurtureItems = () => sbCall(async () => {
 }, { label: 'Load due nurture items' });
 
 // ─── Lead Tracker ───
+// Through tracker_visible(): SDRs get the price/billing columns as NULL, and direct selects of those columns are
+// revoked (Tim, 2026-11-14; migration 20261114000300). Same rows, order and paging as the old select('*').
+const noTrackerRpc = (e) => /tracker_visible|PGRST202|Could not find the function/i.test(String(e && (e.message || e.code) || e));
 export const sbGetTrackerEntries = () => sbCall(async () => {
-  return selectAllPages(() => supabase.from('lead_tracker').select('*').order('created_at', { ascending: false }).order('id'));
+  try {
+    return await selectAllPages(() => supabase.rpc('tracker_visible').select('*').order('created_at', { ascending: false }).order('id'));
+  } catch (e) {
+    // Until migration 20261114000300 is applied the RPC doesn't exist — read the table as before.
+    if (!noTrackerRpc(e)) throw e;
+    return selectAllPages(() => supabase.from('lead_tracker').select('*').order('created_at', { ascending: false }).order('id'));
+  }
 }, { label: 'Load tracker entries' });
 
-export const sbCreateTrackerEntry = (fields) => sbCall(async () => {
-  const { data, error } = await supabase.from('lead_tracker').insert(fields).select().single();
+/** One tracker row with the columns this user may see (admins/employees: all of them). */
+export async function sbGetTrackerEntry(id) {
+  let { data, error } = await supabase.rpc('tracker_visible').select('*').eq('id', id).maybeSingle();
+  if (error && noTrackerRpc(error)) ({ data, error } = await supabase.from('lead_tracker').select('*').eq('id', id).maybeSingle());
   if (error) throw error;
   return data;
+}
+
+export const sbCreateTrackerEntry = (fields) => sbCall(async () => {
+  // The insert can't read the money columns back directly any more; re-read the row through tracker_visible().
+  const { data, error } = await supabase.from('lead_tracker').insert(fields).select('id').single();
+  if (error) throw error;
+  return (await sbGetTrackerEntry(data.id)) || { ...fields, id: data.id };
 }, { label: 'Create tracker entry' });
 
 export const sbUpdateTrackerEntry = (id, fields) => sbCall(async () => {
