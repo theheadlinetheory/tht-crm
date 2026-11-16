@@ -10,6 +10,8 @@
 //                  moved on Client Leads too. Extra column: Callbacks (under contract / call me later).
 //   Lead Tracker — every meeting already booked for each client (so nobody double-books a property),
 //                  or only my own bookings.
+//   Passed off   — cold-call leads already delivered (pushed to the tracker / passed off) or removed, i.e. archived.
+//                  "Bring back" puts one into Pipeline → Callbacks with a call-back reminder (Marcell, 2026-11-17).
 //   Industries   — which industry / property type books meetings, ranked from the dials themselves.
 //   Feedback     — the caller's notes on lists and industries (wrong property types, bad numbers, what works),
 //                  as a backlog for whoever builds the lists. Seeded with what Ioannis said on the Oct calls.
@@ -59,6 +61,7 @@ const SUBTABS = [
   { id: 'queue', label: 'Call Queue' },
   { id: 'pipeline', label: 'Pipeline' },
   { id: 'tracker', label: 'Lead Tracker' },
+  { id: 'passed', label: 'Passed off' },
   { id: 'industries', label: 'Industries' },
   { id: 'feedback', label: 'Feedback' },
   { id: 'manager', label: 'Manager', managerOnly: true },
@@ -81,6 +84,7 @@ const cc = {
   syncing: false, syncNote: '',
   tracker: null, trackerLoading: false,
   trackerScope: 'all', trackerClient: '', trackerSearch: '',
+  passed: null, passedLoading: false, passedSearch: '', passedShowRemoved: false,
   manualDeal: '',            // lead-card cache key for the call history section
 };
 const _history = new Map();  // deal id → rendered call history HTML
@@ -914,6 +918,7 @@ export function renderColdCallingView() {
   if (!cc.loaded) body = '<div style="padding:40px;text-align:center;color:var(--text-muted)">Loading cold calls…</div>';
   else if (cc.error) body = section('Couldn\'t load the call log', `<div style="font-size:12px;color:#dc2626">${esc(cc.error)}</div>`);
   else if (sub === 'tracker') body = trackerHtml();
+  else if (sub === 'passed') body = passedHtml();
   else if (sub === 'manager' && !isSdr()) body = managerHtml();
   else if (sub === 'industries') body = industriesHtml();
   else if (sub === 'feedback') body = feedbackHtml();
@@ -940,6 +945,93 @@ export function coldCallHistoryHtml(deal) {
   return `<div class="form-group form-span2" style="margin:12px 0 8px 0;padding:12px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px">
     <div style="font-size:12px;font-weight:700;color:#0369a1;margin-bottom:8px">${svgIcon('phone', 12, '#0369a1')} Cold calls to this lead</div>
     <div id="cc-history-${esc(deal.id)}">${_history.get(key)}</div>${removeBookingButton(deal)}</div>`;
+}
+
+// ─── Passed off: delivered / removed cold-call leads, and bringing one back (Marcell, 2026-11-17) ───
+// Delivering a lead (Lead Tracker push or pass-off) archives it: an `archive` row plus the deal soft-cancelled
+// (lead_status 'cancelled', same id). Both stay readable to SDRs (sdr_lockout allows cold-call deals), so this
+// lists the cancelled cold-call deals with their archive reason. "Bring back" re-activates the SAME deal row —
+// unlike Archive → Restore it keeps the card's calls, notes and activities — moves it to Callbacks under its
+// client, adds a call-back reminder, and deletes the archive row (a later archive re-inserts it under that id).
+// The meeting it was delivered for stays counted (cold_calls / tracker are untouched); a new booking counts again.
+const DELIVERED = new Set(['Meeting Booked', 'Passed Off']);
+
+async function loadPassed() {
+  cc.passedLoading = true;
+  try {
+    const { data: deals, error } = await supabase.from('deals')
+      .select('id,company,contact,phone,email,stage,cold_call_client,booked_date,booked_time,address,location')
+      .eq('lead_source', 'cold_call').eq('lead_status', 'cancelled').limit(2000);
+    if (error) throw error;
+    const ids = (deals || []).map(d => d.id);
+    const arch = new Map();
+    for (let i = 0; i < ids.length; i += 200) {
+      const { data, error: e2 } = await supabase.from('archive').select('id,archived_at,archive_status').in('id', ids.slice(i, i + 200));
+      if (e2) throw e2;
+      for (const a of data || []) arch.set(a.id, a);
+    }
+    // A cancelled deal with no archive row was purged or never finished archiving: not a lead to bring back.
+    cc.passed = (deals || []).filter(d => arch.has(d.id)).map(d => ({ ...d, client: d.cold_call_client || d.stage, ...arch.get(d.id) }))
+      .sort((a, b) => str(b.archived_at).localeCompare(str(a.archived_at)));
+  } catch (e) { cc.passed = { error: e.message || String(e) }; }
+  cc.passedLoading = false;
+  render();
+}
+
+function passedHtml() {
+  if (!cc.passed && !cc.passedLoading) loadPassed();
+  const removedN = Array.isArray(cc.passed) ? cc.passed.filter(r => !DELIVERED.has(r.archive_status)).length : 0;
+  const controls = `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+    <input id="cc-passed-search" data-action="ccPassedSearch" placeholder="Search client, property, contact, phone…" value="${esc(cc.passedSearch)}" style="flex:1;min-width:200px;padding:5px 10px;font-size:12px;border:1px solid var(--border);border-radius:6px">
+    <label style="font-size:12px;color:#475569;display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" data-action="ccPassedRemoved" ${cc.passedShowRemoved ? 'checked' : ''}> Show removed / lost too${removedN ? ` (${removedN})` : ''}</label>
+  </div>
+  <div style="font-size:12px;color:#475569;margin-bottom:10px">Leads already passed off to a client. <b>Bring back</b> puts one into Pipeline → Callbacks with a call-back reminder; its calls and notes stay on the card.</div>`;
+  if (cc.passedLoading || !cc.passed) return section('Passed off', controls + '<div style="font-size:12px;color:#94a3b8">Loading…</div>');
+  if (cc.passed.error) return section('Passed off', controls + `<div style="font-size:12px;color:#dc2626">Couldn't load: ${esc(cc.passed.error)}</div>`);
+  const q = cc.passedSearch.toLowerCase().trim();
+  const rows = cc.passed.filter(r => (cc.passedShowRemoved || DELIVERED.has(r.archive_status)) &&
+    (!q || [r.client, r.company, r.contact, r.email, r.phone, r.address, r.location].some(v => str(v).toLowerCase().includes(q))));
+  const when = r => r.archived_at ? new Date(r.archived_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+  return section(`Passed off (${rows.length})`, controls + (rows.length
+    ? `<table style="width:100%;border-collapse:collapse"><thead><tr><th style="${th}">Passed off</th><th style="${th}">Client</th><th style="${th}">Property / contact</th><th style="${th}">Phone</th><th style="${th}">Meeting</th><th style="${th}">Status</th><th style="${th}"></th></tr></thead><tbody>
+      ${rows.map(r => `<tr>
+        <td style="${td};white-space:nowrap">${esc(when(r))}</td><td style="${td}">${esc(r.client || '?')}</td>
+        <td style="${td}"><b>${esc(r.company || '')}</b>${r.contact ? '<br><span style="color:#64748b">' + esc(r.contact) + '</span>' : ''}</td>
+        <td style="${td};white-space:nowrap">${esc(r.phone || '')}</td>
+        <td style="${td};white-space:nowrap">${esc([r.booked_date, r.booked_time].filter(Boolean).join(' '))}</td>
+        <td style="${td};color:${DELIVERED.has(r.archive_status) ? '#15803d' : '#b45309'}">${esc(r.archive_status === 'Meeting Booked' ? 'Passed off' : r.archive_status || '')}</td>
+        <td style="${td};text-align:right"><button data-action="ccBringBack" data-id="${esc(r.id)}" style="font-size:11px;padding:4px 10px;border:1px solid var(--purple);background:#f3e8ff;color:var(--purple);border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap">Bring back</button></td></tr>`).join('')}</tbody></table>`
+    : `<div style="font-size:12px;color:#94a3b8">${q ? 'Nothing matches.' : 'No passed-off cold-call leads yet.'}</div>`));
+}
+
+async function bringBack(id) {
+  const r = Array.isArray(cc.passed) && cc.passed.find(x => x.id === id);
+  if (!r) return;
+  const due = (prompt(`Bring ${r.company || r.contact || 'this lead'} (${r.client}) back into the pipeline?\n\nIt goes to Pipeline → Callbacks. Call back on (YYYY-MM-DD):`, today()) || '').trim();
+  if (!due) return;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(due) || isNaN(new Date(due + 'T12:00:00'))) { alert('Use a date like ' + today() + '.'); return; }
+  const who = (currentUser && (currentUser.name || currentUser.email)) || 'CRM';
+  const { deletedDealIds } = await import('./app.js?v=20261116232600');
+  deletedDealIds.delete(String(id));
+  try { localStorage.setItem('tht_deletedDeals', JSON.stringify([...deletedDealIds])); } catch {}
+  // 1. Re-activate the deal first: if this fails the lead is still archived and listed here to retry.
+  const { error } = await supabase.from('deals').update({
+    lead_status: 'active', stage: CALLBACK_STAGE, cold_call_client: r.client || null,
+    pushed_to_tracker: null, pushed_to_client_sheet: null, forwarded_at: null,
+  }).eq('id', id);
+  if (error) { alert('Could not bring it back: ' + error.message); return; }
+  // 2. The reminder and note are best effort; 3. the archive row must go, or it shows in both places.
+  const { sbCreateActivity, sbCreateInteraction, initialSync } = await import('./api.js?v=20261116232600');
+  try { await sbCreateActivity({ id: crypto.randomUUID(), deal_id: id, type: 'Call', subject: `Call back — brought back after ${r.archive_status === 'Meeting Booked' ? 'pass-off' : str(r.archive_status).toLowerCase()}`, due_date: due, done: false }); }
+  catch (e) { console.warn('[bringBack] reminder not saved', e && e.message); }
+  try { await sbCreateInteraction({ deal_id: id, type: 'Note', content: `Brought back into the pipeline from Passed off (${r.archive_status}) · ${who} · call back ${due}` }); }
+  catch (e) { console.warn('[bringBack] note not saved', e && e.message); }
+  const { error: archErr } = await supabase.from('archive').delete().eq('id', id);
+  if (archErr) alert('It is back in Callbacks, but its archive row could not be removed: ' + archErr.message);
+  cc.passed = cc.passed.filter(x => x.id !== id);
+  cc.tracker = null;
+  await initialSync();
+  render();
 }
 
 // ─── Remove a cold-call lead and its appointment (asked for 2026-11-12) ───
@@ -1004,6 +1096,7 @@ registerActions({
     state.coldCallSubTab = el.dataset.tab;
     location.hash = 'cold_calling' + (el.dataset.tab === 'queue' ? '' : '/' + el.dataset.tab);
     if (el.dataset.tab === 'tracker') cc.tracker = null; // fresh on every visit
+    if (el.dataset.tab === 'passed') cc.passed = null;
     if (el.dataset.tab === 'feedback') cc.feedback = null;
     render();
   },
@@ -1075,6 +1168,9 @@ registerActions({
   async ccAssignClient(el, e) { if (e.type !== 'change') return; await toggleAssign(el.dataset.email, 'clients', el.dataset.name, el.checked); },
   ccTrackerClient(el, e) { if (e.type !== 'change') return; cc.trackerClient = el.value; render(); },
   ccTrackerSearch(el, e) { if (e.type !== 'input') return; cc.trackerSearch = el.value; render(); },
+  ccPassedSearch(el, e) { if (e.type !== 'input') return; cc.passedSearch = el.value; render(); },
+  ccPassedRemoved(el, e) { if (e.type !== 'change') return; cc.passedShowRemoved = el.checked; render(); },
+  ccBringBack(el, e) { if (e.type !== 'click') return; bringBack(el.dataset.id); },
   async ccPin(el) {
     const name = el.dataset.name;
     const pinning = !cc.pinned.includes(name);
