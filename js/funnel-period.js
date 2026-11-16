@@ -12,8 +12,8 @@
 // Nothing is written: the functions answer from the per-lead ledger and the
 // daily send snapshots. The "All" view keeps reading pipeline_latest.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261116232600';
-import { authedFetch } from './edge-auth.js?v=20261116232600'; // session token, not the anon key (A2#2, S1, 2026-11-13)
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261117031422';
+import { authedFetch } from './edge-auth.js?v=20261117031422'; // session token, not the anon key (A2#2, S1, 2026-11-13)
 
 export const TZ = 'America/Los_Angeles';
 

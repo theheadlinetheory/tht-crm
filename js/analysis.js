@@ -11,20 +11,20 @@
 // /sequence-analytics endpoint the Weekly Updates tab uses, so the two tabs
 // can never report different numbers for the same week.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261116232600';
-import { render } from './render.js?v=20261116232600';
-import { esc, escAttr, str, jsArg } from './utils.js?v=20261116232600';
-import { isAdmin } from './auth.js?v=20261116232600';
-import { showToast } from './api.js?v=20261116232600';
+import { state } from './app.js?v=20261117031422';
+import { render } from './render.js?v=20261117031422';
+import { esc, escAttr, str, jsArg } from './utils.js?v=20261117031422';
+import { isAdmin } from './auth.js?v=20261117031422';
+import { showToast } from './api.js?v=20261117031422';
 import {
   currentWeekKey, weekLabel, shiftWeeks, ymd, weekStartOf,
   getWeeklyKpiStatus, getPpmClients, getRetainerClients,
   PPM_WEEKLY_TARGET, RETAINER_WEEKLY_TARGET,
   PPM_TRAILING_WEEKS, PPM_STALE_DAYS,
   trailingWeeklyDelivery, weekLabelShort,
-} from './dashboard.js?v=20261116232600';
-import { renderMonthlyAnalysis } from './analysis-monthly.js?v=20261116232600';
-import { isLastFridayOfMonth } from './analysis-month-window.js?v=20261116232600';
+} from './dashboard.js?v=20261117031422';
+import { renderMonthlyAnalysis } from './analysis-monthly.js?v=20261117031422';
+import { isLastFridayOfMonth } from './analysis-month-window.js?v=20261117031422';
 
 // Lives on the fulfillment-dashboard Supabase project (verify_jwt=false),
 // same as the Weekly Updates stats proxy.

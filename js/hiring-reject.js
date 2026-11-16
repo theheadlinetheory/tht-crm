@@ -6,12 +6,12 @@
 // never twice: rejection_sent_at). Applicants already in Not a Fit get nothing
 // automatically; their card has a Send button that opens the same box.
 // ═══════════════════════════════════════════════════════════
-import { render } from './render.js?v=20261116232600';
-import { supabase } from './supabase-client.js?v=20261116232600';
-import { showToast } from './api.js?v=20261116232600';
-import { esc } from './utils.js?v=20261116232600';
-import { findCandidate, applyMove } from './hiring.js?v=20261116232600';
-import { addHiringActivity } from './hiring-activity.js?v=20261116232600';
+import { render } from './render.js?v=20261117031422';
+import { supabase } from './supabase-client.js?v=20261117031422';
+import { showToast } from './api.js?v=20261117031422';
+import { esc } from './utils.js?v=20261117031422';
+import { findCandidate, applyMove } from './hiring.js?v=20261117031422';
+import { addHiringActivity } from './hiring-activity.js?v=20261117031422';
 
 export const REJECT_STAGE = 'Not a Fit';
 
