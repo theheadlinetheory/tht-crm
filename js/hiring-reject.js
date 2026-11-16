@@ -6,12 +6,12 @@
 // never twice: rejection_sent_at). Applicants already in Not a Fit get nothing
 // automatically; their card has a Send button that opens the same box.
 // ═══════════════════════════════════════════════════════════
-import { render } from './render.js?v=20261117031422';
-import { supabase } from './supabase-client.js?v=20261117031422';
-import { showToast } from './api.js?v=20261117031422';
-import { esc } from './utils.js?v=20261117031422';
-import { findCandidate, applyMove } from './hiring.js?v=20261117031422';
-import { addHiringActivity } from './hiring-activity.js?v=20261117031422';
+import { render } from './render.js?v=20261116154739';
+import { supabase } from './supabase-client.js?v=20261116154739';
+import { showToast } from './api.js?v=20261116154739';
+import { esc } from './utils.js?v=20261116154739';
+import { findCandidate, applyMove } from './hiring.js?v=20261116154739';
+import { addHiringActivity } from './hiring-activity.js?v=20261116154739';
 
 export const REJECT_STAGE = 'Not a Fit';
 
@@ -32,13 +32,20 @@ export async function openRejectBox(c) {
   render();
 }
 
+// Returns true when an email actually went out (false: failed or already sent).
 async function sendRejection(c) {
   const { data, error } = await invokeReject({ candidateId: c.id });
-  if (error || data?.error) { showToast(`Email NOT sent to ${c.name || c.email}: ${error?.message || data.error}`); return; }
+  if (error || data?.error) { showToast(`Email NOT sent to ${c.name || c.email}: ${error?.message || data.error}`); return false; }
   c.rejection_sent_at = data.rejectionSentAt;
-  if (data.alreadySent) return;
+  if (data.alreadySent) return false;
   await addHiringActivity(c.id, { type: 'message_out', body: `"Not moving forward" email sent to ${data.sentTo}`, channel: 'Email' });
-  showToast(`Email sent to ${data.sentTo}`, 'success');
+  return true;
+}
+
+// No confirm box: the list's bulk action has already been confirmed.
+export async function rejectNow(c, send = true) {
+  if (c.stage !== REJECT_STAGE) await applyMove(c, REJECT_STAGE);
+  return send && !!c.email && !c.rejection_sent_at && sendRejection(c);
 }
 
 async function confirmBox() {
@@ -47,8 +54,7 @@ async function confirmBox() {
   const send = _box.send;
   _box = null;
   render();
-  if (c.stage !== REJECT_STAGE) await applyMove(c, REJECT_STAGE);
-  if (send) await sendRejection(c);
+  if (await rejectNow(c, send)) showToast(`Email sent to ${c.email}`, 'success');
   render();
 }
 

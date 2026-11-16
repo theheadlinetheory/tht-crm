@@ -6,15 +6,16 @@
 // Every text field is state-backed (state.hiringDraft) because render()
 // rebuilds #app. Clicking outside, ✕ and Close all save pending edits.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261117031422';
-import { render } from './render.js?v=20261117031422';
-import { showToast } from './api.js?v=20261117031422';
-import { esc, str, svgIcon, fmtTimestamp, getToday, jsArg } from './utils.js?v=20261117031422';
-import { STAGES, CONTACT_TYPES, stageLabel, shortDate, replyText, findCandidate, saveFields, moveCandidate, toggleStar } from './hiring.js?v=20261117031422';
-import { activitiesFor, loadActivities, addHiringActivity, updateHiringActivity, deleteHiringActivity, findActivity } from './hiring-activity.js?v=20261117031422';
-import { candidateChannel, channelSelectHtml } from './hiring-channel.js?v=20261117031422';
-import { refreshHiringUnread } from './hiring-unread.js?v=20261117031422';
-import { rejectStatusHtml } from './hiring-reject.js?v=20261117031422';
+import { state } from './app.js?v=20261116154739';
+import { render } from './render.js?v=20261116154739';
+import { showToast } from './api.js?v=20261116154739';
+import { esc, str, svgIcon, fmtTimestamp, getToday, jsArg } from './utils.js?v=20261116154739';
+import { STAGES, CONTACT_TYPES, stageLabel, shortDate, replyText, findCandidate, saveFields, moveCandidate, toggleStar } from './hiring.js?v=20261116154739';
+import { activitiesFor, loadActivities, addHiringActivity, updateHiringActivity, deleteHiringActivity, findActivity } from './hiring-activity.js?v=20261116154739';
+import { candidateChannel, channelSelectHtml } from './hiring-channel.js?v=20261116154739';
+import { refreshHiringUnread } from './hiring-unread.js?v=20261116154739';
+import { rejectStatusHtml } from './hiring-reject.js?v=20261116154739';
+import { whatsappUrl } from './hiring-list.js?v=20261116154739';
 
 const LINK_STYLE = 'color:var(--purple);word-break:break-all';
 const INPUT_STYLE = 'padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)';
@@ -31,7 +32,7 @@ function linkify(v) {
 const DETAIL_FIELDS = [
   { key: 'name', label: 'Name' },
   { key: 'email', label: 'Email', href: (v) => `mailto:${v}` },
-  { key: 'phone', label: 'Phone / WhatsApp', href: (v) => `https://wa.me/${v.replace(/\D/g, '')}` },
+  { key: 'phone', label: 'Phone / WhatsApp', href: (v) => whatsappUrl(v) },
   { key: 'company', label: 'Company' },
   { key: 'location', label: 'Location' },
   { key: 'linkedin', label: 'LinkedIn', href: withScheme },

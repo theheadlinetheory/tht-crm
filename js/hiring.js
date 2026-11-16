@@ -15,16 +15,17 @@
 // red count on the Hiring tab (hiring-unread.js). The detail modal, timeline
 // and follow-ups live in hiring-modal.js / hiring-activity.js.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261117031422';
-import { render } from './render.js?v=20261117031422';
-import { supabase } from './supabase-client.js?v=20261117031422';
-import { showToast } from './api.js?v=20261117031422';
-import { candidateChannel, channelPill, channelSelectHtml } from './hiring-channel.js?v=20261117031422';
-import { esc, escAttr, safeUrl, str, svgIcon, jsArg } from './utils.js?v=20261117031422';
-import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261117031422';
-import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261117031422';
-import { onHiringChange } from './hiring-unread.js?v=20261117031422';
-import { needsRejectPrompt, openRejectBox, renderRejectBox } from './hiring-reject.js?v=20261117031422';
+import { state } from './app.js?v=20261116154739';
+import { render } from './render.js?v=20261116154739';
+import { supabase } from './supabase-client.js?v=20261116154739';
+import { showToast } from './api.js?v=20261116154739';
+import { candidateChannel, channelPill, channelSelectHtml } from './hiring-channel.js?v=20261116154739';
+import { esc, escAttr, safeUrl, str, svgIcon, jsArg } from './utils.js?v=20261116154739';
+import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261116154739';
+import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261116154739';
+import { onHiringChange } from './hiring-unread.js?v=20261116154739';
+import { needsRejectPrompt, openRejectBox, renderRejectBox } from './hiring-reject.js?v=20261116154739';
+import { renderHiringList } from './hiring-list.js?v=20261116154739';
 
 // Applicants want a job with us; partners are companies that hire (recruiting
 // partners who could send us candidates). Each gets its own board.
@@ -86,6 +87,8 @@ async function loadCandidates() {
 
 export const shortDate = (iso) => iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
 export const findCandidate = (id) => _candidates.find(c => c.id === id);
+// Days an applicant has sat in Applied with no decision (0 = today / not Applied).
+export const waitingDays = (c) => c.stage === 'Applied' && c.applied_at ? Math.floor((Date.now() - new Date(c.applied_at)) / 86400000) : 0;
 
 function visibleCandidates() {
   const q = str(state.hiringSearch).trim().toLowerCase();
@@ -152,7 +155,7 @@ function cardHtml(c) {
   const tags = [
     ...(c.kind === 'partner' ? partnerTags(c) : applicantTags(c)),
     c.linkedin ? `<a class="deal-tag" href="${escAttr(safeUrl(withScheme(c.linkedin)))}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="background:#eff6ff;color:#0a66c2;text-decoration:none">in LinkedIn ↗</a>` : '',
-    c.applied_at ? `<span class="deal-tag" style="background:#f1f5f9;color:#475569">${esc(shortDate(c.applied_at))}</span>` : '',
+    c.applied_at ? `<span class="deal-tag" style="background:#f1f5f9;color:${waitingDays(c) >= 3 ? '#d97706' : '#475569'}">${esc(shortDate(c.applied_at))}${waitingDays(c) ? ` · ${waitingDays(c)}d waiting` : ''}</span>` : '',
     c.invite_sent_at ? '<span class="deal-tag" style="background:#eff6ff;color:#1d4ed8">Invite sent</span>' : '',
   ].join('');
   const isNew = c.has_new_activity;
@@ -179,6 +182,11 @@ function kindToggleHtml() {
   }).join('');
 }
 
+function viewToggleHtml() {
+  return [['board', 'Board'], ['list', 'List']].map(([v, label]) =>
+    `<button class="btn ${state.hiringView === v ? 'btn-primary' : 'btn-ghost'}" style="font-size:12px;padding:5px 10px" onclick="hiringView('${v}')">${label}</button>`).join('');
+}
+
 function contactTypeFilterHtml() {
   if (state.hiringKind !== 'partner') return '';
   const opts = [['', 'All'], ...Object.entries(CONTACT_TYPES).map(([k, t]) => [k, t.label])];
@@ -194,7 +202,9 @@ function toolbarHtml(total) {
     : 'new form applications arrive every 15 min';
   return `<div style="padding:12px 20px 8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--text-muted)">
     ${kindToggleHtml()}
-    <span>${total} ${total === 1 ? 'card' : 'cards'} · drag a card to move it · ${hint}</span>
+    <span style="width:1px;height:18px;background:var(--border)"></span>
+    ${viewToggleHtml()}
+    <span>${total} ${total === 1 ? 'person' : 'people'} · ${state.hiringView === 'list' ? 'change Stage in the row' : 'drag a card to move it'} · ${hint}</span>
     ${_status === 'error' ? '<span style="color:#b91c1c">Could not load the board.</span>' : ''}
     <span style="flex:1"></span>
     ${channelSelectHtml(state.hiringChannel || 'all', 'hiringChannel(this.value)', true)}
@@ -231,6 +241,7 @@ export function renderHiring() {
     return '<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading candidates…</div>';
   }
   const list = visibleCandidates();
+  if (state.hiringView === 'list') return toolbarHtml(list.length) + renderHiringList(list) + renderHiringModal() + renderRejectBox();
   let html = toolbarHtml(list.length) + '<div class="board">';
   for (const stage of STAGES[state.hiringKind]) {
     const sc = list.filter(c => c.stage === stage.id);
