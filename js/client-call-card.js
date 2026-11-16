@@ -4,18 +4,18 @@
 //
 // Ioannis, 2026-11-04: the call sheet (Google Doc) and the client card were two places to look, and finding an
 // answer mid-call meant scrolling. So on the Cold Calling board the card IS the call sheet, one tab per thing a
-// caller looks for: Map, Services, Properties, Questions, Quick lines, Who we want, Client info, Appointments,
+// caller looks for: Important Info, Map, Services, Properties, Questions, Quick lines, Who we want, Client info, Appointments,
 // Calendar, Cold calling. Every call sheet field (clients.call_*) shows here and edits in place; an edit rebuilds the doc
 // within a minute (the clients trigger), so the doc stays in step for anyone still using it.
 //
 // client-panel.js owns the overlay and the editable blocks; this module only lays them out in tabs and owns the
 // Appointments tab. The panel is never re-rendered while open, so switching tabs only flips which pane shows.
 
-import { state } from './app.js?v=20261115020135';
-import { esc, str, svgIcon, getToday } from './utils.js?v=20261115020135';
-import { supabase } from './supabase-client.js?v=20261115020135';
-import { registerActions } from './delegate.js?v=20261115020135';
-import { clientIanaTz, setCalendlyBookingDealId } from './calendly.js?v=20261115020135';
+import { state } from './app.js?v=20261116232600';
+import { esc, str, svgIcon, getToday } from './utils.js?v=20261116232600';
+import { supabase } from './supabase-client.js?v=20261116232600';
+import { registerActions } from './delegate.js?v=20261116232600';
+import { clientIanaTz, setCalendlyBookingDealId } from './calendly.js?v=20261116232600';
 
 // ─── Call sheet fields (clients.call_*: no FIELD_MAP entry, so snake_case on the client object) ───
 const lineList = v => {
@@ -44,12 +44,16 @@ const CALL_FIELD_DEFS = {
   call_services_not: field('Not (services they don\'t do)', 'e.g. tree work over 12 ft'),
   call_quick_lines: field('Quick lines', 'One selling point per line', true),
   call_get_extra: field('Extra to get before hanging up', 'One per line. A line starting like a standard item replaces it.', true),
+  // Aidan/Ioannis, 2026-11-16: client caveats a caller must know, e.g. "can't take over current snow contracts,
+  // can do next season's". Added as the team learns them, so it is its own tab, first in the row.
+  call_important_info: field('Important Info', 'One note per line, e.g. Can\'t take over current snow contracts, can do next season\'s', true),
   call_confirmation_email: field('Confirmation email', 'The email sent after booking. One paragraph per line.', true),
 };
 /** Merged into client-panel's EDITABLE so the same Edit / autosave / Done flow handles them. */
 export const CALL_FIELDS = Object.fromEntries(Object.entries(CALL_FIELD_DEFS).map(([k, f]) => [k, { ...f, column: k }]));
 
 const TABS = [
+  { id: 'important', label: 'Important Info' },
   { id: 'map', label: 'Map' },
   { id: 'services', label: 'Services' },
   { id: 'properties', label: 'Properties' },
@@ -64,6 +68,7 @@ const TABS = [
 let _tab = 'map';          // remembered between opens, so the caller lands where they left off
 let _onShow = {};          // pane id → run once the first time it shows (the map needs a visible box)
 let _client = null;
+const IMPORTANT_DOT = '<span id="cp-important-dot" style="display:inline-block;width:7px;height:7px;margin-left:6px;border-radius:50%;background:#dc2626;vertical-align:middle"></span>';
 
 // ─── What the call sheet prints that is not a field ───
 const CALLER = 'Sean';
@@ -99,9 +104,11 @@ export function callCardHtml(cl, parts) {
   const blue = { tone: { wrap: 'padding:12px;background:#eff6ff;border-radius:8px;border:1px solid #bfdbfe', label: '#1e40af', text: '#1e3a5f' } };
   const red = { tone: { wrap: 'padding:12px;background:#fef2f2;border-radius:8px;border:1px solid #fecaca', label: '#b91c1c' } };
   const green = { tone: { wrap: 'padding:12px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0', label: '#166534' } };
+  const amber = { tone: { wrap: 'padding:12px;background:#fffbeb;border-radius:8px;border:1px solid #fde68a', label: '#92400e', text: '#78350f' } };
   const teal = { tone: { wrap: 'padding:12px;background:#f0fdfa;border-radius:8px;border:1px solid #99f6e4', label: '#0f766e' } };
 
   const panes = {
+    important: ed('call_important_info', cl, amber),
     map: parts.map + ed('call_coverage', cl, blue) + ed('serviceAreaCities', cl) + ed('call_areas_avoid', cl, red) + parts.serviceAreaLink,
     services: ed('services', cl, green) + ed('call_services_not', cl, red),
     properties: ed('managedProperties', cl, teal) + ed('call_reference_note', cl),
@@ -120,9 +127,11 @@ export function callCardHtml(cl, parts) {
     cold: parts.stats + parts.coldCalls,
   };
   if (!TABS.some(t => t.id === _tab)) _tab = 'map';
+  // A red dot on the tab when the client has notes, so a caller sees there is something to read before dialing.
+  const hasImportant = !!str(cl.call_important_info).trim();
   const pill = 'padding:5px 11px;font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;border-radius:6px';
   return `<div style="display:flex;flex-wrap:wrap;gap:4px;margin:-6px 0 14px;padding-bottom:10px;border-bottom:1px solid #e2e8f0;position:sticky;top:0;background:#fff;z-index:2;padding-top:6px">
-      ${TABS.map(t => `<button data-action="cpTab" data-tab="${t.id}" id="cp-tabbtn-${t.id}" style="${pill};background:${t.id === _tab ? 'var(--purple)' : '#f3f4f6'};color:${t.id === _tab ? '#fff' : 'var(--text-muted)'}">${t.label}</button>`).join('')}
+      ${TABS.map(t => `<button data-action="cpTab" data-tab="${t.id}" id="cp-tabbtn-${t.id}" style="${pill};background:${t.id === _tab ? 'var(--purple)' : '#f3f4f6'};color:${t.id === _tab ? '#fff' : 'var(--text-muted)'}">${t.label}${t.id === 'important' && hasImportant ? IMPORTANT_DOT : ''}</button>`).join('')}
     </div>
     ${TABS.map(t => `<div data-cp-pane="${t.id}" ${t.id === _tab ? '' : 'hidden'}>${panes[t.id]}</div>`).join('')}`;
 }
@@ -146,6 +155,16 @@ export function onCallCardOpen(clientName, { renderMap }) {
 function runOnShow(id) {
   const fn = _onShow[id];
   if (fn) { delete _onShow[id]; setTimeout(fn, 0); }
+}
+
+/** After an Important Info edit: the tab's red dot follows whether there is text. */
+export function syncImportantDot(cl) {
+  const btn = document.getElementById('cp-tabbtn-important');
+  if (!btn || !cl) return;
+  const dot = document.getElementById('cp-important-dot');
+  const has = !!str(cl.call_important_info).trim();
+  if (has && !dot) btn.insertAdjacentHTML('beforeend', IMPORTANT_DOT);
+  else if (!has && dot) dot.remove();
 }
 
 export function showPane(id) {
@@ -285,6 +304,6 @@ registerActions({
   cpOpenDeal(el) {
     const id = el.dataset.id;
     if (window.closeClientInfoPanel) window.closeClientInfoPanel();
-    import('./deal-modal.js?v=20261115020135').then(m => m.openDeal(id));
+    import('./deal-modal.js?v=20261116232600').then(m => m.openDeal(id));
   },
 });
