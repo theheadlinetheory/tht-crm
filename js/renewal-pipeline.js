@@ -7,8 +7,8 @@
 //  - Journey: ONE card per client, in exactly one stage (JOURNEY_STAGES).
 //    Renewal stages are retainer-only; a pay-per-meeting client (billing_model
 //    'per_lead') sits in Active instead and can't be dropped on them.
-//  - Upsells: zero or more cards per client (UPSELL_STAGES), any billing model,
-//    so a client can be renewing and mid-upsell at once.
+//  - Upsells: zero or more cards per client (UPSELL_STAGES), so a client can be
+//    renewing and mid-upsell at once. Retainer clients only for now.
 // A card whose client is inactive in Settings → Clients (churned) is hidden,
 // never deleted — its stage history stays.
 //
@@ -158,7 +158,7 @@ function addClientPicker() {
 }
 
 function addUpsellPicker() {
-  const names = journeyDeals().filter(d => !isChurned(d)).map(d => str(d.company)).sort((a, b) => a.localeCompare(b));
+  const names = journeyDeals().filter(d => !isChurned(d) && stageFits(UPSELL_STAGES[0], d.company)).map(d => str(d.company)).sort((a, b) => a.localeCompare(b));
   if (!names.length) return '';
   const inp = 'padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)';
   return `<select id="upsell-client" style="${inp}"><option value="">Client…</option>
@@ -175,7 +175,8 @@ function laneHtml(stages, deals, noun) {
     const note = stage.models === 'retainer' ? 'Retainer clients only' : stage.models === 'per_lead' ? 'Pay-per-meeting only' : '';
     html += `<div class="column" ondragover="event.preventDefault();doDragOver(this)" ondragleave="doDragLeave(event,this)" ondrop="renewalDrop('${stageKey}')">
       <div class="col-header" style="border-top-color:${stage.color}"><div>
-        <div class="col-title">${esc(stage.label)}</div>
+        <div class="col-title"${stage.hint ? ` title="${esc(stage.hint)}"` : ''}>${esc(stage.label)}</div>
+        ${stage.hint ? `<div class="col-meta" style="font-style:italic">${esc(stage.hint)}</div>` : ''}
         <div class="col-meta">${sd.length} ${noun}${sd.length !== 1 ? 's' : ''}${note ? ` · ${note}` : ''}</div>
       </div></div>
       <div class="col-body">${sd.length ? sd.map(d => cardHtml(d, stageKey)).join('') : `<div class="col-empty">No ${noun}s yet</div>`}</div>
@@ -202,7 +203,7 @@ export function renderRenewalPipeline() {
   html += laneHtml(JOURNEY_STAGES, journey, 'client');
   html += `<div style="${bar};padding-top:14px;border-top:1px solid var(--border);margin-top:6px">
     <strong style="color:var(--text)">Upsells</strong>
-    <span>${upsells.length} · anything agreed that raises what the client pays — any billing model</span>
+    <span>${upsells.length} · anything agreed that raises what the client pays — retainer clients only (no pay-per-meeting upsells yet)</span>
     <span style="flex:1"></span>${addUpsellPicker()}
   </div>`;
   html += laneHtml(UPSELL_STAGES, upsells, 'upsell');
@@ -238,7 +239,7 @@ async function renewalDrop(stageKey) {
     if (isUpsellCard(deal) !== UPSELL_IDS.has(to)) { showToast(isUpsellCard(deal) ? 'Upsell cards move between the Upsell columns only.' : 'Add an upsell with "+ Upsell" — the client card stays on the journey.', 'error'); return; }
     const stage = RENEWAL_STAGES.find(s => s.id === to);
     if (!stageFits(stage, deal.company)) {
-      showToast(modelOf(deal.company) === 'retainer' ? `${deal.company} is on a retainer — "Active" is for pay-per-meeting clients.` : `${deal.company} is pay-per-meeting — renewal doesn't apply. Use Active, or add an upsell.`, 'error');
+      showToast(modelOf(deal.company) === 'retainer' ? `${deal.company} is on a retainer — "Active" is for pay-per-meeting clients.` : `${deal.company} is pay-per-meeting — renewals and upsells don't apply to them yet. Use Active.`, 'error');
       return;
     }
   }

@@ -51,7 +51,10 @@ export const NURTURE_STAGES = [
 export const JOURNEY_STAGES = [
   { id: "Onboarded", label: "Onboarded", color: "#64748b", models: "all" },
   { id: "Campaigns Started", label: "Campaigns Started", color: "#2563eb", models: "all" },
-  { id: "Activation Point", label: "Activation Point", color: "#8b5cf6", models: "all" },
+  // Activation point (Tim, 2026-11-18): the client's first multi-property or
+  // large-ticket lead, counted only once the client confirms it is real. Moved by hand.
+  { id: "Activation Point", label: "Activation Point", color: "#8b5cf6", models: "all",
+    hint: "First multi-property or large-ticket lead the client has confirmed is real" },
   { id: "Active", label: "Active (pay-per-meeting)", color: "#0d9488", models: "per_lead" },
   { id: "Renewal Call Booked", label: "Renewal Call Booked", color: "#0891b2", models: "retainer" },
   { id: "Renewal Offered", label: "Renewal Offered", color: "#d97706", models: "retainer" },
@@ -59,11 +62,13 @@ export const JOURNEY_STAGES = [
 ];
 // Upsells run beside the journey as their own cards — a client can be renewing
 // and mid-upsell at once. Anything agreed that raises what the client pays us
-// counts, no minimum size. Any billing model.
+// counts, no minimum size. Retainer clients only (Tim, 2026-11-18): there is no
+// upsell for pay-per-meeting clients yet — AEO/GEO maybe later. To open it up,
+// set these to models: "all".
 export const UPSELL_STAGES = [
-  { id: "Upsell Offered", label: "Upsell Offered", color: "#7c3aed", models: "all" },
-  { id: "Upsell Taken", label: "Upsell Taken", color: "#16a34a", models: "all" },
-  { id: "Upsell Declined", label: "Upsell Declined", color: "#94a3b8", models: "all" },
+  { id: "Upsell Offered", label: "Upsell Offered", color: "#7c3aed", models: "retainer" },
+  { id: "Upsell Taken", label: "Upsell Taken", color: "#16a34a", models: "retainer" },
+  { id: "Upsell Declined", label: "Upsell Declined", color: "#94a3b8", models: "retainer" },
 ];
 export const RENEWAL_STAGES = [...JOURNEY_STAGES, ...UPSELL_STAGES];
 
