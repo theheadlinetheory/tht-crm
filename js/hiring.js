@@ -16,19 +16,19 @@
 // red count on the Hiring tab (hiring-unread.js). The detail modal, timeline
 // and follow-ups live in hiring-modal.js / hiring-activity.js.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261116164822';
-import { render } from './render.js?v=20261116164822';
-import { supabase } from './supabase-client.js?v=20261116164822';
-import { showToast } from './api.js?v=20261116164822';
-import { candidateChannel, channelPill, channelSelectHtml } from './hiring-channel.js?v=20261116164822';
-import { esc, escAttr, safeUrl, str, svgIcon, jsArg } from './utils.js?v=20261116164822';
-import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261116164822';
-import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261116164822';
-import { onHiringChange } from './hiring-unread.js?v=20261116164822';
-import { needsEmailPrompt, openEmailBox, renderEmailBox } from './hiring-email-box.js?v=20261116164822';
-import { tickBoxHtml, bulkBarHtml, pruneTicks } from './hiring-bulk.js?v=20261116164822';
-import { videoButtonHtml } from './hiring-video.js?v=20261116164822';
-import { renderHiringList } from './hiring-list.js?v=20261116164822';
+import { state } from './app.js?v=20261116164938';
+import { render } from './render.js?v=20261116164938';
+import { supabase } from './supabase-client.js?v=20261116164938';
+import { showToast } from './api.js?v=20261116164938';
+import { candidateChannel, channelPill, channelSelectHtml } from './hiring-channel.js?v=20261116164938';
+import { esc, escAttr, safeUrl, str, svgIcon, jsArg } from './utils.js?v=20261116164938';
+import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261116164938';
+import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261116164938';
+import { onHiringChange } from './hiring-unread.js?v=20261116164938';
+import { needsEmailPrompt, openEmailBox, renderEmailBox } from './hiring-email-box.js?v=20261116164938';
+import { tickBoxHtml, bulkBarHtml, pruneTicks } from './hiring-bulk.js?v=20261116164938';
+import { videoButtonHtml } from './hiring-video.js?v=20261116164938';
+import { renderHiringList } from './hiring-list.js?v=20261116164938';
 
 // Applicants want a job with us; partners are companies that hire (recruiting
 // partners who could send us candidates). Each gets its own board.
@@ -251,7 +251,7 @@ function watchChanges() {
 
 const archivedCount = () => _candidates.filter(c => c.kind === state.hiringKind && isArchived(c)).length;
 
-// The archive column keeps no cards: it is a drop target with a count.
+// The archive column is a drop target with a count; it shows cards only when a search finds archived people.
 function archiveDropHtml() {
   return `<div class="col-empty" style="line-height:1.6">Drop here to archive<br>
     <b>${archivedCount()} archived</b> · <a href="#" onclick="event.preventDefault();hiringArchived(true)" style="color:var(--purple)">View</a></div>`;
@@ -286,9 +286,9 @@ export function renderHiring() {
     html += `<div class="column" ondragover="event.preventDefault();doDragOver(this)" ondragleave="doDragLeave(event,this)" ondrop="hiringDrop('${key}')">
       <div class="col-header" style="border-top-color:${stage.color}"><div>
         <div class="col-title">${esc(stageLabel(stage))}</div>
-        <div class="col-meta">${archive ? 'archive' : sc.length}</div>
+        <div class="col-meta">${archive && !sc.length ? 'archive' : sc.length}</div>
       </div></div>
-      <div class="col-body">${archive ? archiveDropHtml() : sc.length ? sc.map(cardHtml).join('') : '<div class="col-empty">Nobody here</div>'}</div>
+      <div class="col-body">${archive && !sc.length ? archiveDropHtml() : sc.length ? sc.map(cardHtml).join('') : '<div class="col-empty">Nobody here</div>'}</div>
     </div>`;
   }
   return html + '</div>' + overlays;

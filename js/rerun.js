@@ -1,19 +1,19 @@
 // ═══════════════════════════════════════════════════════════
 // NURTURE — Two-bucket nurture pipeline (Not Now + Service Area Taken)
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20261116164822';
-import { render } from './render.js?v=20261116164822';
-import { sbGetRerunQueue, sbAddToRerun, sbUpdateRerunItem, sbUpdateRerunStatus, sbUpdateDeal, sbUpdateActivity, sbArchiveDeal, sbDeleteDeal, camelToSnake, normalizeRow, invokeEdgeFunction } from './api.js?v=20261116164822';
-import { esc, getToday, fmtDate, svgIcon } from './utils.js?v=20261116164822';
-import { registerActions } from './delegate.js?v=20261116164822';
-import { statCard, filterSelect, modalWrap, modalHeader, modalFooter } from './html-helpers.js?v=20261116164822';
-import { NURTURE_NOT_NOW_SEQUENCE, ACQUISITION_STAGES, MANUAL_OUTREACH_OWNER } from './config.js?v=20261116164822';
-import { isAdmin, getOwnerNameForDeal, getOwnerColor, loadAssignableUsers } from './auth.js?v=20261116164822';
-import { dealHadDemo } from './demo-tracker.js?v=20261116164822';
-import { loadJourneys, journeyFor } from './archive-journey.js?v=20261116164822';
-import { assignReactivationSequence } from './activities.js?v=20261116164822';
-import { renderManualReactivation } from './nurture-manual.js?v=20261116164822';
-import { requestTrackerRemoval } from './tracker-removal.js?v=20261116164822';
+import { state, store, pendingWrites } from './app.js?v=20261116164938';
+import { render } from './render.js?v=20261116164938';
+import { sbGetRerunQueue, sbAddToRerun, sbUpdateRerunItem, sbUpdateRerunStatus, sbUpdateDeal, sbUpdateActivity, sbArchiveDeal, sbDeleteDeal, camelToSnake, normalizeRow, invokeEdgeFunction } from './api.js?v=20261116164938';
+import { esc, getToday, fmtDate, svgIcon } from './utils.js?v=20261116164938';
+import { registerActions } from './delegate.js?v=20261116164938';
+import { statCard, filterSelect, modalWrap, modalHeader, modalFooter } from './html-helpers.js?v=20261116164938';
+import { NURTURE_NOT_NOW_SEQUENCE, ACQUISITION_STAGES, MANUAL_OUTREACH_OWNER } from './config.js?v=20261116164938';
+import { isAdmin, getOwnerNameForDeal, getOwnerColor, loadAssignableUsers } from './auth.js?v=20261116164938';
+import { dealHadDemo } from './demo-tracker.js?v=20261116164938';
+import { loadJourneys, journeyFor } from './archive-journey.js?v=20261116164938';
+import { assignReactivationSequence } from './activities.js?v=20261116164938';
+import { renderManualReactivation } from './nurture-manual.js?v=20261116164938';
+import { requestTrackerRemoval } from './tracker-removal.js?v=20261116164938';
 
 // ─── Data Loading ───
 
