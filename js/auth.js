@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // AUTH — Supabase Auth (Google OAuth), roles, campaign assignments
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20261117084713';
-import { state } from './app.js?v=20261117084713';
-import { render } from './render.js?v=20261117084713';
-import { getVisiblePipelinesWithArchive } from './search.js?v=20261117084713';
-import { esc, svgIcon } from './utils.js?v=20261117084713';
-import { resolveRoutingOwner } from './routing-rules.js?v=20261117084713';
+import { supabase } from './supabase-client.js?v=20261117090237';
+import { state } from './app.js?v=20261117090237';
+import { render } from './render.js?v=20261117090237';
+import { getVisiblePipelinesWithArchive } from './search.js?v=20261117090237';
+import { esc, svgIcon } from './utils.js?v=20261117090237';
+import { resolveRoutingOwner } from './routing-rules.js?v=20261117090237';
 
 const ALLOWED_DOMAIN = 'theheadlinetheory.com';
 export let currentUser = null;
@@ -201,7 +201,7 @@ async function persistAssignment(campaignName, userName){
     state.campaignAssignments = current;
   } catch(e){
     console.warn('Failed to save campaign assignment:', e);
-    import('./api.js?v=20261117084713').then(m => m.showToast(`Campaign assignment not saved: ${e.message || e}`, 'error')).catch(() => {});
+    import('./api.js?v=20261117090237').then(m => m.showToast(`Campaign assignment not saved: ${e.message || e}`, 'error')).catch(() => {});
   }
 }
 export async function saveCampaignAssignment(campaignName, userName){
