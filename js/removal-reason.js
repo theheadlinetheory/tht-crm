@@ -34,7 +34,7 @@ export const REMOVAL_PREFIX = 'Removed — ';
 // on the Timeline (pipeline-leads reads it) · hint = examples under the label.
 export const ACQ_REMOVAL_REASONS = [
   { label: 'Desk DQ',        note: 'Desk DQ',        tone: 'dq',   hint: 'remote / small town · out of ICP · too small · no website' },
-  { label: 'Miscategorized', note: 'Miscategorized', tone: 'dq',   hint: 'the AI tagged a non-positive reply as positive — Smartlead is updated for you' },
+  { label: 'Miscategorized', note: 'Miscategorized', tone: 'dq',   hint: 'the AI tagged a non-positive reply as positive — Smartlead moves it to "Miscategorized — not interested"' },
   { label: 'Duplicate',      note: 'Duplicate',      tone: 'dq',   hint: 'this company is already on the board' },
   { label: 'Lost',           note: 'Lost',           tone: 'lost', hint: 'not interested, or no response after we worked it' },
 ];

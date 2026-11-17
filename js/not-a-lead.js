@@ -7,9 +7,11 @@
 //   1. writes "Removed — Miscategorized · client lead: <reason>" on the Timeline.
 //      The DB trigger interactions_miscategorized_to_smartlead (tht-crm-backend
 //      20261109_miscategorized_to_smartlead.sql) hands that to the
-//      smartlead-recategorize edge function, which moves the lead to
-//      "DQ / out of service area" in its campaign. It only changes a lead that is
-//      still positive there, so a person's own later tag is never overwritten.
+//      smartlead-recategorize edge function, which moves the lead to the
+//      Smartlead category for that reason (SL_CATEGORY below; one per reason since
+//      2026-11-18 — before, all of them went to "DQ / out of service area"). It only
+//      changes a lead that is still positive there, so a person's own later tag is
+//      never overwritten.
 //   2. archives the card with the reason, the same way the Archive button does.
 // Staff only.
 //
@@ -33,14 +35,24 @@ import { isAdmin, isEmployee } from './auth.js?v=20261118003028';
 import { deleteDeal } from './deals.js?v=20261118003028';
 import { REMOVAL_PREFIX, writeRemovalNote, leadStage } from './removal-reason.js?v=20261118003028';
 
+// The Smartlead category each reason lands in. Must match tht-crm-backend
+// supabase/functions/smartlead-recategorize/pick.ts CATEGORY (Aidan, 2026-11-16: the data aligned in Smartlead too).
+export const SL_CATEGORY = {
+  notInterested: 'Miscategorized — not interested',
+  wrongPerson: 'Wrong Person',
+  notAFit: 'DQ / out of service area',
+  duplicate: 'Duplicate / existing customer',
+  other: 'Removed in CRM — other',
+};
+
 const REASONS = [
-  { label: 'Not actually interested',        hint: 'the AI tagged a no / an auto-reply / a question as positive' },
-  { label: 'Wrong contact',                  hint: 'not the decision maker, left the company, wrong property' },
-  { label: 'Not a fit for the client',       hint: 'outside the service area, wrong service, too small' },
-  { label: 'Duplicate or existing customer', hint: 'already on the board, or already works with the client' },
+  { label: 'Not actually interested',        sl: SL_CATEGORY.notInterested, hint: 'the AI tagged a no / an auto-reply / a question as positive' },
+  { label: 'Wrong contact',                  sl: SL_CATEGORY.wrongPerson,   hint: 'not the decision maker, left the company, wrong property' },
+  { label: 'Not a fit for the client',       sl: SL_CATEGORY.notAFit,       hint: 'outside the service area, wrong service, too small' },
+  { label: 'Duplicate or existing customer', sl: SL_CATEGORY.duplicate,     hint: 'already on the board, or already works with the client' },
   { label: 'Lost: not interested or no response after we worked it', lost: true,
     hint: 'a real positive reply that went nowhere. Archived as Lost; stays a positive in Smartlead' },
-  { label: 'Other',                          hint: 'say why in the box below' },
+  { label: 'Other',                          sl: SL_CATEGORY.other,         hint: 'say why in the box below' },
 ];
 
 export function isClientLead(deal) {
@@ -67,7 +79,7 @@ function acqModalHtml(deal) {
     <div class="modal-body">
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
         <b>${esc(deal.company || deal.contact || deal.email || 'This lead')}</b> is archived as <b>Miscategorized</b> (the AI tagged a
-        non-positive reply as positive) and stops counting as a positive reply in Smartlead (moved to "DQ / out of service area").
+        non-positive reply as positive) and stops counting as a positive reply in Smartlead (moved to "${esc(SL_CATEGORY.notInterested)}").
         Same as Archive → Miscategorized.
       </div>
       <input id="not-a-lead-detail" type="text" placeholder="Detail (optional), e.g. auto-reply, said no" style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
@@ -95,14 +107,15 @@ function modalHtml(deal, opts = {}) {
     <div class="modal-body">
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
         <b>${esc(deal.company || deal.contact || deal.email || 'This lead')}</b> leaves the board (it stays in the Archive) and
-        stops counting as a positive reply in Smartlead (moved to "DQ / out of service area"). <b>Lost</b> only archives it: it stays a positive in Smartlead.
+        stops counting as a positive reply in Smartlead: it moves to the category shown under each reason. <b>Lost</b> only archives it: it stays a positive in Smartlead.
       </div>
       ${delivered ? `<div style="font-size:12px;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;padding:8px;margin-bottom:12px">
         This lead was already sent to the client. Removing it here does not un-send it; if it was billed, flag it in the Lead Tracker (🚫 CB) too.</div>` : ''}
       <div style="display:flex;flex-direction:column;gap:6px">
         ${REASONS.map((r, i) => `<label style="display:flex;gap:8px;align-items:flex-start;padding:8px;border:1px solid var(--border);border-radius:6px;cursor:pointer">
           <input type="radio" name="not-a-lead-reason" value="${i}" ${i === sel ? 'checked' : ''} onchange="notALeadReasonChanged()" style="margin-top:2px">
-          <span><b style="font-size:13px">${esc(r.label)}</b><br><span style="font-size:11px;color:var(--text-muted)">${esc(r.hint)}</span></span>
+          <span><b style="font-size:13px">${esc(r.label)}</b><br><span style="font-size:11px;color:var(--text-muted)">${esc(r.hint)}</span>
+          <br><span style="font-size:11px;color:#7c3aed">${r.lost ? 'Smartlead: unchanged (stays positive)' : 'Smartlead → ' + esc(r.sl)}</span></span>
         </label>`).join('')}
       </div>
       <input id="not-a-lead-detail" type="text" placeholder="Detail (optional)" style="width:100%;box-sizing:border-box;margin-top:10px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
@@ -170,7 +183,7 @@ window.confirmNotALead = async (dealId) => {
   }
   overlay?.remove();
   await deleteDeal(dealId, 'Not a real lead — ' + why, deal.stage);
-  showToast('Removed. Smartlead is being updated (if the lead is still positive there).', 'success');
+  showToast(`Removed. Smartlead moves it to "${REASONS[idx].sl}" (if it is still positive there).`, 'success');
 };
 
 // Acquisition: exactly what Archive → Miscategorized writes (removal-reason.js).
@@ -187,5 +200,5 @@ async function confirmAcq(deal, overlay) {
   }
   overlay?.remove();
   await deleteDeal(deal.id, 'Miscategorized');
-  showToast('Removed. Smartlead is being updated (if the lead is still positive there).', 'success');
+  showToast(`Removed. Smartlead moves it to "${SL_CATEGORY.notInterested}" (if it is still positive there).`, 'success');
 }
