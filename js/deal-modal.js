@@ -41,6 +41,7 @@ import { renderClientPropertiesButton } from './client-properties.js?v=202611180
 import { renderCallSheetLink } from './call-sheet.js?v=20261118020503';
 import { isAimfoxDeal, renderAimfoxSource } from './aimfox.js?v=20261118020503';
 import { isGhlSmsDeal, renderGhlSmsSource, renderGhlConversationLink } from './ghl-sms.js?v=20261118020503';
+import { renderInfoEmailButton } from './info-email.js?v=20261118020503'; // Send info email (brief 7 A, Tim 2026-11-18)
 import { authedFetch } from './edge-auth.js?v=20261118020503'; // session token, not the anon key (A2#2, S1, 2026-11-13)
 
 function actTypeClass(type){
@@ -1530,6 +1531,7 @@ export function renderDealModal(deal){
         ${DEAL_VERTICALS.map(v=>`<option value="${v}" ${(deal.vertical||'Other')===v?'selected':''}>${v}</option>`).join('')}
       </select></div>`:''}
       ${(deal.smartleadUrl||deal.email)?`<a href="${escAttr(safeUrl(deal.smartleadUrl)||('https://app.smartlead.ai/app/master-inbox?sortBy=REPLY_TIME_DESC&search='+encodeURIComponent(deal.email||'')))}" target="_blank" rel="noopener">Open in Smartlead →</a>`:''}
+      ${renderInfoEmailButton(deal)}
       ${showStartBtn
         ?`<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e9d5ff"><button class="sl-subseq-btn" onclick="event.stopPropagation();startAutoFollowUp(${jsArg(deal.id)})" style="display:inline-flex;align-items:center;gap:6px;padding:7px 16px;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);box-shadow:0 1px 3px rgba(124,58,237,.3);transition:opacity .15s" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">${svgIcon('send',14,'#fff')} Start Auto Follow-Up</button></div>`
         :''}
