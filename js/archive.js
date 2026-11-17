@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 import { state, store, pendingWrites, deletedDealIds } from './app.js?v=20261118003028';
 import { render } from './render.js?v=20261118003028';
-import { sbGetArchive, sbRestoreFromArchive, normalizeRow, supabase } from './api.js?v=20261118003028';
+import { sbGetArchive, sbRestoreFromArchive, noteRestored, normalizeRow, supabase } from './api.js?v=20261118003028';
 import { esc, str, fmtDate } from './utils.js?v=20261118003028';
 import { registerActions } from './delegate.js?v=20261118003028';
 import { openDeal } from './deal-modal.js?v=20261118003028';
@@ -184,6 +184,7 @@ export async function restoreFromArchive(id){
     console.error('Restore failed:', e);
     return;
   } finally { pendingWrites.value--; }
+  await noteRestored(id); // the old Timeline is saved; say so on the new one
   store.removeArchiveItem(id);
   const { initialSync } = await import('./api.js?v=20261118003028');
   await initialSync();

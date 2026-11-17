@@ -806,6 +806,33 @@ export const sbGetInteractions = (dealId) => sbCall(async () => {
   return data;
 }, { label: 'Load interactions' });
 
+// The Timeline a deal had before its row was deleted (a restore deletes and re-inserts it; the DB trigger
+// deals_save_timeline copies the rows here first — tht-crm-backend 20261118000100). Read-only history. Never
+// throws: before that migration is applied the table does not exist, and the card must still open.
+export async function sbGetSavedTimeline(dealId) {
+  try {
+    const { data, error } = await supabase.from('interactions_archive')
+      .select('interaction_id,type,content,source,original_created_at,archived_at')
+      .eq('deal_id', dealId).order('original_created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  } catch (e) {
+    console.info('[saved timeline] unavailable:', e && e.message);
+    return [];
+  }
+}
+
+// After a restore: the lead starts a new Timeline and the old one was saved by the DB on the way. Say so on the new
+// Timeline, so nobody thinks the history is gone. Never throws — it must not block a restore.
+export async function noteRestored(dealId) {
+  try {
+    const saved = await sbGetSavedTimeline(dealId);
+    await sbCreateInteraction({ deal_id: dealId, type: 'Note', content: saved.length
+      ? `Restored from the archive · the earlier Timeline (${saved.length} entr${saved.length === 1 ? 'y' : 'ies'}) is saved under "Before the restore" in View Full Timeline`
+      : 'Restored from the archive · no earlier Timeline was saved' });
+  } catch (e) { console.warn('[restore] note not written:', e && e.message); }
+}
+
 export const sbCreateInteraction = (fields) => sbCall(async () => {
   const { data, error } = await supabase.from('interactions').insert(fields).select().single();
   if (error) throw error;

@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 import { state, store, pendingWrites, pendingDealFields, deletedDealIds } from './app.js?v=20261118003028';
 import { render } from './render.js?v=20261118003028';
-import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbPurgeDeal, sbArchiveDeal, sbRestoreFromArchive, sbCreateActivity, camelToSnake, invokeEdgeFunction } from './api.js?v=20261118003028';
+import { sbCreateDeal, sbUpdateDeal, sbDeleteDeal, sbPurgeDeal, sbArchiveDeal, sbRestoreFromArchive, noteRestored, sbCreateActivity, camelToSnake, invokeEdgeFunction } from './api.js?v=20261118003028';
 import { showAcquisitionRemovalPicker, recordWonOnTimeline } from './removal-reason.js?v=20261118003028';
 import { uid, getToday, str } from './utils.js?v=20261118003028';
 import { requestTrackerRemoval } from './tracker-removal.js?v=20261118003028';
@@ -235,6 +235,7 @@ export async function bulkRestoreFromArchive(){
   try{
     for(const id of ids){
       await sbRestoreFromArchive(id);
+      await noteRestored(id);
     }
     const { initialSync } = await import('./api.js?v=20261118003028');
     initialSync();

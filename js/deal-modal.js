@@ -813,11 +813,13 @@ const INTERACTION_TYPES = ['Call', 'Email', 'Meeting', 'Text', 'Note'];
 const TYPE_COLORS = { Call: '#f97316', Email: '#2563eb', Meeting: '#7c3aed', Text: '#10b981', Note: '#6b7280', System: '#8b5cf6' };
 const TYPE_ICONS = { Call: 'phone', Email: 'mail', Meeting: 'calendar', Text: 'message-circle', Note: 'edit', System: 'zap' };
 let _interactionsCache = {};
+let _savedTimelineCache = {}; // the Timeline from before a restore (interactions_archive), read-only
 
 async function loadInteractions(dealId) {
   try {
-    const { sbGetInteractions } = await import('./api.js?v=20261118003028');
-    const rows = await sbGetInteractions(dealId);
+    const { sbGetInteractions, sbGetSavedTimeline } = await import('./api.js?v=20261118003028');
+    const [rows, saved] = await Promise.all([sbGetInteractions(dealId), sbGetSavedTimeline(dealId)]);
+    _savedTimelineCache[dealId] = saved;
     _interactionsCache[dealId] = (rows || []).map(r => ({
       id: r.id, dealId: r.deal_id, type: r.type, content: r.content,
       createdAt: r.created_at, source: r.source || 'manual'
@@ -1135,6 +1137,22 @@ function openTimelinePanel(dealId) {
       }
       html += '</div></div>';
     });
+  }
+  // Before the restore (Tim, 2026-11-18): a restored lead starts a new Timeline, and the old one is kept here,
+  // read-only. It is history only — the archive picker and outcome dropdowns read the live Timeline above.
+  const saved = _savedTimelineCache[dealId] || [];
+  if (saved.length) {
+    html += '<details style="margin-top:8px;border-top:1px dashed #e5e7eb;padding-top:8px"><summary style="cursor:pointer;font-size:12px;font-weight:600;color:#6b7280">'
+      + 'Before the restore — ' + saved.length + ' saved entr' + (saved.length === 1 ? 'y' : 'ies') + ' (read-only)</summary>';
+    saved.forEach(ev => {
+      const d = new Date(ev.original_created_at);
+      const color = TYPE_COLORS[ev.type] || '#6b7280';
+      html += '<div style="padding:6px 0;border-bottom:1px solid #f3f4f6;opacity:.85">'
+        + '<span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;color:#fff;background:' + color + ';margin-right:6px">' + esc(ev.type || '') + '</span>'
+        + '<span style="font-size:11px;color:#9ca3af">' + esc(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })) + '</span>'
+        + '<div style="font-size:12px;color:#374151;line-height:1.4;margin-top:2px">' + fmtInteractionContent(ev.content) + '</div></div>';
+    });
+    html += '</details>';
   }
   html += '</div></div></div>';
 
