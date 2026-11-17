@@ -17,6 +17,7 @@ import { esc, escAttr, safeUrl, jsArg, str, getToday, TODAY, uid, svgIcon, brand
 import { DEFAULT_INSTRUCTIONS_TEMPLATE } from './settings.js?v=20261118031445';
 import { renderBookingSmsButton } from './booking-sms.js?v=20261118031445';
 import { renderColdCallEmailButton } from './cold-call-email.js?v=20261118031445';
+import { renderDemoHandoffSection } from './demo-handoff.js?v=20261118031445';
 import { coldCallHistoryHtml } from './cold-calling-tab.js?v=20261118031445';
 import { JUSTCALL_DISPOSITIONS, applyDisposition, isCallTouchpoint } from './call-touchpoints.js?v=20261118031445';
 import { HELD, NO_SHOW, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, markDisco, markDemo, outcomeSelect, demoOutcomeSelect } from './disco-outcome.js?v=20261118031445';
@@ -1832,6 +1833,7 @@ export function renderDealModal(deal){
         ${svgIcon('calendar',14)} Strategy Call
       </button>
     </div>`;
+    h+=renderDemoHandoffSection(deal); // Demo Scheduled → #demo-handoffs draft (staff, not SDRs)
   }
 
   // ACQUISITION — Push to Demo Tracker (admin only)
