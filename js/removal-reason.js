@@ -13,8 +13,9 @@
 //   after a demo                on the meeting touchpoint (levels 03 and 05).
 //
 // ONE source of truth for a lost meeting (Lars, 2026-09-04): the touchpoint
-// dropdown. If the rep already answered it, archiving asks NOTHING and records
-// that answer. If not, archiving shows the dropdown's own list — the same
+// dropdown. If the rep already answered it, archiving does not ask again — it
+// shows that answer and archives on a click (Aidan, 2026-11-16: never axed
+// without a disposition on screen). If not, archiving shows the dropdown's own list — the same
 // DISCO_OUTCOMES / DEMO_OUTCOMES the timeline and the outcome queue use — and
 // writes the same mark through the same function. Nothing is ever asked twice
 // and no second vocabulary exists.
@@ -23,10 +24,10 @@
 // acquisition deals here (deal-modal.js, deals.js). Everything is read from the
 // deal's Timeline at click time — nothing new is stored.
 
-import { state } from './app.js?v=20261118020503';
-import { esc } from './utils.js?v=20261118020503';
-import { sbCreateInteraction, sbGetInteractions, showToast } from './api.js?v=20261118020503';
-import { markDisco, markDemo, openNurture, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20261118020503';
+import { state } from './app.js?v=20261118024536';
+import { esc } from './utils.js?v=20261118024536';
+import { sbCreateInteraction, sbGetInteractions, showToast } from './api.js?v=20261118024536';
+import { markDisco, markDemo, openNurture, OUTCOME_PREFIX, DEMO_OUTCOME_PREFIX, HELD, DISCO_OUTCOMES, DEMO_OUTCOMES } from './disco-outcome.js?v=20261118024536';
 
 export const REMOVAL_PREFIX = 'Removed — ';
 
@@ -194,13 +195,43 @@ function recordedStatus(info) {
   return null;
 }
 
+/** An answer is already on the Timeline: show it and archive only on an explicit click. onChange (single deal)
+ *  opens the full list instead, and the new pick is written as the latest answer. */
+function confirmRecorded(statuses, onConfirm, onChange) {
+  const div = document.createElement('div');
+  div.id = 'archive-reason-picker';
+  div.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:center';
+  div.onclick = (e) => { if (e.target === div) div.remove(); };
+  const counts = new Map();
+  statuses.forEach(s => counts.set(s, (counts.get(s) || 0) + 1));
+  const lines = [...counts].map(([s, n]) => `<div style="font-size:13px;font-weight:600;padding:8px 12px;border-radius:6px;${TONE.other}">${esc(s)}${statuses.length > 1 ? ' · ' + n : ''}</div>`).join('');
+  const box = document.createElement('div');
+  box.style.cssText = 'background:#fff;border-radius:12px;padding:24px;width:360px;box-shadow:0 8px 30px rgba(0,0,0,.2)';
+  box.innerHTML = `<h3 style="margin:0 0 4px;font-size:16px">${statuses.length > 1 ? 'Archive these leads with the answers already recorded?' : 'Archive with the answer already recorded?'}</h3>
+    <div style="font-size:11px;color:#6b7280;margin-bottom:14px">From the Timeline (the outcome dropdown, the Demo Tracker or a JustCall disposition).</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px">${lines}</div>`;
+  const btn = (text, style, handler) => {
+    const b = document.createElement('button');
+    b.className = 'btn'; b.textContent = text;
+    b.style.cssText = 'width:100%;justify-content:center;padding:10px 14px;margin-top:8px;' + style;
+    b.onclick = () => { div.remove(); handler(); };
+    box.appendChild(b);
+  };
+  btn(statuses.length > 1 ? 'Archive ' + statuses.length + ' leads' : 'Archive as ' + statuses[0], 'background:#dc2626;color:#fff;border:1px solid #dc2626', onConfirm);
+  if (onChange) btn('Not right — pick the answer', TONE.other, onChange);
+  btn('Cancel', 'background:#fff;color:#6b7280;border:1px solid #e5e7eb', () => {});
+  div.appendChild(box);
+  document.body.appendChild(div);
+}
+
 /**
  * The picker, for one or many acquisition deals.
  *   onPick(label)  runs after the reason is recorded — the caller archives.
  *   onNurture()    "Move to Nurture" instead of archiving (pre-disco only).
  *   onPurge()      "Delete permanently" for test/junk — no reason, counts nowhere (admins; single deal).
  */
-export async function showAcquisitionRemovalPicker(dealIds, { onPick, onNurture, onPurge }) {
+export async function showAcquisitionRemovalPicker(dealIds, opts) {
+  const { onPick, onNurture, onPurge } = opts;
   const existing = document.getElementById('archive-reason-picker');
   if (existing) existing.remove();
 
@@ -212,10 +243,16 @@ export async function showAcquisitionRemovalPicker(dealIds, { onPick, onNurture,
     if (deal && deal.stage === 'Reactivating') info.stage = 'reactivating';
   });
 
-  // Already answered on the touchpoint: record that, ask nothing.
+  // Already answered on the touchpoint: nothing is asked twice, but the answer is SHOWN and confirmed —
+  // "there always has to be a disposition before something gets axed" (Aidan, 2026-11-16). S&B Mechanical
+  // vanished with no dialog because a Demo Tracker edit had written a demo answer two hours before the demo,
+  // and this used to archive on it silently.
   if (dealIds.length === 1) {
     const done = recordedStatus(infos[0]);
-    if (done) { onPick(done); return; }
+    if (done && !opts.skipRecorded) {
+      confirmRecorded([done], () => onPick(done), () => showAcquisitionRemovalPicker(dealIds, { ...opts, skipRecorded: true }));
+      return;
+    }
   } else {
     // Bulk: leads whose outcome is already recorded go through with it; leads
     // that never had a call share one answer; anything else must be done alone.
@@ -225,7 +262,10 @@ export async function showAcquisitionRemovalPicker(dealIds, { onPick, onNurture,
       return;
     }
     const answered = dealIds.filter((_, i) => infos[i].stage !== 'pre');
-    if (answered.length === dealIds.length) { onPick('Outcome on timeline'); return; }
+    if (answered.length === dealIds.length) {
+      confirmRecorded(infos.map(recordedStatus), () => onPick('Outcome on timeline'), null);
+      return;
+    }
     // Mixed: fall through with the pre-disco list for the rest; the answered
     // ones archive under the same status label (their mark is on the timeline).
   }

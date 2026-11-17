@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // ACTIVITIES — Activity CRUD, SOP sequences, overdue tracking
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, completedActivityIds, deletedActivityIds, inFlightActivityIds } from './app.js?v=20261118020503';
-import { SOP_DAYS, CLIENT_SOP_DAYS, PRE_CALL_SEQUENCE, NO_SHOW_SEQUENCE, REACTIVATION_DAYS } from './config.js?v=20261118020503';
-import { render, refreshModal } from './render.js?v=20261118020503';
-import { sbCreateActivity, sbUpdateActivity, sbDeleteActivity, camelToSnake } from './api.js?v=20261118020503';
-import { uid, getToday, isValidDate, fmtTime12, esc, jsArg } from './utils.js?v=20261118020503';
-import { findClientForDeal } from './client-info.js?v=20261118020503';
-import { isDay1EmailTask, askEmailTemplate } from './email-template-pick.js?v=20261118020503';
+import { state, store, pendingWrites, completedActivityIds, deletedActivityIds, inFlightActivityIds } from './app.js?v=20261118024536';
+import { SOP_DAYS, CLIENT_SOP_DAYS, PRE_CALL_SEQUENCE, NO_SHOW_SEQUENCE, REACTIVATION_DAYS } from './config.js?v=20261118024536';
+import { render, refreshModal } from './render.js?v=20261118024536';
+import { sbCreateActivity, sbUpdateActivity, sbDeleteActivity, camelToSnake } from './api.js?v=20261118024536';
+import { uid, getToday, isValidDate, fmtTime12, esc, jsArg } from './utils.js?v=20261118024536';
+import { findClientForDeal } from './client-info.js?v=20261118024536';
+import { isDay1EmailTask, askEmailTemplate } from './email-template-pick.js?v=20261118024536';
 
 async function retryActivityWrite(fn, label, maxRetries=3){
   pendingWrites.value++;

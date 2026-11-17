@@ -13,16 +13,16 @@
 // whole problem: you scrolled past signatures and quoted chains looking for the
 // one line that mattered.
 
-import { state } from './app.js?v=20261118020503';
-import { esc, str, brandIcon, jsArg } from './utils.js?v=20261118020503';
-import { isAdmin, currentUser } from './auth.js?v=20261118020503';
-import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20261118020503';
+import { state } from './app.js?v=20261118024536';
+import { esc, str, brandIcon, jsArg } from './utils.js?v=20261118024536';
+import { isAdmin, currentUser } from './auth.js?v=20261118024536';
+import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20261118024536';
 // Always refreshModal(TRUE): the no-argument form takes a targeted path that
 // only replaces #activities-container, so this section — which lives
 // elsewhere in the modal — would never repaint after loading.
-import { refreshModal } from './render.js?v=20261118020503';
-import { sbUpdateDeal } from './api.js?v=20261118020503';
-import { trimBody, formatThreadDate, gmailThreadUrl } from './gmail-body.js?v=20261118020503';
+import { refreshModal } from './render.js?v=20261118024536';
+import { sbUpdateDeal } from './api.js?v=20261118024536';
+import { trimBody, formatThreadDate, gmailThreadUrl } from './gmail-body.js?v=20261118024536';
 
 const _cache = {};   // `${dealId}|${mailbox}` -> { threads, participants }
 const _state = {};   // dealId -> { mailbox, loading, error }
