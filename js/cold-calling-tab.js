@@ -85,6 +85,7 @@ const cc = {
   unlimited: [],             // client names with no weekly ceiling once every client has hit the cap
   assign: {},                // lowercased SDR email → {mode:'all'|'zones'|'clients', zones:[...], clients:[...]}
   queueAs: '',               // manager only: whose Call Queue to show ('' = my own)
+  acqBookingUrl: '',         // where SDRs book a discovery call on an acquisition cold call (Manager sets it)
   syncing: false, syncNote: '',
   tracker: null, trackerLoading: false,
   trackerScope: 'all', trackerClient: '', trackerSearch: '',
@@ -121,7 +122,7 @@ async function loadAll() {
     }
     cc.calls = rows;
     if (!(state.assignableUsers || []).length) await loadAssignableUsers().catch(() => null);
-    const { data: settings } = await supabase.from('crm_settings').select('key,value').in('key', ['cold_call_quotas', 'cold_call_pinned', 'cold_call_unlimited', 'cold_call_order', 'cold_call_snow_forecast', 'cold_call_snow_manual', 'cold_call_sdr_assign']);
+    const { data: settings } = await supabase.from('crm_settings').select('key,value').in('key', ['cold_call_quotas', 'cold_call_pinned', 'cold_call_unlimited', 'cold_call_order', 'cold_call_snow_forecast', 'cold_call_snow_manual', 'cold_call_sdr_assign', 'cold_call_acq_booking_url']);
     for (const s of settings || []) {
       try {
         if (s.key === 'cold_call_quotas') cc.quotas = { ...DEFAULT_QUOTAS, ...JSON.parse(s.value) };
@@ -131,6 +132,7 @@ async function loadAll() {
         if (s.key === 'cold_call_snow_forecast') { const v = JSON.parse(s.value) || {}; cc.snowForecast = v.clients || {}; cc.snowUpdated = v.updated_at || ''; }
         if (s.key === 'cold_call_snow_manual') cc.snowManual = JSON.parse(s.value) || {};
         if (s.key === 'cold_call_sdr_assign') cc.assign = JSON.parse(s.value) || {};
+        if (s.key === 'cold_call_acq_booking_url') cc.acqBookingUrl = String(JSON.parse(s.value) || '');
       } catch (_) { /* a bad row keeps the defaults */ }
     }
     cc.error = '';
@@ -179,6 +181,12 @@ function tally(all, from = '', to = '9999-12-31') {
   };
 }
 const callsOn = (from, to = '9999-12-31') => cc.calls.filter(r => r.call_date >= from && r.call_date <= to);
+// Acquisition cold calling (Tim, 2026-11-18): dials for The Headline Theory itself. Every such JustCall campaign has
+// "acquisition" somewhere in its name; cold-call-sync gives those calls no client and puts their cards on the
+// Acquisition board. They count towards a rep's own numbers, never towards a client's or an industry's.
+const isAcq = r => /acquisition/i.test(r.campaign_name || '');
+const clientCalls = () => cc.calls.filter(r => !isAcq(r));
+const ACQ_CALLBACK_STAGE = 'Follow-up';
 
 /** Rep identity = the JustCall agent email = their CRM login. */
 function repName(email) {
@@ -499,21 +507,33 @@ function queueHtml() {
         ? `<div style="font-size:12px;color:#b45309">No cold-calling clients in ${esc(assignmentText(a))}. The sales manager changes this in Manager → SDR assignments.</div>`
         : `<div style="font-size:12px;color:#94a3b8">No clients are switched on for cold calling. A manager turns them on in Manager → Clients.</div>`), asPicker);
 
+  // Acquisition calls: for The Headline Theory itself, so they have no client row above (Tim, 2026-11-18).
+  const acqRecent = cc.calls.some(r => isAcq(r) && r.call_date >= addDays(today(), -30));
+  if (cc.acqBookingUrl || acqRecent) {
+    h += section('Acquisition calls (The Headline Theory)', `<div style="font-size:12px;color:#334155;line-height:1.6">
+      Calling a business for <b>The Headline Theory itself</b>: dial from a JustCall campaign with <b>acquisition</b> in its name.
+      ${cc.acqBookingUrl ? `When they agree to a discovery call, book it here: <a href="${esc(cc.acqBookingUrl)}" target="_blank" rel="noopener" style="color:var(--purple);font-weight:700">${esc(cc.acqBookingUrl)}</a>, then pick <b>Appointment Booked</b> in JustCall.`
+        : '<span style="color:#b45309">No booking link set yet. A manager adds it in Manager → Acquisition booking link.</span>'}
+      The booking lands on the Acquisition board as a discovery call; Follow Up / Under Contract land there too, with a call-back reminder below.</div>`);
+  }
+
   const me = viewer;
   const mine = cc.calls.filter(r => r.agent_email === me);
   h += section(`${me === myEmail() ? 'My numbers' : esc(repName(me)) + "'s numbers"}${mine.length ? '' : ' (no dials under ' + esc(me) + ' yet)'}`, repStatsHtml(mine),
     `<span style="font-size:11px;color:#94a3b8">Connections = someone picked up (not no answer, voicemail, bad number or desk DQ)</span>`);
 
   const clientByName = new Map(coldCallClients().map(c => [c.name, c]));
-  const callbacks = state.deals.filter(d => d.pipeline === 'Client' && d.stage === CALLBACK_STAGE &&
+  const callbacks = state.deals.filter(d => (d.pipeline === 'Client' && d.stage === CALLBACK_STAGE &&
       (a.mode === 'all' || !clientByName.has(d.coldCallClient) || covers(a, clientByName.get(d.coldCallClient))))
+      // Acquisition call-backs (cold-call cards on the Acquisition board's Follow-up column) are everyone's.
+      || (d.pipeline === 'Acquisition' && d.stage === ACQ_CALLBACK_STAGE && d.leadSource === 'cold_call'))
     .map(d => ({ d, due: callbackDue(d.id) })).sort((a, b) => a.due.localeCompare(b.due));
   const dueNow = callbacks.filter(c => c.due <= today());
   h += section(`Callbacks due (${dueNow.length})`,
     dueNow.length
       ? `<table style="width:100%;border-collapse:collapse"><tbody>${dueNow.map(({ d, due }) => `<tr style="cursor:pointer" data-action="ccOpenDeal" data-id="${esc(d.id)}">
           <td style="${td}"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${due < today() ? '#ef4444' : '#22c55e'};margin-right:6px"></span><b>${esc(d.company || d.contact || 'Lead')}</b></td>
-          <td style="${td};color:#475569">${esc(d.coldCallClient || '')}</td>
+          <td style="${td};color:#475569">${d.pipeline === 'Acquisition' ? '<b style="color:#7c3aed">Acquisition</b>' : esc(d.coldCallClient || '')}</td>
           <td style="${td}">${esc(d.phone || '')}</td>
           <td style="${td};color:${due < today() ? '#dc2626' : '#15803d'};font-weight:600">${due < today() ? 'overdue since ' + esc(due) : 'due today'}</td></tr>`).join('')}</tbody></table>`
       : `<div style="font-size:12px;color:#94a3b8">Nothing due. ${callbacks.length} callback${callbacks.length === 1 ? '' : 's'} scheduled later. "Under Contract" and "Follow Up" calls land in Pipeline → Callbacks with a reminder, and show up here when it turns green.</div>`);
@@ -646,6 +666,8 @@ function managerHtml() {
   // Dispositions this week, per client: where the dials go (list quality shows up in bad number / desk DQ).
   const order = ['booked', 'under_contract', 'follow_up', 'not_interested', 'manager_not_around', 'picked_up', 'no_answer', 'voicemail', 'bad_number', 'desk_dq'];
   const byClient = ranked.map(r => ({ name: r.name, rows: week.filter(x => x.client_name === r.name) })).filter(x => x.rows.length);
+  const acqWeek = week.filter(isAcq);
+  if (acqWeek.length) byClient.push({ name: 'Acquisition (The Headline Theory)', rows: acqWeek });
   h += section('Dispositions this week', byClient.length ? `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="${th}">Client</th>
       ${order.map(o => `<th style="${th}">${esc(OUTCOME_LABEL[o])}</th>`).join('')}<th style="${th}">Dials</th></tr></thead><tbody>
       ${[...byClient, { name: 'All clients', rows: week }].map(x => `<tr${x.name === 'All clients' ? ' style="font-weight:700;background:#f1f5f9"' : ''}><td style="${td}">${esc(x.name)}</td>
@@ -664,6 +686,10 @@ function managerHtml() {
   const q = cc.quotas;
   const qInput = (key, label) => `<label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:#64748b">${label}
     <input type="number" min="0" id="ccq-${key}" value="${esc(q[key])}" style="width:110px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px"></label>`;
+  h += section('Acquisition booking link', `<div style="font-size:12px;color:#475569;margin-bottom:8px">Where an SDR books a discovery call on an <b>acquisition</b> cold call (any JustCall campaign with "acquisition" in its name). Shown on every SDR's Call Queue. Use a Calendly event the CRM already listens to, so the booking makes the Acquisition card with its time.</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input id="cc-acq-url" value="${esc(cc.acqBookingUrl)}" placeholder="https://calendly.com/…" style="flex:1;min-width:280px;padding:6px 10px;font-size:13px;border:1px solid var(--border);border-radius:6px">
+      <button class="btn btn-primary" data-action="ccSaveAcqUrl" style="font-size:12px">Save link</button></div>`);
+
   h += section('Quotas (per rep)', `<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
       ${qInput('dialsPerDay', 'Dials / day')}${qInput('connectionsPerDay', 'Connections / day')}${qInput('bookedPerWeek', 'Meetings / week')}${qInput('showRate', 'Show rate %')}${qInput('capPerClient', 'Cap / client / week')}
       <button class="btn btn-primary" data-action="ccSaveQuotas" style="font-size:12px">Save quotas</button></div>`);
@@ -696,7 +722,7 @@ const TREND_METRICS = [
 // Categorical slots in fixed order (dataviz default palette, validated light 2026-11-18). A rep keeps their colour
 // whatever the range: it follows their place in the full caller list, not the reps who happen to be on screen.
 const REP_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
-const trend = { metric: 'dials', gran: 'week', weeks: 8, trade: '', client: '' };
+const trend = { metric: 'dials', gran: 'week', weeks: 8, trade: '', client: '', kind: 'client' }; // kind: client | acq | all
 
 // Trade filter (Aidan, 2026-11-18: "HVAC vs landscaping … we are not booking enough HVAC appointments"). Clients carry no
 // trade field, so it is read off the client's name and service list; HVAC wins when both match.
@@ -739,6 +765,18 @@ function trendPeriods() {
   return out;
 }
 
+/** The calls the chart and the leaderboard count: client calls, acquisition calls or both, then the trade / client. */
+function trendPool() {
+  return cc.calls.filter(r => trend.kind === 'all' || (trend.kind === 'acq') === isAcq(r))
+    .filter(r => trend.kind !== 'client' || ((!trend.trade || tradeOf(r.client_name) === trend.trade) && (!trend.client || r.client_name === trend.client)));
+}
+/** What the pool is, in words, for every label: "HVAC clients", "acquisition calls", "Airlast"… */
+function trendScope() {
+  if (trend.kind === 'acq') return 'acquisition calls';
+  if (trend.kind === 'all') return 'client and acquisition calls';
+  return trend.client ? esc(trend.client) : trend.trade ? esc(trend.trade) + ' clients' : 'client calls';
+}
+
 function repTrendsHtml() {
   const m = TREND_METRICS.find(x => x.key === trend.metric) || TREND_METRICS[0];
   const periods = trendPeriods();
@@ -747,8 +785,9 @@ function repTrendsHtml() {
   const sdrs = new Set((state.assignableUsers || []).filter(u => u.role === 'sdr').map(u => (u.email || '').toLowerCase()));
   const start = periods[0].from, end = periods[periods.length - 1].to;
   // Reps with a dial in the range, plus every SDR login even at zero — a flat line is the point.
-  const filtered = !!(trend.trade || trend.client);
-  const pool = cc.calls.filter(r => (!trend.trade || tradeOf(r.client_name) === trend.trade) && (!trend.client || r.client_name === trend.client));
+  // The quota line is a rep's whole day, so it is drawn for client calls and for both, not for a slice of them.
+  const filtered = !!(trend.trade || trend.client) || trend.kind === 'acq';
+  const pool = trendPool();
   const reps = everyone.map((email, i) => {
     const mine = pool.filter(r => r.agent_email === email);
     const vals = periods.map(p => tally(mine, p.from, p.to)[m.key]);
@@ -766,12 +805,13 @@ function repTrendsHtml() {
     ${TREND_METRICS.map(x => chip('metric', x.key, x.label)).join('')}
     <span style="width:1px;height:18px;background:#e2e8f0;margin:0 4px"></span>${chip('gran', 'week', 'Per week')}${chip('gran', 'day', 'Per day')}
     <span style="width:1px;height:18px;background:#e2e8f0;margin:0 4px"></span>${[4, 8, 12].map(n => chip('weeks', n, n + ' weeks')).join('')}
-    <span style="width:1px;height:18px;background:#e2e8f0;margin:0 4px"></span>${chip('trade', '', 'All trades')}${TRADES.filter(t => cc.calls.some(r => tradeOf(r.client_name) === t)).map(t => chip('trade', t, t)).join('')}
+    <span style="width:1px;height:18px;background:#e2e8f0;margin:0 4px"></span>${chip('kind', 'client', 'Client calls')}${chip('kind', 'acq', 'Acquisition')}${chip('kind', 'all', 'Both')}
+    ${trend.kind === 'client' ? `<span style="width:1px;height:18px;background:#e2e8f0;margin:0 4px"></span>${chip('trade', '', 'All trades')}${TRADES.filter(t => clientCalls().some(r => tradeOf(r.client_name) === t)).map(t => chip('trade', t, t)).join('')}
     <select data-action="ccTrendClient" style="padding:4px 8px;font-size:11px;border:1px solid ${trend.client ? '#1e1b4b' : 'var(--border)'};border-radius:999px;font-weight:600;color:#334155">
       <option value="">${trend.trade ? 'All ' + esc(trend.trade) + ' clients' : 'All clients'}</option>
-      ${[...new Set(cc.calls.map(r => r.client_name).filter(Boolean))].filter(c => !trend.trade || tradeOf(c) === trend.trade).sort().map(c => `<option value="${esc(c)}" ${trend.client === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}
-    </select></div>`;
-  const scopeTxt = trend.client ? esc(trend.client) : trend.trade ? esc(trend.trade) + ' clients' : '';
+      ${[...new Set(clientCalls().map(r => r.client_name).filter(Boolean))].filter(c => !trend.trade || tradeOf(c) === trend.trade).sort().map(c => `<option value="${esc(c)}" ${trend.client === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}
+    </select>` : ''}</div>`;
+  const scopeTxt = trendScope();
   if (!reps.length) return controls + `<div style="font-size:12px;color:#94a3b8">No dials${scopeTxt ? ' for ' + scopeTxt : ''} in the ${rangeTxt}.</div>`;
 
   // The chart: one y scale (the metric), one line per rep, the quota as a dashed reference.
@@ -817,8 +857,8 @@ function repTrendsHtml() {
         return `<td style="${td};text-align:right;font-variant-numeric:tabular-nums;font-weight:600;color:${periods[i].partial ? '#94a3b8' : c}" title="${esc(r.name)}: ${v} ${esc(m.label.toLowerCase())}, ${esc(periods[i].long)}">${v}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`;
 
   // Per client: the same metric and periods, one row per client in the trade (or the one client picked). Click a name to chart it.
-  const clientNames = [...new Set(pool.map(r => r.client_name).filter(Boolean))];
-  const byClient = clientNames.map(c => { const rows = pool.filter(r => r.client_name === c); return { c, vals: periods.map(p => tally(rows, p.from, p.to)[m.key]), total: tally(rows, start, end)[m.key] }; })
+  const clientNames = trend.kind === 'acq' ? [] : [...new Set(pool.filter(r => !isAcq(r)).map(r => r.client_name).filter(Boolean))];
+  const byClient = clientNames.map(c => { const rows = pool.filter(r => !isAcq(r) && r.client_name === c); return { c, vals: periods.map(p => tally(rows, p.from, p.to)[m.key]), total: tally(rows, start, end)[m.key] }; })
     .sort((a, b) => b.total - a.total || a.c.localeCompare(b.c));
   const clientTable = byClient.length ? `<div style="font-size:12px;font-weight:700;color:#334155;margin:14px 0 4px">By client${trend.trade ? ' · ' + esc(trend.trade) : ''} <span style="font-weight:400;color:#94a3b8">(all reps; click a client to chart only them)</span></div>
     <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;background:#fff"><table style="border-collapse:collapse;width:100%">
@@ -833,7 +873,7 @@ function repTrendsHtml() {
     booked: 'Meetings booked, on the day they were booked (the booking date, not the meeting date), less any marked not counted.',
     noShow: 'Booked meetings marked No-show in "Booked meetings: did they show?" below, counted in the period they were booked. A meeting nobody has marked yet counts as neither, so recent weeks fill in late.',
   }[m.key];
-  return controls + legend + svg + table + clientTable + `<div style="font-size:11px;color:#94a3b8;margin-top:6px">${note} ${filtered ? 'Filtered to ' + scopeTxt + ': no quota line (quotas are per rep across all clients). Trade is read from each client\'s name and services. ' : ''}${quota != null ? `Dashed grey line = the quota (${quota} ${esc(m.label.toLowerCase())} per ${unit}, from Quotas below); table colours: green on quota, amber within 60%, red behind.` : ''} The ${unit === 'week' ? 'current week' : 'current day'} is dashed and greyed: it is not over yet. Weeks run Monday–Sunday.</div>`;
+  return controls + legend + svg + table + clientTable + `<div style="font-size:11px;color:#94a3b8;margin-top:6px">${note} ${filtered ? 'Showing ' + scopeTxt + ': no quota line (quotas are per rep across every call). ' + (trend.kind === 'client' && trend.trade ? 'Trade is read from each client\'s name and services. ' : '') : ''}${quota != null ? `Dashed grey line = the quota (${quota} ${esc(m.label.toLowerCase())} per ${unit}, from Quotas below); table colours: green on quota, amber within 60%, red behind.` : ''} The ${unit === 'week' ? 'current week' : 'current day'} is dashed and greyed: it is not over yet. Weeks run Monday–Sunday.</div>`;
 }
 
 window.ccTrendHover = (ev) => {
@@ -863,7 +903,7 @@ window.ccTrendLeave = () => {
 function leaderboardHtml() {
   const m = TREND_METRICS.find(x => x.key === trend.metric) || TREND_METRICS[0];
   const wk = thisWeek(), lastWk = addDays(wk, -7);
-  const pool = cc.calls.filter(r => (!trend.trade || tradeOf(r.client_name) === trend.trade) && (!trend.client || r.client_name === trend.client));
+  const pool = trendPool();
   const sdrs = new Set((state.assignableUsers || []).filter(u => u.role === 'sdr').map(u => (u.email || '').toLowerCase()));
   const rows = callers().map(email => {
     const mine = pool.filter(r => r.agent_email === email);
@@ -872,7 +912,7 @@ function leaderboardHtml() {
     .sort((a, b) => b.now[m.key] - a.now[m.key] || b.now.dials - a.now.dials || a.name.localeCompare(b.name));
   const me = myEmail();
   const medal = i => ['🥇', '🥈', '🥉'][i] || `<span style="color:#94a3b8;font-weight:700">${i + 1}</span>`;
-  const scope = trend.client ? ' · ' + esc(trend.client) : trend.trade ? ' · ' + esc(trend.trade) + ' clients' : '';
+  const scope = ' · ' + trendScope();
   const num = (v, period) => `<td style="${td};text-align:right;font-variant-numeric:tabular-nums;font-weight:700" title="${period}">${v == null ? '—' : v}</td>`;
   const board = rows.length ? `<table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--border);border-radius:8px"><thead>
       <tr><th style="${th}"></th><th style="${th}"></th><th style="${th};text-align:center;border-left:1px solid #e2e8f0" colspan="4">This week so far (Mon ${esc(shortDate(wk))} – today)</th><th style="${th};text-align:center;border-left:1px solid #e2e8f0" colspan="3">Last week (${esc(shortDate(lastWk))} – ${esc(shortDate(addDays(wk, -1)))})</th></tr>
@@ -882,7 +922,7 @@ function leaderboardHtml() {
         <td style="${td}"><b>${esc(r.name)}</b>${r.email === me ? ' <span style="font-size:10px;color:var(--purple);font-weight:700">YOU</span>' : ''}</td>
         ${num(r.now.dials, 'Dials this week so far')}${num(r.now.connections, 'Connects this week so far')}${num(r.now.booked, 'Booked this week so far')}${num(r.now.noShow, 'No-shows on meetings booked this week')}
         ${num(r.last.dials, 'Dials last week')}${num(r.last.connections, 'Connects last week')}${num(r.last.booked, 'Booked last week')}</tr>`).join('')}</tbody></table>
-      <div style="font-size:11px;color:#94a3b8;margin-top:6px">Ranked on <b>${esc(m.label.toLowerCase())} this week so far</b>${scope}; a tie goes to whoever dialled more. Pick another metric, trade or client in the chart below and the ranking follows. The week resets every Monday.</div>`
+      <div style="font-size:11px;color:#94a3b8;margin-top:6px">Ranked on <b>${esc(m.label.toLowerCase())} this week so far</b>${scope}; a tie goes to whoever dialled more. Pick another metric, client calls / acquisition, trade or client in the chart below and the ranking follows. The week resets every Monday.</div>`
     : '<div style="font-size:12px;color:#94a3b8">No dials yet this week or last.</div>';
   return section(`Leaderboard: ${esc(m.label)}${scope}`, board)
     + section('Each rep over past weeks', repTrendsHtml(), `<span style="font-size:11px;color:#94a3b8">pick a metric · hover for each ${trend.gran === 'week' ? 'week' : 'day'}</span>`);
@@ -1000,9 +1040,9 @@ function industryVerdict(s, avg) {
   return { label: 'Watch', color: '#b45309', bg: '#fef3c7', why };
 }
 function industryVerdictTable() {
-  const total = tally(cc.calls);
+  const total = tally(clientCalls());
   const avg = total.dials ? total.booked / total.dials : 0;
-  const segs = segmentRows(cc.calls, industryOf);
+  const segs = segmentRows(clientCalls(), industryOf);
   if (!segs.length) return '<div style="font-size:12px;color:#94a3b8">No dials yet.</div>';
   const pctTxt = v => v == null ? '—' : v + '%';
   return `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead>
@@ -1051,7 +1091,7 @@ export function clientColdCallStatsHtml(clientName) {
 function industriesHtml() {
   const f = cc.industryFilter || { days: 0, client: '' };
   const since = f.days ? new Date(Date.now() - f.days * 864e5).toISOString().slice(0, 10) : '';
-  const rows = cc.calls.filter(r => (!since || r.call_date >= since) && (!f.client || r.client_name === f.client));
+  const rows = cc.calls.filter(r => !isAcq(r) && (!since || r.call_date >= since) && (!f.client || r.client_name === f.client));
   const clients = [...new Set(cc.calls.map(r => r.client_name).filter(Boolean))].sort();
   const controls = `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
     <select data-action="ccIndustryDays" style="padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px">
@@ -1316,6 +1356,13 @@ registerActions({
     if (el.dataset.tab === 'feedback') cc.feedback = null;
     render();
   },
+  async ccSaveAcqUrl() {
+    const v = (document.getElementById('cc-acq-url')?.value || '').trim();
+    if (v && !/^https:\/\//i.test(v)) { alert('Paste the full link, starting with https://'); return; }
+    cc.acqBookingUrl = v;
+    await saveSetting('cold_call_acq_booking_url', v);
+    render();
+  },
   ccTrendClient(el, e) { if (e.type !== 'change') return; trend.client = el.value; render(); },
   ccToggleAllLeads() { state.ccAllLeads = !state.ccAllLeads; render(); },
   ccTrend(el) {
@@ -1324,7 +1371,8 @@ registerActions({
     if (key === 'gran' && (val === 'week' || val === 'day')) trend.gran = val;
     if (key === 'weeks' && [4, 8, 12].includes(Number(val))) trend.weeks = Number(val);
     if (key === 'trade' && (val === '' || TRADES.includes(val))) { trend.trade = val; trend.client = ''; }
-    if (key === 'client') trend.client = val || '';
+    if (key === 'kind' && ['client', 'acq', 'all'].includes(val)) { trend.kind = val; if (val !== 'client') { trend.trade = ''; trend.client = ''; } }
+    if (key === 'client') { trend.client = val || ''; if (val) trend.kind = 'client'; }
     render();
   },
   ccIndustryDays(el, e) { if (e.type !== 'change') return; cc.industryFilter = { ...(cc.industryFilter || { client: '' }), days: Number(el.value) }; render(); },
