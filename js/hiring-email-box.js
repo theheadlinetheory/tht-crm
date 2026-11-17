@@ -2,16 +2,16 @@
 // HIRING EMAIL BOX — the editable box that opens before a hiring email goes out
 // (Aidan, 2026-11-14 / 11-16). Moving applicants (one, or a bulk selection) to
 // Interviewing or Not a Fit opens it: a "send" checkbox (ticked), the subject,
-// one shared message with {first_name}, and a first-name field per person so a
-// wrong name can be fixed. Confirm moves them and sends each their own copy via
+// and each person's own message, already greeting them by first name, so a wrong
+// name or anything else can be fixed in place. Confirm moves them and sends each their copy via
 // the stage's edge function. Never twice: invite_sent_at / rejection_sent_at.
 // ═══════════════════════════════════════════════════════════
-import { render } from './render.js?v=20261116164938';
-import { supabase } from './supabase-client.js?v=20261116164938';
-import { showToast } from './api.js?v=20261116164938';
-import { esc, escAttr, jsArg } from './utils.js?v=20261116164938';
-import { findCandidate, applyMove } from './hiring.js?v=20261116164938';
-import { addHiringActivity } from './hiring-activity.js?v=20261116164938';
+import { render } from './render.js?v=20261116165142';
+import { supabase } from './supabase-client.js?v=20261116165142';
+import { showToast } from './api.js?v=20261116165142';
+import { esc, escAttr, jsArg } from './utils.js?v=20261116165142';
+import { findCandidate, applyMove } from './hiring.js?v=20261116165142';
+import { addHiringActivity } from './hiring-activity.js?v=20261116165142';
 
 export const REJECT_STAGE = 'Not a Fit';
 const TOKEN = '{first_name}';
@@ -27,20 +27,23 @@ const firstName = (full) => { const p = String(full || '').trim().split(/\s+/); 
 const owes = (c, stage) => c.kind === 'applicant' && !!STAGE_EMAILS[stage] && !!c.email && !c[STAGE_EMAILS[stage].column];
 export const needsEmailPrompt = (c, stage) => owes(c, stage);
 
-// { stage, onConfirm, ids, send, names: {id: first}, subject, template, error, loaded }
+// { stage, onConfirm, ids, send, bodies: {id: message}, subject, error, loaded }
 let _box = null;
 
 export async function openEmailBox(ids, stage, onConfirm = null) {
   const people = ids.map(findCandidate).filter(Boolean);
   const emailed = people.filter(c => owes(c, stage));
-  _box = { stage, onConfirm, ids: people.map(c => c.id), send: emailed.length > 0, names: {}, subject: '', template: '', error: '', loaded: false };
-  for (const c of emailed) _box.names[c.id] = firstName(c.name);
+  _box = { stage, onConfirm, ids: people.map(c => c.id), send: emailed.length > 0, bodies: {}, subject: '', error: '', loaded: false };
+  for (const c of emailed) _box.bodies[c.id] = '';
   render();
   if (!emailed.length) return;
   const { data, error } = await supabase.functions.invoke(STAGE_EMAILS[stage].fn, { body: { candidateId: emailed[0].id, preview: true } });
   if (!_box || _box.stage !== stage) return;
   if (error || data?.error) _box.error = error?.message || data.error;
-  else Object.assign(_box, { subject: data.subject, template: data.template, loaded: true });
+  else {
+    for (const c of emailed) _box.bodies[c.id] = data.template.split(TOKEN).join(firstName(c.name));
+    Object.assign(_box, { subject: data.subject, loaded: true });
+  }
   render();
 }
 
@@ -64,18 +67,19 @@ async function confirmBox() {
   const people = box.ids.map(findCandidate).filter(Boolean);
   for (const c of people) {
     if (c.stage !== box.stage) await applyMove(c, box.stage);
-    if (box.send && c.id in box.names && await sendOne(c, cfg, box.subject, box.template.split(TOKEN).join(box.names[c.id].trim() || 'there'))) sent++;
+    if (box.send && c.id in box.bodies && await sendOne(c, cfg, box.subject, box.bodies[c.id])) sent++;
   }
-  showToast(box.send ? `${cfg.sentLabel} to ${sent} of ${Object.keys(box.names).length}` : `Moved ${people.length}`, 'success');
+  showToast(box.send ? `${cfg.sentLabel} to ${sent} of ${Object.keys(box.bodies).length}` : `Moved ${people.length}`, 'success');
   render();
 }
 
-function namesHtml() {
-  return Object.entries(_box.names).map(([id, first]) => {
+// One message per person, already addressed to them, edited in place.
+function messagesHtml(many) {
+  return Object.entries(_box.bodies).map(([id, body]) => {
     const c = findCandidate(id);
-    return `<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-      <div style="flex:1;min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b>${esc(c?.name || '')}</b> <span style="color:var(--text-muted)">${esc(c?.email || '')}</span></div>
-      <input value="${escAttr(first)}" oninput="hiringEmailName(${jsArg(id)}, this.value)" placeholder="First name" style="${INPUT};width:150px">
+    return `<div style="margin-bottom:12px">
+      ${many ? `<div style="font-size:12px;margin-bottom:4px"><b>${esc(c?.name || '')}</b> <span style="color:var(--text-muted)">${esc(c?.email || '')}</span></div>` : ''}
+      <textarea oninput="hiringEmailBody(${jsArg(id)}, this.value)" style="${INPUT};min-height:${many ? 200 : 280}px;resize:vertical;line-height:1.5">${esc(body)}</textarea>
     </div>`;
   }).join('');
 }
@@ -83,13 +87,11 @@ function namesHtml() {
 function editorHtml() {
   if (_box.error) return `<div style="color:#b91c1c">Could not load the email: ${esc(_box.error)}</div>`;
   if (!_box.loaded) return '<div style="color:var(--text-muted)">Loading the email…</div>';
-  const many = Object.keys(_box.names).length > 1;
-  return `<div style="font-weight:700;margin:4px 0 6px">${many ? 'First names' : 'First name'}</div>
-    <div style="max-height:180px;overflow-y:auto;margin-bottom:10px">${namesHtml()}</div>
-    <div style="font-weight:700;margin-bottom:6px">Subject</div>
+  const many = Object.keys(_box.bodies).length > 1;
+  return `<div style="font-weight:700;margin-bottom:6px">Subject</div>
     <input value="${escAttr(_box.subject)}" oninput="hiringEmailField('subject', this.value)" style="${INPUT};margin-bottom:10px">
-    <div style="font-weight:700;margin-bottom:6px">Message <span style="font-weight:400;color:var(--text-muted)">· ${TOKEN} becomes ${many ? 'each' : 'the'} first name above</span></div>
-    <textarea oninput="hiringEmailField('template', this.value)" style="${INPUT};min-height:240px;resize:vertical;line-height:1.5">${esc(_box.template)}</textarea>`;
+    <div style="font-weight:700;margin-bottom:6px">${many ? 'Messages' : 'Message'}</div>
+    ${messagesHtml(many)}`;
 }
 
 export function renderEmailBox() {
@@ -97,7 +99,7 @@ export function renderEmailBox() {
   const cfg = STAGE_EMAILS[_box.stage];
   const people = _box.ids.map(findCandidate).filter(Boolean);
   const moving = people.filter(c => c.stage !== _box.stage).length;
-  const owed = Object.keys(_box.names).length;
+  const owed = Object.keys(_box.bodies).length;
   const who = people.length === 1 ? esc(people[0].name || people[0].email) : `${people.length} people`;
   const already = people.length - owed;
   const action = [moving ? 'Move' : '', _box.send ? 'Send' : ''].filter(Boolean).join(' & ') || 'Move';
@@ -131,7 +133,7 @@ export function emailStatusHtml(c) {
 }
 
 // ─── Handlers. Typing never re-renders, so the cursor stays put. ───
-window.hiringEmailName = (id, v) => { if (_box) _box.names[id] = v; };
+window.hiringEmailBody = (id, v) => { if (_box) _box.bodies[id] = v; };
 window.hiringEmailField = (key, v) => { if (_box) _box[key] = v; };
 window.hiringEmailToggle = (on) => { if (_box) { _box.send = on; render(); } };
 window.hiringEmailCancel = () => { _box = null; render(); };
