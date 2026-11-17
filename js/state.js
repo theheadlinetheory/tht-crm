@@ -4,7 +4,7 @@
 // All mutations go through store.* methods to prevent direct
 // state tampering and ensure consistent re-renders.
 
-import { render, refreshModal } from './render.js?v=20261118043124';
+import { render, refreshModal } from './render.js?v=20261118043317';
 
 // ─── Raw State (private — modules should use store.*) ───
 export const state = {
