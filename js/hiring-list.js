@@ -5,14 +5,14 @@
 // the card. Ticking rows uses the same selection as the board (hiring-bulk.js).
 // Stage dropdowns call hiringMove (the board's path), so the email box still opens.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261118043848';
-import { render } from './render.js?v=20261118043848';
-import { esc, escAttr, safeUrl, str, jsArg } from './utils.js?v=20261118043848';
-import { STAGES, CONTACT_TYPES, stageLabel, shortDate, replyText, waitingDays } from './hiring.js?v=20261118043848';
-import { channelPill } from './hiring-channel.js?v=20261118043848';
-import { withScheme } from './hiring-modal.js?v=20261118043848';
-import { tickBoxHtml } from './hiring-bulk.js?v=20261118043848';
-import { videoButtonHtml } from './hiring-video.js?v=20261118043848';
+import { state } from './app.js?v=20261118050616';
+import { render } from './render.js?v=20261118050616';
+import { esc, escAttr, safeUrl, str, jsArg } from './utils.js?v=20261118050616';
+import { STAGES, CONTACT_TYPES, stageLabel, shortDate, replyText, waitingDays } from './hiring.js?v=20261118050616';
+import { channelPill } from './hiring-channel.js?v=20261118050616';
+import { withScheme } from './hiring-modal.js?v=20261118050616';
+import { tickBoxHtml } from './hiring-bulk.js?v=20261118050616';
+import { videoButtonHtml } from './hiring-video.js?v=20261118050616';
 
 export const whatsappUrl = (phone) => `https://wa.me/${str(phone).replace(/\D/g, '')}`;
 
