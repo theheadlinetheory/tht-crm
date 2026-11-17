@@ -8,24 +8,27 @@
 // - Applicants: hiring-intake copies new application-form rows in every 15 min.
 // - Partners: replies to the "Recruiting Partners" SmartLead campaigns, routed
 //   here by smartlead-webhook.
-// Landing an applicant on Interviewing emails the interview invite once
-// (hiring-invite), exactly as the old sheet script did. Moving one to Not a Fit
-// asks first whether to send the "not moving forward" email (hiring-reject.js).
+// Moving applicants to Interviewing or Not a Fit opens an editable email box
+// first (hiring-email-box.js): the interview invite or the "not moving forward"
+// email, each sent at most once. Cards and rows can be ticked and moved in bulk
+// (hiring-bulk.js).
 // A new applicant or reply flags the card (has_new_activity): blue card here,
 // red count on the Hiring tab (hiring-unread.js). The detail modal, timeline
 // and follow-ups live in hiring-modal.js / hiring-activity.js.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261116154739';
-import { render } from './render.js?v=20261116154739';
-import { supabase } from './supabase-client.js?v=20261116154739';
-import { showToast } from './api.js?v=20261116154739';
-import { candidateChannel, channelPill, channelSelectHtml } from './hiring-channel.js?v=20261116154739';
-import { esc, escAttr, safeUrl, str, svgIcon, jsArg } from './utils.js?v=20261116154739';
-import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261116154739';
-import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261116154739';
-import { onHiringChange } from './hiring-unread.js?v=20261116154739';
-import { needsRejectPrompt, openRejectBox, renderRejectBox } from './hiring-reject.js?v=20261116154739';
-import { renderHiringList } from './hiring-list.js?v=20261116154739';
+import { state } from './app.js?v=20261116163902';
+import { render } from './render.js?v=20261116163902';
+import { supabase } from './supabase-client.js?v=20261116163902';
+import { showToast } from './api.js?v=20261116163902';
+import { candidateChannel, channelPill, channelSelectHtml } from './hiring-channel.js?v=20261116163902';
+import { esc, escAttr, safeUrl, str, svgIcon, jsArg } from './utils.js?v=20261116163902';
+import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261116163902';
+import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261116163902';
+import { onHiringChange } from './hiring-unread.js?v=20261116163902';
+import { needsEmailPrompt, openEmailBox, renderEmailBox } from './hiring-email-box.js?v=20261116163902';
+import { tickBoxHtml, bulkBarHtml, pruneTicks } from './hiring-bulk.js?v=20261116163902';
+import { videoButtonHtml } from './hiring-video.js?v=20261116163902';
+import { renderHiringList } from './hiring-list.js?v=20261116163902';
 
 // Applicants want a job with us; partners are companies that hire (recruiting
 // partners who could send us candidates). Each gets its own board.
@@ -56,7 +59,6 @@ export const CONTACT_TYPES = {
 };
 const contactType = (c) => CONTACT_TYPES[c.contact_type || ''];
 export const stageLabel = (s) => s.label || s.id;
-const INVITE_STAGE = 'Interviewing';
 const STALE_MS = 60000;
 
 let _candidates = [];
@@ -140,7 +142,6 @@ function applicantTags(c) {
     start ? `<span class="deal-tag" style="background:#f1f5f9;color:#475569" title="Free to start">Start: ${esc(start.slice(0, 24))}</span>` : '',
     yesNoTag('5 days', answerTo(c, 'Can you commit to working 5 days')),
     yesNoTag('PST', answerTo(c, 'Are you able to work in Pacific')),
-    safeUrl(c.video_url) ? `<a class="deal-tag" href="${escAttr(safeUrl(c.video_url))}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="background:#fdf4ff;color:#a21caf;text-decoration:none">▶ Loom</a>` : '',
   ];
 }
 
@@ -165,11 +166,12 @@ function cardHtml(c) {
       ondragover="event.preventDefault();doDragOver(this.closest('.column'))"
       onclick="hiringOpen(${jsArg(c.id)})">
     <div class="deal-card-top">
-      <div class="deal-company">${channelPill(c)}${isNew ? `<span class="reply-indicator" title="${c.kind === 'applicant' ? 'New applicant' : 'New reply'}">${svgIcon('mail', 12, '#3b82f6')}</span>` : ''}${esc(c.name || c.email || 'Unknown')}</div>
+      <div class="deal-company" style="display:flex;align-items:center">${tickBoxHtml(c)}${channelPill(c)}${isNew ? `<span class="reply-indicator" title="${c.kind === 'applicant' ? 'New applicant' : 'New reply'}">${svgIcon('mail', 12, '#3b82f6')}</span>` : ''}${esc(c.name || c.email || 'Unknown')}</div>
       <span onclick="event.stopPropagation();hiringToggleStar(${jsArg(c.id)})" title="Strong candidate" style="cursor:pointer;font-size:14px;color:${c.starred ? '#f59e0b' : '#d1d5db'}">★</span>
     </div>
     ${orgLine(c) ? `<div class="deal-detail">${esc(orgLine(c))}</div>` : ''}
     ${previewHtml(c)}
+    ${c.video_url ? `<div style="margin:4px 0 6px">${videoButtonHtml(c.video_url)}</div>` : ''}
     <div class="deal-bottom"><span style="display:flex;gap:4px;flex-wrap:wrap">${tags}</span></div>
   </div>`;
 }
@@ -241,8 +243,11 @@ export function renderHiring() {
     return '<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading candidates…</div>';
   }
   const list = visibleCandidates();
-  if (state.hiringView === 'list') return toolbarHtml(list.length) + renderHiringList(list) + renderHiringModal() + renderRejectBox();
-  let html = toolbarHtml(list.length) + '<div class="board">';
+  pruneTicks(list);
+  const top = toolbarHtml(list.length) + bulkBarHtml();
+  const overlays = renderHiringModal() + renderEmailBox();
+  if (state.hiringView === 'list') return top + renderHiringList(list) + overlays;
+  let html = top + '<div class="board">';
   for (const stage of STAGES[state.hiringKind]) {
     const sc = list.filter(c => c.stage === stage.id);
     const key = encodeURIComponent(stage.id);
@@ -254,7 +259,7 @@ export function renderHiring() {
       <div class="col-body">${sc.length ? sc.map(cardHtml).join('') : '<div class="col-empty">Nobody here</div>'}</div>
     </div>`;
   }
-  return html + '</div>' + renderHiringModal() + renderRejectBox();
+  return html + '</div>' + overlays;
 }
 
 // ─── Writes ───
@@ -267,25 +272,16 @@ export async function saveFields(c, fields) {
   return true;
 }
 
-async function sendInvite(c) {
-  const { data, error } = await supabase.functions.invoke('hiring-invite', { body: { candidateId: c.id } });
-  if (error || data?.error) { showToast(`Interview invite NOT sent to ${c.name || c.email}: ${error?.message || data.error}`); return; }
-  c.invite_sent_at = data.inviteSentAt;
-  if (!data.alreadySent) showToast(`Interview invite sent to ${data.sentTo}`, 'success');
-  render();
-}
-
 export async function moveCandidate(id, stage) {
   const c = findCandidate(id);
   if (!c || c.stage === stage) return;
-  if (needsRejectPrompt(c, stage)) { openRejectBox(c); return; }
+  if (needsEmailPrompt(c, stage)) { openEmailBox([id], stage); return; }
   await applyMove(c, stage);
 }
 
 export async function applyMove(c, stage) {
   const ok = await saveFields(c, { stage });
   if (ok) addHiringActivity(c.id, { type: 'stage', body: stage }).then(() => render());
-  if (ok && stage === INVITE_STAGE && c.kind === 'applicant' && !c.invite_sent_at) await sendInvite(c);
 }
 
 window.hiringDragStart = (id) => { state.hiringDragId = id; };

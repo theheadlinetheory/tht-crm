@@ -6,16 +6,17 @@
 // Every text field is state-backed (state.hiringDraft) because render()
 // rebuilds #app. Clicking outside, ✕ and Close all save pending edits.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261116154739';
-import { render } from './render.js?v=20261116154739';
-import { showToast } from './api.js?v=20261116154739';
-import { esc, str, svgIcon, fmtTimestamp, getToday, jsArg } from './utils.js?v=20261116154739';
-import { STAGES, CONTACT_TYPES, stageLabel, shortDate, replyText, findCandidate, saveFields, moveCandidate, toggleStar } from './hiring.js?v=20261116154739';
-import { activitiesFor, loadActivities, addHiringActivity, updateHiringActivity, deleteHiringActivity, findActivity } from './hiring-activity.js?v=20261116154739';
-import { candidateChannel, channelSelectHtml } from './hiring-channel.js?v=20261116154739';
-import { refreshHiringUnread } from './hiring-unread.js?v=20261116154739';
-import { rejectStatusHtml } from './hiring-reject.js?v=20261116154739';
-import { whatsappUrl } from './hiring-list.js?v=20261116154739';
+import { state } from './app.js?v=20261116163902';
+import { render } from './render.js?v=20261116163902';
+import { showToast } from './api.js?v=20261116163902';
+import { esc, str, svgIcon, fmtTimestamp, getToday, jsArg } from './utils.js?v=20261116163902';
+import { STAGES, CONTACT_TYPES, stageLabel, replyText, findCandidate, saveFields, moveCandidate, toggleStar } from './hiring.js?v=20261116163902';
+import { activitiesFor, loadActivities, addHiringActivity, updateHiringActivity, deleteHiringActivity, findActivity } from './hiring-activity.js?v=20261116163902';
+import { candidateChannel, channelSelectHtml } from './hiring-channel.js?v=20261116163902';
+import { refreshHiringUnread } from './hiring-unread.js?v=20261116163902';
+import { emailStatusHtml } from './hiring-email-box.js?v=20261116163902';
+import { videoButtonHtml } from './hiring-video.js?v=20261116163902';
+import { whatsappUrl } from './hiring-list.js?v=20261116163902';
 
 const LINK_STYLE = 'color:var(--purple);word-break:break-all';
 const INPUT_STYLE = 'padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)';
@@ -78,19 +79,26 @@ function fieldsHtml(c, d) {
   </div>`;
 }
 
+// The stage as big buttons (the old dropdown was too small to hit).
+function stageButtonsHtml(c) {
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+    ${STAGES[c.kind].map(s => {
+      const on = s.id === c.stage;
+      return `<button class="btn" onclick="hiringMove(${jsArg(c.id)}, ${jsArg(s.id)})"
+        style="font-size:13px;font-weight:700;padding:8px 12px;border-radius:8px;border:2px solid ${s.color};background:${on ? s.color : '#fff'};color:${on ? '#fff' : s.color}">${esc(stageLabel(s))}</button>`;
+    }).join('')}
+  </div>`;
+}
+
 function controlsHtml(c) {
   const id = esc(c.id);
   return `<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;font-size:12px;flex-wrap:wrap">
-    <select onchange="hiringMove('${id}', this.value)" style="${INPUT_STYLE}">
-      ${STAGES[c.kind].map(s => `<option value="${esc(s.id)}" ${s.id === c.stage ? 'selected' : ''}>${esc(stageLabel(s))}</option>`).join('')}
-    </select>
     <button class="btn btn-ghost" style="font-size:12px;color:${c.starred ? '#f59e0b' : 'var(--text-muted)'}" onclick="hiringToggleStar('${id}')">★ ${c.starred ? 'Starred' : 'Star'}</button>
     ${c.kind === 'partner' ? `<select onchange="hiringSetContactType('${id}', this.value)" style="${INPUT_STYLE}">
       ${Object.entries(CONTACT_TYPES).map(([k, t]) => `<option value="${k}" ${k === (c.contact_type || '') ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}
     </select>` : ''}
     ${channelSelectHtml(candidateChannel(c), `hiringSetChannel('${id}', this.value)`, false)}
-    <span style="color:var(--text-muted)">${c.invite_sent_at ? `Interview invite sent ${esc(shortDate(c.invite_sent_at))}` : ''}</span>
-    ${rejectStatusHtml(c)}
+    ${emailStatusHtml(c)}
   </div>`;
 }
 
@@ -214,12 +222,15 @@ export function renderHiringModal() {
   if (!c || !d) return '';
   const rows = activitiesFor(c.id);
   const id = esc(c.id);
-  return `<div class="modal-overlay" onmousedown="this._mdownTarget=event.target" onclick="if(event.target===this&&this._mdownTarget===this)hiringClose()">
-    <div class="modal" style="width:640px;max-width:95vw" onclick="event.stopPropagation()">
+  keepScroll();
+  return `<div class="modal-overlay">
+    <div class="modal" id="hiring-modal" style="width:640px;max-width:95vw" onscroll="hiringModalScroll(this.scrollTop)">
       <div class="modal-header"><h3>${esc(c.name || c.email)} ${c.kind === 'partner' ? '<span class="deal-tag" style="background:#ecfeff;color:#0e7490">Partner</span>' : ''}</h3>
         <button class="modal-close" onclick="hiringClose()">×</button></div>
       <div class="modal-body">
+        ${c.video_url ? `<div style="margin-bottom:12px">${videoButtonHtml(c.video_url, true)}</div>` : ''}
         ${conversationLinksHtml(c)}
+        ${stageButtonsHtml(c)}
         ${fieldsHtml(c, d)}
         ${controlsHtml(c)}
         ${rows ? followUpsHtml(c, d, rows) + timelineHtml(c, d, rows) : `<div style="${SECTION_STYLE};color:var(--text-muted)">Loading timeline…</div>`}
@@ -238,12 +249,29 @@ export function renderHiringModal() {
   </div>`;
 }
 
+// ─── Scroll ───
+// The CRM redraws the whole screen on every sync/realtime event, which rebuilt
+// this card at the top. Remember where Aidan was and put it back after the
+// redraw (the microtask runs once render() has swapped the HTML in).
+let _scrollTop = 0;
+function keepScroll() {
+  queueMicrotask(() => { const m = document.getElementById('hiring-modal'); if (m && m.scrollTop !== _scrollTop) m.scrollTop = _scrollTop; });
+}
+window.hiringModalScroll = (top) => { _scrollTop = top; };
+
+// It closes only with ✕, Close, Save or Esc: an outside click used to close it
+// and the next click landed on the board behind.
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && state.hiringOpenId && !document.querySelector('.modal-overlay ~ .modal-overlay')) closeHiringCard();
+});
+
 // ─── Open / close ───
 export function openHiringCard(id) {
   const c = findCandidate(id);
   if (!c) return;
   state.hiringOpenId = id;
   state.hiringDraft = newDraft(c);
+  _scrollTop = 0;
   if (c.has_new_activity) saveFields(c, { has_new_activity: false }).then(refreshHiringUnread);
   loadActivities(id).then(() => { if (state.hiringOpenId === id) render(); });
   render();
