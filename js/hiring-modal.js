@@ -6,17 +6,17 @@
 // Every text field is state-backed (state.hiringDraft) because render()
 // rebuilds #app. Clicking outside, ✕ and Close all save pending edits.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261118002912';
-import { render } from './render.js?v=20261118002912';
-import { showToast } from './api.js?v=20261118002912';
-import { esc, str, svgIcon, fmtTimestamp, getToday, jsArg } from './utils.js?v=20261118002912';
-import { STAGES, CONTACT_TYPES, stageLabel, replyText, findCandidate, saveFields, moveCandidate, toggleStar } from './hiring.js?v=20261118002912';
-import { activitiesFor, loadActivities, addHiringActivity, updateHiringActivity, deleteHiringActivity, findActivity } from './hiring-activity.js?v=20261118002912';
-import { candidateChannel, channelSelectHtml } from './hiring-channel.js?v=20261118002912';
-import { refreshHiringUnread } from './hiring-unread.js?v=20261118002912';
-import { emailStatusHtml } from './hiring-email-box.js?v=20261118002912';
-import { videoButtonHtml } from './hiring-video.js?v=20261118002912';
-import { whatsappUrl } from './hiring-list.js?v=20261118002912';
+import { state } from './app.js?v=20261118003028';
+import { render } from './render.js?v=20261118003028';
+import { showToast } from './api.js?v=20261118003028';
+import { esc, str, svgIcon, fmtTimestamp, getToday, jsArg } from './utils.js?v=20261118003028';
+import { STAGES, CONTACT_TYPES, stageLabel, replyText, findCandidate, saveFields, moveCandidate, toggleStar } from './hiring.js?v=20261118003028';
+import { activitiesFor, loadActivities, addHiringActivity, updateHiringActivity, deleteHiringActivity, findActivity } from './hiring-activity.js?v=20261118003028';
+import { candidateChannel, channelSelectHtml } from './hiring-channel.js?v=20261118003028';
+import { refreshHiringUnread } from './hiring-unread.js?v=20261118003028';
+import { emailStatusHtml } from './hiring-email-box.js?v=20261118003028';
+import { videoButtonHtml } from './hiring-video.js?v=20261118003028';
+import { whatsappUrl } from './hiring-list.js?v=20261118003028';
 
 const LINK_STYLE = 'color:var(--purple);word-break:break-all';
 const INPUT_STYLE = 'padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)';

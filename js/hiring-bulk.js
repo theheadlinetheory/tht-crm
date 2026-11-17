@@ -3,12 +3,12 @@
 // (Aidan, 2026-11-16). Moving to Interviewing or Not a Fit opens the editable
 // email box (hiring-email-box.js) for everyone ticked; other stages just move.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261118002912';
-import { render } from './render.js?v=20261118002912';
-import { showToast } from './api.js?v=20261118002912';
-import { esc, jsArg } from './utils.js?v=20261118002912';
-import { STAGES, stageLabel, findCandidate, applyMove } from './hiring.js?v=20261118002912';
-import { STAGE_EMAILS, REJECT_STAGE, openEmailBox } from './hiring-email-box.js?v=20261118002912';
+import { state } from './app.js?v=20261118003028';
+import { render } from './render.js?v=20261118003028';
+import { showToast } from './api.js?v=20261118003028';
+import { esc, jsArg } from './utils.js?v=20261118003028';
+import { STAGES, stageLabel, findCandidate, applyMove } from './hiring.js?v=20261118003028';
+import { STAGE_EMAILS, REJECT_STAGE, openEmailBox } from './hiring-email-box.js?v=20261118003028';
 
 const _selected = new Set();
 
