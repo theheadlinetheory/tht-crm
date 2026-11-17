@@ -85,8 +85,9 @@ export function getPipelineDeals(){
   if(state.pipeline==="nurture") return state.deals.filter(d=>NURTURE_STAGES.some(s=>s.id===d.stage));
   if(state.pipeline==="cold_calling") return coldCallDeals();
 
+  // Cold-call cards live only on the Cold Calling board (Ioannis, 2026-11-18).
   const clientNames=state.clients.map(c=>c.name);
-  return state.deals.filter(d=>d.stage==="Client Not Distributed"||clientNames.includes(d.stage));
+  return state.deals.filter(d=>d.leadSource!=='cold_call'&&(d.stage==="Client Not Distributed"||clientNames.includes(d.stage)));
 }
 
 // ─── Visible Pipelines ───

@@ -329,6 +329,7 @@ const FIELD_MAP = {
   passoff_instructions: 'passoffInstructions',
   passoff_lead_message: 'passoffLeadMessage',
   cold_call_client: 'coldCallClient',
+  sdr_email: 'sdrEmail',
   cold_calling: 'coldCalling',
   call_transcript: 'callTranscript',
   passoff_sent_at: 'passoffSentAt',
@@ -430,7 +431,7 @@ export function normalizeRow(row) {
 }
 
 // aimfox_lead_id has a unique index (where not null): a second '' collides, which is why archive restores failed.
-const NULLABLE_COLS = new Set(['completed_at','invoice_emailed_at','dispute_at','scheduled_time','created_at','updated_at','forwarded_at','pushed_to_tracker','pushed_to_client_sheet','pushed_to_ghl','queued_at','rerun_after','sent_at','archived_at','value','lead_cost','lead_email','rerun_days','booked_date','booked_time','appt_time','follow_up_date','blocked_by_client','onboarding_parsed_at','date_paid','paid_status','invoice','payment_link','callback_status','notes','sheet_row','stripe_customer_id','stripe_invoice_id','stripe_invoice_item_id','payment_terms','client_phone','auto_followup_started_at','booking_sms_sent_at','setup_fee_total','setup_fee_deposit','setup_fee_spread_count','setup_fee_leads_billed','monthly_retainer','launch_date','prepaid_months','renewal_day','initial_term_length','initial_term_unit','retainer_last_billed','activated_date','invoice_amount','invoiced_at','aimfox_lead_id']);
+const NULLABLE_COLS = new Set(['completed_at','invoice_emailed_at','dispute_at','scheduled_time','created_at','updated_at','forwarded_at','pushed_to_tracker','pushed_to_client_sheet','pushed_to_ghl','queued_at','rerun_after','sent_at','archived_at','value','lead_cost','lead_email','rerun_days','booked_date','booked_time','appt_time','follow_up_date','blocked_by_client','onboarding_parsed_at','date_paid','paid_status','invoice','payment_link','callback_status','notes','sheet_row','stripe_customer_id','stripe_invoice_id','stripe_invoice_item_id','payment_terms','client_phone','auto_followup_started_at','booking_sms_sent_at','setup_fee_total','setup_fee_deposit','setup_fee_spread_count','setup_fee_leads_billed','monthly_retainer','launch_date','prepaid_months','renewal_day','initial_term_length','initial_term_unit','retainer_last_billed','activated_date','invoice_amount','invoiced_at','aimfox_lead_id','sdr_email']);
 
 export function camelToSnake(obj) {
   const result = {};
@@ -738,10 +739,10 @@ function applyRealtimeEvent(table, payload) {
 
 // Deals — exclude heavy fields (email_body, call_transcript) to reduce bandwidth
 // These are loaded on-demand when opening a deal modal
-const DEALS_LIGHT_COLS = 'id,company,contact,email,phone,value,stage,pipeline,flag,notes,sl_lead_id,sl_campaign_id,campaign_name,lead_category,created_at,updated_at,website,location,smartlead_url,forwarded_at,mobile_phone,pushed_to_tracker,pushed_to_client_sheet,pushed_to_ghl,address,client_stage,booked_date,booked_time,booked_for,booked_timezone,cal_name,cal_email,cal_notes,has_new_reply,has_new_text,owner_override,job_title,linkedin_url,passoff_instructions,passoff_lead_message,cold_call_client,passoff_sent_at,suggested_updates,contact2,contact3,phone2,phone3,title2,title3,email2,email3,email4,reply_snippet,retarget_campaign,retarget_date,retarget_status,retarget_count,auto_followup_started_at,booking_sms_sent_at,vertical,lead_source,aimfox_lead_id,aimfox_url,ghl_contact_id,ghl_conversation_id';
+const DEALS_LIGHT_COLS = 'id,company,contact,email,phone,value,stage,pipeline,flag,notes,sl_lead_id,sl_campaign_id,campaign_name,lead_category,created_at,updated_at,website,location,smartlead_url,forwarded_at,mobile_phone,pushed_to_tracker,pushed_to_client_sheet,pushed_to_ghl,address,client_stage,booked_date,booked_time,booked_for,booked_timezone,cal_name,cal_email,cal_notes,has_new_reply,has_new_text,owner_override,job_title,linkedin_url,passoff_instructions,passoff_lead_message,cold_call_client,passoff_sent_at,suggested_updates,contact2,contact3,phone2,phone3,title2,title3,email2,email3,email4,reply_snippet,retarget_campaign,retarget_date,retarget_status,retarget_count,auto_followup_started_at,booking_sms_sent_at,vertical,lead_source,aimfox_lead_id,aimfox_url,ghl_contact_id,ghl_conversation_id,sdr_email';
 
 // Every column of public.deals, as of 2026-11-12 — what an archive restore may write back.
-const DEALS_ALL_COLS = ['id','company','contact','email','phone','value','stage','pipeline','flag','notes','sl_lead_id','sl_campaign_id','campaign_name','lead_category','website','location','smartlead_url','forwarded_at','email_body','mobile_phone','pushed_to_tracker','address','client_stage','booked_date','booked_time','cal_name','cal_email','cal_notes','created_at','updated_at','owner_override','lead_hero_id','has_new_reply','reply_msg_count','email2','email3','email4','booked_for','prefill_name','prefill_email','prefill_notes','booked_timezone','job_title','linkedin_url','passoff_instructions','call_transcript','passoff_sent_at','suggested_updates','contact2','contact3','phone2','phone3','title2','title3','pushed_to_ghl','reply_snippet','lead_status','meeting_status','enriched_at','enrichment_source','pushed_to_demo_tracker','retarget_campaign','retarget_date','retarget_status','retarget_count','ghl_contact_id','ghl_opportunity_id','auto_followup_started_at','has_new_text','vertical','invoice_id','invoice_amount','invoice_currency','invoice_url','invoiced_at','booking_sms_sent_at','invoice_status','invoice_number','invoice_pdf_url','lead_source','aimfox_lead_id','aimfox_url','ghl_conversation_id','pushed_to_client_sheet','cold_call_client','passoff_lead_message','call_points'];
+const DEALS_ALL_COLS = ['id','company','contact','email','phone','value','stage','pipeline','flag','notes','sl_lead_id','sl_campaign_id','campaign_name','lead_category','website','location','smartlead_url','forwarded_at','email_body','mobile_phone','pushed_to_tracker','address','client_stage','booked_date','booked_time','cal_name','cal_email','cal_notes','created_at','updated_at','owner_override','lead_hero_id','has_new_reply','reply_msg_count','email2','email3','email4','booked_for','prefill_name','prefill_email','prefill_notes','booked_timezone','job_title','linkedin_url','passoff_instructions','call_transcript','passoff_sent_at','suggested_updates','contact2','contact3','phone2','phone3','title2','title3','pushed_to_ghl','reply_snippet','lead_status','meeting_status','enriched_at','enrichment_source','pushed_to_demo_tracker','retarget_campaign','retarget_date','retarget_status','retarget_count','ghl_contact_id','ghl_opportunity_id','auto_followup_started_at','has_new_text','vertical','invoice_id','invoice_amount','invoice_currency','invoice_url','invoiced_at','booking_sms_sent_at','invoice_status','invoice_number','invoice_pdf_url','lead_source','aimfox_lead_id','aimfox_url','ghl_conversation_id','pushed_to_client_sheet','cold_call_client','passoff_lead_message','call_points','sdr_email'];
 
 export const sbGetDeals = () => sbCall(async () => {
   // Every list read below goes through selectAllPages (js/paging.js): the backend stops each
@@ -1148,6 +1149,11 @@ export const sbRestoreFromArchive = (id) => sbCall(async () => {
   // Every step checks its error, and the archive row goes only once the deal is confirmed back —
   // a failed insert used to leave the lead in neither place (Tim, 2026-11-12).
   const dealId = insert.id || id;
+  // Archives made before deals.sdr_email existed carry no rep: keep the one on the row being replaced.
+  if (!insert.sdr_email) {
+    const { data: stale } = await supabase.from('deals').select('sdr_email').eq('id', dealId).maybeSingle();
+    if (stale && stale.sdr_email) insert.sdr_email = stale.sdr_email;
+  }
   const { error: staleErr } = await supabase.from('deals').delete().eq('id', dealId);
   if (staleErr) throw staleErr;
   const { error: insertErr } = await supabase.from('deals').insert(insert);

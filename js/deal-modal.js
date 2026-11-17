@@ -41,7 +41,8 @@ import { renderClientPropertiesButton } from './client-properties.js?v=202611180
 import { renderCallSheetLink } from './call-sheet.js?v=20261118024536';
 import { isAimfoxDeal, renderAimfoxSource } from './aimfox.js?v=20261118024536';
 import { isGhlSmsDeal, renderGhlSmsSource, renderGhlConversationLink } from './ghl-sms.js?v=20261118024536';
-import { authedFetch } from './edge-auth.js?v=20261118024536'; // session token, not the anon key (A2#2, S1, 2026-11-13)
+import { authedFetch } from './edge-auth.js?v=20261118024536';
+import { renderSdrOwnerField } from './cold-call-owner.js?v=20261118024536'; // session token, not the anon key (A2#2, S1, 2026-11-13)
 
 function actTypeClass(type){
   const t=(type||'').toLowerCase();
@@ -515,7 +516,7 @@ export function updateDealField(key,val){
   state.selectedDeal[key]=val;
   // Stage, pipeline, and booking fields save immediately — not debounced.
   // The debounced save is killed when the modal closes, so these were lost.
-  if(key==='stage'||key==='pipeline'||key==='bookedDate'||key==='bookedTime'||key==='leadSource'){
+  if(key==='stage'||key==='pipeline'||key==='bookedDate'||key==='bookedTime'||key==='leadSource'||key==='sdrEmail'){
     const dealId=state.selectedDeal.id;
     if(!pendingDealFields[String(dealId)]) pendingDealFields[String(dealId)]={};
     pendingDealFields[String(dealId)][key]=val;
@@ -1470,6 +1471,7 @@ export function renderDealModal(deal){
               ${opts.map(([v,l])=>`<option value="${esc(v)}" ${src===v?'selected':''}>${esc(l)}</option>`).join('')}
             </select>
           </div>`;})():''}
+          ${renderSdrOwnerField(deal)}
         </div>
         ${renderDealInvoiceButton(deal)}
         <div class="form-group form-span2" style="margin-bottom:8px">
