@@ -17,20 +17,29 @@
 // for Archive → "Miscategorized" in the removal picker (removal-reason.js): the
 // same "Removed — Miscategorized" note (so the same trigger re-tags Smartlead,
 // and level 02 of the sales pipeline counts it as removed by us) and the same
-// "Miscategorized" archive status. Only before any call: a lead that had a
+// "Miscategorized" archive status.
+//
+// Ioannis, 2026-11-18: client leads also get "Lost: not interested or no response
+// after we worked it". That one is a REAL positive that fizzled, so it only
+// archives the card (status "Lost: …") with a plain Timeline note. It does NOT
+// write the "Removed — Miscategorized" note, so Smartlead keeps it as a positive.
+// Dragging a client lead onto the board's Lost / Delete zone opens this same
+// menu with Lost preselected (deal-modal.js doLostDrop). Only before any call: a lead that had a
 // discovery call or a demo is told to use Archive, which asks how that ended.
-import { state } from './app.js?v=20261117090237';
-import { esc, jsArg } from './utils.js?v=20261117090237';
-import { sbCreateInteraction, showToast } from './api.js?v=20261117090237';
-import { isAdmin, isEmployee } from './auth.js?v=20261117090237';
-import { deleteDeal } from './deals.js?v=20261117090237';
-import { REMOVAL_PREFIX, writeRemovalNote, leadStage } from './removal-reason.js?v=20261117090237';
+import { state } from './app.js?v=20261118002912';
+import { esc, jsArg } from './utils.js?v=20261118002912';
+import { sbCreateInteraction, showToast } from './api.js?v=20261118002912';
+import { isAdmin, isEmployee } from './auth.js?v=20261118002912';
+import { deleteDeal } from './deals.js?v=20261118002912';
+import { REMOVAL_PREFIX, writeRemovalNote, leadStage } from './removal-reason.js?v=20261118002912';
 
 const REASONS = [
   { label: 'Not actually interested',        hint: 'the AI tagged a no / an auto-reply / a question as positive' },
   { label: 'Wrong contact',                  hint: 'not the decision maker, left the company, wrong property' },
   { label: 'Not a fit for the client',       hint: 'outside the service area, wrong service, too small' },
   { label: 'Duplicate or existing customer', hint: 'already on the board, or already works with the client' },
+  { label: 'Lost: not interested or no response after we worked it', lost: true,
+    hint: 'a real positive reply that went nowhere. Archived as Lost; stays a positive in Smartlead' },
   { label: 'Other',                          hint: 'say why in the box below' },
 ];
 
@@ -68,32 +77,45 @@ function acqModalHtml(deal) {
   </div>`;
 }
 
-function modalHtml(deal) {
+const GO_LABEL = (lost) => lost ? 'Archive as Lost (Smartlead unchanged)' : 'Remove from CRM + recategorize in Smartlead';
+const LOST_IDX = REASONS.findIndex(r => r.lost);
+
+window.notALeadReasonChanged = () => {
+  const idx = Number(document.querySelector('input[name="not-a-lead-reason"]:checked')?.value || 0);
+  const btn = document.getElementById('not-a-lead-go');
+  if (btn) btn.textContent = GO_LABEL(!!REASONS[idx]?.lost);
+};
+
+function modalHtml(deal, opts = {}) {
   if (isAcqLead(deal)) return acqModalHtml(deal);
+  const sel = opts.preselectLost ? LOST_IDX : 0;
   const delivered = deal.pushedToTracker || deal.forwardedAt || deal.pushedToClientSheet;
   return `<div class="modal" style="width:480px" onclick="event.stopPropagation()">
     <div class="modal-header"><h3>Not a real lead</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button></div>
     <div class="modal-body">
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
         <b>${esc(deal.company || deal.contact || deal.email || 'This lead')}</b> leaves the board (it stays in the Archive) and
-        stops counting as a positive reply in Smartlead (moved to "DQ / out of service area").
+        stops counting as a positive reply in Smartlead (moved to "DQ / out of service area"). <b>Lost</b> only archives it: it stays a positive in Smartlead.
       </div>
       ${delivered ? `<div style="font-size:12px;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;padding:8px;margin-bottom:12px">
         This lead was already sent to the client. Removing it here does not un-send it; if it was billed, flag it in the Lead Tracker (🚫 CB) too.</div>` : ''}
       <div style="display:flex;flex-direction:column;gap:6px">
         ${REASONS.map((r, i) => `<label style="display:flex;gap:8px;align-items:flex-start;padding:8px;border:1px solid var(--border);border-radius:6px;cursor:pointer">
-          <input type="radio" name="not-a-lead-reason" value="${i}" ${i === 0 ? 'checked' : ''} style="margin-top:2px">
+          <input type="radio" name="not-a-lead-reason" value="${i}" ${i === sel ? 'checked' : ''} onchange="notALeadReasonChanged()" style="margin-top:2px">
           <span><b style="font-size:13px">${esc(r.label)}</b><br><span style="font-size:11px;color:var(--text-muted)">${esc(r.hint)}</span></span>
         </label>`).join('')}
       </div>
       <input id="not-a-lead-detail" type="text" placeholder="Detail (optional)" style="width:100%;box-sizing:border-box;margin-top:10px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font)">
       <button id="not-a-lead-go" class="btn btn-primary" style="width:100%;margin-top:12px;justify-content:center;background:#dc2626;border-color:#dc2626"
-        onclick="confirmNotALead(${jsArg(deal.id)})">Remove from CRM + recategorize in Smartlead</button>
+        onclick="confirmNotALead(${jsArg(deal.id)})">${GO_LABEL(!!REASONS[sel]?.lost)}</button>
     </div>
   </div>`;
 }
 
-window.openNotALead = async (dealId) => {
+// opts.preselectLost: opened from the board's Lost / Delete drop zone.
+export function openNotALead(dealId, opts = {}) { return window.openNotALead(dealId, opts); }
+
+window.openNotALead = async (dealId, opts = {}) => {
   const deal = state.deals.find(d => d.id === dealId);
   if (!deal) return;
   if (isAcqLead(deal)) {
@@ -108,7 +130,7 @@ window.openNotALead = async (dealId) => {
   overlay.id = 'not-a-lead-overlay';
   overlay.className = 'modal-overlay';
   overlay.onclick = () => overlay.remove();
-  overlay.innerHTML = modalHtml(deal);
+  overlay.innerHTML = modalHtml(deal, opts);
   document.body.appendChild(overlay);
 };
 
@@ -119,19 +141,31 @@ window.confirmNotALead = async (dealId) => {
   if (isAcqLead(deal)) return confirmAcq(deal, overlay);
   const idx = Number(document.querySelector('input[name="not-a-lead-reason"]:checked')?.value || 0);
   const reason = REASONS[idx].label;
+  const lost = !!REASONS[idx].lost;
   const detail = (document.getElementById('not-a-lead-detail')?.value || '').trim();
   if (reason === 'Other' && !detail) { showToast('Say why in the detail box', 'error'); return; }
   const btn = document.getElementById('not-a-lead-go');
   if (btn) { btn.disabled = true; btn.textContent = 'Removing…'; }
 
   const why = reason + (detail ? ' — ' + detail : '');
+  if (lost) {
+    // A real positive that fizzled: no "Removed — Miscategorized" note, so the
+    // Smartlead trigger never fires. The note is a record only; if it fails,
+    // archiving still goes ahead.
+    try { await sbCreateInteraction({ deal_id: dealId, type: 'Note', content: `Archived · client lead: ${why} · marked in the CRM` }); }
+    catch (e) { console.warn('[not-a-lead] Lost note not saved:', e); }
+    overlay?.remove();
+    await deleteDeal(dealId, why, deal.stage);
+    showToast('Archived as Lost. Smartlead is unchanged.', 'success');
+    return;
+  }
   try {
     // The trigger keys on this exact prefix ("Removed — Miscategorized").
     await sbCreateInteraction({ deal_id: dealId, type: 'Note', content: `${REMOVAL_PREFIX}Miscategorized · client lead: ${why} · marked in the CRM` });
   } catch (e) {
     // No note = no Smartlead change, so do not archive either: nothing half-done.
     showToast('Could not save the reason, nothing was removed: ' + (e && e.message || e), 'error');
-    if (btn) { btn.disabled = false; btn.textContent = 'Remove from CRM + recategorize in Smartlead'; }
+    if (btn) { btn.disabled = false; btn.textContent = GO_LABEL(false); }
     return;
   }
   overlay?.remove();

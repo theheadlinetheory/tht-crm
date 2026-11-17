@@ -1,14 +1,14 @@
 // ═══════════════════════════════════════════════════════════
 // CALENDLY — Calendly popup/inline widget integration
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20261117090237';
-import { TZ_TO_IANA, ACQ_CALENDLY_URLS } from './config.js?v=20261117090237';
-import { render, refreshModal } from './render.js?v=20261117090237';
-import { sbUpdateDeal, sbDeleteAppointment, camelToSnake, showToast, supabase } from './api.js?v=20261117090237';
-import { replaceDealAppointment, saveDealAppointmentRow } from './deal-appointment.js?v=20261117090237';
-import { esc, str, getToday, fmtTime12, uid } from './utils.js?v=20261117090237';
-import { lookupClientInfo, findClientForDeal } from './client-info.js?v=20261117090237';
-import { zonedDateTime } from './passoff-core.js?v=20261117090237';
+import { state, store, pendingWrites } from './app.js?v=20261118002912';
+import { TZ_TO_IANA, ACQ_CALENDLY_URLS } from './config.js?v=20261118002912';
+import { render, refreshModal } from './render.js?v=20261118002912';
+import { sbUpdateDeal, sbDeleteAppointment, camelToSnake, showToast, supabase } from './api.js?v=20261118002912';
+import { replaceDealAppointment, saveDealAppointmentRow } from './deal-appointment.js?v=20261118002912';
+import { esc, str, getToday, fmtTime12, uid } from './utils.js?v=20261118002912';
+import { lookupClientInfo, findClientForDeal } from './client-info.js?v=20261118002912';
+import { zonedDateTime } from './passoff-core.js?v=20261118002912';
 
 export function buildCalendlyUrl(baseUrl, deal){
   if(!baseUrl) return '';

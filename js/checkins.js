@@ -14,16 +14,16 @@
 // Admin-only: it shows retainer amounts and reads three founder inboxes.
 // Data and caches live in checkins-data.js.
 
-import { state } from './app.js?v=20261117090237';
-import { esc, str, getToday, svgIcon } from './utils.js?v=20261117090237';
-import { buildRenewalRow, money } from './renewals.js?v=20261117090237';
-import { prettyDate } from './retainer-billing.js?v=20261117090237';
-import { extensionsFor, extensionsStatus, loadTermExtensions } from './term-extensions.js?v=20261117090237';
+import { state } from './app.js?v=20261118002912';
+import { esc, str, getToday, svgIcon } from './utils.js?v=20261118002912';
+import { buildRenewalRow, money } from './renewals.js?v=20261118002912';
+import { prettyDate } from './retainer-billing.js?v=20261118002912';
+import { extensionsFor, extensionsStatus, loadTermExtensions } from './term-extensions.js?v=20261118002912';
 import {
   CALL_DAYS, callsState, statsState, emailsState, campaignsState, loadCalls, loadStats, loadEmails, loadCampaigns,
   callClientName, defaultCall, knownContacts, lastHeardFrom, recentLeads,
-} from './checkins-data.js?v=20261117090237';
-import { loadConfirmations, confirmChip, confirmPanel, wireConfirmHandlers } from './checkin-confirm.js?v=20261117090237';
+} from './checkins-data.js?v=20261118002912';
+import { loadConfirmations, confirmChip, confirmPanel, wireConfirmHandlers } from './checkin-confirm.js?v=20261118002912';
 
 const paint = () => window.render && window.render();
 // esc() leaves quotes alone, so anything inside an attribute or an inline handler needs these.
