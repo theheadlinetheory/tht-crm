@@ -1225,30 +1225,10 @@ function passedHtml() {
 async function bringBack(id) {
   const r = Array.isArray(cc.passed) && cc.passed.find(x => x.id === id);
   if (!r) return;
-  const due = (prompt(`Bring ${r.company || r.contact || 'this lead'} (${r.client}) back into the pipeline?\n\nIt goes to Pipeline → Callbacks. Call back on (YYYY-MM-DD):`, today()) || '').trim();
-  if (!due) return;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(due) || isNaN(new Date(due + 'T12:00:00'))) { alert('Use a date like ' + today() + '.'); return; }
-  const who = (currentUser && (currentUser.name || currentUser.email)) || 'CRM';
-  const { deletedDealIds } = await import('./app.js?v=20261118043848');
-  deletedDealIds.delete(String(id));
-  try { localStorage.setItem('tht_deletedDeals', JSON.stringify([...deletedDealIds])); } catch {}
-  // 1. Re-activate the deal first: if this fails the lead is still archived and listed here to retry.
-  const { error } = await supabase.from('deals').update({
-    lead_status: 'active', stage: CALLBACK_STAGE, cold_call_client: r.client || null,
-    pushed_to_tracker: null, pushed_to_client_sheet: null, forwarded_at: null,
-  }).eq('id', id);
-  if (error) { alert('Could not bring it back: ' + error.message); return; }
-  // 2. The reminder and note are best effort; 3. the archive row must go, or it shows in both places.
-  const { sbCreateActivity, sbCreateInteraction, initialSync } = await import('./api.js?v=20261118043848');
-  try { await sbCreateActivity({ id: crypto.randomUUID(), deal_id: id, type: 'Call', subject: `Call back — brought back after ${r.archive_status === 'Meeting Booked' ? 'pass-off' : str(r.archive_status).toLowerCase()}`, due_date: due, done: false }); }
-  catch (e) { console.warn('[bringBack] reminder not saved', e && e.message); }
-  try { await sbCreateInteraction({ deal_id: id, type: 'Note', content: `Brought back into the pipeline from Passed off (${r.archive_status}) · ${who} · call back ${due}` }); }
-  catch (e) { console.warn('[bringBack] note not saved', e && e.message); }
-  const { error: archErr } = await supabase.from('archive').delete().eq('id', id);
-  if (archErr) alert('It is back in Callbacks, but its archive row could not be removed: ' + archErr.message);
+  const { bringBackDeal } = await import('./passed-off.js?v=20261118043317');
+  if (!(await bringBackDeal({ ...r, coldCall: true }))) return;
   cc.passed = cc.passed.filter(x => x.id !== id);
   cc.tracker = null;
-  await initialSync();
   render();
 }
 

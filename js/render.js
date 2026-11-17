@@ -564,6 +564,7 @@ function renderInternal(){
         <button class="topbar-tab ${state.trackerView==='entries'?'active':''}" onclick="switchTrackerView('entries')">PPM Meetings</button>
         <button class="topbar-tab ${state.trackerView==='trends'?'active':''}" onclick="switchTrackerView('trends')">Trends</button>
         ${isAdmin()||isEmployee()?`<button class="topbar-tab ${state.trackerView==='passoffs'?'active':''}" onclick="switchTrackerView('passoffs')">Retainer Leads</button>`:''}
+        <button class="topbar-tab ${state.trackerView==='passedoff'?'active':''}" onclick="switchTrackerView('passedoff')">Passed off</button>
       </div>`;
 
       if(state.trackerView==='trends'){
@@ -581,6 +582,16 @@ function renderInternal(){
               window._trackerModule=m;
               m.loadTrackerEntries().then(()=>render()).catch(()=>render());
             }).catch(()=>{ window._trackerLoading=false; });
+          }
+        }
+      } else if(state.trackerView==='passedoff'){
+        if(window._passedOffModule){
+          html+=window._passedOffModule.renderPassedOff();
+        } else {
+          html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading passed-off leads...</div>';
+          if(!window._passedOffLoading){
+            window._passedOffLoading=true;
+            import('./passed-off.js?v=20261118043317').then(m=>{ window._passedOffModule=m; render(); }).catch(()=>{ window._passedOffLoading=false; });
           }
         }
       } else if(state.trackerView==='passoffs'){
