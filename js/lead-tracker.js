@@ -1,16 +1,16 @@
 // ═══════════════════════════════════════════════════════════
 // LEAD TRACKER — Editable grid view for lead billing & status
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20261116165142';
-import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20261116165142';
-import { isAdmin, isEmployee } from './auth.js?v=20261116165142';
-import { esc, jsArg, svgIcon, str } from './utils.js?v=20261116165142';
-import { render } from './render.js?v=20261116165142';
-import { leadCardId, leadCardIcon, matchLeadCards } from './lead-card.js?v=20261116165142';
-import { dealChannel } from './acquisition-channel.js?v=20261116165142';
-import { renderDisputeButton, renderDisputeModal, isOpenDispute } from './lead-dispute.js?v=20261116165142';
-import { EMAIL_LEAD_PAY, COLD_CALL_LEAD_PAY, isColdCallLead, leadPayout } from './lead-payout.js?v=20261116165142';
-import { setterOf, setterInfo, setterCellHtml, setterFilterHtml, setterPickerHtml } from './lead-setter.js?v=20261116165142';
+import { state, store, pendingWrites } from './app.js?v=20261117084506';
+import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20261117084506';
+import { isAdmin, isEmployee } from './auth.js?v=20261117084506';
+import { esc, jsArg, svgIcon, str } from './utils.js?v=20261117084506';
+import { render } from './render.js?v=20261117084506';
+import { leadCardId, leadCardIcon, matchLeadCards } from './lead-card.js?v=20261117084506';
+import { dealChannel } from './acquisition-channel.js?v=20261117084506';
+import { renderDisputeButton, renderDisputeModal, isOpenDispute } from './lead-dispute.js?v=20261117084506';
+import { setterRates, isColdCallLead, leadPayout } from './lead-payout.js?v=20261117084506';
+import { setterOf, setterInfo, setterCellHtml, setterFilterHtml, setterPickerHtml } from './lead-setter.js?v=20261117084506';
 
 // ─── Column Definitions ───
 // The billing "Month" ('July/26') is deliberately not a column — the sheet shows
@@ -692,7 +692,7 @@ function getPayoutData(month, year) {
   const good = total - calledBack.length;
   const goodEntries = entries.filter(e => !calledBack.includes(e));
   const coldCall = goodEntries.filter(isColdCallLead).length;
-  const commission = goodEntries.reduce((sum, e) => sum + leadPayout(e), 0);
+  const commission = goodEntries.reduce((sum, e) => sum + leadPayout(e, payoutSetter()), 0);
 
   const byClient = {};
   for (const e of entries) {
@@ -718,6 +718,7 @@ function renderPayoutModal() {
   const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
   const setter = payoutSetter();
+  const rates = setterRates(setter);
   let h = `<div class="modal" style="width:520px;max-height:80vh" onclick="event.stopPropagation()">
     <div class="modal-header"><h3>Payout Report — ${esc(setter.name)}</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button></div>
     <div class="modal-body" style="max-height:60vh;overflow-y:auto">
@@ -760,10 +761,10 @@ function renderPayoutModal() {
 
       <div style="background:#f9fafb;border:1px solid var(--border);border-radius:8px;padding:16px">
         <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px">
-          <span>Email leads × $${EMAIL_LEAD_PAY}</span><span>${data.email} × $${EMAIL_LEAD_PAY} = <b>$${data.email * EMAIL_LEAD_PAY}</b></span>
+          <span>Email leads × $${rates.email}</span><span>${data.email} × $${rates.email} = <b>$${data.email * rates.email}</b></span>
         </div>
         <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px">
-          <span>Cold call leads × $${COLD_CALL_LEAD_PAY}</span><span>${data.coldCall} × $${COLD_CALL_LEAD_PAY} = <b>$${data.coldCall * COLD_CALL_LEAD_PAY}</b></span>
+          <span>Cold call leads × $${rates.coldCall}</span><span>${data.coldCall} × $${rates.coldCall} = <b>$${data.coldCall * rates.coldCall}</b></span>
         </div>
         <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px">
           <span>Base pay ${setter.biweeklyBase ? `($${setter.biweeklyBase} × 2)` : '(none on file)'}</span><span><b>$${data.base}</b></span>
@@ -861,7 +862,7 @@ window.payoutSendPayPal = async (goodLeads, month, year) => {
       employee_name: setter.name,
       base_amount: (setter.biweeklyBase || 0) * 2,
       booked_meetings: goodLeads,
-      rate_per_meeting: EMAIL_LEAD_PAY,
+      rate_per_meeting: setterRates(setter).email,
       subtotal: amount,
       total: amount,
       payment_date: new Date().toISOString().split('T')[0],
