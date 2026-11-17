@@ -38,12 +38,12 @@
 //   or a hand-picked set of clients. An SDR's Call Queue, callbacks and Pipeline columns show only their clients.
 //   The cap and the "every client has hit the cap" unlock stay global: a client is one client whoever calls it.
 
-import { state } from './app.js?v=20261118031445';
-import { render } from './render.js?v=20261118031445';
-import { supabase } from './supabase-client.js?v=20261118031445';
-import { esc, str, svgIcon, getToday, jsArg } from './utils.js?v=20261118031445';
-import { currentUser, isSdr, isAdmin, isEmployee, loadAssignableUsers } from './auth.js?v=20261118031445';
-import { registerActions } from './delegate.js?v=20261118031445';
+import { state } from './app.js?v=20261118033143';
+import { render } from './render.js?v=20261118033143';
+import { supabase } from './supabase-client.js?v=20261118033143';
+import { esc, str, svgIcon, getToday, jsArg } from './utils.js?v=20261118033143';
+import { currentUser, isSdr, isAdmin, isEmployee, loadAssignableUsers } from './auth.js?v=20261118033143';
+import { registerActions } from './delegate.js?v=20261118033143';
 
 export const CALLBACK_STAGE = 'Cold Call Callback';
 const NO_CONNECTION = new Set(['no_answer', 'voicemail', 'bad_number', 'desk_dq']);
@@ -1189,7 +1189,7 @@ async function bringBack(id) {
   if (!due) return;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(due) || isNaN(new Date(due + 'T12:00:00'))) { alert('Use a date like ' + today() + '.'); return; }
   const who = (currentUser && (currentUser.name || currentUser.email)) || 'CRM';
-  const { deletedDealIds } = await import('./app.js?v=20261118031445');
+  const { deletedDealIds } = await import('./app.js?v=20261118033143');
   deletedDealIds.delete(String(id));
   try { localStorage.setItem('tht_deletedDeals', JSON.stringify([...deletedDealIds])); } catch {}
   // 1. Re-activate the deal first: if this fails the lead is still archived and listed here to retry.
@@ -1199,7 +1199,7 @@ async function bringBack(id) {
   }).eq('id', id);
   if (error) { alert('Could not bring it back: ' + error.message); return; }
   // 2. The reminder and note are best effort; 3. the archive row must go, or it shows in both places.
-  const { sbCreateActivity, sbCreateInteraction, initialSync } = await import('./api.js?v=20261118031445');
+  const { sbCreateActivity, sbCreateInteraction, initialSync } = await import('./api.js?v=20261118033143');
   try { await sbCreateActivity({ id: crypto.randomUUID(), deal_id: id, type: 'Call', subject: `Call back — brought back after ${r.archive_status === 'Meeting Booked' ? 'pass-off' : str(r.archive_status).toLowerCase()}`, due_date: due, done: false }); }
   catch (e) { console.warn('[bringBack] reminder not saved', e && e.message); }
   try { await sbCreateInteraction({ deal_id: id, type: 'Note', content: `Brought back into the pipeline from Passed off (${r.archive_status}) · ${who} · call back ${due}` }); }
@@ -1243,7 +1243,7 @@ async function removeBooking(dealId) {
   if (error) { alert('Could not update the meeting count, nothing was removed: ' + error.message); return; }
   for (const r of cc.calls || []) if (r.deal_id === dealId) r.not_counted = 'Removed: ' + reason;
   const [{ sbCreateInteraction }, { deleteDeal }] = await Promise.all([
-    import('./api.js?v=20261118031445'), import('./deals.js?v=20261118031445')]);
+    import('./api.js?v=20261118033143'), import('./deals.js?v=20261118033143')]);
   try { await sbCreateInteraction({ deal_id: dealId, type: 'Note', content: `Removed — cold-call appointment: ${reason} · ${(rows || []).length} dial(s) no longer counted · marked in the CRM` }); }
   catch (e) { console.warn('[removeBooking] note not saved', e && e.message); }
   await deleteDeal(dealId, 'Removed — ' + reason);
@@ -1316,7 +1316,7 @@ registerActions({
   async ccSync() {
     cc.syncing = true; cc.syncNote = ''; render();
     try {
-      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261118031445');
+      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261118033143');
       const out = await invokeEdgeFunctionAsUser('cold-call-sync', {});
       // One sync at a time (audit A3 #4, 2026-11-13): a Refresh during the 2-minute cron's run is skipped.
       if (out.skipped) {
@@ -1335,7 +1335,7 @@ registerActions({
   ccOpenDeal(el) {
     const id = el.dataset.id;
     if (!state.deals.some(d => String(d.id) === String(id))) { alert('That card is no longer on the board (delivered or archived).'); return; }
-    import('./deal-modal.js?v=20261118031445').then(m => m.openDeal(id));
+    import('./deal-modal.js?v=20261118033143').then(m => m.openDeal(id));
   },
   ccTrackerScope(el) { cc.trackerScope = el.dataset.scope; render(); },
   ccQueueAs(el, e) { if (e.type !== 'change') return; cc.queueAs = el.value; render(); },
@@ -1423,7 +1423,7 @@ registerActions({
   async ccTranscribe(el) {
     el.disabled = true; el.textContent = 'Transcribing…';
     try {
-      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261118031445');
+      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261118033143');
       const out = await invokeEdgeFunctionAsUser('cold-call-sync', { action: 'transcribe', call_id: Number(el.dataset.id) });
       const box = document.createElement('div');
       box.style.cssText = 'white-space:pre-wrap;font-size:11px;max-height:260px;overflow:auto;background:#fff;border-radius:6px;padding:8px;margin-top:4px';
