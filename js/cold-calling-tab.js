@@ -5,6 +5,8 @@
 // Sub-tabs:
 //   Call Queue   — which client to call now (ranked), my numbers today / this week against quota,
 //                  call-backs that are due. Where an SDR starts every day.
+//   Leaderboard  — every rep ranked this week (and last), plus each rep over past weeks as a line chart. SDRs see it
+//                  too: Aidan wants it to be a competition (2026-11-18).
 //   Pipeline     — the Client Leads board again, cold-call cards only (an SDR never sees email leads;
 //                  a manager can switch to all leads). Same deals, not a copy: a card moved here is
 //                  moved on Client Leads too. Extra column: Callbacks (under contract / call me later).
@@ -60,6 +62,7 @@ const industryOf = r => r.fulfillment_industry || r.industry || 'Unclassified';
 const DEFAULT_QUOTAS = { dialsPerDay: 100, connectionsPerDay: 30, bookedPerWeek: 10, showRate: 80, capPerClient: 2 };
 const SUBTABS = [
   { id: 'queue', label: 'Call Queue' },
+  { id: 'leaderboard', label: 'Leaderboard' },
   { id: 'pipeline', label: 'Pipeline' },
   { id: 'tracker', label: 'Lead Tracker' },
   { id: 'passed', label: 'Passed off' },
@@ -620,7 +623,6 @@ function managerHtml() {
   const reps = [...new Set(cc.calls.filter(r => r.call_date >= thisWeek() || r.call_date === today()).map(r => r.agent_email).filter(Boolean))].sort();
   h += section('SDR assignments', assignmentsHtml(ranked));
 
-  h += section('Industries', industryVerdictTable(), `<span style="font-size:11px;color:#94a3b8">${cc.calls.length} dials in the last ${LOOKBACK_DAYS} days</span>`);
 
   h += section('Reps', reps.length ? `<table style="width:100%;border-collapse:collapse"><thead>
       <tr><th style="${th}"></th><th style="${th};border-left:1px solid #e2e8f0" colspan="3">Today</th><th style="${th};border-left:1px solid #e2e8f0" colspan="4">This week</th><th style="${th};border-left:1px solid #e2e8f0">Last ${LOOKBACK_DAYS} days</th></tr>
@@ -639,7 +641,7 @@ function managerHtml() {
       <div style="font-size:11px;color:#94a3b8;margin-top:6px">Green = on quota, amber = within 60%, red = behind. The week's targets count ${days} of 5 working days so far. Show rate is over the last ${LOOKBACK_DAYS} days (it needs the meetings to have happened).</div>`
     : '<div style="font-size:12px;color:#94a3b8">No dials this week yet.</div>');
 
-  h += section('Reps over past weeks', repTrendsHtml(), `<span style="font-size:11px;color:#94a3b8">pick a metric · hover for each ${trend.gran === 'week' ? 'week' : 'day'}</span>`);
+  h += `<div style="font-size:12px;color:#64748b;margin:-6px 0 14px">Each rep over past weeks (the chart) is on the <a data-action="ccSubTab" data-tab="leaderboard" style="color:var(--purple);font-weight:700;cursor:pointer">Leaderboard</a>, which the SDRs see too.</div>`;
 
   // Dispositions this week, per client: where the dials go (list quality shows up in bad number / desk DQ).
   const order = ['booked', 'under_contract', 'follow_up', 'not_interested', 'manager_not_around', 'picked_up', 'no_answer', 'voicemail', 'bad_number', 'desk_dq'];
@@ -671,6 +673,11 @@ function managerHtml() {
     ${active.map(c => `<label style="display:flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid ${isOn(c.coldCalling) ? '#7c3aed' : 'var(--border)'};border-radius:6px;background:${isOn(c.coldCalling) ? '#f5f3ff' : '#fff'};font-size:12px;cursor:pointer">
       <input type="checkbox" data-action="ccToggleClient" data-id="${esc(c.id)}" ${isOn(c.coldCalling) ? 'checked' : ''}> ${esc(c.name)} <span style="color:#94a3b8;font-size:10px">${str(c.billingModel) === 'retainer' ? 'retainer' : 'PPM'}</span></label>`).join('')}
     </div><div style="font-size:11px;color:#94a3b8;margin-top:6px">A client switched on gets a column on the Pipeline and a row in the Call Queue. Give them a cold-call inbox in Settings → Clients so pass-offs go from it.</div>`);
+
+  // Industries: a lot of numbers, so it sits at the bottom, closed until someone opens it (Aidan, 2026-11-18).
+  h += `<details style="background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:14px"${window.ccIndustriesOpen ? ' open' : ''} ontoggle="window.ccIndustriesOpen=this.open">
+    <summary style="cursor:pointer;font-size:13px;font-weight:800;color:#0f172a">Industries: keep / watch / cut <span style="font-size:11px;font-weight:400;color:#94a3b8">${cc.calls.length} dials in the last ${LOOKBACK_DAYS} days · click to open</span></summary>
+    <div style="margin-top:10px">${industryVerdictTable()}</div></details>`;
 
   h += section('SDR access', `<div style="font-size:12px;color:#475569">An SDR signs in with their @theheadlinetheory.com Google account and sees only this tab. To set one up: give them the <b>sdr</b> role in Settings → Users, and a JustCall Sales Dialer seat under the same email, so their dials count as theirs.</div>`);
   return h;
@@ -850,6 +857,36 @@ window.ccTrendLeave = () => {
   if (tip) tip.style.display = 'none';
   if (xh) xh.style.display = 'none';
 };
+
+// ─── Leaderboard: everyone sees it, SDRs included (Aidan, 2026-11-18: "we want it to be a comp") ───
+// Ranked on the metric picked in the chart's buttons; ties go to whoever dialled more. Same tally() as everywhere else.
+function leaderboardHtml() {
+  const m = TREND_METRICS.find(x => x.key === trend.metric) || TREND_METRICS[0];
+  const wk = thisWeek(), lastWk = addDays(wk, -7);
+  const pool = cc.calls.filter(r => (!trend.trade || tradeOf(r.client_name) === trend.trade) && (!trend.client || r.client_name === trend.client));
+  const sdrs = new Set((state.assignableUsers || []).filter(u => u.role === 'sdr').map(u => (u.email || '').toLowerCase()));
+  const rows = callers().map(email => {
+    const mine = pool.filter(r => r.agent_email === email);
+    return { email, name: repName(email), now: tally(mine, wk), last: tally(mine, lastWk, addDays(wk, -1)) };
+  }).filter(r => r.now.dials || r.last.dials || sdrs.has(r.email))
+    .sort((a, b) => b.now[m.key] - a.now[m.key] || b.now.dials - a.now.dials || a.name.localeCompare(b.name));
+  const me = myEmail();
+  const medal = i => ['🥇', '🥈', '🥉'][i] || `<span style="color:#94a3b8;font-weight:700">${i + 1}</span>`;
+  const scope = trend.client ? ' · ' + esc(trend.client) : trend.trade ? ' · ' + esc(trend.trade) + ' clients' : '';
+  const num = (v, period) => `<td style="${td};text-align:right;font-variant-numeric:tabular-nums;font-weight:700" title="${period}">${v == null ? '—' : v}</td>`;
+  const board = rows.length ? `<table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--border);border-radius:8px"><thead>
+      <tr><th style="${th}"></th><th style="${th}"></th><th style="${th};text-align:center;border-left:1px solid #e2e8f0" colspan="4">This week so far (Mon ${esc(shortDate(wk))} – today)</th><th style="${th};text-align:center;border-left:1px solid #e2e8f0" colspan="3">Last week (${esc(shortDate(lastWk))} – ${esc(shortDate(addDays(wk, -1)))})</th></tr>
+      <tr><th style="${th}">#</th><th style="${th}">Rep</th><th style="${th};text-align:right;border-left:1px solid #e2e8f0">Dials</th><th style="${th};text-align:right">Connects</th><th style="${th};text-align:right">Booked</th><th style="${th};text-align:right">No-shows</th>
+        <th style="${th};text-align:right;border-left:1px solid #e2e8f0">Dials</th><th style="${th};text-align:right">Connects</th><th style="${th};text-align:right">Booked</th></tr></thead><tbody>
+      ${rows.map((r, i) => `<tr style="${r.email === me ? 'background:#f5f3ff' : ''}"><td style="${td};font-size:16px;width:34px;text-align:center">${medal(i)}</td>
+        <td style="${td}"><b>${esc(r.name)}</b>${r.email === me ? ' <span style="font-size:10px;color:var(--purple);font-weight:700">YOU</span>' : ''}</td>
+        ${num(r.now.dials, 'Dials this week so far')}${num(r.now.connections, 'Connects this week so far')}${num(r.now.booked, 'Booked this week so far')}${num(r.now.noShow, 'No-shows on meetings booked this week')}
+        ${num(r.last.dials, 'Dials last week')}${num(r.last.connections, 'Connects last week')}${num(r.last.booked, 'Booked last week')}</tr>`).join('')}</tbody></table>
+      <div style="font-size:11px;color:#94a3b8;margin-top:6px">Ranked on <b>${esc(m.label.toLowerCase())} this week so far</b>${scope}; a tie goes to whoever dialled more. Pick another metric, trade or client in the chart below and the ranking follows. The week resets every Monday.</div>`
+    : '<div style="font-size:12px;color:#94a3b8">No dials yet this week or last.</div>';
+  return section(`Leaderboard: ${esc(m.label)}${scope}`, board)
+    + section('Each rep over past weeks', repTrendsHtml(), `<span style="font-size:11px;color:#94a3b8">pick a metric · hover for each ${trend.gran === 'week' ? 'week' : 'day'}</span>`);
+}
 
 // ─── Manager: how work is split between SDRs ───
 function assignmentsHtml(ranked) {
@@ -1098,6 +1135,7 @@ export function renderColdCallingView() {
   else if (sub === 'tracker') body = trackerHtml();
   else if (sub === 'passed') body = passedHtml();
   else if (sub === 'manager' && !isSdr()) body = managerHtml();
+  else if (sub === 'leaderboard') body = leaderboardHtml();
   else if (sub === 'industries') body = industriesHtml();
   else if (sub === 'feedback') body = feedbackHtml();
   else body = queueHtml();
