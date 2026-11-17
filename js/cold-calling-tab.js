@@ -16,7 +16,8 @@
 //   Feedback     — the caller's notes on lists and industries (wrong property types, bad numbers, what works),
 //                  as a backlog for whoever builds the lists. Seeded with what Ioannis said on the Oct calls.
 //   Manager      — not for SDRs: client ranking against the weekly cap, every rep's numbers against
-//                  quota, show / no-show marking, quotas and which clients we cold call for.
+//                  quota, each rep over past weeks (a line per rep: dials / connects / booked / no-shows),
+//                  show / no-show marking, quotas and which clients we cold call for.
 //
 // The numbers come from cold_calls: one row per JustCall Sales Dialer dial, filled every 2 minutes by
 // the cold-call-sync edge function (which also creates the card for every "Appointment Booked", "Under Contract"
@@ -612,9 +613,9 @@ function managerHtml() {
 
   // Reps: one row each, every number coloured against its quota (the week pro-rated to today).
   const rq = cc.quotas, days = weekdaysSoFar();
-  const cell = (v, target, suffix = '') => {
+  const cell = (v, target, suffix = '', period = '') => {
     const color = v == null ? '#94a3b8' : v >= target ? '#15803d' : v >= target * 0.6 ? '#b45309' : '#dc2626';
-    return `<td style="${td};font-weight:700;color:${color}" title="target ${target}${suffix}">${v == null ? '—' : v + suffix}</td>`;
+    return `<td style="${td};font-weight:700;color:${color}" title="${period ? period + ' · ' : ''}target ${target}${suffix}">${v == null ? '—' : v + suffix}</td>`;
   };
   const reps = [...new Set(cc.calls.filter(r => r.call_date >= thisWeek() || r.call_date === today()).map(r => r.agent_email).filter(Boolean))].sort();
   h += section('SDR assignments', assignmentsHtml(ranked));
@@ -622,21 +623,23 @@ function managerHtml() {
   h += section('Industries', industryVerdictTable(), `<span style="font-size:11px;color:#94a3b8">${cc.calls.length} dials in the last ${LOOKBACK_DAYS} days</span>`);
 
   h += section('Reps', reps.length ? `<table style="width:100%;border-collapse:collapse"><thead>
-      <tr><th style="${th}"></th><th style="${th};border-left:1px solid #e2e8f0" colspan="3">Today</th><th style="${th};border-left:1px solid #e2e8f0" colspan="5">This week</th></tr>
+      <tr><th style="${th}"></th><th style="${th};border-left:1px solid #e2e8f0" colspan="3">Today</th><th style="${th};border-left:1px solid #e2e8f0" colspan="4">This week</th><th style="${th};border-left:1px solid #e2e8f0">Last ${LOOKBACK_DAYS} days</th></tr>
       <tr><th style="${th}">Rep</th><th style="${th};border-left:1px solid #e2e8f0">Dials</th><th style="${th}">Connections</th><th style="${th}">Booked</th>
-        <th style="${th};border-left:1px solid #e2e8f0">Dials</th><th style="${th}">Connections</th><th style="${th}">Connect %</th><th style="${th}">Booked</th><th style="${th}">Show rate</th></tr></thead><tbody>
+        <th style="${th};border-left:1px solid #e2e8f0">Dials</th><th style="${th}">Connections</th><th style="${th}">Connect %</th><th style="${th}">Booked</th><th style="${th};border-left:1px solid #e2e8f0">Show rate</th></tr></thead><tbody>
       ${reps.map(email => {
         const mine = cc.calls.filter(r => r.agent_email === email);
         const d = tally(mine, today(), today());
         const w = tally(mine, thisWeek());
         const all = tally(mine);
         return `<tr><td style="${td}"><b>${esc(repName(email))}</b><div style="font-size:10px;color:#94a3b8">${esc(email)}</div></td>
-          ${cell(d.dials, rq.dialsPerDay)}${cell(d.connections, rq.connectionsPerDay)}${cell(d.booked, Math.max(1, Math.round(rq.bookedPerWeek / 5)))}
-          ${cell(w.dials, rq.dialsPerDay * days)}${cell(w.connections, rq.connectionsPerDay * days)}<td style="${td}">${w.connectRate == null ? '—' : w.connectRate + '%'}</td>
-          ${cell(w.booked, Math.max(1, Math.round(rq.bookedPerWeek * days / 5)))}${cell(all.showRate, rq.showRate, '%')}</tr>`;
+          ${cell(d.dials, rq.dialsPerDay, '', 'Today')}${cell(d.connections, rq.connectionsPerDay, '', 'Today')}${cell(d.booked, Math.max(1, Math.round(rq.bookedPerWeek / 5)), '', 'Today')}
+          ${cell(w.dials, rq.dialsPerDay * days, '', 'This week')}${cell(w.connections, rq.connectionsPerDay * days, '', 'This week')}<td style="${td}" title="This week">${w.connectRate == null ? '—' : w.connectRate + '%'}</td>
+          ${cell(w.booked, Math.max(1, Math.round(rq.bookedPerWeek * days / 5)), '', 'This week')}${cell(all.showRate, rq.showRate, '%', 'Last ' + LOOKBACK_DAYS + ' days').replace('<td style="', '<td style="border-left:1px solid #e2e8f0;')}</tr>`;
       }).join('')}</tbody></table>
       <div style="font-size:11px;color:#94a3b8;margin-top:6px">Green = on quota, amber = within 60%, red = behind. The week's targets count ${days} of 5 working days so far. Show rate is over the last ${LOOKBACK_DAYS} days (it needs the meetings to have happened).</div>`
     : '<div style="font-size:12px;color:#94a3b8">No dials this week yet.</div>');
+
+  h += section('Reps over past weeks', repTrendsHtml(), `<span style="font-size:11px;color:#94a3b8">pick a metric · hover for each ${trend.gran === 'week' ? 'week' : 'day'}</span>`);
 
   // Dispositions this week, per client: where the dials go (list quality shows up in bad number / desk DQ).
   const order = ['booked', 'under_contract', 'follow_up', 'not_interested', 'manager_not_around', 'picked_up', 'no_answer', 'voicemail', 'bad_number', 'desk_dq'];
@@ -672,6 +675,144 @@ function managerHtml() {
   h += section('SDR access', `<div style="font-size:12px;color:#475569">An SDR signs in with their @theheadlinetheory.com Google account and sees only this tab. To set one up: give them the <b>sdr</b> role in Settings → Users, and a JustCall Sales Dialer seat under the same email, so their dials count as theirs.</div>`);
   return h;
 }
+
+// ─── Manager: each rep over past weeks, one line per rep (Aidan, 2026-11-16) ───
+// Hiring more SDRs, he wants to see at a glance who puts in the dials and who does not, week over week, and set the
+// standard from it. Same tally() as the Reps table above, so a week here equals that table's "This week" column.
+// Every number carries its period: the axis, the tooltip and the table all name the week or the day.
+const TREND_METRICS = [
+  { key: 'dials', label: 'Dials', quota: q => q.dialsPerDay },
+  { key: 'connections', label: 'Connects', quota: q => q.connectionsPerDay },
+  { key: 'booked', label: 'Booked appointments', quota: q => q.bookedPerWeek / 5 },
+  { key: 'noShow', label: 'No-shows', quota: null },
+];
+// Categorical slots in fixed order (dataviz default palette, validated light 2026-11-18). A rep keeps their colour
+// whatever the range: it follows their place in the full caller list, not the reps who happen to be on screen.
+const REP_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
+const trend = { metric: 'dials', gran: 'week', weeks: 8 };
+let _trend = null; // what is drawn, for the hover
+
+const shortDate = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/** The periods on the x axis: the last N weeks (Monday starts), or every weekday in them plus any weekend day with dials. */
+function trendPeriods() {
+  const cur = thisWeek(), t = today(), out = [];
+  for (let i = trend.weeks - 1; i >= 0; i--) {
+    const from = addDays(cur, -7 * i);
+    if (trend.gran === 'week') {
+      const partial = from === cur;
+      out.push({ from, to: addDays(from, 6), partial, axis: shortDate(from),
+        long: partial ? `This week so far (Mon ${shortDate(from)} – ${DOW[new Date(t + 'T12:00:00').getDay()]} ${shortDate(t)})` : `Week of Mon ${shortDate(from)}`,
+        head: partial ? 'This week (so far)' : `Wk of ${shortDate(from)}` });
+      continue;
+    }
+    for (let k = 0; k < 7; k++) {
+      const d = addDays(from, k);
+      if (d > t) break;
+      if (k >= 5 && !cc.calls.some(r => r.call_date === d)) continue;
+      out.push({ from: d, to: d, partial: d === t, axis: k === 0 ? shortDate(d) : '', long: `${DOW[(k + 1) % 7]} ${shortDate(d)}${d === t ? ' (today, so far)' : ''}`, head: `${DOW[(k + 1) % 7]} ${shortDate(d)}` });
+    }
+  }
+  return out;
+}
+
+function repTrendsHtml() {
+  const m = TREND_METRICS.find(x => x.key === trend.metric) || TREND_METRICS[0];
+  const periods = trendPeriods();
+  if (!periods.length) return '<div style="font-size:12px;color:#94a3b8">No days in range.</div>';
+  const everyone = callers();
+  const sdrs = new Set((state.assignableUsers || []).filter(u => u.role === 'sdr').map(u => (u.email || '').toLowerCase()));
+  const start = periods[0].from, end = periods[periods.length - 1].to;
+  // Reps with a dial in the range, plus every SDR login even at zero — a flat line is the point.
+  const reps = everyone.map((email, i) => {
+    const mine = cc.calls.filter(r => r.agent_email === email);
+    const vals = periods.map(p => tally(mine, p.from, p.to)[m.key]);
+    return { email, name: repName(email), color: REP_COLORS[i] || '#94a3b8', vals, total: tally(mine, start, end)[m.key], dials: tally(mine, start, end).dials };
+  }).filter(r => r.dials > 0 || sdrs.has(r.email));
+
+  const unit = trend.gran === 'week' ? 'week' : 'day';
+  const quota = m.quota ? +(m.quota(cc.quotas) * (trend.gran === 'week' ? 5 : 1)).toFixed(1) : null;
+  const rangeTxt = `last ${trend.weeks} weeks (${shortDate(start)} – ${shortDate(today())})`;
+  const chip = (key, val, label) => `<button data-action="ccTrend" data-key="${key}" data-val="${val}" style="padding:4px 11px;border:1px solid ${String(trend[key]) === String(val) ? '#1e1b4b' : 'var(--border)'};border-radius:999px;background:${String(trend[key]) === String(val) ? '#1e1b4b' : '#fff'};color:${String(trend[key]) === String(val) ? '#fff' : '#334155'};font-size:11px;font-weight:600;cursor:pointer">${label}</button>`;
+  const controls = `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+    ${TREND_METRICS.map(x => chip('metric', x.key, x.label)).join('')}
+    <span style="width:1px;height:18px;background:#e2e8f0;margin:0 4px"></span>${chip('gran', 'week', 'Per week')}${chip('gran', 'day', 'Per day')}
+    <span style="width:1px;height:18px;background:#e2e8f0;margin:0 4px"></span>${[4, 8, 12].map(n => chip('weeks', n, n + ' weeks')).join('')}</div>`;
+  if (!reps.length) return controls + `<div style="font-size:12px;color:#94a3b8">No dials in the ${rangeTxt}.</div>`;
+
+  // The chart: one y scale (the metric), one line per rep, the quota as a dashed reference.
+  const W = 1000, H = 240, L = 34, R = 110, T = 12, B = 24, n = periods.length;
+  const max = Math.max(1, quota || 0, ...reps.flatMap(r => r.vals));
+  const step = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500].find(s => Math.ceil(max / s) <= 5) || 1000;
+  const top = Math.ceil(max / step) * step;
+  const x = i => n === 1 ? (L + W - R) / 2 : L + i * (W - L - R) / (n - 1);
+  const y = v => T + (1 - v / top) * (H - T - B);
+  let s = '';
+  for (let v = 0; v <= top; v += step) s += `<line x1="${L}" x2="${W - R}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="${v ? '#eef0f3' : '#d1d5db'}"/><text x="${L - 5}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end" font-size="10" fill="#9ca3af">${v}</text>`;
+  let lastX = -Infinity;
+  periods.forEach((p, i) => { if (!p.axis || x(i) - lastX < 44) return; lastX = x(i); s += `<text x="${x(i).toFixed(1)}" y="${H - 7}" text-anchor="middle" font-size="10" fill="#6b7280">${esc(p.axis)}</text>`; });
+  if (quota != null && quota <= top) s += `<line x1="${L}" x2="${W - R}" y1="${y(quota).toFixed(1)}" y2="${y(quota).toFixed(1)}" stroke="#64748b" stroke-dasharray="5 4"/><text x="${W - R + 6}" y="${(y(quota) + 3.5).toFixed(1)}" font-size="10" fill="#64748b">quota ${quota}/${unit}</text>`;
+  // End labels: each rep's name at their last point, nudged apart so two reps on the same value stay readable.
+  const ends = reps.map(r => ({ r, y: y(r.vals[n - 1]) })).sort((a, b) => a.y - b.y);
+  for (let k = 1; k < ends.length; k++) if (ends[k].y - ends[k - 1].y < 12) ends[k].y = ends[k - 1].y + 12;
+  for (let k = ends.length - 1; k >= 0; k--) ends[k].y = Math.min(ends[k].y, H - B - 12 * (ends.length - 1 - k)); // keep them above the axis
+  for (const r of reps) {
+    const pts = r.vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`);
+    // The period still running is dashed: its number is only part of a week (or day).
+    const done = periods[n - 1].partial ? pts.slice(0, -1) : pts;
+    if (done.length > 1) s += `<polyline fill="none" stroke="${r.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${done.join(' ')}"/>`;
+    if (periods[n - 1].partial && n > 1) s += `<polyline fill="none" stroke="${r.color}" stroke-width="2" stroke-dasharray="4 4" points="${pts.slice(-2).join(' ')}"/>`;
+    if (n <= 70) s += r.vals.map((v, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="4" fill="${periods[i].partial ? '#fff' : r.color}" stroke="${periods[i].partial ? r.color : '#fff'}" stroke-width="${periods[i].partial ? 2 : 1.5}"/>`).join('');
+  }
+  for (const e of ends) s += `<text x="${W - R + 6}" y="${(e.y + 3.5).toFixed(1)}" font-size="11" font-weight="700" fill="#334155">${esc(e.r.name.split(' ')[0])} ${e.r.vals[n - 1]}</text>`;
+  _trend = { periods, reps, xs: periods.map((_, i) => x(i)), W, label: m.label, unit };
+  const svg = `<div id="cc-trend-wrap" style="position:relative"><svg viewBox="0 0 ${W} ${H}" style="display:block;width:100%;height:auto" onmousemove="ccTrendHover(event)" onmouseleave="ccTrendLeave()">${s}
+    <line id="cc-trend-xh" x1="0" x2="0" y1="${T}" y2="${H - B}" stroke="#9ca3af" stroke-dasharray="3 3" style="display:none"/></svg>
+    <div id="cc-trend-tip" style="display:none;position:absolute;pointer-events:none;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.12);padding:8px 10px;font-size:11px;min-width:200px;z-index:5"></div></div>`;
+
+  // Legend = each rep's total for the whole range, with the range named.
+  const legend = `<div style="display:flex;flex-wrap:wrap;gap:4px 18px;margin-bottom:6px">${reps.map(r => `<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#334155">
+    <span style="width:10px;height:10px;border-radius:50%;background:${r.color}"></span><b>${esc(r.name)}</b> <span style="color:#64748b">${r.total} ${esc(m.label.toLowerCase())} in the ${esc(rangeTxt)}</span></span>`).join('')}</div>`;
+
+  // The numbers underneath, newest period first, every column headed by its period.
+  const cols = [...periods.keys()].reverse();
+  const table = `<div style="overflow-x:auto;margin-top:10px;border:1px solid var(--border);border-radius:8px;background:#fff"><table style="border-collapse:collapse;width:100%">
+    <thead><tr><th style="${th}">${esc(m.label)} per ${unit}</th>${cols.map(i => `<th style="${th};text-align:right${periods[i].partial ? ';color:#94a3b8' : ''}">${esc(periods[i].head)}</th>`).join('')}</tr></thead>
+    <tbody>${reps.map(r => `<tr><td style="${td};white-space:nowrap"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${r.color};margin-right:6px"></span><b>${esc(r.name)}</b></td>
+      ${cols.map(i => { const v = r.vals[i], c = quota == null || periods[i].partial ? '#0f172a' : v >= quota ? '#15803d' : v >= quota * 0.6 ? '#b45309' : '#dc2626';
+        return `<td style="${td};text-align:right;font-variant-numeric:tabular-nums;font-weight:600;color:${periods[i].partial ? '#94a3b8' : c}" title="${esc(r.name)}: ${v} ${esc(m.label.toLowerCase())}, ${esc(periods[i].long)}">${v}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`;
+
+  const note = {
+    dials: 'Every Sales Dialer dial, on the day it was made.',
+    connections: 'Dials that reached someone (everything except no answer, voicemail, bad number and desk DQ).',
+    booked: 'Meetings booked, on the day they were booked (the booking date, not the meeting date), less any marked not counted.',
+    noShow: 'Booked meetings marked No-show in "Booked meetings: did they show?" below, counted in the period they were booked. A meeting nobody has marked yet counts as neither, so recent weeks fill in late.',
+  }[m.key];
+  return controls + legend + svg + table + `<div style="font-size:11px;color:#94a3b8;margin-top:6px">${note} ${quota != null ? `Dashed grey line = the quota (${quota} ${esc(m.label.toLowerCase())} per ${unit}, from Quotas below); table colours: green on quota, amber within 60%, red behind.` : ''} The ${unit === 'week' ? 'current week' : 'current day'} is dashed and greyed: it is not over yet. Weeks run Monday–Sunday.</div>`;
+}
+
+window.ccTrendHover = (ev) => {
+  const t = _trend, svg = ev.currentTarget, wrap = document.getElementById('cc-trend-wrap'), tip = document.getElementById('cc-trend-tip');
+  if (!t || !svg || !wrap || !tip) return;
+  const box = svg.getBoundingClientRect(), px = (ev.clientX - box.left) / box.width * t.W;
+  let i = 0;
+  for (let k = 1; k < t.xs.length; k++) if (Math.abs(t.xs[k] - px) < Math.abs(t.xs[i] - px)) i = k;
+  const xh = document.getElementById('cc-trend-xh');
+  if (xh) { xh.setAttribute('x1', t.xs[i]); xh.setAttribute('x2', t.xs[i]); xh.style.display = ''; }
+  const rows = [...t.reps].sort((a, b) => b.vals[i] - a.vals[i]);
+  tip.innerHTML = `<div style="font-weight:700;color:#1f2937">${esc(t.periods[i].long)}</div><div style="color:#94a3b8">${esc(t.label)} per ${t.unit}</div>
+    <table style="border-collapse:collapse;margin-top:4px">${rows.map(r => `<tr><td style="padding:1px 6px 1px 0"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${r.color}"></span></td><td style="padding:1px 10px 1px 0;color:#374151">${esc(r.name)}</td><td style="text-align:right;font-weight:700;color:#1f2937;font-variant-numeric:tabular-nums">${r.vals[i]}</td></tr>`).join('')}</table>`;
+  const wb = wrap.getBoundingClientRect();
+  tip.style.display = '';
+  tip.style.left = `${Math.min(ev.clientX - wb.left + 14, wb.width - 230)}px`;
+  tip.style.top = `${Math.max(0, ev.clientY - wb.top - 20)}px`;
+};
+window.ccTrendLeave = () => {
+  const tip = document.getElementById('cc-trend-tip'), xh = document.getElementById('cc-trend-xh');
+  if (tip) tip.style.display = 'none';
+  if (xh) xh.style.display = 'none';
+};
 
 // ─── Manager: how work is split between SDRs ───
 function assignmentsHtml(ranked) {
@@ -1101,6 +1242,13 @@ registerActions({
     render();
   },
   ccToggleAllLeads() { state.ccAllLeads = !state.ccAllLeads; render(); },
+  ccTrend(el) {
+    const { key, val } = el.dataset;
+    if (key === 'metric' && TREND_METRICS.some(m => m.key === val)) trend.metric = val;
+    if (key === 'gran' && (val === 'week' || val === 'day')) trend.gran = val;
+    if (key === 'weeks' && [4, 8, 12].includes(Number(val))) trend.weeks = Number(val);
+    render();
+  },
   ccIndustryDays(el, e) { if (e.type !== 'change') return; cc.industryFilter = { ...(cc.industryFilter || { client: '' }), days: Number(el.value) }; render(); },
   ccIndustryClient(el, e) { if (e.type !== 'change') return; cc.industryFilter = { ...(cc.industryFilter || { days: 0 }), client: el.value }; render(); },
   async ccFeedbackSubmit(el) {
