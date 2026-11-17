@@ -3,12 +3,12 @@
 // (Aidan, 2026-11-16). Moving to Interviewing or Not a Fit opens the editable
 // email box (hiring-email-box.js) for everyone ticked; other stages just move.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261116163902';
-import { render } from './render.js?v=20261116163902';
-import { showToast } from './api.js?v=20261116163902';
-import { esc, jsArg } from './utils.js?v=20261116163902';
-import { STAGES, stageLabel, findCandidate, applyMove } from './hiring.js?v=20261116163902';
-import { STAGE_EMAILS, REJECT_STAGE, openEmailBox } from './hiring-email-box.js?v=20261116163902';
+import { state } from './app.js?v=20261116164130';
+import { render } from './render.js?v=20261116164130';
+import { showToast } from './api.js?v=20261116164130';
+import { esc, jsArg } from './utils.js?v=20261116164130';
+import { STAGES, stageLabel, findCandidate, applyMove } from './hiring.js?v=20261116164130';
+import { STAGE_EMAILS, REJECT_STAGE, openEmailBox } from './hiring-email-box.js?v=20261116164130';
 
 const _selected = new Set();
 
@@ -43,8 +43,9 @@ export function bulkBarHtml() {
 
 async function bulkMove(stage) {
   const ids = [..._selected];
+  // Ticks stay until the email box is confirmed, so Cancel doesn't lose them.
+  if (STAGE_EMAILS[stage] && state.hiringKind === 'applicant') { openEmailBox(ids, stage, () => _selected.clear()); return; }
   _selected.clear();
-  if (STAGE_EMAILS[stage] && state.hiringKind === 'applicant') { openEmailBox(ids, stage); return; }
   render();
   const people = ids.map(findCandidate).filter(c => c && c.stage !== stage);
   for (const c of people) await applyMove(c, stage);

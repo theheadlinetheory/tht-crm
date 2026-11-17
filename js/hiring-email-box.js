@@ -6,12 +6,12 @@
 // wrong name can be fixed. Confirm moves them and sends each their own copy via
 // the stage's edge function. Never twice: invite_sent_at / rejection_sent_at.
 // ═══════════════════════════════════════════════════════════
-import { render } from './render.js?v=20261116163902';
-import { supabase } from './supabase-client.js?v=20261116163902';
-import { showToast } from './api.js?v=20261116163902';
-import { esc, escAttr, jsArg } from './utils.js?v=20261116163902';
-import { findCandidate, applyMove } from './hiring.js?v=20261116163902';
-import { addHiringActivity } from './hiring-activity.js?v=20261116163902';
+import { render } from './render.js?v=20261116164130';
+import { supabase } from './supabase-client.js?v=20261116164130';
+import { showToast } from './api.js?v=20261116164130';
+import { esc, escAttr, jsArg } from './utils.js?v=20261116164130';
+import { findCandidate, applyMove } from './hiring.js?v=20261116164130';
+import { addHiringActivity } from './hiring-activity.js?v=20261116164130';
 
 export const REJECT_STAGE = 'Not a Fit';
 const TOKEN = '{first_name}';
@@ -27,13 +27,13 @@ const firstName = (full) => { const p = String(full || '').trim().split(/\s+/); 
 const owes = (c, stage) => c.kind === 'applicant' && !!STAGE_EMAILS[stage] && !!c.email && !c[STAGE_EMAILS[stage].column];
 export const needsEmailPrompt = (c, stage) => owes(c, stage);
 
-// { stage, ids, send, names: {id: first}, subject, template, error, loaded }
+// { stage, onConfirm, ids, send, names: {id: first}, subject, template, error, loaded }
 let _box = null;
 
-export async function openEmailBox(ids, stage) {
+export async function openEmailBox(ids, stage, onConfirm = null) {
   const people = ids.map(findCandidate).filter(Boolean);
   const emailed = people.filter(c => owes(c, stage));
-  _box = { stage, ids: people.map(c => c.id), send: emailed.length > 0, names: {}, subject: '', template: '', error: '', loaded: false };
+  _box = { stage, onConfirm, ids: people.map(c => c.id), send: emailed.length > 0, names: {}, subject: '', template: '', error: '', loaded: false };
   for (const c of emailed) _box.names[c.id] = firstName(c.name);
   render();
   if (!emailed.length) return;
@@ -57,6 +57,7 @@ async function confirmBox() {
   const box = _box;
   if (!box || (box.send && !box.loaded)) return;
   _box = null;
+  box.onConfirm?.();
   render();
   const cfg = STAGE_EMAILS[box.stage];
   let sent = 0;
