@@ -46,6 +46,7 @@ import { supabase } from './supabase-client.js?v=20261118043124';
 import { esc, str, svgIcon, getToday, jsArg } from './utils.js?v=20261118043124';
 import { currentUser, isSdr, isAdmin, isEmployee, loadAssignableUsers } from './auth.js?v=20261118043124';
 import { registerActions } from './delegate.js?v=20261118043124';
+import { visibleOnColdCallBoard, renderRepFilter } from './cold-call-owner.js?v=20261118024536';
 
 export const CALLBACK_STAGE = 'Cold Call Callback';
 const NO_CONNECTION = new Set(['no_answer', 'voicemail', 'bad_number', 'desk_dq']);
@@ -327,7 +328,7 @@ export function coldCallDeals() {
   const names = new Set(coldCallStages().map(s => s.id));
   const allLeads = !isSdr() && state.ccAllLeads;
   const deals = state.deals.filter(d => d.pipeline === 'Client' && names.has(d.stage) &&
-    (d.stage === CALLBACK_STAGE || allLeads || d.leadSource === 'cold_call'));
+    (d.stage === CALLBACK_STAGE || allLeads || d.leadSource === 'cold_call') && visibleOnColdCallBoard(d));
   // Callbacks: the due ones (green / red badge) on top.
   return deals.sort((a, b) => a.stage === CALLBACK_STAGE && b.stage === CALLBACK_STAGE
     ? callbackDue(a.id).localeCompare(callbackDue(b.id)) : 0);
@@ -452,6 +453,7 @@ export function renderColdCallingHeader() {
       ${SUBTABS.filter(t => !t.managerOnly || !isSdr()).map(t => `<button data-action="ccSubTab" data-tab="${t.id}" style="${subCs};background:${sub === t.id ? 'var(--purple)' : '#f3f4f6'};color:${sub === t.id ? '#fff' : 'var(--text-muted)'}">${t.label}</button>`).join('')}
     </div>
     <div style="display:flex;gap:8px;align-items:center">
+      ${sub === 'pipeline' ? renderRepFilter() : ''}
       ${sub === 'pipeline' && !isSdr() ? `<button data-action="ccToggleAllLeads" style="padding:4px 12px;font-size:11px;font-weight:600;font-family:var(--font);cursor:pointer;border:1px solid ${state.ccAllLeads ? 'var(--purple)' : 'var(--border)'};border-radius:6px;background:${state.ccAllLeads ? '#f3e8ff' : '#fff'};color:${state.ccAllLeads ? 'var(--purple)' : 'var(--text-muted)'}">${state.ccAllLeads ? 'Showing: all leads' : 'Showing: cold-call leads'}</button>` : ''}
       <span style="font-size:11px;color:#94a3b8">${cc.syncNote ? esc(cc.syncNote) + ' · ' : ''}last dial synced ${esc(lastTxt)}</span>
       <button class="btn btn-ghost" data-action="ccSync" ${cc.syncing ? 'disabled' : ''} style="display:inline-flex;align-items:center;gap:4px"><span${cc.syncing ? ' style="animation:spin .7s linear infinite;display:inline-flex"' : ''}>${svgIcon('refresh-cw', 12)}</span> ${cc.syncing ? 'Pulling JustCall…' : 'Refresh from JustCall'}</button>

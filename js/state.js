@@ -72,6 +72,7 @@ export const state = {
   clientLeadsSubTab: (() => { try { const parts = location.hash.replace('#','').split('/'); if (parts[0] === 'client_leads' && parts[1]) { const valid = ['pipeline','checkins','lead_tracker','weekly_updates','analysis']; return valid.includes(parts[1]) ? parts[1] : 'pipeline'; } return 'pipeline'; } catch { return 'pipeline'; } })(),
   // Cold Calling tab: 'queue' | 'pipeline' | 'tracker' | 'passed' | 'manager', mirrored in #cold_calling/<sub>.
   coldCallSubTab: (() => { try { const parts = location.hash.replace('#','').split('/'); return parts[0] === 'cold_calling' && ['pipeline','leaderboard','tracker','passed','industries','feedback','manager'].includes(parts[1]) ? parts[1] : 'queue'; } catch { return 'queue'; } })(),
+  ccRepFilter: '', // admin's rep picker on the Cold Calling board: '' = all reps, an email, or 'none'
   ccAllLeads: false, // manager toggle on the Cold Calling board: every lead in those client columns, not only cold-call ones
   analysis: null, // Analysis tab run state — see analysis.js getA()
   assignableUsers: [],
