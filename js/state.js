@@ -4,7 +4,7 @@
 // All mutations go through store.* methods to prevent direct
 // state tampering and ensure consistent re-renders.
 
-import { render, refreshModal } from './render.js?v=20261116164130';
+import { render, refreshModal } from './render.js?v=20261116164822';
 
 // ─── Raw State (private — modules should use store.*) ───
 export const state = {
@@ -89,6 +89,7 @@ export const state = {
   hiringDragId: null,
   hiringSearch: '',
   hiringStarredOnly: false,
+  hiringShowArchived: false, // Hiring: list the archive stage (Not a Fit / Passed) instead of the board
   hiringView: (() => { try { return localStorage.getItem('hiringView') || 'board'; } catch { return 'board'; } })(), // board | list (hiring-list.js)
   trackerView: 'entries',
   trendsClients: [],           // Trends: clients picked in the filter (empty = all)

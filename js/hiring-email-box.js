@@ -6,12 +6,12 @@
 // wrong name can be fixed. Confirm moves them and sends each their own copy via
 // the stage's edge function. Never twice: invite_sent_at / rejection_sent_at.
 // ═══════════════════════════════════════════════════════════
-import { render } from './render.js?v=20261116164130';
-import { supabase } from './supabase-client.js?v=20261116164130';
-import { showToast } from './api.js?v=20261116164130';
-import { esc, escAttr, jsArg } from './utils.js?v=20261116164130';
-import { findCandidate, applyMove } from './hiring.js?v=20261116164130';
-import { addHiringActivity } from './hiring-activity.js?v=20261116164130';
+import { render } from './render.js?v=20261116164822';
+import { supabase } from './supabase-client.js?v=20261116164822';
+import { showToast } from './api.js?v=20261116164822';
+import { esc, escAttr, jsArg } from './utils.js?v=20261116164822';
+import { findCandidate, applyMove } from './hiring.js?v=20261116164822';
+import { addHiringActivity } from './hiring-activity.js?v=20261116164822';
 
 export const REJECT_STAGE = 'Not a Fit';
 const TOKEN = '{first_name}';

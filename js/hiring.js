@@ -16,19 +16,19 @@
 // red count on the Hiring tab (hiring-unread.js). The detail modal, timeline
 // and follow-ups live in hiring-modal.js / hiring-activity.js.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261116164130';
-import { render } from './render.js?v=20261116164130';
-import { supabase } from './supabase-client.js?v=20261116164130';
-import { showToast } from './api.js?v=20261116164130';
-import { candidateChannel, channelPill, channelSelectHtml } from './hiring-channel.js?v=20261116164130';
-import { esc, escAttr, safeUrl, str, svgIcon, jsArg } from './utils.js?v=20261116164130';
-import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261116164130';
-import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261116164130';
-import { onHiringChange } from './hiring-unread.js?v=20261116164130';
-import { needsEmailPrompt, openEmailBox, renderEmailBox } from './hiring-email-box.js?v=20261116164130';
-import { tickBoxHtml, bulkBarHtml, pruneTicks } from './hiring-bulk.js?v=20261116164130';
-import { videoButtonHtml } from './hiring-video.js?v=20261116164130';
-import { renderHiringList } from './hiring-list.js?v=20261116164130';
+import { state } from './app.js?v=20261116164822';
+import { render } from './render.js?v=20261116164822';
+import { supabase } from './supabase-client.js?v=20261116164822';
+import { showToast } from './api.js?v=20261116164822';
+import { candidateChannel, channelPill, channelSelectHtml } from './hiring-channel.js?v=20261116164822';
+import { esc, escAttr, safeUrl, str, svgIcon, jsArg } from './utils.js?v=20261116164822';
+import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261116164822';
+import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261116164822';
+import { onHiringChange } from './hiring-unread.js?v=20261116164822';
+import { needsEmailPrompt, openEmailBox, renderEmailBox } from './hiring-email-box.js?v=20261116164822';
+import { tickBoxHtml, bulkBarHtml, pruneTicks } from './hiring-bulk.js?v=20261116164822';
+import { videoButtonHtml } from './hiring-video.js?v=20261116164822';
+import { renderHiringList } from './hiring-list.js?v=20261116164822';
 
 // Applicants want a job with us; partners are companies that hire (recruiting
 // partners who could send us candidates). Each gets its own board.
@@ -49,6 +49,11 @@ export const STAGES = {
     { id: 'Passed', color: '#9ca3af' },
   ],
 };
+// The last column of each board is the archive (Aidan, 2026-11-16): people
+// there are hidden from the board and list, still found by search, and listed
+// under "View archived". Nothing is deleted.
+export const ARCHIVE_STAGE = { applicant: 'Not a Fit', partner: 'Passed' };
+const isArchived = (c) => c.stage === ARCHIVE_STAGE[c.kind];
 const KIND_LABELS = { applicant: 'Applicants', partner: 'Recruiting Partners' };
 // Partner replies are either companies that could send us candidates or
 // individuals who want the job themselves (contact_type; null = not sorted yet).
@@ -92,10 +97,17 @@ export const findCandidate = (id) => _candidates.find(c => c.id === id);
 // Days an applicant has sat in Applied with no decision (0 = today / not Applied).
 export const waitingDays = (c) => c.stage === 'Applied' && c.applied_at ? Math.floor((Date.now() - new Date(c.applied_at)) / 86400000) : 0;
 
+// Archived people show only under "View archived", or when a search finds them.
+function archiveFilter(c, q) {
+  if (state.hiringShowArchived) return isArchived(c);
+  return !!q || !isArchived(c);
+}
+
 function visibleCandidates() {
   const q = str(state.hiringSearch).trim().toLowerCase();
   return _candidates.filter(c =>
     c.kind === state.hiringKind &&
+    archiveFilter(c, q) &&
     (!state.hiringStarredOnly || c.starred) &&
     (state.hiringContactType == null || (c.contact_type || '') === state.hiringContactType) &&
     (!state.hiringChannel || candidateChannel(c) === state.hiringChannel) &&
@@ -206,6 +218,7 @@ function toolbarHtml(total) {
     ${kindToggleHtml()}
     <span style="width:1px;height:18px;background:var(--border)"></span>
     ${viewToggleHtml()}
+    ${state.hiringShowArchived ? '' : `<button class="btn btn-ghost" style="font-size:12px;padding:5px 10px" onclick="hiringArchived(true)">🗄 Archived (${archivedCount()})</button>`}
     <span>${total} ${total === 1 ? 'person' : 'people'} · ${state.hiringView === 'list' ? 'change Stage in the row' : 'drag a card to move it'} · ${hint}</span>
     ${_status === 'error' ? '<span style="color:#b91c1c">Could not load the board.</span>' : ''}
     <span style="flex:1"></span>
@@ -236,6 +249,24 @@ function watchChanges() {
   });
 }
 
+const archivedCount = () => _candidates.filter(c => c.kind === state.hiringKind && isArchived(c)).length;
+
+// The archive column keeps no cards: it is a drop target with a count.
+function archiveDropHtml() {
+  return `<div class="col-empty" style="line-height:1.6">Drop here to archive<br>
+    <b>${archivedCount()} archived</b> · <a href="#" onclick="event.preventDefault();hiringArchived(true)" style="color:var(--purple)">View</a></div>`;
+}
+
+function archiveBannerHtml() {
+  if (!state.hiringShowArchived) return '';
+  return `<div style="margin:0 20px 8px;padding:8px 12px;display:flex;gap:10px;align-items:center;font-size:13px;background:#f3f4f6;border-radius:8px">
+    <b>Archived · ${esc(ARCHIVE_STAGE[state.hiringKind])}</b>
+    <span style="color:var(--text-muted)">Change a Stage to bring someone back.</span>
+    <span style="flex:1"></span>
+    <button class="btn btn-ghost" style="font-size:12px" onclick="hiringArchived(false)">← Back</button>
+  </div>`;
+}
+
 export function renderHiring() {
   watchChanges();
   if (_status !== 'loading' && Date.now() - _loadedAt > STALE_MS) loadCandidates();
@@ -244,19 +275,20 @@ export function renderHiring() {
   }
   const list = visibleCandidates();
   pruneTicks(list);
-  const top = toolbarHtml(list.length) + bulkBarHtml();
+  const top = toolbarHtml(list.length) + archiveBannerHtml() + bulkBarHtml();
   const overlays = renderHiringModal() + renderEmailBox();
-  if (state.hiringView === 'list') return top + renderHiringList(list) + overlays;
+  if (state.hiringView === 'list' || state.hiringShowArchived) return top + renderHiringList(list) + overlays;
   let html = top + '<div class="board">';
   for (const stage of STAGES[state.hiringKind]) {
     const sc = list.filter(c => c.stage === stage.id);
     const key = encodeURIComponent(stage.id);
+    const archive = stage.id === ARCHIVE_STAGE[state.hiringKind];
     html += `<div class="column" ondragover="event.preventDefault();doDragOver(this)" ondragleave="doDragLeave(event,this)" ondrop="hiringDrop('${key}')">
       <div class="col-header" style="border-top-color:${stage.color}"><div>
         <div class="col-title">${esc(stageLabel(stage))}</div>
-        <div class="col-meta">${sc.length}</div>
+        <div class="col-meta">${archive ? 'archive' : sc.length}</div>
       </div></div>
-      <div class="col-body">${sc.length ? sc.map(cardHtml).join('') : '<div class="col-empty">Nobody here</div>'}</div>
+      <div class="col-body">${archive ? archiveDropHtml() : sc.length ? sc.map(cardHtml).join('') : '<div class="col-empty">Nobody here</div>'}</div>
     </div>`;
   }
   return html + '</div>' + overlays;
@@ -293,7 +325,8 @@ window.hiringDrop = (key) => {
 };
 export function toggleStar(id) { const c = findCandidate(id); if (c) saveFields(c, { starred: !c.starred }); }
 window.hiringOpen = (id) => openHiringCard(id);
-window.hiringKind = (kind) => { state.hiringKind = kind; render(); };
+window.hiringKind = (kind) => { state.hiringKind = kind; state.hiringShowArchived = false; render(); };
+window.hiringArchived = (on) => { state.hiringShowArchived = on; render(); };
 window.hiringContactType = (v) => { state.hiringContactType = v === 'all' ? null : v; render(); };
 window.hiringChannel = (v) => { state.hiringChannel = v === 'all' ? null : v; render(); };
 window.hiringSearch = (v) => { state.hiringSearch = v; render(); };
