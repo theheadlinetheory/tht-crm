@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // DEMO TRACKER — SDR commission tracking for acquisition calls
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites, pendingDealFields } from './app.js?v=20261117084506';
-import { sbCreateDemoEntry, sbUpdateDemoEntry, sbDeleteDemoEntry, sbUpdateDeal, camelToSnake, normalizeRow, showToast } from './api.js?v=20261117084506';
-import { render, refreshModal } from './render.js?v=20261117084506';
-import { isAdmin, isEmployee } from './auth.js?v=20261117084506';
-import { markDemo } from './disco-outcome.js?v=20261117084506';
-import { esc, str, svgIcon } from './utils.js?v=20261117084506';
+import { state, pendingWrites, pendingDealFields } from './app.js?v=20261117084713';
+import { sbCreateDemoEntry, sbUpdateDemoEntry, sbDeleteDemoEntry, sbUpdateDeal, camelToSnake, normalizeRow, showToast } from './api.js?v=20261117084713';
+import { render, refreshModal } from './render.js?v=20261117084713';
+import { isAdmin, isEmployee } from './auth.js?v=20261117084713';
+import { markDemo } from './disco-outcome.js?v=20261117084713';
+import { esc, str, svgIcon } from './utils.js?v=20261117084713';
 
 const DEMO_BASE_PAYOUT = 100;
 const DEMO_CLOSE_BONUS = 50;

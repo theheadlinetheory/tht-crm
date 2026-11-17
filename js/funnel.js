@@ -19,12 +19,13 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon, jsArg } from './utils.js?v=20261117084506';
-import { supabase } from './supabase-client.js?v=20261117084506';
-import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel, rangeDays, todayYmdLA, requestExactSends } from './funnel-period.js?v=20261117084506';
-import { leadsTable } from './funnel-leads.js?v=20261117084506';
-import { renderFunnelDaily, clearFunnelDaily } from './funnel-daily.js?v=20261117084506';
-import { renderAcqStageGrid } from './dashboard.js?v=20261117084506';
+import { esc, svgIcon, jsArg } from './utils.js?v=20261117084713';
+import { supabase } from './supabase-client.js?v=20261117084713';
+import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel, rangeDays, todayYmdLA, requestExactSends } from './funnel-period.js?v=20261117084713';
+import { leadsTable } from './funnel-leads.js?v=20261117084713';
+import { renderFunnelDaily, clearFunnelDaily } from './funnel-daily.js?v=20261117084713';
+import { renderAcqStageGrid } from './dashboard.js?v=20261117084713';
+import { renderFunnelMap } from './funnel-map.js?v=20261117084713';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -119,7 +120,7 @@ export function reloadFunnel(rerender) {
 
 function loadPeriod(key, rerender) {
   if (periodRows(key) || _periodLoading === key) return;
-  if (!rerender) rerender = () => import('./render.js?v=20261117084506').then(m => m.render());
+  if (!rerender) rerender = () => import('./render.js?v=20261117084713').then(m => m.render());
   _periodLoading = key;
   const g = (_gen[ck(key)] = (_gen[ck(key)] || 0) + 1);
   fetchPeriod(periodRange(key), _levels || [], _offer, _channel).then(rows => {
@@ -154,23 +155,23 @@ window.setFunnelPeriod = (key) => {
     };
     setTimeout(whenLoaded, 500);
   }
-  import('./render.js?v=20261117084506').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+  import('./render.js?v=20261117084713').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
 };
 
 window.setFunnelOffer = (offer) => {
   _offer = offer === 'ppm' || offer === 'retainer' ? offer : '';
   try { localStorage.setItem(OFFER_KEY, _offer); } catch (_) { /* private mode */ }
-  import('./render.js?v=20261117084506').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
+  import('./render.js?v=20261117084713').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
 };
 window.setFunnelChannel = (channel) => {
   _channel = CHANNELS.some(c => c.key === channel) ? channel : '';
   try { localStorage.setItem(CHANNEL_KEY, _channel); } catch (_) { /* private mode */ }
-  import('./render.js?v=20261117084506').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
+  import('./render.js?v=20261117084713').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
 };
 
 // ── The calendar: pick any stretch of days (Lars, 2026-09-18) ──
 const _pick = { open: false, month: null, start: null, end: null }; // month 'YYYY-MM'; start/end 'YYYY-MM-DD' while choosing
-const rerenderNow = () => import('./render.js?v=20261117084506').then(m => m.render());
+const rerenderNow = () => import('./render.js?v=20261117084713').then(m => m.render());
 window.funnelPickToggle = () => {
   _pick.open = !_pick.open;
   if (_pick.open) { const r = periodRange(_period); _pick.month = (r ? r.to : todayYmdLA()).slice(0, 7); _pick.start = null; _pick.end = null; }
@@ -519,6 +520,19 @@ window.toggleFunnelDetails = (level) => {
   if (btn) btn.textContent = (_open.has(level) ? '▾' : '▸') + ' Details';
 };
 
+// Cards (the levels) or Map (every statistic, where/when, owner). Remembered per browser.
+const VIEW_KEY = 'funnelView';
+let _view = (() => { try { return localStorage.getItem(VIEW_KEY) === 'map' ? 'map' : 'cards'; } catch (_) { return 'cards'; } })();
+window.setFunnelView = (v) => {
+  _view = v === 'map' ? 'map' : 'cards';
+  try { localStorage.setItem(VIEW_KEY, _view); } catch (_) { /* private mode */ }
+  rerenderNow();
+};
+function viewToggle() {
+  const b = (key, label) => `<button onclick="setFunnelView('${key}')" style="padding:6px 12px;border:none;background:${_view === key ? '#1e1b4b' : 'var(--card)'};color:${_view === key ? '#fff' : 'var(--text)'};font-size:12px;font-weight:600;cursor:pointer">${label}</button>`;
+  return `<div style="display:inline-flex;border:1px solid var(--border);border-radius:7px;overflow:hidden">${b('cards', 'Cards')}${b('map', 'Map')}</div>`;
+}
+
 export function renderFunnel() {
   if (_error) {
     return `<div style="padding:24px"><div style="color:#b91c1c;font-size:13px">Could not load the funnel: ${esc(_error)}</div>
@@ -534,8 +548,10 @@ export function renderFunnel() {
             <div style="font-size:18px;font-weight:800;color:#1e1b4b">Sales pipeline</div>
             <div style="font-size:12px;color:#6b7280">Every level of the acquisition funnel, from emails sent to clients retained.</div>
           </div>
-          <button onclick="refreshFunnel()" style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border:1px solid var(--border);border-radius:7px;background:var(--card);font-size:12px;cursor:pointer">${svgIcon('refresh-cw', 12)} Refresh</button>
+          <div style="display:flex;gap:6px">${viewToggle()}
+          <button onclick="refreshFunnel()" style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border:1px solid var(--border);border-radius:7px;background:var(--card);font-size:12px;cursor:pointer">${svgIcon('refresh-cw', 12)} Refresh</button></div>
         </div>`;
+  if (_view === 'map') return h + renderFunnelMap(_levels) + `</div>`; // the map: every statistic, its source, timing and owner (Aidan, 2026-11-17)
   h += periodBar();
   // The trend line: qualified positives per day, under the same offer/channel chips (Lars, 2026-11-10: "start really simple").
   try { h += renderFunnelDaily(_offer, _channel, filterLabel()); } catch (e) { h += `<div style="padding:10px 0;color:#b91c1c;font-size:12px">Daily line could not render: ${esc(e && e.message || e)}</div>`; }
@@ -576,5 +592,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20261117084506').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20261117084713').then(m => reloadFunnel(m.render));
 };

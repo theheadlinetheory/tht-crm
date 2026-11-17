@@ -1,5 +1,5 @@
 // SUPABASE CLIENT — single shared instance (one GoTrue client only).
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261117084506';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261117084713';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
