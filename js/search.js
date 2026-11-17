@@ -101,10 +101,10 @@ export function getVisiblePipelinesWithArchive(){
   if(isSdr()) return ALL_PIPELINES.filter(p => p.id === 'cold_calling');
   if(isEmployee()) return ALL_PIPELINES.filter(p => ['client_leads','cold_calling','acquisition','dashboard','funnel'].includes(p.id));
   // Clients reach the CRM too. The funnel is our own acquisition performance and
-  // must never be one of their tabs; Renewals carries retainer amounts, and
-  // anything money is admin-only.
+  // must never be one of their tabs; the Client Journey (under Acquisition)
+  // carries retainer amounts and is admin-only — render.js gates that sub-tab.
   // Hiring is admin-only: candidates are not anyone else's business.
-  if(!isAdmin()) return ALL_PIPELINES.filter(p => p.id !== 'funnel' && p.id !== 'renewals' && p.id !== 'cold_calling' && p.id !== 'hiring');
+  if(!isAdmin()) return ALL_PIPELINES.filter(p => p.id !== 'funnel' && p.id !== 'cold_calling' && p.id !== 'hiring');
   return ALL_PIPELINES;
 }
 

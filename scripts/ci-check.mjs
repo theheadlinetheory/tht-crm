@@ -128,7 +128,10 @@ const REQUIRED_FEATURES = [
   { file: 'renewals.js',         needle: 'function termCell',                     feature: 'Renewals: Term ends column + Extend button' },
   // A won Acquisition deal must land on the Renewal board, not just disappear into the archive (Aidan, 2026-10-14).
   { file: 'deals.js',            needle: 'm.createRenewalCard(deal',              feature: 'Renewal pipeline: Closed Won hands the client to the Renewal board' },
-  { file: 'render.js',           needle: 'renderRenewalPipeline()',               feature: 'Renewal pipeline: board rendered on the Renewals tab' },
+  { file: 'render.js',           needle: 'renderRenewalPipeline()',               feature: 'Client Journey: board rendered under Acquisition' },
+  // Client Journey (Aidan, 2026-11-18): churned clients drop off, pay-per-meeting clients never get renewal stages.
+  { file: 'renewal-pipeline.js', needle: "const isChurned = (d) => clientFor(d.company)?.status === 'inactive'", feature: 'Client Journey: churned clients hidden via the client record' },
+  { file: 'renewal-pipeline.js', needle: 'if (!stageFits(stage, deal.company))',  feature: 'Client Journey: renewal stages are retainer-only' },
   { file: 'term-extensions.js',  needle: 'export async function saveTermExtension', feature: 'Renewals: save a term extension' },
   // Acquisition booking — one list per call type, shared by the deal modal and
   // the power dialer. Dropping a person here silently removes their calendar.

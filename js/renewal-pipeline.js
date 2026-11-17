@@ -1,6 +1,16 @@
 // ═══════════════════════════════════════════════════════════
-// RENEWAL PIPELINE — the second sales board, for getting won clients to renew
-// (Aidan, 2026-10-14). Lives under the Renewals tab beside the Schedule table.
+// CLIENT JOURNEY — the board for won clients, from onboarding through renewal
+// and upsells (Aidan, 2026-10-14 as the Renewal pipeline; widened 2026-11-18).
+// Lives under Acquisition → Client Journey beside the Schedule table.
+//
+// Two lanes, one deals pipeline ('Renewal'):
+//  - Journey: ONE card per client, in exactly one stage (JOURNEY_STAGES).
+//    Renewal stages are retainer-only; a pay-per-meeting client (billing_model
+//    'per_lead') sits in Active instead and can't be dropped on them.
+//  - Upsells: zero or more cards per client (UPSELL_STAGES), any billing model,
+//    so a client can be renewing and mid-upsell at once.
+// A card whose client is inactive in Settings → Clients (churned) is hidden,
+// never deleted — its stage history stays.
 //
 // A card is an ordinary `deals` row with pipeline 'Renewal'. Closing an
 // Acquisition deal Won used to be the end of the road: it was archived and
@@ -19,18 +29,20 @@
 // 20261014_renewal_pipeline_stage_events.sql). The board reads that view for
 // "N days in stage".
 //
-// Admin-only, like the Renewals tab that hosts it.
+// Admin-only, like the Renewals tab it replaced (the Schedule shows retainer amounts).
 // ═══════════════════════════════════════════════════════════
 import { state, store } from './app.js?v=20261118043317';
 import { render } from './render.js?v=20261118043317';
 import { supabase } from './supabase-client.js?v=20261118043317';
 import { sbCreateDeal, camelToSnake, showToast } from './api.js?v=20261118043317';
-import { RENEWAL_STAGES } from './config.js?v=20261118043317';
+import { RENEWAL_STAGES, JOURNEY_STAGES, UPSELL_STAGES } from './config.js?v=20261118043317';
 import { esc, str, uid, getToday, jsArg } from './utils.js?v=20261118043317';
 import { moveDeal, clearAllDragOver } from './deals.js?v=20261118043317';
 
 export const RENEWAL_PIPELINE = 'Renewal';
-const FIRST_STAGE = RENEWAL_STAGES[0].id;
+const FIRST_STAGE = JOURNEY_STAGES[0].id;
+const UPSELL_IDS = new Set(UPSELL_STAGES.map(s => s.id));
+export const isUpsellCard = (d) => UPSELL_IDS.has(str(d.stage));
 const STAGE_DATE_COL = {
   'Onboarded': 'onboarded_at',
   'Campaigns Started': 'campaigns_started_at',
@@ -42,7 +54,14 @@ const STAGE_DATE_COL = {
 
 const sameName = (a, b) => str(a).trim().toLowerCase() === str(b).trim().toLowerCase();
 export const renewalDeals = () => state.deals.filter(d => d.pipeline === RENEWAL_PIPELINE);
-const cardFor = (clientName) => renewalDeals().find(d => sameName(d.company, clientName));
+const journeyDeals = () => renewalDeals().filter(d => !isUpsellCard(d));
+const cardFor = (clientName) => journeyDeals().find(d => sameName(d.company, clientName));
+const clientFor = (name) => (state.clients || []).find(c => sameName(c.name, name));
+// Pay-per-meeting unless the client record says retainer (client-info.js defaults the same way).
+const modelOf = (name) => str(clientFor(name)?.billingModel) === 'retainer' ? 'retainer' : 'per_lead';
+const stageFits = (stage, name) => !stage || stage.models === 'all' || !clientFor(name) || stage.models === modelOf(name);
+// Churn sync: the client record decides. Unknown names stay visible so a typo can't hide a client.
+const isChurned = (d) => clientFor(d.company)?.status === 'inactive';
 
 // ─── Hand-off from Acquisition ───
 /** Start a won client on the Renewal board at Onboarded. One card per client:
@@ -116,6 +135,7 @@ function cardHtml(deal, stageKey) {
       ondrop="renewalDrop('${stageKey}')"
       onclick="openDeal(${jsArg(deal.id)})" title="${esc(reached || 'No stage history yet')}">
     <div class="deal-card-top"><div class="deal-company">${esc(deal.company || deal.contact || 'Client')}</div></div>
+    ${isUpsellCard(deal) && str(deal.notes).startsWith('Upsell: ') ? `<div class="deal-detail" style="color:var(--purple);font-weight:600">${esc(str(deal.notes).split('\n')[0].slice(8))}</div>` : ''}
     ${deal.contact ? `<div class="deal-detail">${esc(deal.contact)}</div>` : ''}
     <div class="deal-bottom"><span style="display:flex;gap:4px;flex-wrap:wrap">
       ${r.onboarded_at ? `<span class="deal-tag">Onboarded ${esc(shortDate(r.onboarded_at))}</span>` : ''}
@@ -125,7 +145,7 @@ function cardHtml(deal, stageKey) {
 }
 
 function addClientPicker() {
-  const onBoard = new Set(renewalDeals().map(d => str(d.company).trim().toLowerCase()));
+  const onBoard = new Set(journeyDeals().map(d => str(d.company).trim().toLowerCase()));
   const missing = (state.clients || [])
     .filter(c => c.status !== 'inactive' && !onBoard.has(str(c.name).trim().toLowerCase()))
     .map(c => str(c.name)).sort((a, b) => a.localeCompare(b));
@@ -137,29 +157,59 @@ function addClientPicker() {
     <button class="btn btn-ghost" style="font-size:12px" onclick="renewalAddClient()">+ Add</button>`;
 }
 
-export function renderRenewalPipeline() {
-  if (_status !== 'loading' && Date.now() - _loadedAt > STALE_MS) loadRenewalDates();
-  const deals = renewalDeals();
-  let html = `<div style="padding:0 20px 8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--text-muted)">
-    <span>${deals.length} client${deals.length !== 1 ? 's' : ''} · drag a card to move it. Every move is logged with its date.</span>
-    ${_status === 'error' ? '<span style="color:#b91c1c">Stage dates did not load.</span>' : ''}
-    <span style="flex:1"></span>${addClientPicker()}
-  </div><div class="board">`;
-  for (const stage of RENEWAL_STAGES) {
+function addUpsellPicker() {
+  const names = journeyDeals().filter(d => !isChurned(d)).map(d => str(d.company)).sort((a, b) => a.localeCompare(b));
+  if (!names.length) return '';
+  const inp = 'padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)';
+  return `<select id="upsell-client" style="${inp}"><option value="">Client…</option>
+      ${names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('')}</select>
+    <input id="upsell-what" placeholder="What's offered (e.g. cold calling)" style="${inp};width:220px">
+    <button class="btn btn-ghost" style="font-size:12px" onclick="renewalAddUpsell()">+ Upsell</button>`;
+}
+
+function laneHtml(stages, deals, noun) {
+  let html = '<div class="board">';
+  for (const stage of stages) {
     const sd = deals.filter(d => d.stage === stage.id);
     const stageKey = btoa(unescape(encodeURIComponent(stage.id)));
+    const note = stage.models === 'retainer' ? 'Retainer clients only' : stage.models === 'per_lead' ? 'Pay-per-meeting only' : '';
     html += `<div class="column" ondragover="event.preventDefault();doDragOver(this)" ondragleave="doDragLeave(event,this)" ondrop="renewalDrop('${stageKey}')">
       <div class="col-header" style="border-top-color:${stage.color}"><div>
         <div class="col-title">${esc(stage.label)}</div>
-        <div class="col-meta">${sd.length} client${sd.length !== 1 ? 's' : ''}</div>
+        <div class="col-meta">${sd.length} ${noun}${sd.length !== 1 ? 's' : ''}${note ? ` · ${note}` : ''}</div>
       </div></div>
-      <div class="col-body">${sd.length ? sd.map(d => cardHtml(d, stageKey)).join('') : '<div class="col-empty">No clients yet</div>'}</div>
+      <div class="col-body">${sd.length ? sd.map(d => cardHtml(d, stageKey)).join('') : `<div class="col-empty">No ${noun}s yet</div>`}</div>
     </div>`;
   }
-  // A card whose stage isn't a board column (renamed stage, hand edit) would vanish — list it instead.
-  const stray = deals.filter(d => !RENEWAL_STAGES.some(s => s.id === d.stage));
-  if (stray.length) html += `<div style="padding:8px 20px;font-size:12px;color:#b91c1c">Off-board stage: ${stray.map(d => `<a href="#" onclick="event.preventDefault();openDeal(${jsArg(d.id)})">${esc(d.company)} (${esc(d.stage || 'blank')})</a>`).join(', ')}</div>`;
   return html + '</div>';
+}
+
+export function renderRenewalPipeline() {
+  if (_status !== 'loading' && Date.now() - _loadedAt > STALE_MS) loadRenewalDates();
+  const all = renewalDeals();
+  const churned = all.filter(isChurned);
+  const live = all.filter(d => !isChurned(d));
+  const journey = live.filter(d => !isUpsellCard(d));
+  const upsells = live.filter(isUpsellCard);
+  const churnedNames = [...new Set(churned.map(d => str(d.company)))].sort((a, b) => a.localeCompare(b));
+  const bar = 'padding:0 20px 8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--text-muted)';
+  let html = `<div style="${bar}">
+    <span>${journey.length} client${journey.length !== 1 ? 's' : ''} · one card per client, drag to move it. Every move is logged with its date.</span>
+    ${_status === 'error' ? '<span style="color:#b91c1c">Stage dates did not load.</span>' : ''}
+    <span style="flex:1"></span>${addClientPicker()}
+  </div>`;
+  if (churnedNames.length) html += `<div style="padding:0 20px 8px;font-size:11px;color:#94a3b8" title="Inactive in Settings → Clients. Hidden, not deleted — stage history is kept.">Hidden, churned: ${churnedNames.map(esc).join(', ')}</div>`;
+  html += laneHtml(JOURNEY_STAGES, journey, 'client');
+  html += `<div style="${bar};padding-top:14px;border-top:1px solid var(--border);margin-top:6px">
+    <strong style="color:var(--text)">Upsells</strong>
+    <span>${upsells.length} · anything agreed that raises what the client pays — any billing model</span>
+    <span style="flex:1"></span>${addUpsellPicker()}
+  </div>`;
+  html += laneHtml(UPSELL_STAGES, upsells, 'upsell');
+  // A card whose stage isn't a board column (renamed stage, hand edit) would vanish — list it instead.
+  const stray = live.filter(d => !RENEWAL_STAGES.some(s => s.id === d.stage));
+  if (stray.length) html += `<div style="padding:8px 20px;font-size:12px;color:#b91c1c">Off-board stage: ${stray.map(d => `<a href="#" onclick="event.preventDefault();openDeal(${jsArg(d.id)})">${esc(d.company)} (${esc(d.stage || 'blank')})</a>`).join(', ')}</div>`;
+  return html;
 }
 
 // ─── Sub-tabs (Pipeline / Schedule) ───
@@ -172,7 +222,7 @@ export function renderRenewalsSubTabs() {
 
 function switchRenewalsSubTab(tab) {
   state.renewalsSubTab = tab;
-  location.hash = tab === 'pipeline' ? 'renewals' : 'renewals/' + tab;
+  location.hash = tab === 'pipeline' ? 'acquisition/journey' : 'acquisition/journey/' + tab;
   render();
 }
 
@@ -181,7 +231,18 @@ async function renewalDrop(stageKey) {
   const id = state.dragId;
   state.dragId = null;
   if (!id) return;
-  await moveDeal(id, decodeURIComponent(escape(atob(stageKey))));
+  const to = decodeURIComponent(escape(atob(stageKey)));
+  const deal = renewalDeals().find(d => d.id === id);
+  if (deal) {
+    // A journey card can't become an upsell (or back) by dragging — they're different things.
+    if (isUpsellCard(deal) !== UPSELL_IDS.has(to)) { showToast(isUpsellCard(deal) ? 'Upsell cards move between the Upsell columns only.' : 'Add an upsell with "+ Upsell" — the client card stays on the journey.', 'error'); return; }
+    const stage = RENEWAL_STAGES.find(s => s.id === to);
+    if (!stageFits(stage, deal.company)) {
+      showToast(modelOf(deal.company) === 'retainer' ? `${deal.company} is on a retainer — "Active" is for pay-per-meeting clients.` : `${deal.company} is pay-per-meeting — renewal doesn't apply. Use Active, or add an upsell.`, 'error');
+      return;
+    }
+  }
+  await moveDeal(id, to);
   loadRenewalDates(); // the trigger has logged the move; pick up its date
 }
 
@@ -196,6 +257,27 @@ async function renewalAddClient() {
   render();
 }
 
+async function renewalAddUpsell() {
+  const name = document.getElementById('upsell-client')?.value;
+  const what = str(document.getElementById('upsell-what')?.value).trim();
+  if (!name) { showToast('Pick the client the upsell is for.', 'error'); return; }
+  if (!what) { showToast("Say what's being offered.", 'error'); return; }
+  const from = cardFor(name) || {};
+  const card = {
+    id: uid(), pipeline: RENEWAL_PIPELINE, stage: UPSELL_STAGES[0].id, flag: '',
+    company: str(from.company) || name,
+    contact: str(from.contact), email: str(from.email), phone: str(from.phone),
+    notes: `Upsell: ${what}`,
+    createdDate: getToday(), lastUpdated: getToday(),
+  };
+  store.addDeal(card);
+  try { await sbCreateDeal(camelToSnake(card)); }
+  catch (e) { console.error('[upsell] card not created:', e); showToast(`Upsell for ${name} was not saved: ${e?.message || e}`, 'error'); }
+  _loadedAt = 0;
+  render();
+}
+
 window.switchRenewalsSubTab = switchRenewalsSubTab;
+window.renewalAddUpsell = renewalAddUpsell;
 window.renewalDrop = renewalDrop;
 window.renewalAddClient = renewalAddClient;

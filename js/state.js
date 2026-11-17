@@ -12,7 +12,7 @@ export const state = {
   activities: [],
   clients: [],
   appointments: [],
-  pipeline: (() => { try { const h=location.hash.replace('#','').split('/')[0]; if(h==='archive'||h==='nurture'){location.hash='acquisition';return 'acquisition';} return ['dashboard','acquisition','client_leads','renewals'].includes(h)?h:'dashboard'; } catch(e){ return 'acquisition'; } })(),
+  pipeline: (() => { try { const h=location.hash.replace('#','').split('/')[0]; if(h==='archive'||h==='nurture'){location.hash='acquisition';return 'acquisition';} if(h==='renewals'){location.hash=location.hash.includes('/schedule')?'acquisition/journey/schedule':'acquisition/journey';return 'acquisition';} return ['dashboard','acquisition','client_leads'].includes(h)?h:'dashboard'; } catch(e){ return 'acquisition'; } })(),
   selectedDeal: null,
   showNew: false,
   showAddClient: false,
@@ -61,12 +61,12 @@ export const state = {
   showChannelFilterDropdown: false,
   countryFilter: (() => { try { const v = JSON.parse(localStorage.getItem('tht_countryFilter') || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } })(),
   showCountryFilterDropdown: false,
-  acquisitionSubTab: (() => { try { const parts = location.hash.replace('#','').split('/'); if (parts[0] === 'acquisition' && parts[1]) { const valid = ['pipeline','nurture','demo_tracker']; return valid.includes(parts[1]) ? parts[1] : 'pipeline'; } return 'pipeline'; } catch { return 'pipeline'; } })(),
+  acquisitionSubTab: (() => { try { const parts = location.hash.replace('#','').split('/'); if (parts[0] === 'acquisition' && parts[1]) { const valid = ['pipeline','nurture','demo_tracker','journey']; return valid.includes(parts[1]) ? parts[1] : 'pipeline'; } return 'pipeline'; } catch { return 'pipeline'; } })(),
   // Mirrored in the URL (#client_leads/analysis) like acquisitionSubTab, so the
   // sub-tab survives a reload — including the automatic one a new deploy
   // triggers. Without this any reload silently dropped you back on Pipeline.
-  // Renewals tab: 'pipeline' (the Renewal board) or 'schedule' (the retainer renewal table), mirrored in #renewals/schedule.
-  renewalsSubTab: (() => { try { const parts = location.hash.replace('#','').split('/'); return parts[0] === 'renewals' && parts[1] === 'schedule' ? 'schedule' : 'pipeline'; } catch { return 'pipeline'; } })(),
+  // Acquisition → Client Journey: 'pipeline' (the journey board) or 'schedule' (the retainer renewal table), mirrored in #acquisition/journey/schedule.
+  renewalsSubTab: (() => { try { const parts = location.hash.replace('#','').split('/'); return parts[0] === 'acquisition' && parts[1] === 'journey' && parts[2] === 'schedule' ? 'schedule' : 'pipeline'; } catch { return 'pipeline'; } })(),
   // Check-ins tab: the client whose pre-call brief is open, mirrored in #client_leads/checkins/<name>.
   checkinClient: (() => { try { const parts = location.hash.replace('#','').split('/'); return parts[0] === 'client_leads' && parts[1] === 'checkins' && parts[2] ? decodeURIComponent(parts[2]) : ''; } catch { return ''; } })(),
   clientLeadsSubTab: (() => { try { const parts = location.hash.replace('#','').split('/'); if (parts[0] === 'client_leads' && parts[1]) { const valid = ['pipeline','checkins','lead_tracker','weekly_updates','analysis']; return valid.includes(parts[1]) ? parts[1] : 'pipeline'; } return 'pipeline'; } catch { return 'pipeline'; } })(),

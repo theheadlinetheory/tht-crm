@@ -40,17 +40,32 @@ export const NURTURE_STAGES = [
   { id: "Service Area Taken", label: "Service Area Taken", color: "#f97316" },
 ];
 
-// Renewal pipeline (Aidan, 2026-10-14): won clients, from onboarding to the renewal.
-// An Acquisition deal closed Won lands here at Onboarded (renewal-pipeline.js).
-// Stage ids are also named in the renewal_stage_dates view — rename both together.
-export const RENEWAL_STAGES = [
-  { id: "Onboarded", label: "Onboarded", color: "#64748b" },
-  { id: "Campaigns Started", label: "Campaigns Started", color: "#2563eb" },
-  { id: "Activation Point", label: "Activation Point", color: "#8b5cf6" },
-  { id: "Renewal Call Booked", label: "Renewal Call Booked", color: "#0891b2" },
-  { id: "Renewal Offered", label: "Renewal Offered", color: "#d97706" },
-  { id: "Renewal Closed", label: "Renewal Closed", color: "#059669" },
+// Client journey (was the Renewal pipeline; Aidan 2026-10-14, widened 2026-11-18).
+// Won clients, onboarding through renewal and upsells. Lives under Acquisition →
+// Client Journey. An Acquisition deal closed Won lands at Onboarded (renewal-pipeline.js).
+// Every card is still a deals row with pipeline 'Renewal', so the existing stage
+// trigger logs it. Stage ids are named in the renewal_stage_dates view — keep the
+// ids, change only labels ("Renewal Closed" shows as "Renewed").
+// `models` = the billing models a stage applies to: renewal stages are retainer
+// only; pay-per-meeting (billing_model 'per_lead') clients sit in Active instead.
+export const JOURNEY_STAGES = [
+  { id: "Onboarded", label: "Onboarded", color: "#64748b", models: "all" },
+  { id: "Campaigns Started", label: "Campaigns Started", color: "#2563eb", models: "all" },
+  { id: "Activation Point", label: "Activation Point", color: "#8b5cf6", models: "all" },
+  { id: "Active", label: "Active (pay-per-meeting)", color: "#0d9488", models: "per_lead" },
+  { id: "Renewal Call Booked", label: "Renewal Call Booked", color: "#0891b2", models: "retainer" },
+  { id: "Renewal Offered", label: "Renewal Offered", color: "#d97706", models: "retainer" },
+  { id: "Renewal Closed", label: "Renewed", color: "#059669", models: "retainer" },
 ];
+// Upsells run beside the journey as their own cards — a client can be renewing
+// and mid-upsell at once. Anything agreed that raises what the client pays us
+// counts, no minimum size. Any billing model.
+export const UPSELL_STAGES = [
+  { id: "Upsell Offered", label: "Upsell Offered", color: "#7c3aed", models: "all" },
+  { id: "Upsell Taken", label: "Upsell Taken", color: "#16a34a", models: "all" },
+  { id: "Upsell Declined", label: "Upsell Declined", color: "#94a3b8", models: "all" },
+];
+export const RENEWAL_STAGES = [...JOURNEY_STAGES, ...UPSELL_STAGES];
 
 export const ALL_PIPELINES = [
   { id: "dashboard", label: "Dashboard" },
@@ -58,7 +73,6 @@ export const ALL_PIPELINES = [
   { id: "acquisition", label: "Acquisition" },
   { id: "client_leads", label: "Client Leads" },
   { id: "cold_calling", label: "Cold Calling" },
-  { id: "renewals", label: "Renewals" },
   { id: "hiring", label: "Hiring" },
 ];
 

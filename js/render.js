@@ -246,12 +246,10 @@ function renderInternal(){
     return;
   }
 
-  // ─── Renewals Tab ───
-  // Pipeline: the Renewal board (renewal-pipeline.js). Schedule: the read-only
-  // retainer renewal table, so the dates can be checked without waiting on the
-  // 7/3/1 notices. Admin-only: it shows retainer amounts.
-  // Hiring (hiring.js) shares this admin-only frame: the candidate board.
-  if(state.pipeline==='renewals' || state.pipeline==='hiring'){
+  // ─── Hiring Tab ───
+  // Hiring (hiring.js): the candidate board, admin-only. The Renewals tab that
+  // shared this frame moved to Acquisition → Client Journey (2026-11-18).
+  if(state.pipeline==='hiring'){
     if(!isAdmin()){ state.pipeline='dashboard'; location.hash='dashboard'; render(); return; }
     let html=`
     <div class="topbar">
@@ -266,15 +264,14 @@ function renderInternal(){
     // render() is one big try/catch, so an unguarded throw in here would abort
     // before app.innerHTML is assigned and silently leave the previous screen up.
     try{
-      html+=state.pipeline==='hiring'?renderHiring():renderRenewalsSubTabs()+(state.renewalsSubTab==='schedule'?renderRenewals():renderRenewalPipeline());
+      html+=renderHiring();
     }catch(err){
-      console.error('Renewals render failed:', err);
+      console.error('Hiring render failed:', err);
       html+=`<div style="padding:32px;text-align:center">
-        <div style="font-size:14px;font-weight:700;color:#b91c1c;margin-bottom:6px">The ${state.pipeline==='hiring'?'Hiring':'Renewals'} tab hit an error</div>
+        <div style="font-size:14px;font-weight:700;color:#b91c1c;margin-bottom:6px">The Hiring tab hit an error</div>
         <div style="font-size:12px;color:var(--text-muted);max-width:560px;margin:0 auto">${esc(str(err&&err.message)||'Unknown error')}</div>
       </div>`;
     }
-    if(state.selectedDeal) html+=renderDealModal(state.selectedDeal); // a Renewal card opens here — this screen returns before the modals below
     app.innerHTML=html;
     return;
   }
@@ -353,6 +350,9 @@ function renderInternal(){
       state._loadingAssignableUsers = true;
       loadAssignableUsers().then(() => { state._loadingAssignableUsers = false; render(); }).catch(() => { state._loadingAssignableUsers = false; });
     }
+    // Client Journey carries retainer amounts (Schedule) — admin-only, like the
+    // Renewals tab it replaced. A non-admin on #acquisition/journey lands on Pipeline.
+    if(state.acquisitionSubTab === 'journey' && !isAdmin()){ state.acquisitionSubTab = 'pipeline'; location.hash = 'acquisition'; }
     const subTab = state.acquisitionSubTab || 'pipeline';
     const subCs = 'padding:6px 16px;font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;border-radius:6px;margin-right:4px';
     html += `<div style="padding:0 20px;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between">
@@ -360,6 +360,7 @@ function renderInternal(){
         <button onclick="switchAcqSubTab('pipeline')" style="${subCs};background:${subTab==='pipeline'?'var(--purple)':'#f3f4f6'};color:${subTab==='pipeline'?'#fff':'var(--text-muted)'}">Pipeline</button>
         <button onclick="switchAcqSubTab('nurture')" style="${subCs};background:${subTab==='nurture'?'var(--purple)':'#f3f4f6'};color:${subTab==='nurture'?'#fff':'var(--text-muted)'}">Nurture</button>
         ${(isAdmin()||isEmployee())?`<button onclick="switchAcqSubTab('demo_tracker')" style="${subCs};background:${subTab==='demo_tracker'?'var(--purple)':'#f3f4f6'};color:${subTab==='demo_tracker'?'#fff':'var(--text-muted)'}">Demo Tracker</button>`:''}
+        ${isAdmin()?`<button onclick="switchAcqSubTab('journey')" style="${subCs};background:${subTab==='journey'?'var(--purple)':'#f3f4f6'};color:${subTab==='journey'?'#fff':'var(--text-muted)'}">Client Journey</button>`:''}
       </div>
       ${subTab==='pipeline'?`<div style="display:flex;gap:6px;align-items:center">
         <button onclick="state.myDealsFilter=!state.myDealsFilter;render()" style="padding:4px 12px;font-size:11px;font-weight:600;font-family:var(--font);cursor:pointer;border:1px solid ${state.myDealsFilter?'var(--purple)':'var(--border)'};border-radius:6px;background:${state.myDealsFilter?'#f3e8ff':'#fff'};color:${state.myDealsFilter?'var(--purple)':'var(--text-muted)'}">
@@ -376,6 +377,22 @@ function renderInternal(){
       }
       html += renderNurtureTab();
       if(state.selectedDeal) html+=renderDealModal(state.selectedDeal); // this screen returns before the modals below — openNurtureDeal's card has to be added here
+      app.innerHTML = html;
+      return;
+    }
+
+    // Client Journey: the journey board (renewal-pipeline.js) or the read-only
+    // retainer renewal Schedule. render() is one big try/catch, so guard it here
+    // or a throw would silently leave the previous screen up.
+    if(subTab === 'journey'){
+      try{
+        html += renderRenewalsSubTabs() + (state.renewalsSubTab==='schedule' ? renderRenewals() : renderRenewalPipeline());
+      }catch(err){
+        console.error('Client Journey render failed:', err);
+        html += `<div style="padding:32px;text-align:center"><div style="font-size:14px;font-weight:700;color:#b91c1c;margin-bottom:6px">The Client Journey tab hit an error</div>
+          <div style="font-size:12px;color:var(--text-muted);max-width:560px;margin:0 auto">${esc(str(err&&err.message)||'Unknown error')}</div></div>`;
+      }
+      if(state.selectedDeal) html+=renderDealModal(state.selectedDeal); // a journey card opens here — this screen returns before the modals below
       app.innerHTML = html;
       return;
     }
@@ -983,6 +1000,7 @@ window.refreshModal = refreshModal;
 window.switchPipeline = switchPipeline;
 function switchAcqSubTab(tab) {
   state.acquisitionSubTab = tab;
+  if (tab === 'journey') state.renewalsSubTab = 'pipeline';
   location.hash = tab === 'pipeline' ? 'acquisition' : 'acquisition/' + tab;
   render();
 }
@@ -995,14 +1013,15 @@ window.switchAcqSubTab = switchAcqSubTab;
 // and the next reload (the automatic one a deploy triggers on tab focus) opened
 // that other tab instead of the Sales Pipeline (Lars, 2026-10-05). Follow the
 // hash so the URL and the screen never disagree.
-const ACQ_SUBTABS = ['pipeline','nurture','demo_tracker'];
+const ACQ_SUBTABS = ['pipeline','nurture','demo_tracker','journey'];
 const CL_SUBTABS = ['pipeline','checkins','lead_tracker','weekly_updates','analysis'];
 window.addEventListener('hashchange', () => {
   const [p, sub, ciName] = location.hash.replace('#','').split('/');
+  if (p === 'renewals') { location.replace('#acquisition/journey' + (sub === 'schedule' ? '/schedule' : '')); return; } // old bookmark
   if (!getVisiblePipelinesWithArchive().some(x => x.id === p)) return;
   const acqSub = p === 'acquisition' && ACQ_SUBTABS.includes(sub) ? sub : 'pipeline';
   const clSub = p === 'client_leads' && CL_SUBTABS.includes(sub) ? sub : 'pipeline';
-  const rnSub = p === 'renewals' && sub === 'schedule' ? 'schedule' : 'pipeline';
+  const rnSub = p === 'acquisition' && sub === 'journey' && ciName === 'schedule' ? 'schedule' : 'pipeline';
   const ccSub = p === 'cold_calling' && ['pipeline','leaderboard','tracker','passed','industries','feedback','manager'].includes(sub) ? sub : 'queue';
   let ciClient = state.checkinClient;
   if (clSub === 'checkins' && ciName) { try { ciClient = decodeURIComponent(ciName); } catch {} }

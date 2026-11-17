@@ -102,7 +102,7 @@ export function setupAuthListener(onLogin){
       showTransitionScreen('Loading your CRM...');
 
       const hash = location.hash.replace('#','').split('/')[0];
-      // Any tab this role can see survives a reload (Renewals, and Dashboard/Funnel
+      // Any tab this role can see survives a reload (Client Journey, and Dashboard/Funnel
       // for employees, used to fall back to Client Leads).
       const visible = getVisiblePipelinesWithArchive().map(p => p.id);
       state.pipeline = hash && (visible.includes(hash) || (isAdmin() && hash === 'nurture')) ? hash : isSdr() ? 'cold_calling' : 'client_leads';
