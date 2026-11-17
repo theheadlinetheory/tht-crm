@@ -689,7 +689,22 @@ const TREND_METRICS = [
 // Categorical slots in fixed order (dataviz default palette, validated light 2026-11-18). A rep keeps their colour
 // whatever the range: it follows their place in the full caller list, not the reps who happen to be on screen.
 const REP_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
-const trend = { metric: 'dials', gran: 'week', weeks: 8 };
+const trend = { metric: 'dials', gran: 'week', weeks: 8, trade: '', client: '' };
+
+// Trade filter (Aidan, 2026-11-18: "HVAC vs landscaping … we are not booking enough HVAC appointments"). Clients carry no
+// trade field, so it is read off the client's name and service list; HVAC wins when both match.
+const TRADES = ['HVAC', 'Landscaping', 'Other'];
+const _tradeCache = new Map();
+function tradeOf(clientName) {
+  if (!clientName) return ''; // a dial with no client belongs to no trade
+  if (_tradeCache.has(clientName)) return _tradeCache.get(clientName);
+  const c = (state.clients || []).find(x => x.name === clientName);
+  const txt = (String(clientName || '') + ' ' + (c ? [].concat(c.services || []).join(' ') : '')).toLowerCase();
+  const t = /hvac|heating|air condition|refrigerat|rooftop unit|airlast/.test(txt) ? 'HVAC'
+    : /landscap|lawn|mow|grounds|landcare|turf|snow/.test(txt) ? 'Landscaping' : 'Other';
+  if (c) _tradeCache.set(clientName, t);
+  return t;
+}
 let _trend = null; // what is drawn, for the hover
 
 const shortDate = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -725,21 +740,32 @@ function repTrendsHtml() {
   const sdrs = new Set((state.assignableUsers || []).filter(u => u.role === 'sdr').map(u => (u.email || '').toLowerCase()));
   const start = periods[0].from, end = periods[periods.length - 1].to;
   // Reps with a dial in the range, plus every SDR login even at zero — a flat line is the point.
+  const filtered = !!(trend.trade || trend.client);
+  const pool = cc.calls.filter(r => (!trend.trade || tradeOf(r.client_name) === trend.trade) && (!trend.client || r.client_name === trend.client));
   const reps = everyone.map((email, i) => {
-    const mine = cc.calls.filter(r => r.agent_email === email);
+    const mine = pool.filter(r => r.agent_email === email);
     const vals = periods.map(p => tally(mine, p.from, p.to)[m.key]);
-    return { email, name: repName(email), color: REP_COLORS[i] || '#94a3b8', vals, total: tally(mine, start, end)[m.key], dials: tally(mine, start, end).dials };
-  }).filter(r => r.dials > 0 || sdrs.has(r.email));
+    return { email, name: repName(email), short: repName(email).split(' ')[0], color: REP_COLORS[i] || '#94a3b8', vals, total: tally(mine, start, end)[m.key], dials: tally(mine, start, end).dials };
+  }).filter(r => r.dials > 0 || (!filtered && sdrs.has(r.email)));
+  // With two or more reps, the team total is drawn too (dark, thicker): the trend for the trade or client as a whole.
+  if (reps.length > 1) reps.push({ email: '', name: 'All reps', short: 'All', color: '#1e293b', team: true,
+    vals: periods.map(p => tally(pool, p.from, p.to)[m.key]), total: tally(pool, start, end)[m.key] });
 
   const unit = trend.gran === 'week' ? 'week' : 'day';
-  const quota = m.quota ? +(m.quota(cc.quotas) * (trend.gran === 'week' ? 5 : 1)).toFixed(1) : null;
+  const quota = m.quota && !filtered ? +(m.quota(cc.quotas) * (trend.gran === 'week' ? 5 : 1)).toFixed(1) : null;
   const rangeTxt = `last ${trend.weeks} weeks (${shortDate(start)} – ${shortDate(today())})`;
   const chip = (key, val, label) => `<button data-action="ccTrend" data-key="${key}" data-val="${val}" style="padding:4px 11px;border:1px solid ${String(trend[key]) === String(val) ? '#1e1b4b' : 'var(--border)'};border-radius:999px;background:${String(trend[key]) === String(val) ? '#1e1b4b' : '#fff'};color:${String(trend[key]) === String(val) ? '#fff' : '#334155'};font-size:11px;font-weight:600;cursor:pointer">${label}</button>`;
   const controls = `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
     ${TREND_METRICS.map(x => chip('metric', x.key, x.label)).join('')}
     <span style="width:1px;height:18px;background:#e2e8f0;margin:0 4px"></span>${chip('gran', 'week', 'Per week')}${chip('gran', 'day', 'Per day')}
-    <span style="width:1px;height:18px;background:#e2e8f0;margin:0 4px"></span>${[4, 8, 12].map(n => chip('weeks', n, n + ' weeks')).join('')}</div>`;
-  if (!reps.length) return controls + `<div style="font-size:12px;color:#94a3b8">No dials in the ${rangeTxt}.</div>`;
+    <span style="width:1px;height:18px;background:#e2e8f0;margin:0 4px"></span>${[4, 8, 12].map(n => chip('weeks', n, n + ' weeks')).join('')}
+    <span style="width:1px;height:18px;background:#e2e8f0;margin:0 4px"></span>${chip('trade', '', 'All trades')}${TRADES.filter(t => cc.calls.some(r => tradeOf(r.client_name) === t)).map(t => chip('trade', t, t)).join('')}
+    <select data-action="ccTrendClient" style="padding:4px 8px;font-size:11px;border:1px solid ${trend.client ? '#1e1b4b' : 'var(--border)'};border-radius:999px;font-weight:600;color:#334155">
+      <option value="">${trend.trade ? 'All ' + esc(trend.trade) + ' clients' : 'All clients'}</option>
+      ${[...new Set(cc.calls.map(r => r.client_name).filter(Boolean))].filter(c => !trend.trade || tradeOf(c) === trend.trade).sort().map(c => `<option value="${esc(c)}" ${trend.client === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}
+    </select></div>`;
+  const scopeTxt = trend.client ? esc(trend.client) : trend.trade ? esc(trend.trade) + ' clients' : '';
+  if (!reps.length) return controls + `<div style="font-size:12px;color:#94a3b8">No dials${scopeTxt ? ' for ' + scopeTxt : ''} in the ${rangeTxt}.</div>`;
 
   // The chart: one y scale (the metric), one line per rep, the quota as a dashed reference.
   const W = 1000, H = 240, L = 34, R = 110, T = 12, B = 24, n = periods.length;
@@ -757,15 +783,15 @@ function repTrendsHtml() {
   const ends = reps.map(r => ({ r, y: y(r.vals[n - 1]) })).sort((a, b) => a.y - b.y);
   for (let k = 1; k < ends.length; k++) if (ends[k].y - ends[k - 1].y < 12) ends[k].y = ends[k - 1].y + 12;
   for (let k = ends.length - 1; k >= 0; k--) ends[k].y = Math.min(ends[k].y, H - B - 12 * (ends.length - 1 - k)); // keep them above the axis
-  for (const r of reps) {
+  for (const r of [...reps].sort((a, b) => (b.team ? 1 : 0) - (a.team ? 1 : 0))) { // team total first, so reps draw on top of it
     const pts = r.vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`);
     // The period still running is dashed: its number is only part of a week (or day).
     const done = periods[n - 1].partial ? pts.slice(0, -1) : pts;
-    if (done.length > 1) s += `<polyline fill="none" stroke="${r.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${done.join(' ')}"/>`;
+    if (done.length > 1) s += `<polyline fill="none" stroke="${r.color}" stroke-width="${r.team ? 3 : 2}" stroke-linejoin="round" stroke-linecap="round" points="${done.join(' ')}"/>`;
     if (periods[n - 1].partial && n > 1) s += `<polyline fill="none" stroke="${r.color}" stroke-width="2" stroke-dasharray="4 4" points="${pts.slice(-2).join(' ')}"/>`;
     if (n <= 70) s += r.vals.map((v, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="4" fill="${periods[i].partial ? '#fff' : r.color}" stroke="${periods[i].partial ? r.color : '#fff'}" stroke-width="${periods[i].partial ? 2 : 1.5}"/>`).join('');
   }
-  for (const e of ends) s += `<text x="${W - R + 6}" y="${(e.y + 3.5).toFixed(1)}" font-size="11" font-weight="700" fill="#334155">${esc(e.r.name.split(' ')[0])} ${e.r.vals[n - 1]}</text>`;
+  for (const e of ends) s += `<text x="${W - R + 6}" y="${(e.y + 3.5).toFixed(1)}" font-size="11" font-weight="700" fill="#334155">${esc(e.r.short)} ${e.r.vals[n - 1]}</text>`;
   _trend = { periods, reps, xs: periods.map((_, i) => x(i)), W, label: m.label, unit };
   const svg = `<div id="cc-trend-wrap" style="position:relative"><svg viewBox="0 0 ${W} ${H}" style="display:block;width:100%;height:auto" onmousemove="ccTrendHover(event)" onmouseleave="ccTrendLeave()">${s}
     <line id="cc-trend-xh" x1="0" x2="0" y1="${T}" y2="${H - B}" stroke="#9ca3af" stroke-dasharray="3 3" style="display:none"/></svg>
@@ -773,15 +799,26 @@ function repTrendsHtml() {
 
   // Legend = each rep's total for the whole range, with the range named.
   const legend = `<div style="display:flex;flex-wrap:wrap;gap:4px 18px;margin-bottom:6px">${reps.map(r => `<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#334155">
-    <span style="width:10px;height:10px;border-radius:50%;background:${r.color}"></span><b>${esc(r.name)}</b> <span style="color:#64748b">${r.total} ${esc(m.label.toLowerCase())} in the ${esc(rangeTxt)}</span></span>`).join('')}</div>`;
+    <span style="width:10px;height:10px;border-radius:50%;background:${r.color}"></span><b>${esc(r.name)}</b> <span style="color:#64748b">${r.total} ${esc(m.label.toLowerCase())}${scopeTxt ? ' for ' + scopeTxt : ''} in the ${esc(rangeTxt)}</span></span>`).join('')}</div>`;
 
   // The numbers underneath, newest period first, every column headed by its period.
   const cols = [...periods.keys()].reverse();
   const table = `<div style="overflow-x:auto;margin-top:10px;border:1px solid var(--border);border-radius:8px;background:#fff"><table style="border-collapse:collapse;width:100%">
     <thead><tr><th style="${th}">${esc(m.label)} per ${unit}</th>${cols.map(i => `<th style="${th};text-align:right${periods[i].partial ? ';color:#94a3b8' : ''}">${esc(periods[i].head)}</th>`).join('')}</tr></thead>
-    <tbody>${reps.map(r => `<tr><td style="${td};white-space:nowrap"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${r.color};margin-right:6px"></span><b>${esc(r.name)}</b></td>
+    <tbody>${reps.map(r => `<tr${r.team ? ' style="background:#f1f5f9"' : ''}><td style="${td};white-space:nowrap"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${r.color};margin-right:6px"></span><b>${esc(r.name)}</b></td>
       ${cols.map(i => { const v = r.vals[i], c = quota == null || periods[i].partial ? '#0f172a' : v >= quota ? '#15803d' : v >= quota * 0.6 ? '#b45309' : '#dc2626';
         return `<td style="${td};text-align:right;font-variant-numeric:tabular-nums;font-weight:600;color:${periods[i].partial ? '#94a3b8' : c}" title="${esc(r.name)}: ${v} ${esc(m.label.toLowerCase())}, ${esc(periods[i].long)}">${v}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`;
+
+  // Per client: the same metric and periods, one row per client in the trade (or the one client picked). Click a name to chart it.
+  const clientNames = [...new Set(pool.map(r => r.client_name).filter(Boolean))];
+  const byClient = clientNames.map(c => { const rows = pool.filter(r => r.client_name === c); return { c, vals: periods.map(p => tally(rows, p.from, p.to)[m.key]), total: tally(rows, start, end)[m.key] }; })
+    .sort((a, b) => b.total - a.total || a.c.localeCompare(b.c));
+  const clientTable = byClient.length ? `<div style="font-size:12px;font-weight:700;color:#334155;margin:14px 0 4px">By client${trend.trade ? ' · ' + esc(trend.trade) : ''} <span style="font-weight:400;color:#94a3b8">(all reps; click a client to chart only them)</span></div>
+    <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;background:#fff"><table style="border-collapse:collapse;width:100%">
+    <thead><tr><th style="${th}">${esc(m.label)} per ${unit}</th><th style="${th}">Trade</th><th style="${th};text-align:right">${esc(rangeTxt.replace(/^last/, 'Last'))}</th>${cols.map(i => `<th style="${th};text-align:right${periods[i].partial ? ';color:#94a3b8' : ''}">${esc(periods[i].head)}</th>`).join('')}</tr></thead>
+    <tbody>${byClient.map(b => `<tr><td style="${td};white-space:nowrap"><a data-action="ccTrend" data-key="client" data-val="${esc(b.c)}" style="cursor:pointer;color:#1e1b4b;font-weight:700">${esc(b.c)}</a></td><td style="${td};color:#64748b">${esc(tradeOf(b.c))}</td>
+      <td style="${td};text-align:right;font-weight:800;font-variant-numeric:tabular-nums" title="${esc(b.c)}: ${b.total} ${esc(m.label.toLowerCase())}, ${esc(rangeTxt)}">${b.total}</td>
+      ${cols.map(i => `<td style="${td};text-align:right;font-variant-numeric:tabular-nums;color:${periods[i].partial ? '#94a3b8' : b.vals[i] ? '#0f172a' : '#cbd5e1'}" title="${esc(b.c)}: ${b.vals[i]} ${esc(m.label.toLowerCase())}, ${esc(periods[i].long)}">${b.vals[i]}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '';
 
   const note = {
     dials: 'Every Sales Dialer dial, on the day it was made.',
@@ -789,7 +826,7 @@ function repTrendsHtml() {
     booked: 'Meetings booked, on the day they were booked (the booking date, not the meeting date), less any marked not counted.',
     noShow: 'Booked meetings marked No-show in "Booked meetings: did they show?" below, counted in the period they were booked. A meeting nobody has marked yet counts as neither, so recent weeks fill in late.',
   }[m.key];
-  return controls + legend + svg + table + `<div style="font-size:11px;color:#94a3b8;margin-top:6px">${note} ${quota != null ? `Dashed grey line = the quota (${quota} ${esc(m.label.toLowerCase())} per ${unit}, from Quotas below); table colours: green on quota, amber within 60%, red behind.` : ''} The ${unit === 'week' ? 'current week' : 'current day'} is dashed and greyed: it is not over yet. Weeks run Monday–Sunday.</div>`;
+  return controls + legend + svg + table + clientTable + `<div style="font-size:11px;color:#94a3b8;margin-top:6px">${note} ${filtered ? 'Filtered to ' + scopeTxt + ': no quota line (quotas are per rep across all clients). Trade is read from each client\'s name and services. ' : ''}${quota != null ? `Dashed grey line = the quota (${quota} ${esc(m.label.toLowerCase())} per ${unit}, from Quotas below); table colours: green on quota, amber within 60%, red behind.` : ''} The ${unit === 'week' ? 'current week' : 'current day'} is dashed and greyed: it is not over yet. Weeks run Monday–Sunday.</div>`;
 }
 
 window.ccTrendHover = (ev) => {
@@ -1241,12 +1278,15 @@ registerActions({
     if (el.dataset.tab === 'feedback') cc.feedback = null;
     render();
   },
+  ccTrendClient(el, e) { if (e.type !== 'change') return; trend.client = el.value; render(); },
   ccToggleAllLeads() { state.ccAllLeads = !state.ccAllLeads; render(); },
   ccTrend(el) {
     const { key, val } = el.dataset;
     if (key === 'metric' && TREND_METRICS.some(m => m.key === val)) trend.metric = val;
     if (key === 'gran' && (val === 'week' || val === 'day')) trend.gran = val;
     if (key === 'weeks' && [4, 8, 12].includes(Number(val))) trend.weeks = Number(val);
+    if (key === 'trade' && (val === '' || TRADES.includes(val))) { trend.trade = val; trend.client = ''; }
+    if (key === 'client') trend.client = val || '';
     render();
   },
   ccIndustryDays(el, e) { if (e.type !== 'change') return; cc.industryFilter = { ...(cc.industryFilter || { client: '' }), days: Number(el.value) }; render(); },
