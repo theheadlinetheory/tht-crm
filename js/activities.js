@@ -1,14 +1,14 @@
 // ═══════════════════════════════════════════════════════════
 // ACTIVITIES — Activity CRUD, SOP sequences, overdue tracking
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites, completedActivityIds, deletedActivityIds, inFlightActivityIds } from './app.js?v=20261118232729';
-import { SOP_DAYS, CLIENT_SOP_DAYS, PRE_CALL_SEQUENCE, NO_SHOW_SEQUENCE, REACTIVATION_DAYS } from './config.js?v=20261118232729';
-import { render, refreshModal } from './render.js?v=20261118232729';
-import { sbCreateActivity, sbUpdateActivity, sbDeleteActivity, camelToSnake } from './api.js?v=20261118232729';
-import { uid, getToday, isValidDate, fmtTime12, esc, jsArg } from './utils.js?v=20261118232729';
-import { findClientForDeal } from './client-info.js?v=20261118232729';
-import { isDay1EmailTask, askEmailTemplate } from './email-template-pick.js?v=20261118232729';
-import { upcomingClientAppointments } from './deal-appointment.js?v=20261118232729';
+import { state, store, pendingWrites, completedActivityIds, deletedActivityIds, inFlightActivityIds } from './app.js?v=20261118234043';
+import { SOP_DAYS, CLIENT_SOP_DAYS, PRE_CALL_SEQUENCE, NO_SHOW_SEQUENCE, REACTIVATION_DAYS } from './config.js?v=20261118234043';
+import { render, refreshModal } from './render.js?v=20261118234043';
+import { sbCreateActivity, sbUpdateActivity, sbDeleteActivity, camelToSnake } from './api.js?v=20261118234043';
+import { uid, getToday, isValidDate, fmtTime12, esc, jsArg } from './utils.js?v=20261118234043';
+import { findClientForDeal } from './client-info.js?v=20261118234043';
+import { isDay1EmailTask, askEmailTemplate } from './email-template-pick.js?v=20261118234043';
+import { upcomingClientAppointments } from './deal-appointment.js?v=20261118234043';
 
 async function retryActivityWrite(fn, label, maxRetries=3){
   pendingWrites.value++;
@@ -156,7 +156,7 @@ export function renderUpcomingMeetings(deal, clientName){
   // Returns HTML for upcoming meetings section in deal modal
   const today=getToday();
   // Includes cards booked by date field only (cold-call reps) — see upcomingClientAppointments.
-  const appts=upcomingClientAppointments(state.appointments, state.deals, clientName, today);
+  const appts=upcomingClientAppointments(state.appointments, state.deals, clientName, today, state.trackerEntries);
   if(!appts.length) return '';
   let h=`<div style="margin-bottom:12px;padding:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px">
     <div style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:6px">Upcoming Appointments</div>`;

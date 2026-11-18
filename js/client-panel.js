@@ -25,19 +25,20 @@
 // mid-edit. Edits save straight to Supabase (debounced) and patch the affected
 // DOM nodes in place — the panel is never wholesale re-rendered while open.
 
-import { state } from './app.js?v=20261118232729';
-import { esc, escAttr, safeUrl, str, getToday, isValidDate, svgIcon } from './utils.js?v=20261118232729';
-import { isAdmin, isEmployee } from './auth.js?v=20261118232729';
-import { lookupClientInfo } from './client-info.js?v=20261118232729';
-import { sbUpdateClient, sbGetWonAcquisitionCards } from './api.js?v=20261118232729';
-import { registerActions } from './delegate.js?v=20261118232729';
-import { buildAcquisitionCard, indexWonCards, matchCardForClient, answeredQuestions } from './client-acquisition.js?v=20261118232729';
-import { parseProperties, areaOf } from './client-properties.js?v=20261118232729';
-import { renderCallSheetLink } from './call-sheet.js?v=20261118232729';
-import { findPolygonForClient, renderServiceAreaMap } from './maps.js?v=20261118232729';
-import { coldCallsSectionHtml, fillColdCallsSection } from './client-cold-calls.js?v=20261118232729';
-import { clientColdCallStatsHtml } from './cold-calling-tab.js?v=20261118232729';
-import { CALL_FIELDS, callCardHtml, onCallCardOpen, showPane, syncImportantDot } from './client-call-card.js?v=20261118232729';
+import { state } from './app.js?v=20261118234043';
+import { esc, escAttr, safeUrl, str, getToday, isValidDate, svgIcon } from './utils.js?v=20261118234043';
+import { isAdmin, isEmployee } from './auth.js?v=20261118234043';
+import { lookupClientInfo } from './client-info.js?v=20261118234043';
+import { sbUpdateClient, sbGetWonAcquisitionCards } from './api.js?v=20261118234043';
+import { registerActions } from './delegate.js?v=20261118234043';
+import { buildAcquisitionCard, indexWonCards, matchCardForClient, answeredQuestions } from './client-acquisition.js?v=20261118234043';
+import { parseProperties, areaOf } from './client-properties.js?v=20261118234043';
+import { renderCallSheetLink } from './call-sheet.js?v=20261118234043';
+import { findPolygonForClient, renderServiceAreaMap } from './maps.js?v=20261118234043';
+import { coldCallsSectionHtml, fillColdCallsSection } from './client-cold-calls.js?v=20261118234043';
+import { clientColdCallStatsHtml } from './cold-calling-tab.js?v=20261118234043';
+import { CALL_FIELDS, callCardHtml, onCallCardOpen, showPane, syncImportantDot } from './client-call-card.js?v=20261118234043';
+import { upcomingClientAppointments } from './deal-appointment.js?v=20261118234043';
 
 const OVERLAY_ID = 'client-info-overlay';
 const MAP_KEY = 'client-panel'; // activeMapInstances key for the panel's map (no deal behind it)
@@ -285,12 +286,14 @@ export function openClientInfoPanel(clientName, mode = 'client_leads') {
   const now = new Date();
   const todayStr = getToday();
   const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  // Upcoming = appointments + booked live cards + delivered meetings in the Lead Tracker (passed-off cards
+  // are archived, so Marcell's cold-call bookings never showed here — 2026-11-18). `scheduled` keeps only
+  // this past week's live-card meetings, so an upcoming one is not listed twice.
   const scheduled = state.deals.filter(d => {
-    if (!isValidDate(d.bookedDate)) return false;
-    return new Date(d.bookedDate + 'T' + (d.bookedTime || '23:59')) > oneWeekAgo && d.stage === clientName;
+    if (!isValidDate(d.bookedDate) || d.stage !== clientName || d.bookedDate >= todayStr) return false;
+    return new Date(d.bookedDate + 'T' + (d.bookedTime || '23:59')) > oneWeekAgo;
   }).sort((a, b) => new Date(a.bookedDate + 'T' + (a.bookedTime || '00:00')) - new Date(b.bookedDate + 'T' + (b.bookedTime || '00:00')));
-  const appts = (state.appointments || []).filter(a => a.clientName === clientName && a.apptDate >= todayStr)
-    .sort((a, b) => (a.apptDate + (a.apptTime || '')).localeCompare(b.apptDate + (b.apptTime || '')));
+  const appts = upcomingClientAppointments(state.appointments, state.deals, clientName, todayStr, state.trackerEntries);
 
   // NOTE: the card deliberately has NO onclick="event.stopPropagation()". The old
   // panel used inline handlers so it never mattered, but delegate.js listens on

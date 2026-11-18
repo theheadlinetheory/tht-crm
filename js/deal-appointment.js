@@ -22,26 +22,60 @@ export async function saveDealAppointmentRow(db, row) {
   if (error) throw error;
 }
 
-// Upcoming meetings for a client = appointments rows + live cards booked on the board with no row.
+// Upcoming meetings for a client = appointments rows + live cards booked on the board with no row
+// + delivered meetings in the Lead Tracker.
 // Only the CRM's Book button / Calendly write appointments; a date typed into the card's Booked Date
-// field (how the cold-call reps book, e.g. Marcell's Greenblock bookings, 2026-11-18) never did, so
-// those meetings were missing from the deal card's Upcoming Appointments and the column header.
-// Same rule as the client_appointments RPC's `bd` branch: pipeline Client, stage = client, booked.
-// Card-derived entries carry fromDeal:true and no id (nothing to delete in appointments).
-export function upcomingClientAppointments(appts, deals, clientName, today) {
-  const isDate = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
-  const rows = (appts || []).filter(a => a.clientName === clientName && isDate(a.apptDate) && a.apptDate >= today);
-  const linked = new Set((appts || []).filter(a => a.dealId).map(a => String(a.dealId)));
+// field (how the cold-call reps book, e.g. Marcell's Greenblock bookings, 2026-11-18) never did, and
+// once such a card is passed off it is archived and its meeting lives only in lead_tracker. Both were
+// missing from the deal card's Upcoming Appointments, the column header and the Client Info panel.
+// Same sources as the client_appointments RPC (lt + bd + ap). Entries not from appointments carry
+// fromDeal:true and no id (nothing to delete in appointments).
+const isIso = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
+
+// lead_tracker.appt_date is "11/20/26" (or ISO); appt_time is free text like "Friday, November 20, 1:30 PM".
+export function trackerApptDate(v) {
+  const s = String(v || '').trim();
+  if (isIso(s.slice(0, 10))) return s.slice(0, 10);
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+  if (!m) return '';
+  const y = m[3].length === 2 ? '20' + m[3] : m[3];
+  return `${y}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`;
+}
+export function trackerApptTime(v) {
+  const s = String(v || '');
+  let m = s.match(/(\d{1,2}):(\d{2})\s*([AaPp])\.?[Mm]/) || s.match(/(\d{1,2})\s*([AaPp])\.?[Mm]/);
+  if (m) {
+    const ap = (m.length === 4 ? m[3] : m[2]).toLowerCase(), min = m.length === 4 ? m[2] : '00';
+    let h = parseInt(m[1], 10) % 12; if (ap === 'p') h += 12;
+    return String(h).padStart(2, '0') + ':' + min;
+  }
+  m = s.match(/^(\d{2}):(\d{2})/);
+  return m ? m[1] + ':' + m[2] : '';
+}
+
+export function upcomingClientAppointments(appts, deals, clientName, today, tracker) {
+  const rows = (appts || []).filter(a => a.clientName === clientName && isIso(a.apptDate) && a.apptDate >= today);
+  const seenDeal = new Set((appts || []).filter(a => a.dealId).map(a => String(a.dealId)));
   const key = (name, date) => String(name || '').trim().toLowerCase() + '|' + date;
   const named = new Set(rows.map(a => key(a.leadName, a.apptDate)));
+  const add = (r) => {
+    if (r.dealId && seenDeal.has(String(r.dealId))) return;
+    if (named.has(key(r.leadName, r.apptDate))) return;
+    if (r.dealId) seenDeal.add(String(r.dealId));
+    named.add(key(r.leadName, r.apptDate));
+    rows.push({ fromDeal: true, clientName, ...r });
+  };
   for (const d of deals || []) {
-    if (d.pipeline !== 'Client' || d.stage !== clientName || !isDate(d.bookedDate) || d.bookedDate < today) continue;
+    if (d.pipeline !== 'Client' || d.stage !== clientName || !isIso(d.bookedDate) || d.bookedDate < today) continue;
     if (d.leadStatus && d.leadStatus !== 'active') continue;
-    if (linked.has(String(d.id))) continue;
-    const leadName = d.company || d.contact || 'Unknown';
-    if (named.has(key(leadName, d.bookedDate))) continue;
-    rows.push({ fromDeal: true, dealId: d.id, clientName, leadName, apptDate: d.bookedDate,
+    add({ dealId: d.id, leadName: d.company || d.contact || 'Unknown', apptDate: d.bookedDate,
       apptTime: String(d.bookedTime || '').slice(0, 5), address: (d.location || d.address || '').trim() });
+  }
+  for (const t of tracker || []) {
+    if (t.clientName !== clientName) continue;
+    const date = trackerApptDate(t.apptDate);
+    if (!date || date < today) continue;
+    add({ dealId: t.dealId || null, leadName: t.leadName || 'Unknown', apptDate: date, apptTime: trackerApptTime(t.apptTime), address: '' });
   }
   return rows.sort((a, b) => (a.apptDate + (a.apptTime || '')).localeCompare(b.apptDate + (b.apptTime || '')));
 }
