@@ -1162,7 +1162,42 @@ export function coldCallHistoryHtml(deal) {
   }
   return `<div class="form-group form-span2" style="margin:12px 0 8px 0;padding:12px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px">
     <div style="font-size:12px;font-weight:700;color:#0369a1;margin-bottom:8px">${svgIcon('phone', 12, '#0369a1')} Cold calls to this lead</div>
-    <div id="cc-history-${esc(deal.id)}">${_history.get(key)}</div>${removeBookingButton(deal)}</div>`;
+    <div id="cc-history-${esc(deal.id)}">${_history.get(key)}</div>${removeBookingButton(deal)}${notInterestedButton(deal)}</div>`;
+}
+
+// ─── Callback said no → off the working board (Marcell, 2026-11-17: "it's all clutter") ───
+// A callback the rep rings back from the card goes through the CRM dialer, and client cold-call calls carry no
+// JustCall disposition, so cold-call-sync never learns the answer. The rep closes it here instead. It is the same
+// soft archive a delivered lead gets (deleteDeal: archive row + deal cancelled, same id): the card leaves Callbacks
+// but keeps its calls, notes and activities, and shows in Passed off (with "Show removed") where Bring back works.
+// Open to SDRs on their own cards (sdr_lockout allows archive/activities/interactions writes for them).
+function notInterestedButton(deal) {
+  if (!(isAdmin() || isEmployee()) || deal.stage !== CALLBACK_STAGE || deal.pipeline !== 'Client') return '';
+  return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid #bae6fd">
+    <button onclick="event.stopPropagation();ccCallbackNotInterested(${jsArg(deal.id)})" title="Take this callback off the board. It moves to Passed off (Show removed), keeps its calls and notes, and can be brought back."
+      style="padding:7px 14px;background:#fff;color:#b45309;border:1px solid #fcd34d;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font)">
+      Not interested — take off Callbacks</button></div>`;
+}
+
+window.ccCallbackNotInterested = (dealId) => callbackNotInterested(dealId);
+
+async function callbackNotInterested(dealId) {
+  const deal = state.deals.find(d => d.id === dealId);
+  if (!deal) return;
+  const said = prompt(`${deal.company || deal.contact || 'This lead'} said not interested?\n\nThe card leaves Callbacks and goes to Passed off (tick "Show removed" to see it). Its calls and notes are kept and you can bring it back.\n\nAnything to note? (optional)`, '');
+  if (said === null) return;
+  const who = (currentUser && currentUser.email) || 'CRM';
+  const [{ sbCreateInteraction }, { deleteDeal }] = await Promise.all([
+    import('./api.js?v=20261119022015'), import('./deals.js?v=20261119022015')]);
+  // Close its open call-back reminders so nothing nags for a lead that said no; they stay on the Timeline as done.
+  const { error: actErr } = await supabase.from('activities')
+    .update({ done: true, completed_at: new Date().toISOString() }).eq('deal_id', dealId).eq('type', 'Call').eq('done', false);
+  if (actErr) console.warn('[callbackNotInterested] reminders not closed', actErr.message);
+  try { await sbCreateInteraction({ deal_id: dealId, type: 'Note', content: `Not interested on the callback · ${who} · ${getToday()}${str(said).trim() ? ' — ' + str(said).trim() : ''}` }); }
+  catch (e) { console.warn('[callbackNotInterested] note not saved', e && e.message); }
+  await deleteDeal(dealId, 'Not Interested');
+  cc.passed = null; // Passed off reloads with it on the next view
+  render();
 }
 
 // ─── Passed off: delivered / removed cold-call leads, and bringing one back (Marcell, 2026-11-17) ───
