@@ -21,3 +21,27 @@ export async function saveDealAppointmentRow(db, row) {
   const { error } = await q;
   if (error) throw error;
 }
+
+// Upcoming meetings for a client = appointments rows + live cards booked on the board with no row.
+// Only the CRM's Book button / Calendly write appointments; a date typed into the card's Booked Date
+// field (how the cold-call reps book, e.g. Marcell's Greenblock bookings, 2026-11-18) never did, so
+// those meetings were missing from the deal card's Upcoming Appointments and the column header.
+// Same rule as the client_appointments RPC's `bd` branch: pipeline Client, stage = client, booked.
+// Card-derived entries carry fromDeal:true and no id (nothing to delete in appointments).
+export function upcomingClientAppointments(appts, deals, clientName, today) {
+  const isDate = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
+  const rows = (appts || []).filter(a => a.clientName === clientName && isDate(a.apptDate) && a.apptDate >= today);
+  const linked = new Set((appts || []).filter(a => a.dealId).map(a => String(a.dealId)));
+  const key = (name, date) => String(name || '').trim().toLowerCase() + '|' + date;
+  const named = new Set(rows.map(a => key(a.leadName, a.apptDate)));
+  for (const d of deals || []) {
+    if (d.pipeline !== 'Client' || d.stage !== clientName || !isDate(d.bookedDate) || d.bookedDate < today) continue;
+    if (d.leadStatus && d.leadStatus !== 'active') continue;
+    if (linked.has(String(d.id))) continue;
+    const leadName = d.company || d.contact || 'Unknown';
+    if (named.has(key(leadName, d.bookedDate))) continue;
+    rows.push({ fromDeal: true, dealId: d.id, clientName, leadName, apptDate: d.bookedDate,
+      apptTime: String(d.bookedTime || '').slice(0, 5), address: (d.location || d.address || '').trim() });
+  }
+  return rows.sort((a, b) => (a.apptDate + (a.apptTime || '')).localeCompare(b.apptDate + (b.apptTime || '')));
+}

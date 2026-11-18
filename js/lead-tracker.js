@@ -1,16 +1,16 @@
 // ═══════════════════════════════════════════════════════════
 // LEAD TRACKER — Editable grid view for lead billing & status
 // ═══════════════════════════════════════════════════════════
-import { state, store, pendingWrites } from './app.js?v=20261118050616';
-import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20261118050616';
-import { isAdmin, isEmployee } from './auth.js?v=20261118050616';
-import { esc, jsArg, svgIcon, str } from './utils.js?v=20261118050616';
-import { render } from './render.js?v=20261118050616';
-import { leadCardId, leadCardIcon, matchLeadCards } from './lead-card.js?v=20261118050616';
-import { dealChannel } from './acquisition-channel.js?v=20261118050616';
-import { renderDisputeButton, renderDisputeModal, isOpenDispute } from './lead-dispute.js?v=20261118050616';
-import { setterRates, isColdCallLead, leadPayout } from './lead-payout.js?v=20261118050616';
-import { setterOf, setterInfo, setterCellHtml, setterFilterHtml, setterPickerHtml } from './lead-setter.js?v=20261118050616';
+import { state, store, pendingWrites } from './app.js?v=20261118232729';
+import { sbGetTrackerEntries, sbUpdateTrackerEntry, sbCreateTrackerEntry, sbDeleteTrackerEntry, invokeEdgeFunction, camelToSnake, normalizeRow, showToast } from './api.js?v=20261118232729';
+import { isAdmin, isEmployee } from './auth.js?v=20261118232729';
+import { esc, jsArg, svgIcon, str } from './utils.js?v=20261118232729';
+import { render } from './render.js?v=20261118232729';
+import { leadCardId, leadCardIcon, matchLeadCards } from './lead-card.js?v=20261118232729';
+import { dealChannel } from './acquisition-channel.js?v=20261118232729';
+import { renderDisputeButton, renderDisputeModal, isOpenDispute } from './lead-dispute.js?v=20261118232729';
+import { setterRates, isColdCallLead, leadPayout } from './lead-payout.js?v=20261118232729';
+import { setterOf, setterInfo, setterCellHtml, setterFilterHtml, setterPickerHtml } from './lead-setter.js?v=20261118232729';
 
 // ─── Column Definitions ───
 // The billing "Month" ('July/26') is deliberately not a column — the sheet shows

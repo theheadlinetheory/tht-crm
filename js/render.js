@@ -2,39 +2,40 @@
 // RENDER — Main render loop, refreshModal, list view
 // ═══════════════════════════════════════════════════════════
 
-import { state, savedScrollLeft, setSavedScrollLeft } from './app.js?v=20261118050616';
-import { ACQUISITION_STAGES, NURTURE_STAGES, ACTIVITY_ICONS, DEAL_VERTICALS, detectCountry } from './config.js?v=20261118050616';
-import { esc, escAttr, svgIcon, getToday, fmtDate, fmtTime12, str, stripHtml, jsArg } from './utils.js?v=20261118050616';
-import { isAdmin, isEmployee, isSdr, currentUser, renderUserMenu, getOwnerForDeal, getOwnerNameForDeal, loadAssignableUsers } from './auth.js?v=20261118050616';
-import { initialSync as syncFromSheet } from './api.js?v=20261118050616';
-import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js?v=20261118050616';
-import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWonDrop, renderDealModal, renderNewDealModal, renderAddClientModal, toggleBadgeDropdown } from './deal-modal.js?v=20261118050616';
-import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from './activities.js?v=20261118050616';
-import { renderDashboard } from './dashboard.js?v=20261118050616';
-import { loadFunnel, renderFunnel } from './funnel.js?v=20261118050616';
-import { journeyCell, loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js?v=20261118050616';
-import { journeyFor, LEFT_AT_OPTIONS, WHY_OPTIONS } from './archive-journey.js?v=20261118050616';
-import { toggleBulkMode, bulkMoveStage, bulkSelectAll, bulkArchive, bulkAddActivity, toggleBulkSelect } from './deals.js?v=20261118050616';
-import { openSettings } from './settings.js?v=20261118050616';
-import { serviceAreaResults } from './maps.js?v=20261118050616';
-import { lookupClientInfo, isRetainerClient, deriveTimezone } from './client-info.js?v=20261118050616';
-import { openClientInfoPanel } from './client-panel.js?v=20261118050616';
-import { openCalendlyEmbed, removeAppointment, addManualAppointment } from './calendly.js?v=20261118050616';
-import { capturePreserve, restorePreserve } from './render-preserve.js?v=20261118050616';
-import { doDragOver, doDragLeave, clearAllDragOver, doDrop } from './deals.js?v=20261118050616';
-import { loadDiscoOutcomes, renderDiscoOutcomeBanner } from './disco-outcome.js?v=20261118050616';
-import { renderDueTodayBanner, renderNurtureDropdown, renderNurtureTab, renderNurtureEntryModal, renderReactivateModal, renderSnoozeModal, loadNurtureData, clearNurtureDraft } from './rerun.js?v=20261118050616';
-import { renderDemoTracker } from './demo-tracker.js?v=20261118050616';
-import { renderColdCallingHeader, renderColdCallingView, coldCallColumnMeta } from './cold-calling-tab.js?v=20261118050616';
-import { renderRenewals } from './renewals.js?v=20261118050616';
-import { renderRenewalPipeline, renderRenewalsSubTabs } from './renewal-pipeline.js?v=20261118050616';
-import { renderHiring } from './hiring.js?v=20261118050616';
-import { hiringNavBubbleHtml } from './hiring-unread.js?v=20261118050616';
+import { state, savedScrollLeft, setSavedScrollLeft } from './app.js?v=20261118232729';
+import { ACQUISITION_STAGES, NURTURE_STAGES, ACTIVITY_ICONS, DEAL_VERTICALS, detectCountry } from './config.js?v=20261118232729';
+import { esc, escAttr, svgIcon, getToday, fmtDate, fmtTime12, str, stripHtml, jsArg } from './utils.js?v=20261118232729';
+import { isAdmin, isEmployee, isSdr, currentUser, renderUserMenu, getOwnerForDeal, getOwnerNameForDeal, loadAssignableUsers } from './auth.js?v=20261118232729';
+import { initialSync as syncFromSheet } from './api.js?v=20261118232729';
+import { getStages, getPipelineDeals, getVisiblePipelinesWithArchive, globalSearch, clearSearch, getActivityBadge } from './search.js?v=20261118232729';
+import { openDeal, openNewDeal, showDeleteZone, hideDeleteZone, doLostDrop, doWonDrop, renderDealModal, renderNewDealModal, renderAddClientModal, toggleBadgeDropdown } from './deal-modal.js?v=20261118232729';
+import { renderOverdueBanner, renderBookedMeetingsBanner, leadAgeBadge } from './activities.js?v=20261118232729';
+import { upcomingClientAppointments } from './deal-appointment.js?v=20261118232729';
+import { renderDashboard } from './dashboard.js?v=20261118232729';
+import { loadFunnel, renderFunnel } from './funnel.js?v=20261118232729';
+import { journeyCell, loadArchive, renderArchiveTab, toggleViewMode, updateArchiveStatus, restoreFromArchive } from './archive.js?v=20261118232729';
+import { journeyFor, LEFT_AT_OPTIONS, WHY_OPTIONS } from './archive-journey.js?v=20261118232729';
+import { toggleBulkMode, bulkMoveStage, bulkSelectAll, bulkArchive, bulkAddActivity, toggleBulkSelect } from './deals.js?v=20261118232729';
+import { openSettings } from './settings.js?v=20261118232729';
+import { serviceAreaResults } from './maps.js?v=20261118232729';
+import { lookupClientInfo, isRetainerClient, deriveTimezone } from './client-info.js?v=20261118232729';
+import { openClientInfoPanel } from './client-panel.js?v=20261118232729';
+import { openCalendlyEmbed, removeAppointment, addManualAppointment } from './calendly.js?v=20261118232729';
+import { capturePreserve, restorePreserve } from './render-preserve.js?v=20261118232729';
+import { doDragOver, doDragLeave, clearAllDragOver, doDrop } from './deals.js?v=20261118232729';
+import { loadDiscoOutcomes, renderDiscoOutcomeBanner } from './disco-outcome.js?v=20261118232729';
+import { renderDueTodayBanner, renderNurtureDropdown, renderNurtureTab, renderNurtureEntryModal, renderReactivateModal, renderSnoozeModal, loadNurtureData, clearNurtureDraft } from './rerun.js?v=20261118232729';
+import { renderDemoTracker } from './demo-tracker.js?v=20261118232729';
+import { renderColdCallingHeader, renderColdCallingView, coldCallColumnMeta } from './cold-calling-tab.js?v=20261118232729';
+import { renderRenewals } from './renewals.js?v=20261118232729';
+import { renderRenewalPipeline, renderRenewalsSubTabs } from './renewal-pipeline.js?v=20261118232729';
+import { renderHiring } from './hiring.js?v=20261118232729';
+import { hiringNavBubbleHtml } from './hiring-unread.js?v=20261118232729';
 
 const CFO_HUB_URL = 'https://theheadlinetheory.github.io/tht-payroll-site/#cfo';
-import { multiFilterDropdown } from './html-helpers.js?v=20261118050616';
-import { isAimfoxDeal } from './aimfox.js?v=20261118050616';
-import { ACQUISITION_CHANNELS, channelCardBadge } from './acquisition-channel.js?v=20261118050616';
+import { multiFilterDropdown } from './html-helpers.js?v=20261118232729';
+import { isAimfoxDeal } from './aimfox.js?v=20261118232729';
+import { ACQUISITION_CHANNELS, channelCardBadge } from './acquisition-channel.js?v=20261118232729';
 
 // ─── Multi-select filter toggle (used by multiFilterDropdown options) ───
 function toggleMultiFilter(key,value){
@@ -503,7 +504,7 @@ function renderInternal(){
         html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading analysis...</div>';
         if(!window._analysisLoading){
           window._analysisLoading=true;
-          import('./analysis.js?v=20261118050616').then(m=>{ window._analysisModule=m; render(); }).catch(()=>{ window._analysisLoading=false; });
+          import('./analysis.js?v=20261118232729').then(m=>{ window._analysisModule=m; render(); }).catch(()=>{ window._analysisLoading=false; });
         }
       }
       // The grid is long and wide, and every render replaces the DOM wholesale.
@@ -529,7 +530,7 @@ function renderInternal(){
         html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading check-ins...</div>';
         if(!window._checkinsLoading){
           window._checkinsLoading=true;
-          import('./checkins.js?v=20261118050616').then(m=>{ window._checkinsModule=m; render(); }).catch(()=>{ window._checkinsLoading=false; });
+          import('./checkins.js?v=20261118232729').then(m=>{ window._checkinsModule=m; render(); }).catch(()=>{ window._checkinsLoading=false; });
         }
       }
       if(state.selectedDeal) html+=renderDealModal(state.selectedDeal);
@@ -547,7 +548,7 @@ function renderInternal(){
         html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading weekly updates...</div>';
         if(!window._weeklyLoading){
           window._weeklyLoading=true;
-          import('./weekly-updates.js?v=20261118050616').then(m=>{ window._weeklyModule=m; render(); }).catch(()=>{ window._weeklyLoading=false; });
+          import('./weekly-updates.js?v=20261118232729').then(m=>{ window._weeklyModule=m; render(); }).catch(()=>{ window._weeklyLoading=false; });
         }
       }
       app.innerHTML=html;
@@ -574,11 +575,11 @@ function renderInternal(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading trends...</div>';
           if(!window._trendsLoading){
             window._trendsLoading=true;
-            import('./trends.js?v=20261118050616').then(m=>{ window._trendsModule=m; render(); }).catch(()=>{ window._trendsLoading=false; });
+            import('./trends.js?v=20261118232729').then(m=>{ window._trendsModule=m; render(); }).catch(()=>{ window._trendsLoading=false; });
           }
           if(!state.trackerLoaded && !window._trackerLoading){
             window._trackerLoading=true;
-            import('./lead-tracker.js?v=20261118050616').then(m=>{
+            import('./lead-tracker.js?v=20261118232729').then(m=>{
               window._trackerModule=m;
               m.loadTrackerEntries().then(()=>render()).catch(()=>render());
             }).catch(()=>{ window._trackerLoading=false; });
@@ -591,7 +592,7 @@ function renderInternal(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading passed-off leads...</div>';
           if(!window._passedOffLoading){
             window._passedOffLoading=true;
-            import('./passed-off.js?v=20261118050616').then(m=>{ window._passedOffModule=m; render(); }).catch(()=>{ window._passedOffLoading=false; });
+            import('./passed-off.js?v=20261118232729').then(m=>{ window._passedOffModule=m; render(); }).catch(()=>{ window._passedOffLoading=false; });
           }
         }
       } else if(state.trackerView==='passoffs'){
@@ -601,7 +602,7 @@ function renderInternal(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading retainer leads...</div>';
           if(!window._passOffsLoading){
             window._passOffsLoading=true;
-            import('./pass-offs.js?v=20261118050616').then(m=>{ window._passOffsModule=m; render(); }).catch(()=>{ window._passOffsLoading=false; });
+            import('./pass-offs.js?v=20261118232729').then(m=>{ window._passOffsModule=m; render(); }).catch(()=>{ window._passOffsLoading=false; });
           }
         }
       } else {
@@ -611,14 +612,14 @@ function renderInternal(){
           html+='<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading tracker...</div>';
           if(!window._trackerLoading){
             window._trackerLoading=true;
-            import('./lead-tracker.js?v=20261118050616').then(m=>{
+            import('./lead-tracker.js?v=20261118232729').then(m=>{
               window._trackerModule=m;
               if(!state.trackerLoaded){ m.loadTrackerEntries().then(()=>render()).catch(()=>render()); }
               else render();
             }).catch(()=>{ window._trackerLoading=false; });
             if(!window._invoiceLoading){
               window._invoiceLoading=true;
-              import('./invoice.js?v=20261118050616').then(m=>{ window._invoiceModule=m; }).catch(()=>{ window._invoiceLoading=false; });
+              import('./invoice.js?v=20261118232729').then(m=>{ window._invoiceModule=m; }).catch(()=>{ window._invoiceLoading=false; });
             }
           }
         }
@@ -626,7 +627,7 @@ function renderInternal(){
           html+=window._invoiceModule.renderInvoiceModal();
         } else if(state.invoiceModal && !window._invoiceLoading){
           window._invoiceLoading=true;
-          import('./invoice.js?v=20261118050616').then(m=>{ window._invoiceModule=m; render(); });
+          import('./invoice.js?v=20261118232729').then(m=>{ window._invoiceModule=m; render(); });
         }
       }
       html+=`</div>`; // close the --tracker-top wrapper
@@ -799,11 +800,8 @@ function renderInternal(){
         if(!isClientCol) return '';
         const cn=stage.label;
         const todayStr=getToday();
-        const appts=(state.appointments||[]).filter(a=>{
-          if(a.clientName!==cn) return false;
-          if(!a.apptDate||!/^\d{4}-\d{2}-\d{2}$/.test(a.apptDate)) return false;
-          return a.apptDate>=todayStr;
-        }).sort((a,b)=>(a.apptDate+(a.apptTime||'')).localeCompare(b.apptDate+(b.apptTime||'')));
+        // Includes cards booked by date field only (cold-call reps) — see upcomingClientAppointments.
+        const appts=upcomingClientAppointments(state.appointments, state.deals, cn, todayStr);
         let ah='<div class="col-appts" style="padding:6px 8px;margin:0 0 2px 0">';
         if(appts.length){
           ah+=appts.map(a=>{
@@ -825,7 +823,7 @@ function renderInternal(){
               +'<div style="padding:3px 4px;background:'+(isToday?'#dbeafe':'#f0fdf4')+';border-radius:4px;display:flex;justify-content:space-between;align-items:center;gap:4px;cursor:pointer" onclick="event.stopPropagation();this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\'">'
               +'<span style="'+(isToday?'font-weight:700;color:#1d4ed8':'color:#166534')+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1" title="'+esc(a.leadName||'')+'">'+(isToday?'TODAY ':'')+ esc(a.leadName||'Appt')+'</span>'
               +'<span style="font-weight:600;color:'+(isToday?'#1d4ed8':'#166534')+';white-space:nowrap;font-size:10px">'+dateStr+(timeStr?' '+timeStr:'')+'</span>'
-              +'<button onclick="event.stopPropagation();removeAppointment(\''+a.id+'\')" style="background:none;border:none;color:#d1d5db;cursor:pointer;font-size:12px;padding:0 2px" title="Remove">&times;</button>'
+              +(a.fromDeal?'<button onclick="event.stopPropagation();openDeal('+jsArg(a.dealId)+')" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:10px;padding:0 2px" title="Booked on the card — open it to change the date">Open</button>':'<button onclick="event.stopPropagation();removeAppointment(\''+a.id+'\')" style="background:none;border:none;color:#d1d5db;cursor:pointer;font-size:12px;padding:0 2px" title="Remove">&times;</button>')
               +'</div>'
               +'<div style="display:none;padding:4px 6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;margin-top:2px;font-size:10px;color:#475569">'
               +(addrText?'<div style="margin-bottom:2px">'+esc(addrText)+'</div><a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(addrText)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:#2563eb;text-decoration:none;font-weight:600">Open in Maps</a>':'<div style="color:#9ca3af">No address saved</div>')
