@@ -5,8 +5,8 @@
 // term = launch date → launch date + prepaidMonths months. The backend is
 // the authority; this only shows the operator what it will do.
 // ═══════════════════════════════════════════════════════════
-import { esc, str, jsArg } from './utils.js?v=20261118234526';
-import { addMonths, cadenceOf, PAYMENT_CADENCES, TERM_UNITS } from './client-terms.js?v=20261118234526';
+import { esc, str, jsArg } from './utils.js?v=20261119020107';
+import { addMonths, cadenceOf, PAYMENT_CADENCES, TERM_UNITS } from './client-terms.js?v=20261119020107';
 
 export { addMonths };
 

@@ -11,12 +11,12 @@
 // Offered only to clients with clients.share_call_points = true, so clients
 // that never asked do not start getting call details. Admins switch it on per
 // client from the card.
-import { state } from './app.js?v=20261118234526';
-import { supabase, sbUpdateClient, showToast } from './api.js?v=20261118234526';
-import { esc, jsArg, str } from './utils.js?v=20261118234526';
-import { refreshModal } from './render.js?v=20261118234526';
-import { isAdmin } from './auth.js?v=20261118234526';
-import { onScreenText } from './passoff-core.js?v=20261118234526';
+import { state } from './app.js?v=20261119020107';
+import { supabase, sbUpdateClient, showToast } from './api.js?v=20261119020107';
+import { esc, jsArg, str } from './utils.js?v=20261119020107';
+import { refreshModal } from './render.js?v=20261119020107';
+import { isAdmin } from './auth.js?v=20261119020107';
+import { onScreenText } from './passoff-core.js?v=20261119020107';
 
 const HEADING = 'From the call:';
 const loading = new Set(); // deal ids being fetched
