@@ -44,7 +44,9 @@ async function load(dealId) {
     const c = _cache[dealId] = { ..._cache[dealId], ...data, loading: false };
     const row = data.row || {};
     c.source = c.source || row.source || (data.suggest?.recordingUrl ? 'phone' : data.suggest?.fathomUrl ? 'meet' : 'phone');
-    c.recordingUrl = c.recordingUrl ?? row.recording_url ?? data.suggest?.recordingUrl ?? '';
+    // Fresh suggestion first, on every load: the Demo Scheduled call can land on the timeline after the panel first
+    // opened, and the URL saved by an earlier generate may be a No Answer dial (Cary Hunter, 2026-11-18).
+    c.recordingUrl = data.suggest?.recordingUrl || row.recording_url || '';
     c.fathomUrl = c.fathomUrl ?? row.fathom_url ?? data.suggest?.fathomUrl ?? '';
     // Never overwrite what the booker is editing.
     if (c.top == null || row.status !== 'ready') c.top = row.top_message || '';
@@ -115,8 +117,8 @@ function sourcePicker(dealId, c) {
   let h = `<div style="margin-bottom:4px">${radio('phone', 'Phone disco (JustCall)')}${radio('meet', 'Google Meet disco (Fathom)')}</div>`;
   if (c.source === 'phone') {
     h += c.recordingUrl
-      ? `<div style="font-size:11px;color:#475569">Recording: ${esc(c.suggest?.recordingUrl === c.recordingUrl ? (c.suggest.recordingLabel || '') : 'chosen earlier')} · <a href="${escAttr(c.recordingUrl)}" target="_blank">play</a></div>`
-      : `<div style="font-size:11px;color:#b91c1c">No JustCall recording on this card's timeline yet — it lands a minute or two after the call is dispositioned.</div>`;
+      ? `<div style="font-size:11px;color:#475569">Recording: ${esc(c.suggest?.recordingUrl === c.recordingUrl ? (c.suggest.recordingLabel || '') : 'the one used last time')} · <a href="${escAttr(c.recordingUrl)}" target="_blank">play</a></div>`
+      : `<div style="font-size:11px;color:#b91c1c">No Demo Scheduled call recording on this card's timeline yet — it lands a minute or two after the call is dispositioned. Reopen the card then.</div>`;
   } else {
     h += `<input type="url" placeholder="Fathom share link (fathom.video/share/…)" value="${escAttr(c.fathomUrl || '')}" oninput="dhEdit(${id},'fathomUrl',this.value)" style="${BOX}">`;
   }
