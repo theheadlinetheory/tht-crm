@@ -269,8 +269,10 @@ const coveredBy = c => callers().filter(e => covers(assignmentFor(e), c));
 /** The signed-in user's own split; a manager with no assignment of their own sees everything. */
 const myAssignment = () => assignmentFor(myEmail());
 
-/** Snowstorm clients first (unless capped); then retainers, then pay-per-meeting; within each, the manager's dragged order if there is one (clients not in
- *  it come after), otherwise pinned first; then fewest meetings this week; capped last.
+/** Snowstorm clients first (unless capped); then the manager's dragged order if there is one (clients not in it come after); otherwise
+ *  retainers before pay-per-meeting, pinned first, then fewest meetings this week; capped last.
+ *  The dragged order beats the retainer/PPM split (2026-11-19): with it underneath, a retainer could never be dragged below a PPM client
+ *  and the row snapped back after the drop. Only the capped and snowstorm groups stay fixed, and the drag refuses to cross them.
  *  An unlimited client reopens (unlocked) only once every client switched on has reached the cap this week. */
 export function rankedClients() {
   const week = callsOn(thisWeek());
@@ -297,11 +299,11 @@ export function rankedClients() {
     r.lastSlot = !r.capped && !r.unlocked && r.cap - r.bookedWeek === 1;
   }
   const pos = name => { const i = cc.order.indexOf(name); return i < 0 ? 1e6 : i; };
-  // Once the manager has dragged, their order decides within each group (it already starts from the pins).
+  // Once the manager has dragged, their order decides within the capped / snowstorm groups (it already starts from the pins).
   const manual = cc.order.length > 0;
   rows.sort((a, b) =>
-    (a.capped - b.capped) || (b.snow.active - a.snow.active) || (b.retainer - a.retainer) ||
-    (manual ? (pos(a.name) - pos(b.name)) : 0) || (b.pinned - a.pinned) ||
+    (a.capped - b.capped) || (b.snow.active - a.snow.active) ||
+    (manual ? (pos(a.name) - pos(b.name)) : 0) || (b.retainer - a.retainer) || (b.pinned - a.pinned) ||
     (a.bookedWeek - b.bookedWeek) || a.name.localeCompare(b.name));
   return rows;
 }
@@ -591,6 +593,9 @@ function trackerHtml() {
 }
 
 // ─── Manager ───
+/** Rows can only be dragged among rows of the same group: capped and snowstorm rows have fixed places. */
+const dragGroup = r => r.capped ? 'capped' : r.snow.active ? 'snow' : 'open';
+
 function managerHtml() {
   const ranked = rankedClients();
   const week = callsOn(thisWeek());
@@ -601,7 +606,7 @@ function managerHtml() {
     ${ranked.map((r, i) => {
       const t = tally(cc.calls.filter(x => x.client_name === r.name), thisWeek());
       const all = tally(cc.calls.filter(x => x.client_name === r.name));
-      return `<tr draggable="true" data-cc-row="${esc(r.name)}" style="${r.capped ? 'background:#f1f5f9' : ''}">
+      return `<tr draggable="true" data-cc-row="${esc(r.name)}" data-cc-group="${dragGroup(r)}" style="${r.capped ? 'background:#f1f5f9' : ''}">
         <td style="${td};font-weight:800;white-space:nowrap"><span class="cc-drag" title="Drag to move this client up or down the call queue" style="cursor:grab;color:#94a3b8;margin-right:6px;user-select:none">⋮⋮</span>${i + 1}</td>
         <td style="${td};font-weight:700">${esc(r.name)}${snowBadge(r)} ${r.unlocked ? UNLIMITED_BADGE : r.capped ? '<span style="font-size:9px;font-weight:800;color:#fff;background:#6b7280;padding:1px 6px;border-radius:8px">CAPPED</span>' : ''}
           <div style="font-size:10px;font-weight:400;color:${coveredBy(r.client).length ? '#94a3b8' : '#b45309'}">${esc(zoneOf(r.client))} · ${coveredBy(r.client).length ? esc(coveredBy(r.client).map(repName).join(', ')) : 'no SDR assigned'}</div></td>
@@ -613,7 +618,7 @@ function managerHtml() {
           <button data-action="ccSnow" data-name="${esc(r.name)}" title="${r.snow.active ? 'Take this client off snowstorm priority for now' : 'Put this client at the top of the queue for the next ' + SNOW_MANUAL_DAYS + ' days'}" style="font-size:11px;padding:3px 9px;border:1px solid ${r.snow.active ? '#0284c7' : 'var(--border)'};border-radius:6px;background:${r.snow.active ? '#e0f2fe' : '#fff'};color:${r.snow.active ? '#0369a1' : '#334155'};cursor:pointer;font-weight:600">${r.snow.active ? '❄️ End snow priority' : '❄️ Snow priority'}</button>
           <button data-action="ccUnlimited" data-name="${esc(r.name)}" title="No weekly limit for this client once every client has hit the cap" style="font-size:11px;padding:3px 9px;border:1px solid ${r.unlimited ? '#7c3aed' : 'var(--border)'};border-radius:6px;background:${r.unlimited ? '#f5f3ff' : '#fff'};color:${r.unlimited ? '#6d28d9' : '#334155'};cursor:pointer;font-weight:600">${r.unlimited ? '∞ Unlimited' : '∞ Make unlimited'}</button></td></tr>`;
     }).join('')}</tbody></table>
-    <div style="font-size:11px;color:#94a3b8;margin-top:6px">Drag a client by ⋮⋮ to move it up or down the call queue. Retainers always stay above pay-per-meeting clients and capped clients always sink to the bottom; dragging reorders within those groups. ❄️ Snowstorm clients jump to the top from the day before a storm until ${SNOW_AFTER_DAYS} days after it (forecast for each snow client's watch cities${cc.snowUpdated ? ', checked ' + esc(new Date(cc.snowUpdated).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })) : ''}). ${cc.order.length ? `<b style="color:#475569">Using your dragged order.</b> <button data-action="ccResetOrder" style="font-size:11px;padding:1px 8px;border:1px solid var(--border);border-radius:6px;background:#fff;color:#334155;cursor:pointer">Reset to automatic order</button>` : 'Automatic order: pinned first, then fewest meetings this week.'} The week resets every Monday. ∞ Unlimited clients stop at the cap like everyone else, and reopen with no limit once every client has hit it.</div>`
+    <div style="font-size:11px;color:#94a3b8;margin-top:6px">Drag a client by ⋮⋮ to move it up or down the call queue. Capped clients always sink to the bottom and snowstorm clients sit on top, so a client can't be dragged into or out of those groups. ❄️ Snowstorm clients jump to the top from the day before a storm until ${SNOW_AFTER_DAYS} days after it (forecast for each snow client's watch cities${cc.snowUpdated ? ', checked ' + esc(new Date(cc.snowUpdated).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })) : ''}). ${cc.order.length ? `<b style="color:#475569">Using your dragged order.</b> <button data-action="ccResetOrder" style="font-size:11px;padding:1px 8px;border:1px solid var(--border);border-radius:6px;background:#fff;color:#334155;cursor:pointer">Reset to automatic order</button>` : 'Automatic order: retainers before pay-per-meeting, pinned first, then fewest meetings this week.'} The week resets every Monday. ∞ Unlimited clients stop at the cap like everyone else, and reopen with no limit once every client has hit it.</div>`
     : '<div style="font-size:12px;color:#94a3b8">No clients switched on yet. Use the list below.</div>');
 
   // Reps: one row each, every number coloured against its quota (the week pro-rated to today).
@@ -1467,7 +1472,7 @@ async function toggleAssign(email, field, value, on) {
 
 // ─── Manager: drag a client row to reorder the call queue ───
 // The delegate only routes click/change/input, so the drag events are wired here once.
-let _dragName = null;
+let _dragName = null, _dragGroup = null;
 function _ccRow(e) { return e.target && e.target.closest ? e.target.closest('tr[data-cc-row]') : null; }
 function _clearDropMarks() {
   document.querySelectorAll('tr[data-cc-row]').forEach(tr => { tr.style.boxShadow = ''; tr.style.opacity = ''; });
@@ -1479,6 +1484,7 @@ if (typeof document !== 'undefined' && !window.__ccDragWired) {
     const tr = _ccRow(e);
     if (!tr) return;
     _dragName = tr.dataset.ccRow;
+    _dragGroup = tr.dataset.ccGroup || null;
     e.dataTransfer.effectAllowed = 'move';
     try { e.dataTransfer.setData('text/plain', _dragName); } catch (_) { /* some browsers need data to start a drag */ }
     tr.style.opacity = '.4';
@@ -1487,6 +1493,8 @@ if (typeof document !== 'undefined' && !window.__ccDragWired) {
     if (!_dragName) return;
     const tr = _ccRow(e);
     if (!tr) return;
+    // Across the capped / snowstorm line the sort would put it straight back, so show the no-drop cursor instead.
+    if (_dragGroup && tr.dataset.ccGroup !== _dragGroup) { tr.style.boxShadow = ''; return; }
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     document.querySelectorAll('tr[data-cc-row]').forEach(x => { if (x !== tr) x.style.boxShadow = ''; });
@@ -1495,10 +1503,10 @@ if (typeof document !== 'undefined' && !window.__ccDragWired) {
   document.addEventListener('drop', async e => {
     if (!_dragName) return;
     const tr = _ccRow(e);
-    const from = _dragName;
-    _dragName = null;
+    const from = _dragName, group = _dragGroup;
+    _dragName = _dragGroup = null;
     _clearDropMarks();
-    if (!tr || tr.dataset.ccRow === from) return;
+    if (!tr || tr.dataset.ccRow === from || (group && tr.dataset.ccGroup !== group)) return;
     e.preventDefault();
     const names = rankedClients().map(r => r.name).filter(n => n !== from);
     const at = names.indexOf(tr.dataset.ccRow) + (_dropAfter(tr, e) ? 1 : 0);
@@ -1507,5 +1515,5 @@ if (typeof document !== 'undefined' && !window.__ccDragWired) {
     render();
     await saveSetting('cold_call_order', names);
   });
-  document.addEventListener('dragend', () => { if (_dragName) { _dragName = null; _clearDropMarks(); } });
+  document.addEventListener('dragend', () => { if (_dragName) { _dragName = _dragGroup = null; _clearDropMarks(); } });
 }
