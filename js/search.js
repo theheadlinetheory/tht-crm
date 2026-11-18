@@ -1,14 +1,14 @@
 // ═══════════════════════════════════════════════════════════
 // SEARCH — Global search, activity badges, pipeline helpers
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261118234043';
-import { ACQUISITION_STAGES, NURTURE_STAGES, CLIENT_PALETTE, ALL_PIPELINES } from './config.js?v=20261118234043';
-import { render } from './render.js?v=20261118234043';
-import { getToday } from './utils.js?v=20261118234043';
-import { isEmployee, isAdmin, isSdr, getOwnerNameForDeal } from './auth.js?v=20261118234043';
-import { lookupClientInfo } from './client-info.js?v=20261118234043';
-import { dealChannel } from './acquisition-channel.js?v=20261118234043';
-import { coldCallStages, coldCallDeals } from './cold-calling-tab.js?v=20261118234043';
+import { state } from './app.js?v=20261118234526';
+import { ACQUISITION_STAGES, NURTURE_STAGES, CLIENT_PALETTE, ALL_PIPELINES } from './config.js?v=20261118234526';
+import { render } from './render.js?v=20261118234526';
+import { getToday } from './utils.js?v=20261118234526';
+import { isEmployee, isAdmin, isSdr, getOwnerNameForDeal } from './auth.js?v=20261118234526';
+import { lookupClientInfo } from './client-info.js?v=20261118234526';
+import { dealChannel } from './acquisition-channel.js?v=20261118234526';
+import { coldCallStages, coldCallDeals } from './cold-calling-tab.js?v=20261118234526';
 
 export function globalSearch(q){
   // Re-entrancy guard. restorePreserve() re-focuses the search input after

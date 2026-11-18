@@ -25,20 +25,20 @@
 // mid-edit. Edits save straight to Supabase (debounced) and patch the affected
 // DOM nodes in place — the panel is never wholesale re-rendered while open.
 
-import { state } from './app.js?v=20261118234043';
-import { esc, escAttr, safeUrl, str, getToday, isValidDate, svgIcon } from './utils.js?v=20261118234043';
-import { isAdmin, isEmployee } from './auth.js?v=20261118234043';
-import { lookupClientInfo } from './client-info.js?v=20261118234043';
-import { sbUpdateClient, sbGetWonAcquisitionCards } from './api.js?v=20261118234043';
-import { registerActions } from './delegate.js?v=20261118234043';
-import { buildAcquisitionCard, indexWonCards, matchCardForClient, answeredQuestions } from './client-acquisition.js?v=20261118234043';
-import { parseProperties, areaOf } from './client-properties.js?v=20261118234043';
-import { renderCallSheetLink } from './call-sheet.js?v=20261118234043';
-import { findPolygonForClient, renderServiceAreaMap } from './maps.js?v=20261118234043';
-import { coldCallsSectionHtml, fillColdCallsSection } from './client-cold-calls.js?v=20261118234043';
-import { clientColdCallStatsHtml } from './cold-calling-tab.js?v=20261118234043';
-import { CALL_FIELDS, callCardHtml, onCallCardOpen, showPane, syncImportantDot } from './client-call-card.js?v=20261118234043';
-import { upcomingClientAppointments } from './deal-appointment.js?v=20261118234043';
+import { state } from './app.js?v=20261118234526';
+import { esc, escAttr, safeUrl, str, getToday, isValidDate, svgIcon, availabilitySummary } from './utils.js?v=20261118234526';
+import { isAdmin, isEmployee } from './auth.js?v=20261118234526';
+import { lookupClientInfo } from './client-info.js?v=20261118234526';
+import { sbUpdateClient, sbGetWonAcquisitionCards } from './api.js?v=20261118234526';
+import { registerActions } from './delegate.js?v=20261118234526';
+import { buildAcquisitionCard, indexWonCards, matchCardForClient, answeredQuestions } from './client-acquisition.js?v=20261118234526';
+import { parseProperties, areaOf } from './client-properties.js?v=20261118234526';
+import { renderCallSheetLink } from './call-sheet.js?v=20261118234526';
+import { findPolygonForClient, renderServiceAreaMap } from './maps.js?v=20261118234526';
+import { coldCallsSectionHtml, fillColdCallsSection } from './client-cold-calls.js?v=20261118234526';
+import { clientColdCallStatsHtml } from './cold-calling-tab.js?v=20261118234526';
+import { CALL_FIELDS, callCardHtml, onCallCardOpen, showPane, syncImportantDot } from './client-call-card.js?v=20261118234526';
+import { upcomingClientAppointments } from './deal-appointment.js?v=20261118234526';
 
 const OVERLAY_ID = 'client-info-overlay';
 const MAP_KEY = 'client-panel'; // activeMapInstances key for the panel's map (no deal behind it)
@@ -341,11 +341,19 @@ export function openClientInfoPanel(clientName, mode = 'client_leads') {
   </div>`;
   const serviceAreaLink = str(cl.serviceAreaUrl).trim()
     ? `<div style="margin:-8px 0 16px"><a href="${escAttr(safeUrl(cl.serviceAreaUrl))}" target="_blank" rel="noopener" style="font-size:12px;color:#2563eb;text-decoration:none;font-weight:600">Open Service Area Map ↗</a></div>` : '';
-  const calendlyHtml = cl.calendlyUrl ? `<div style="margin-bottom:16px">
+  // Calendly only when switched on AND linked (same rule as the lead card); otherwise the hours we book them at.
+  const calendlyOn = str(cl.enableCalendly).toUpperCase() === 'TRUE' && !!str(cl.calendlyUrl).trim();
+  const availLines = calendlyOn ? [] : availabilitySummary(cl.availabilityRules);
+  const calendlyHtml = !calendlyOn
+    ? (availLines.length ? `<div style="margin-bottom:16px;padding:10px 12px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px">
+        <div style="font-size:11px;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${svgIcon('calendar', 12)} Availability (no Calendly)</div>
+        ${availLines.map(l => `<div style="font-size:12px;color:#166534">${esc(l)}</div>`).join('')}
+      </div>` : '')
+    : `<div style="margin-bottom:16px">
       <button class="btn btn-primary" data-action="cpCalendly" style="width:100%;justify-content:center;gap:6px;font-size:13px;background:#818cf8;border-color:#818cf8">
         ${svgIcon('calendar', 14)} Open ${esc(clientName)}'s Calendly
       </button>
-    </div>` : '';
+    </div>`;
   const billingHtml = info.billingModel && isAdmin()
     ? `<div style="margin-bottom:16px;font-size:12px;color:#64748b"><strong>Billing:</strong> ${esc(info.billingModel)}</div>` : '';
   const questionsBlock = `<div style="margin-bottom:16px">

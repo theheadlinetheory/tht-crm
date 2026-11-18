@@ -11,11 +11,12 @@
 // client-panel.js owns the overlay and the editable blocks; this module only lays them out in tabs and owns the
 // Appointments tab. The panel is never re-rendered while open, so switching tabs only flips which pane shows.
 
-import { state } from './app.js?v=20261118234043';
-import { esc, str, svgIcon, getToday } from './utils.js?v=20261118234043';
-import { supabase } from './supabase-client.js?v=20261118234043';
-import { registerActions } from './delegate.js?v=20261118234043';
-import { clientIanaTz, setCalendlyBookingDealId } from './calendly.js?v=20261118234043';
+import { state } from './app.js?v=20261118234526';
+import { esc, str, svgIcon, getToday, availabilitySummary } from './utils.js?v=20261118234526';
+import { supabase } from './supabase-client.js?v=20261118234526';
+import { registerActions } from './delegate.js?v=20261118234526';
+import { lookupClientInfo } from './client-info.js?v=20261118234526';
+import { clientIanaTz, setCalendlyBookingDealId } from './calendly.js?v=20261118234526';
 
 // ─── Call sheet fields (clients.call_*: no FIELD_MAP entry, so snake_case on the client object) ───
 const lineList = v => {
@@ -142,7 +143,7 @@ export function onCallCardOpen(clientName, { renderMap }) {
   const cl = state.clients.find(c => c.name === clientName);
   // Re-count the client's meetings before the calendar shows when it is one short of its weekly cap, so two SDRs
   // can't both book the last slot (audit A3#6, round 2 C, Tim 2026-11-13). At the cap the calendar stays closed.
-  if (cl && str(cl.calendlyUrl).trim()) _onShow.calendar = async () => {
+  if (cl && usesCalendly(cl)) _onShow.calendar = async () => {
     const c = window.ccCheckSlotBeforeBooking ? await window.ccCheckSlotBeforeBooking(clientName).catch(() => null) : null;
     if (c && c.ok === false) { const h = _client === clientName && document.getElementById('cp-cal'); if (h) h.innerHTML = `<div style="font-size:13px;color:#b91c1c;font-weight:600">${esc(c.message || 'This client is at its weekly cap.')}</div>`; return; }
     if (c && c.lastSlot && c.message) showLastSlotNote(clientName, c.message);
@@ -235,9 +236,29 @@ async function loadAppointments(clientName) {
 // ─── The client's Calendly, open inline on the Calendar tab ───
 // Tim 2026-11-14: the Upcoming card sits above the calendar too, so the caller sees what is already booked
 // (date + time) while picking a slot.
+// Ioannis 2026-11-18: a client with Calendly switched off (Greenblock) can still have an old link saved, and the
+// tab embedded that dead calendar. Same rule as the lead card's Book Meeting box: Calendly only when it is switched
+// on AND has a link; otherwise the tab shows the hours we book them at (clients.availability_rules).
+function usesCalendly(cl) {
+  return str(cl.enableCalendly).toUpperCase() === 'TRUE' && !!str(cl.calendlyUrl).trim();
+}
+
 function calendarHtml(cl) {
   const upcoming = `<div id="cp-cal-upcoming"><div style="font-size:12px;color:#94a3b8;margin-bottom:16px">Loading upcoming meetings…</div></div>`;
-  if (!str(cl.calendlyUrl).trim()) return upcoming + box(heading('Calendar') + '<div style="font-size:12px;color:#94a3b8">No Calendly link for this client yet.</div>');
+  if (!usesCalendly(cl)) {
+    const lines = availabilitySummary(cl.availabilityRules);
+    const ci = lookupClientInfo(cl.name);
+    const tz = ci && ci.timeZone ? ` (${esc(ci.timeZone)})` : '';
+    const notice = cl.availabilityRules && cl.availabilityRules.minNoticeDays
+      ? `<div style="font-size:12px;color:#166534;margin-top:6px">Needs at least ${cl.availabilityRules.minNoticeDays} day(s) notice.</div>` : '';
+    const body = lines.length
+      ? lines.map(l => `<div style="font-size:13px;font-weight:600;color:#166534;padding:2px 0">${esc(l)}</div>`).join('')
+        + (tz ? `<div style="font-size:11px;color:#15803d;margin-top:4px">Times are ${esc(cl.name)}'s local time${tz}.</div>` : '') + notice
+      : `<div style="font-size:12px;color:#64748b">No Calendly and no set hours on file — confirm the time works for ${esc(cl.name)}${tz}.</div>`;
+    return upcoming + box(heading(`${svgIcon('calendar', 12)} ${esc(cl.name)}'s availability`, '#166534')
+      + `<div style="font-size:11px;color:#15803d;margin-bottom:8px">No Calendly — book them at these times.</div>` + body,
+      { bg: '#f0fdf4', border: '#86efac' });
+  }
   return upcoming + box(heading(`${svgIcon('calendar', 12)} ${esc(cl.name)}'s calendar`, '#4338ca')
     + `<div id="cp-cal" style="min-width:280px;height:700px"></div>`, { bg: '#eef2ff', border: '#c7d2fe' });
 }
@@ -304,6 +325,6 @@ registerActions({
   cpOpenDeal(el) {
     const id = el.dataset.id;
     if (window.closeClientInfoPanel) window.closeClientInfoPanel();
-    import('./deal-modal.js?v=20261118234043').then(m => m.openDeal(id));
+    import('./deal-modal.js?v=20261118234526').then(m => m.openDeal(id));
   },
 });

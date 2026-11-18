@@ -256,5 +256,28 @@ function buildMeetingTimeStr(deal){
   return timePart ? prefix + ', ' + dayPart + ' at ' + timePart : prefix + ', ' + dayPart;
 }
 
+/**
+ * A non-Calendly client's booking hours (clients.availability_rules) as display lines, days grouped:
+ * ["Mon, Tue, Wed: 11:30 AM, 12:45 PM", "Thu: 9:00 AM – 5:00 PM"]. A window is either a range {day,start,end}
+ * or fixed start times {day,slots:['11:30',...]}. Shared by the lead card's Book Meeting box and the client card's
+ * Calendar tab so the two always agree. Empty array when the client has no hours on file.
+ */
+export function availabilitySummary(rules) {
+  const windows = (rules && Array.isArray(rules.windows)) ? rules.windows : [];
+  const dayOrder = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+  const dayLabel = {monday:'Mon',tuesday:'Tue',wednesday:'Wed',thursday:'Thu',friday:'Fri',saturday:'Sat',sunday:'Sun'};
+  const fmt12 = t => { const [h, m] = String(t).split(':'); const hr = parseInt(h); return (hr > 12 ? hr - 12 : hr || 12) + ':' + m + (hr >= 12 ? ' PM' : ' AM'); };
+  const grouped = {};
+  for (const w of windows) {
+    const key = w.slots ? 'slots:' + w.slots.join(',') : w.start + '-' + w.end;
+    if (!grouped[key]) grouped[key] = { start: w.start, end: w.end, slots: w.slots, days: [] };
+    grouped[key].days.push(w.day);
+  }
+  return Object.values(grouped).map(g => {
+    const days = g.days.sort((a, b) => dayOrder.indexOf(a) - dayOrder.indexOf(b)).map(d => dayLabel[d] || d).join(', ');
+    return days + ': ' + (g.slots ? g.slots.map(fmt12).join(', ') : fmt12(g.start) + ' – ' + fmt12(g.end));
+  });
+}
+
 // Expose to inline HTML handlers
 window.copyToClipboard = copyToClipboard;
