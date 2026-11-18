@@ -16,19 +16,19 @@
 // red count on the Hiring tab (hiring-unread.js). The detail modal, timeline
 // and follow-ups live in hiring-modal.js / hiring-activity.js.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261119020107';
-import { render } from './render.js?v=20261119020107';
-import { supabase } from './supabase-client.js?v=20261119020107';
-import { showToast } from './api.js?v=20261119020107';
-import { candidateChannel, channelPill, channelSelectHtml } from './hiring-channel.js?v=20261119020107';
-import { esc, escAttr, safeUrl, str, svgIcon, jsArg } from './utils.js?v=20261119020107';
-import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261119020107';
-import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261119020107';
-import { onHiringChange } from './hiring-unread.js?v=20261119020107';
-import { needsEmailPrompt, openEmailBox, renderEmailBox } from './hiring-email-box.js?v=20261119020107';
-import { tickBoxHtml, bulkBarHtml, pruneTicks } from './hiring-bulk.js?v=20261119020107';
-import { videoButtonHtml } from './hiring-video.js?v=20261119020107';
-import { renderHiringList } from './hiring-list.js?v=20261119020107';
+import { state } from './app.js?v=20261119020523';
+import { render } from './render.js?v=20261119020523';
+import { supabase } from './supabase-client.js?v=20261119020523';
+import { showToast } from './api.js?v=20261119020523';
+import { candidateChannel, channelPill, channelSelectHtml } from './hiring-channel.js?v=20261119020523';
+import { esc, escAttr, safeUrl, str, svgIcon, jsArg } from './utils.js?v=20261119020523';
+import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261119020523';
+import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261119020523';
+import { onHiringChange } from './hiring-unread.js?v=20261119020523';
+import { needsEmailPrompt, openEmailBox, renderEmailBox } from './hiring-email-box.js?v=20261119020523';
+import { tickBoxHtml, bulkBarHtml, pruneTicks } from './hiring-bulk.js?v=20261119020523';
+import { videoButtonHtml } from './hiring-video.js?v=20261119020523';
+import { renderHiringList } from './hiring-list.js?v=20261119020523';
 
 // Applicants want a job with us; partners are companies that hire (recruiting
 // partners who could send us candidates). Each gets its own board.
