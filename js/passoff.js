@@ -2,13 +2,14 @@
 // PASSOFF — Passoff instructions generator + transcript polling
 // ═══════════════════════════════════════════════════════════
 
-import { state, pendingWrites } from './app.js?v=20261119020523';
-import { invokeEdgeFunction, sbUpdateDeal, camelToSnake, supabase } from './api.js?v=20261119020523';
-import { esc, jsArg, str, confirmNoPlaceholders } from './utils.js?v=20261119020523';
-import { refreshModal } from './render.js?v=20261119020523';
-import { isAdmin, isEmployee } from './auth.js?v=20261119020523';
-import { renderCallPoints } from './call-points.js?v=20261119020523';
-import { passoffInFlight, buttonState, textLocked, onScreenText, reviseBody, checkDraft, mayHaveFinished, recoveredDrafts, sendOnce } from './passoff-core.js?v=20261119020523';
+import { state, pendingWrites } from './app.js?v=20261119022015';
+import { invokeEdgeFunction, sbUpdateDeal, camelToSnake, supabase } from './api.js?v=20261119022015';
+import { esc, jsArg, str, confirmNoPlaceholders } from './utils.js?v=20261119022015';
+import { refreshModal } from './render.js?v=20261119022015';
+import { isAdmin, isEmployee } from './auth.js?v=20261119022015';
+import { renderCallPoints } from './call-points.js?v=20261119022015';
+import { isClientEmailLead, prepareBookingCall, sourceBody, rememberSource, renderPassoffSource } from './passoff-source.js?v=20261119022015'; // brief 7 B
+import { passoffInFlight, buttonState, textLocked, onScreenText, reviseBody, checkDraft, mayHaveFinished, recoveredDrafts, sendOnce } from './passoff-core.js?v=20261119022015';
 
 // passoffInFlight (passoff-core.js): what is running per deal + action (generate / revise / send /
 // gmail-draft). Renders draw the buttons from it, so a re-render mid-request can no longer bring them
@@ -163,8 +164,16 @@ async function generatePassoff(dealId, clientName) {
   try {
     const before = onScreenText(document.getElementById('passoff-text')?.value, currentCopy(dealId, 'passoffInstructions'));
     await flushPassoffSaves(dealId); // the database matches the screen, so a re-read after a timeout is comparable
-    const { live, resp } = await callGeneratePassoff(dealId, { dealId, clientName }, before);
+    // Client email lead booked on a call: transcribe the booking call into the card first (passoff-source.js).
+    const deal = state.deals.find(d => String(d.id) === String(dealId)) || state.selectedDeal;
+    const emailLead = isClientEmailLead(deal);
+    if (emailLead) {
+      const transcript = await prepareBookingCall(dealId);
+      if (transcript) setLocal(dealId, 'callTranscript', transcript);
+    }
+    const { live, resp } = await callGeneratePassoff(dealId, { dealId, clientName, ...(emailLead ? sourceBody(dealId) : {}) }, before);
     applyDrafts(dealId, resp);
+    if (live && emailLead) rememberSource(dealId, resp);
     if (live) {
       if (resp.threadMissing) threadMissing.add(String(dealId)); else threadMissing.delete(String(dealId));
     }
@@ -391,11 +400,12 @@ export function renderPassoffSection(deal, clientName) {
       onclick="generatePassoffClick(${jsArg(deal.id)},${jsArg(clientName)})">${gen.label}</button>
     <div style="font-size:10px;color:var(--text-muted);margin-top:6px">
       ${coldCall ? 'Claude reads the call (your JustCall notes, and the transcript when there is one) and drafts the pass-off, the lead confirmation and the Calendly notes. Book on Calendly first so the meeting time is on the card.'
-        : `Call transcript: ${hasTranscript ? '<span style="color:#059669">Available</span>' : '<span style="color:#d97706">Pending</span>'}`}
+        : renderPassoffSource(deal, clientName)}
     </div>`;
   } else {
     const again = btnAttrs(deal.id, 'generate', 'Regenerate');
     const send = btnAttrs(deal.id, 'send', hasSent ? 'Resend to Client' : 'Send to Client');
+    h += renderPassoffSource(deal, clientName);
     h += `<textarea id="passoff-text" rows="8" data-keep-focus="1" ${textAttrs(deal.id)}
       oninput="savePassoffTextClick(${jsArg(deal.id)},this.value)"
       style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);resize:vertical;margin-bottom:8px">${esc(deal.passoffInstructions)}</textarea>
