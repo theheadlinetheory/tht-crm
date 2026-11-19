@@ -1031,7 +1031,7 @@ window.addEventListener('hashchange', () => {
   const acqSub = p === 'acquisition' && ACQ_SUBTABS.includes(sub) ? sub : 'pipeline';
   const clSub = p === 'client_leads' && CL_SUBTABS.includes(sub) ? sub : 'pipeline';
   const rnSub = p === 'acquisition' && sub === 'journey' && ciName === 'schedule' ? 'schedule' : 'pipeline';
-  const ccSub = p === 'cold_calling' && ['pipeline','leaderboard','tracker','passed','industries','feedback','manager'].includes(sub) ? sub : 'queue';
+  const ccSub = p === 'cold_calling' && ['pipeline','contract','leaderboard','tracker','passed','industries','feedback','manager'].includes(sub) ? sub : 'queue';
   let ciClient = state.checkinClient;
   if (clSub === 'checkins' && ciName) { try { ciClient = decodeURIComponent(ciName); } catch {} }
   // Our own switch*() calls set state before the hash, so they land here as no-ops.

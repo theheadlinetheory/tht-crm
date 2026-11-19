@@ -65,6 +65,7 @@ const SUBTABS = [
   { id: 'queue', label: 'Call Queue' },
   { id: 'leaderboard', label: 'Leaderboard' },
   { id: 'pipeline', label: 'Pipeline' },
+  { id: 'contract', label: 'Under contract' },
   { id: 'tracker', label: 'Lead Tracker' },
   { id: 'passed', label: 'Passed off' },
   { id: 'industries', label: 'Industries' },
@@ -90,6 +91,7 @@ const cc = {
   tracker: null, trackerLoading: false,
   trackerScope: 'all', trackerClient: '', trackerSearch: '',
   passed: null, passedLoading: false, passedSearch: '', passedShowRemoved: false,
+  contractSearch: '',         // Under contract bin search box
   manualDeal: '',            // lead-card cache key for the call history section
 };
 const _history = new Map();  // deal id → rendered call history HTML
@@ -319,16 +321,37 @@ export function coldCallStages() {
   return [...head, ...cols];
 }
 
+const pendingFor = dealId => (state.activities || []).filter(a => a.dealId === dealId && !a.done && String(a.done) !== 'TRUE');
+const dueOf = a => (a.dueDate || '').slice(0, 10);
+
 function callbackDue(dealId) {
-  const pending = (state.activities || []).filter(a => a.dealId === dealId && !a.done && String(a.done) !== 'TRUE');
-  return pending.map(a => (a.dueDate || '').slice(0, 10)).filter(Boolean).sort()[0] || '9999-12-31';
+  return pendingFor(dealId).map(dueOf).filter(Boolean).sort()[0] || '9999-12-31';
+}
+
+// ─── Under contract: a bin of its own, out of Callbacks (Marcell, 2026-11-17: "it's all clutter") ───
+// An under-contract lead is not a callback until its renewal is near. cold-call-sync writes its reminder as
+// "Call back — under contract…", due one month before the renewal the rep's note names, or with no date when it names
+// none. While that reminder is the card's next one and is not due yet, the card sits in Under contract instead of
+// Callbacks; on its due date it is back in Callbacks with nothing to move. So a card is in exactly one of the two.
+const UNDER_CONTRACT_SUBJECT = /^Call back — under contract/;
+
+/** The not-yet-due under-contract reminder that keeps this card out of Callbacks, or null. */
+function contractReminder(d) {
+  if (!d || d.stage !== CALLBACK_STAGE) return null;
+  const next = pendingFor(d.id).sort((a, b) => (dueOf(a) || '9999-12-31').localeCompare(dueOf(b) || '9999-12-31'))[0];
+  if (!next || !UNDER_CONTRACT_SUBJECT.test(str(next.subject))) return null;
+  return dueOf(next) && dueOf(next) <= today() ? null : next;
+}
+
+function underContractDeals() {
+  return state.deals.filter(d => d.pipeline === 'Client' && visibleOnColdCallBoard(d) && contractReminder(d));
 }
 
 export function coldCallDeals() {
   const names = new Set(coldCallStages().map(s => s.id));
   const allLeads = !isSdr() && state.ccAllLeads;
   const deals = state.deals.filter(d => d.pipeline === 'Client' && names.has(d.stage) &&
-    (d.stage === CALLBACK_STAGE || allLeads || d.leadSource === 'cold_call') && visibleOnColdCallBoard(d));
+    (d.stage === CALLBACK_STAGE || allLeads || d.leadSource === 'cold_call') && visibleOnColdCallBoard(d) && !contractReminder(d));
   // Callbacks: the due ones (green / red badge) on top.
   return deals.sort((a, b) => a.stage === CALLBACK_STAGE && b.stage === CALLBACK_STAGE
     ? callbackDue(a.id).localeCompare(callbackDue(b.id)) : 0);
@@ -338,7 +361,9 @@ export function coldCallDeals() {
 export function coldCallColumnMeta(stageId) {
   if (stageId === CALLBACK_STAGE) {
     const due = coldCallDeals().filter(d => d.stage === CALLBACK_STAGE && callbackDue(d.id) <= today()).length;
-    return due ? ` · <span style="font-size:10px;font-weight:700;color:#15803d;background:#dcfce7;padding:1px 6px;border-radius:8px">${due} due</span>` : '';
+    const parked = underContractDeals().length;
+    return (due ? ` · <span style="font-size:10px;font-weight:700;color:#15803d;background:#dcfce7;padding:1px 6px;border-radius:8px">${due} due</span>` : '') +
+      (parked ? ` · <span data-action="ccSubTab" data-tab="contract" title="Under-contract leads wait in their own bin until a month before the renewal" style="font-size:10px;font-weight:600;color:#475569;background:#f1f5f9;padding:1px 6px;border-radius:8px;cursor:pointer;text-decoration:underline">${parked} under contract →</span>` : '');
   }
   const r = rankedClients().find(x => x.name === stageId);
   if (!r) return '';
@@ -450,7 +475,7 @@ export function renderColdCallingHeader() {
   const lastTxt = last ? new Date(last).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'never';
   return `<div style="padding:0 20px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
     <div style="display:flex;gap:4px">
-      ${SUBTABS.filter(t => !t.managerOnly || !isSdr()).map(t => `<button data-action="ccSubTab" data-tab="${t.id}" style="${subCs};background:${sub === t.id ? 'var(--purple)' : '#f3f4f6'};color:${sub === t.id ? '#fff' : 'var(--text-muted)'}">${t.label}</button>`).join('')}
+      ${SUBTABS.filter(t => !t.managerOnly || !isSdr()).map(t => `<button data-action="ccSubTab" data-tab="${t.id}" style="${subCs};background:${sub === t.id ? 'var(--purple)' : '#f3f4f6'};color:${sub === t.id ? '#fff' : 'var(--text-muted)'}">${t.label}${t.id === 'contract' && underContractDeals().length ? ` (${underContractDeals().length})` : ''}</button>`).join('')}
     </div>
     <div style="display:flex;gap:8px;align-items:center">
       ${sub === 'pipeline' ? renderRepFilter() : ''}
@@ -508,9 +533,10 @@ function queueHtml() {
 
   const clientByName = new Map(coldCallClients().map(c => [c.name, c]));
   const callbacks = state.deals.filter(d => d.pipeline === 'Client' && d.stage === CALLBACK_STAGE &&
-      (a.mode === 'all' || !clientByName.has(d.coldCallClient) || covers(a, clientByName.get(d.coldCallClient))))
+      (a.mode === 'all' || !clientByName.has(d.coldCallClient) || covers(a, clientByName.get(d.coldCallClient))) && !contractReminder(d))
     .map(d => ({ d, due: callbackDue(d.id) })).sort((a, b) => a.due.localeCompare(b.due));
   const dueNow = callbacks.filter(c => c.due <= today());
+  const parked = underContractDeals().length;
   h += section(`Callbacks due (${dueNow.length})`,
     dueNow.length
       ? `<table style="width:100%;border-collapse:collapse"><tbody>${dueNow.map(({ d, due }) => `<tr style="cursor:pointer" data-action="ccOpenDeal" data-id="${esc(d.id)}">
@@ -518,7 +544,7 @@ function queueHtml() {
           <td style="${td};color:#475569">${esc(d.coldCallClient || '')}</td>
           <td style="${td}">${esc(d.phone || '')}</td>
           <td style="${td};color:${due < today() ? '#dc2626' : '#15803d'};font-weight:600">${due < today() ? 'overdue since ' + esc(due) : 'due today'}</td></tr>`).join('')}</tbody></table>`
-      : `<div style="font-size:12px;color:#94a3b8">Nothing due. ${callbacks.length} callback${callbacks.length === 1 ? '' : 's'} scheduled later. "Under Contract" and "Follow Up" calls land in Pipeline → Callbacks with a reminder, and show up here when it turns green.</div>`);
+      : `<div style="font-size:12px;color:#94a3b8">Nothing due. ${callbacks.length} callback${callbacks.length === 1 ? '' : 's'} scheduled later. "Follow Up" calls land in Pipeline → Callbacks with a reminder, and show up here when it turns green. "Under Contract" calls wait in <a data-action="ccSubTab" data-tab="contract" style="color:var(--purple);cursor:pointer;text-decoration:underline">Under contract</a>${parked ? ` (${parked})` : ''} until a month before the renewal.</div>`);
   return h;
 }
 
@@ -1136,6 +1162,7 @@ export function renderColdCallingView() {
   else if (cc.error) body = section('Couldn\'t load the call log', `<div style="font-size:12px;color:#dc2626">${esc(cc.error)}</div>`);
   else if (sub === 'tracker') body = trackerHtml();
   else if (sub === 'passed') body = passedHtml();
+  else if (sub === 'contract') body = contractHtml();
   else if (sub === 'manager' && !isSdr()) body = managerHtml();
   else if (sub === 'leaderboard') body = leaderboardHtml();
   else if (sub === 'industries') body = industriesHtml();
@@ -1163,6 +1190,41 @@ export function coldCallHistoryHtml(deal) {
   return `<div class="form-group form-span2" style="margin:12px 0 8px 0;padding:12px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px">
     <div style="font-size:12px;font-weight:700;color:#0369a1;margin-bottom:8px">${svgIcon('phone', 12, '#0369a1')} Cold calls to this lead</div>
     <div id="cc-history-${esc(deal.id)}">${_history.get(key)}</div>${removeBookingButton(deal)}</div>`;
+}
+
+// ─── Under contract bin (Marcell, 2026-11-17: "something that's just not in the area that I'm working at") ───
+// The cards contractReminder() keeps out of Callbacks. Nothing is archived or hidden: the card, its calls and its
+// reminder are untouched, and changing the date here is the only write (the reminder's due_date). "Needs a date"
+// = the note named no renewal, so cold-call-sync left the date empty rather than guess. A date on or before today,
+// or "Back to Callbacks now", puts the card straight back in Callbacks.
+function contractHtml() {
+  const q = str(cc.contractSearch).toLowerCase().trim();
+  const all = underContractDeals().map(d => ({ d, a: contractReminder(d) }))
+    .sort((x, y) => (dueOf(x.a) || '0000').localeCompare(dueOf(y.a) || '0000')); // needs a date first, then soonest
+  const rows = all.filter(({ d, a }) => !q || [d.coldCallClient, d.company, d.contact, d.phone, d.location, a.subject].some(v => str(v).toLowerCase().includes(q)));
+  const undated = all.filter(r => !dueOf(r.a)).length;
+  const controls = `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+    <input id="cc-contract-search" data-action="ccContractSearch" placeholder="Search client, property, contact, phone, note…" value="${esc(cc.contractSearch || '')}" style="flex:1;min-width:200px;padding:5px 10px;font-size:12px;border:1px solid var(--border);border-radius:6px">
+  </div>
+  <div style="font-size:12px;color:#475569;margin-bottom:10px">Leads under contract with someone else. Each one goes back into <b>Pipeline → Callbacks</b> on its date: one month before the renewal the rep noted. <b>Needs a date</b> = the note gave no renewal month, so pick one.</div>`;
+  const title = `Under contract (${all.length})${undated ? ` · <span style="color:#b45309">${undated} need${undated === 1 ? 's' : ''} a date</span>` : ''}`;
+  if (!rows.length) return section(title, controls + `<div style="font-size:12px;color:#94a3b8">${q ? 'Nothing matches.' : 'No under-contract leads waiting.'}</div>`);
+  const said = a => str(a.subject).replace(UNDER_CONTRACT_SUBJECT, '').replace(/^[,\s]+/, '');
+  return section(title, controls + `<table style="width:100%;border-collapse:collapse"><thead><tr><th style="${th}">Back in Callbacks</th><th style="${th}">Client</th><th style="${th}">Property / contact</th><th style="${th}">Phone</th><th style="${th}">What they said</th><th style="${th}"></th></tr></thead><tbody>
+    ${rows.map(({ d, a }) => `<tr>
+      <td style="${td};white-space:nowrap">${dueOf(a) ? '' : '<div style="font-size:11px;font-weight:700;color:#b45309;margin-bottom:3px">Needs a date</div>'}<input type="date" data-action="ccContractDate" data-act="${esc(a.id)}" value="${esc(dueOf(a))}" title="The day this lead comes back into Callbacks" style="font-size:12px;padding:3px 6px;border:1px solid ${dueOf(a) ? 'var(--border)' : '#fcd34d'};border-radius:6px;font-family:var(--font)"></td>
+      <td style="${td}">${esc(d.coldCallClient || '?')}</td>
+      <td style="${td}"><b data-action="ccOpenDeal" data-id="${esc(d.id)}" style="cursor:pointer;text-decoration:underline">${esc(d.company || d.contact || 'Lead')}</b>${d.contact && d.company ? '<br><span style="color:#64748b">' + esc(d.contact) + '</span>' : ''}</td>
+      <td style="${td};white-space:nowrap">${esc(d.phone || '')}</td>
+      <td style="${td};color:#475569">${esc(said(a)) || '<span style="color:#94a3b8">no note</span>'}</td>
+      <td style="${td};text-align:right"><button data-action="ccContractNow" data-act="${esc(a.id)}" title="Put this lead back into Callbacks today" style="font-size:11px;padding:4px 10px;border:1px solid var(--purple);background:#f3e8ff;color:var(--purple);border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap">Back to Callbacks now</button></td></tr>`).join('')}</tbody></table>`);
+}
+
+async function setContractDate(actId, date) {
+  if (!actId || !/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return;
+  const { updateActivityDate } = await import('./activities.js?v=20261119022015');
+  updateActivityDate(actId, date); // local first, then the write with retry; on or before today = back in Callbacks
+  render();
 }
 
 // ─── Passed off: delivered / removed cold-call leads, and bringing one back (Marcell, 2026-11-17) ───
@@ -1379,6 +1441,9 @@ registerActions({
   ccPassedSearch(el, e) { if (e.type !== 'input') return; cc.passedSearch = el.value; render(); },
   ccPassedRemoved(el, e) { if (e.type !== 'change') return; cc.passedShowRemoved = el.checked; render(); },
   ccBringBack(el, e) { if (e.type !== 'click') return; bringBack(el.dataset.id); },
+  ccContractSearch(el, e) { if (e.type !== 'input') return; cc.contractSearch = el.value; render(); },
+  ccContractDate(el, e) { if (e.type !== 'change') return; setContractDate(el.dataset.act, el.value); },
+  ccContractNow(el, e) { if (e.type !== 'click') return; setContractDate(el.dataset.act, today()); },
   async ccPin(el) {
     const name = el.dataset.name;
     const pinning = !cc.pinned.includes(name);
