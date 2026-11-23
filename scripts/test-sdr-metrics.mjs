@@ -46,10 +46,10 @@ test('unsorted input gives the same answer', () => {
   near(s.activeH, 7 / 60);
 });
 
-test('connects follow the Cold Calling tab: not no answer / voicemail / bad number / desk DQ / blank', () => {
+test('connects follow the Cold Calling tab exactly: everything except no answer / voicemail / bad number / desk DQ', () => {
   const s = dayStats(['no_answer', 'desk_dq', '', 'bad_number', 'voicemail', 'booked', 'not_interested']
     .map((d, i) => call(`10:0${i}`, 30, d)));
-  assert.equal(s.connects, 2);
+  assert.equal(s.connects, 3); // a blank outcome counts, as it does on the Cold Calling tab
 });
 
 test('talk time sums durations', () => {

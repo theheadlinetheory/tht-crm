@@ -644,8 +644,10 @@ function managerHtml() {
       <div style="font-size:11px;color:#94a3b8;margin-top:6px">Green = on quota, amber = within 60%, red = behind. The week's targets count ${days} of 5 working days so far. Show rate is over the last ${LOOKBACK_DAYS} days (it needs the meetings to have happened).</div>`
     : '<div style="font-size:12px;color:#94a3b8">No dials this week yet.</div>');
 
-  const last30 = new Date(Date.now() - 29 * 864e5).toISOString().slice(0, 10);
-  h += section('$ per dial: what each rep makes every time they click dial', renderDollarsPerDial(reps.map(email => {
+  // Reps who dialed in the last 30 days (not just this week), so Monday mornings still show the 30-day numbers.
+  const last30 = addDays(today(), -29);
+  const reps30 = [...new Set(cc.calls.filter(r => r.call_date >= last30).map(r => r.agent_email).filter(Boolean))].sort();
+  h += section('$ per dial: what each rep makes every time they click dial', renderDollarsPerDial(reps30.map(email => {
     const mine = cc.calls.filter(r => r.agent_email === email);
     return { name: repName(email), email, periods: { today: tally(mine, today(), today()), week: tally(mine, thisWeek()), last30: tally(mine, last30) } };
   })));
