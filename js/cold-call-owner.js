@@ -5,9 +5,9 @@
 // CRM login. The database stamps it (tht-crm-backend migration 20261118120000_cold_call_deal_owner.sql) and holds
 // SDR logins to their own cards. Here: a rep sees only their own cards on Cold Calling → Pipeline; an admin sees
 // everyone's, can narrow the board to one rep, and can hand a card to another rep from the card.
-import { state } from './app.js?v=20261124001657';
-import { currentUser, isAdmin } from './auth.js?v=20261124001657';
-import { esc, str } from './utils.js?v=20261124001657';
+import { state } from './app.js?v=20261124033627';
+import { currentUser, isAdmin } from './auth.js?v=20261124033627';
+import { esc, str } from './utils.js?v=20261124033627';
 
 const CALLBACK_STAGE = 'Cold Call Callback';
 const myEmail = () => str(currentUser && currentUser.email).toLowerCase();
@@ -64,6 +64,6 @@ export function renderSdrOwnerField(deal) {
 
 window.setColdCallRepFilter = async (v) => {
   state.ccRepFilter = v || '';
-  const { render } = await import('./render.js?v=20261124001657');
+  const { render } = await import('./render.js?v=20261124033627');
   render();
 };

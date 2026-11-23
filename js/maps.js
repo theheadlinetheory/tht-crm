@@ -7,11 +7,12 @@
 // moved to a separate data file (e.g., service_area_data.js).
 // This module provides the functions that operate on that data.
 
-import { state, pendingWrites } from './app.js?v=20261124001657';
-import { GEOCODIO_KEY, CA_PROVINCES, CA_POSTAL, CA_CITIES, detectCountry, isInternationalAddress } from './config.js?v=20261124001657';
-import { render, refreshModal } from './render.js?v=20261124001657';
-import { str, esc } from './utils.js?v=20261124001657';
-import { findClientForDeal, lookupClientInfo } from './client-info.js?v=20261124001657';
+import { state, pendingWrites } from './app.js?v=20261124033627';
+import { GEOCODIO_KEY, CA_PROVINCES, CA_POSTAL, CA_CITIES, detectCountry, isInternationalAddress } from './config.js?v=20261124033627';
+import { render, refreshModal } from './render.js?v=20261124033627';
+import { str, esc } from './utils.js?v=20261124033627';
+import { findClientForDeal, lookupClientInfo } from './client-info.js?v=20261124033627';
+import { attachCountyHover } from './county-hover.js?v=20261124033627';
 
 let SERVICE_AREA_POLYGONS = {};
 let POLYGON_ALIASES = {};
@@ -338,6 +339,8 @@ function drawPolygonLayers(map, polygon){
     if(!latlngs.length) continue;
     layers.push(L.polygon(latlngs, SERVICE_AREA_STYLE).addTo(map));
   }
+  // Hover names the county under the cursor and its ZIPs inside the area.
+  attachCountyHover(map, layers, polygon);
   return layers;
 }
 

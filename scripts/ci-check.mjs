@@ -49,6 +49,8 @@ console.log(`   checked ${jsFiles.length} files`);
 // Each entry: a substring that MUST still exist in the given file. These are
 // stable structural anchors for whole features/tabs — not cosmetic strings.
 const REQUIRED_FEATURES = [
+  // Service-area map hover: county under the cursor, whole vs part, its ZIPs inside the area
+  { file: 'maps.js',           needle: 'attachCountyHover(map, layers, polygon);', feature: 'Service area map: county + ZIP hover' },
   // SDR Scorecard under Setter Performance (admin-only dials/connects/bookings per SDR)
   { file: 'dashboard.js',      needle: 'if (isAdmin()) h += renderSdrScorecard();', feature: 'Dashboard: SDR Scorecard' },
   // Realtime UPDATEs merge into the row we hold (a replace blanked large columns → dead "Send pass-off" button)
