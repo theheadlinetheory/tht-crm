@@ -31,6 +31,9 @@ export const state = {
   dashboardMonth: new Date().toISOString().slice(0,7),
   dashboardWeek: null, // Monday of the selected week, 'YYYY-MM-DD' (null = current week)
   setterChannel: 'all', // Setter Performance channel: 'all' | 'email' | 'cold_call'
+  sdrPeriod: 'week', // SDR Scorecard period: 'day' | 'week' | 'month'
+  sdrAnchor: null, // SDR Scorecard: an ET day inside the shown period (null = today)
+  sdrData: null, // SDR Scorecard: { from, at, seats, calls } | { loading } | { error }
   rerunQueue: [],
   rerunLoading: false,
   nurtureFilterCampaign: '',

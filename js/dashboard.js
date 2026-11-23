@@ -9,6 +9,7 @@ import { esc, fmt$ } from './utils.js?v=20261119022015';
 import { isAdmin, isEmployee } from './auth.js?v=20261119022015';
 import { getOverdueActivities } from './activities.js?v=20261119022015';
 import { renderSetterStats } from './setter-stats.js?v=20261119022015';
+import { renderSdrScorecard } from './sdr-scorecard.js?v=20261119022015';
 import { retentionLevel } from './dashboard-funnel.js?v=20261119022015';
 
 function dateAddedToDate(dateAdded) {
@@ -610,6 +611,9 @@ export function renderClientDashboard(){
 
   // ─── Setter Performance (booking days) ───
   h += renderSetterStats();
+
+  // ─── SDR Scorecard (admin only: SDRs don't see each other's numbers) ───
+  if (isAdmin()) h += renderSdrScorecard();
 
   h += `</div>`;
   return h;

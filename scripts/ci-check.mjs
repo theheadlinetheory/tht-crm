@@ -49,6 +49,8 @@ console.log(`   checked ${jsFiles.length} files`);
 // Each entry: a substring that MUST still exist in the given file. These are
 // stable structural anchors for whole features/tabs — not cosmetic strings.
 const REQUIRED_FEATURES = [
+  // SDR Scorecard under Setter Performance (admin-only dials/connects/bookings per SDR)
+  { file: 'dashboard.js',      needle: 'if (isAdmin()) h += renderSdrScorecard();', feature: 'Dashboard: SDR Scorecard' },
   // Realtime UPDATEs merge into the row we hold (a replace blanked large columns → dead "Send pass-off" button)
   { file: 'api.js',            needle: 'applyRealtimeUpdate(list[idx], newRow', feature: 'Realtime: UPDATE merges, never replaces, the held row' },
   { file: 'realtime-merge.js', needle: 'Object.assign(have, mergeRealtimeUpdate(have, incoming))', feature: 'Realtime: UPDATE merges into the held row in place' },
