@@ -3,8 +3,8 @@
 // time on the phone, by day / week / month. Lives under Setter Performance on the
 // Client Fulfillment dashboard (dashboard.js), never its own tab.
 //
-// Calls come from sdr_calls (JustCall Sales Dialer, synced every 15 min by the
-// justcall-sdr-sync edge function); sdr_seats says which login is which SDR and holds
+// Calls come from cold_calls (JustCall Sales Dialer, synced every 2 min by cold-call-sync,
+// the same rows as the Cold Calling tab); sdr_seats says which login (agent_email) is which SDR and holds
 // their targets (6 h dialing, 200 dials). Bookings come from the Lead Tracker
 // (cold-call rows, by setter; blank setter = Ioannis). Math: sdr-metrics.js.
 // ═══════════════════════════════════════════════════════════
@@ -43,15 +43,15 @@ async function load(fromDay) {
   try {
     const sinceUtc = new Date(utc(addDays(fromDay, -1))).toISOString();
     const [seats, calls] = await Promise.all([
-      selectAllPages(() => supabase.from('sdr_seats').select('*').eq('active', true).order('agent_id')),
-      selectAllPages(() => supabase.from('sdr_calls').select('call_id,agent_id,called_at,duration_s,disposition')
+      selectAllPages(() => supabase.from('sdr_seats').select('*').eq('active', true).order('agent_email')),
+      selectAllPages(() => supabase.from('cold_calls').select('call_id,agent_email,called_at,duration_sec,outcome')
         .gte('called_at', sinceUtc).order('call_id')),
     ]);
     state.sdrData = {
       from: fromDay, at: Date.now(),
-      seats: seats.map((s) => ({ agentId: s.agent_id, setter: s.setter, targetHours: Number(s.target_hours), targetDials: Number(s.target_dials) })),
+      seats: seats.map((s) => ({ agentId: s.agent_email, setter: s.setter, targetHours: Number(s.target_hours), targetDials: Number(s.target_dials) })),
       // ET day worked out once here, not on every render
-      calls: calls.map((c) => ({ agentId: c.agent_id, calledAt: c.called_at, day: etDay(c.called_at), durationS: c.duration_s, disposition: c.disposition })),
+      calls: calls.map((c) => ({ agentId: c.agent_email, calledAt: c.called_at, day: etDay(c.called_at), durationS: c.duration_sec || 0, disposition: c.outcome || '' })),
     };
   } catch (e) {
     console.error('SDR scorecard load failed', e);
@@ -204,7 +204,7 @@ function shell(controlsHtml, body) {
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:4px">
       <h3 style="font-size:14px;font-weight:700;margin:0">SDR Scorecard</h3>${controlsHtml}
     </div>
-    <p style="font-size:11px;color:var(--text-muted);margin:0 0 10px">From JustCall's dialer (updated every 15 min) and the Lead Tracker. Red = under the daily dial target. Connects = any outcome except No Answer / Bad Number. Active hours = calling with no gap over ${GAP_MIN} min; utilization = active hours ÷ target hours. Times are Eastern.</p>
+    <p style="font-size:11px;color:var(--text-muted);margin:0 0 10px">From JustCall's dialer (the same dials as the Cold Calling tab) and the Lead Tracker. Red = under the daily dial target. Connects = someone picked up (not no answer, voicemail, bad number or desk DQ). Active hours = calling with no gap over ${GAP_MIN} min; utilization = active hours ÷ target hours. Times are Eastern.</p>
     ${body}
   </div>`;
 }

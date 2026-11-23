@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════════════════════
 
 export const TREND_WEEKS = 8;
-export const STALE_MS = 15 * 6e4; // the sync runs every 15 min
+export const STALE_MS = 15 * 6e4; // reload at most every 15 min (cold_calls itself syncs every 2)
 export const RETRY_MS = 6e4;      // after a failed load
 
 const DAY_MS = 864e5;

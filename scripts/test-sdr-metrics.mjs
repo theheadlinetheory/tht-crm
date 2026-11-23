@@ -13,7 +13,7 @@ const test = (name, fn) => {
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} ≠ ${b}`);
 
 // 2026-11-20 is EST (UTC-5): 10:00 ET = 15:00Z
-const call = (hhmm, durationS = 60, disposition = 'No Answer', agentId = 1, day = '2026-11-20') => {
+const call = (hhmm, durationS = 60, disposition = 'no_answer', agentId = 1, day = '2026-11-20') => {
   const [h, m] = hhmm.split(':').map(Number);
   return { agentId, calledAt: `${day}T${String(h + 5).padStart(2, '0')}:${String(m).padStart(2, '0')}:00Z`, durationS, disposition };
 };
@@ -46,8 +46,8 @@ test('unsorted input gives the same answer', () => {
   near(s.activeH, 7 / 60);
 });
 
-test('connects exclude No Answer, Bad Number and blank', () => {
-  const s = dayStats(['No Answer', 'Desk DQ', '', 'Bad Number / Disconnected', 'Appointment Booked']
+test('connects follow the Cold Calling tab: not no answer / voicemail / bad number / desk DQ / blank', () => {
+  const s = dayStats(['no_answer', 'desk_dq', '', 'bad_number', 'voicemail', 'booked', 'not_interested']
     .map((d, i) => call(`10:0${i}`, 30, d)));
   assert.equal(s.connects, 2);
 });
@@ -70,7 +70,7 @@ test('utilization = active hours ÷ target hours; dials under target flagged', (
 });
 
 test('no bookings → dialsPerBooking null, connToBook 0', () => {
-  const [m] = scorecard({ calls: [call('10:00', 60, 'Desk DQ')], seats: SEATS, bookings: [], from: '2026-11-20', to: '2026-11-20' });
+  const [m] = scorecard({ calls: [call('10:00', 60, 'not_interested')], seats: SEATS, bookings: [], from: '2026-11-20', to: '2026-11-20' });
   assert.equal(m.days[0].dialsPerBooking, null);
   assert.equal(m.days[0].connToBook, 0);
   assert.equal(m.totals.dialsPerBooking, null);
@@ -90,7 +90,7 @@ test('a booking on a day with no dials still gets a zero row, never NaN', () => 
 
 test('days with nothing are left out; calls and bookings outside the range ignored', () => {
   const [m] = scorecard({
-    calls: [call('10:00', 60, 'No Answer', 1, '2026-11-19'), call('10:00', 60, 'No Answer', 1, '2026-11-20')],
+    calls: [call('10:00', 60, 'no_answer', 1, '2026-11-19'), call('10:00', 60, 'no_answer', 1, '2026-11-20')],
     seats: SEATS, bookings: [{ setter: 'Marcell', day: '2026-11-18' }], from: '2026-11-20', to: '2026-11-22',
   });
   assert.deepEqual(m.days.map((d) => d.day), ['2026-11-20']);
@@ -98,14 +98,14 @@ test('days with nothing are left out; calls and bookings outside the range ignor
 });
 
 test('calls from a login with no seat are not counted', () => {
-  const [m] = scorecard({ calls: [call('10:00', 60, 'No Answer', 99)], seats: SEATS, bookings: [], from: '2026-11-20', to: '2026-11-20' });
+  const [m] = scorecard({ calls: [call('10:00', 60, 'no_answer', 99)], seats: SEATS, bookings: [], from: '2026-11-20', to: '2026-11-20' });
   assert.equal(m.days.length, 0);
   assert.equal(m.totals.dials, 0);
 });
 
 test('totals: sums, and per-day averages over days with at least one dial', () => {
-  const calls = [call('10:00', 60, 'Desk DQ', 1, '2026-11-19'), call('10:05', 60, 'No Answer', 1, '2026-11-19'),
-    call('10:00', 60, 'Appointment Booked', 1, '2026-11-20'), call('10:05', 60, 'No Answer', 1, '2026-11-20')];
+  const calls = [call('10:00', 60, 'not_interested', 1, '2026-11-19'), call('10:05', 60, 'no_answer', 1, '2026-11-19'),
+    call('10:00', 60, 'booked', 1, '2026-11-20'), call('10:05', 60, 'no_answer', 1, '2026-11-20')];
   const bookings = [{ setter: 'Marcell', day: '2026-11-20' }, { setter: 'Marcell', day: '2026-11-21' }];
   const [m] = scorecard({ calls, seats: SEATS, bookings, from: '2026-11-19', to: '2026-11-21' });
   const t = m.totals;
@@ -122,14 +122,14 @@ test('totals: sums, and per-day averages over days with at least one dial', () =
 
 test('one result per seat, in seat order, carrying targets', () => {
   const seats = [...SEATS, { agentId: 2, setter: 'Ioannis', targetHours: 6, targetDials: 200 }];
-  const out = scorecard({ calls: [call('10:00', 60, 'No Answer', 2)], seats, bookings: [], from: '2026-11-20', to: '2026-11-20' });
+  const out = scorecard({ calls: [call('10:00', 60, 'no_answer', 2)], seats, bookings: [], from: '2026-11-20', to: '2026-11-20' });
   assert.deepEqual(out.map((s) => s.setter), ['Marcell', 'Ioannis']);
   assert.equal(out[1].totals.dials, 1);
   assert.equal(out[1].targetDials, 200);
 });
 
 test('a precomputed ET day on the call is used as-is (no per-render timezone work)', () => {
-  const c = { ...call('10:00', 60, 'No Answer', 1, '2026-11-20'), day: '2026-11-19' };
+  const c = { ...call('10:00', 60, 'no_answer', 1, '2026-11-20'), day: '2026-11-19' };
   const [m] = scorecard({ calls: [c], seats: SEATS, bookings: [], from: '2026-11-19', to: '2026-11-19' });
   assert.equal(m.totals.dials, 1);
 });

@@ -2,7 +2,7 @@
 // SDR METRICS — the SDR Scorecard math. Import-free and pure (tested by
 // scripts/test-sdr-metrics.mjs).
 //
-// calls    { agentId, calledAt (ISO UTC), durationS, disposition, day? (ET) } ← sdr_calls
+// calls    { agentId, calledAt (ISO UTC), durationS, disposition (cold_calls.outcome), day? (ET) } ← cold_calls
 // seats    { agentId, setter, targetHours, targetDials }              ← sdr_seats
 // bookings { setter, day: 'YYYY-MM-DD' }                              ← Lead Tracker cold calls
 //
@@ -12,7 +12,8 @@
 // ═══════════════════════════════════════════════════════════
 
 export const GAP_MIN = 15;
-const NOT_CONNECTED = new Set(['No Answer', 'Bad Number / Disconnected', '']);
+// Same rule as the Cold Calling tab: someone picked up (cold_calls.outcome codes).
+const NOT_CONNECTED = new Set(['no_answer', 'voicemail', 'bad_number', 'desk_dq', '']);
 const HOUR_MS = 36e5;
 const MIN_MS = 6e4;
 
