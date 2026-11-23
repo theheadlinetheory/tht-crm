@@ -13,9 +13,9 @@
 // Staff only, never SDRs (RLS on demo_handoffs agrees). The panel's content lives in its own
 // container (#dh-<id>) and in _cache, so refreshModal's targeted swap never blanks it.
 
-import { esc, escAttr, jsArg, str } from './utils.js?v=20261124033627';
-import { invokeEdgeFunction, showToast } from './api.js?v=20261124033627';
-import { isAdmin, isEmployee, isSdr } from './auth.js?v=20261124033627';
+import { esc, escAttr, jsArg, str } from './utils.js?v=20261123144026';
+import { invokeEdgeFunction, showToast } from './api.js?v=20261123144026';
+import { isAdmin, isEmployee, isSdr } from './auth.js?v=20261123144026';
 
 const POLL_MS = 4000;
 const _cache = {};   // dealId → { row, suggest, docName, source, recordingUrl, fathomUrl, top, thread, busy }

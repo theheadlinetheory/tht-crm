@@ -4,10 +4,10 @@
 // call: "you literally have a button that gives you $2 every single time you press it."
 // $/hour needs the hours from the SDR's EOD (#standard-work-checklist) — coming soon.
 // ═══════════════════════════════════════════════════════════
-import { esc } from './utils.js?v=20261124033627';
-import { setterInfo } from './lead-setter.js?v=20261124033627';
-import { setterRates } from './lead-payout.js?v=20261124033627';
-import { setterForEmail, earnedFor, perDial } from './sdr-money.js?v=20261124033627';
+import { esc } from './utils.js?v=20261123144026';
+import { setterInfo } from './lead-setter.js?v=20261123144026';
+import { setterRates } from './lead-payout.js?v=20261123144026';
+import { setterForEmail, earnedFor, perDial } from './sdr-money.js?v=20261123144026';
 
 const PERIODS = [['today', 'Today'], ['week', 'This week'], ['last30', 'Last 30 days']];
 const th = 'padding:6px 8px;text-align:left;font-weight:600;color:#64748b;font-size:11px;white-space:nowrap';
