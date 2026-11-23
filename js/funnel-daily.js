@@ -13,13 +13,13 @@
 // months are the same day rows grouped in the browser (funnel-trend-group.js,
 // tested). The offer and channel chips on the Funnel tab apply here too.
 
-import { esc } from './utils.js?v=20261124050540';
-import { state } from './app.js?v=20261124050540';
-import { multiFilterDropdown } from './html-helpers.js?v=20261124050540';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261124050540';
-import { todayYmdLA, addDays } from './funnel-period.js?v=20261124050540';
-import { groupDays, avgComplete, dowOf, shortDay } from './funnel-trend-group.js?v=20261124050540';
-import { authedFetch } from './edge-auth.js?v=20261124050540'; // session token, not the anon key (A2#2, S1, 2026-11-13)
+import { esc } from './utils.js?v=20261124052057';
+import { state } from './app.js?v=20261124052057';
+import { multiFilterDropdown } from './html-helpers.js?v=20261124052057';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261124052057';
+import { todayYmdLA, addDays } from './funnel-period.js?v=20261124052057';
+import { groupDays, avgComplete, dowOf, shortDay } from './funnel-trend-group.js?v=20261124052057';
+import { authedFetch } from './edge-auth.js?v=20261124052057'; // session token, not the anon key (A2#2, S1, 2026-11-13)
 
 // The stages, in funnel order, each with its own colour for good (a stage keeps its colour whatever else is picked —
 // palette validated with the dataviz checks, 2026-11-10). `hint` is the counting rule in one line.
@@ -37,7 +37,7 @@ const RANGE_KEY = 'funnelDailyRange', GRAN_KEY = 'funnelDailyGran', METRICS_KEY 
 const WINDOW_START = '2026-05-04';
 // The same range chips whatever the granularity, so nothing on the row moves when a chip is clicked (Lars, 2026-11-10:
 // "the button locations change every time you click something"). A short range by month is a couple of partial bars.
-const RANGES = [{ key: '4w', label: '4 weeks', days: 28 }, { key: '8w', label: '8 weeks', days: 56 }, { key: '12w', label: '12 weeks', days: 84 }, { key: '26w', label: '26 weeks', days: 182 }, { key: 'all', label: 'Since May 4', days: 0 }];
+const RANGES = [{ key: '2w', label: '2 weeks', days: 14 }, { key: '4w', label: '4 weeks', days: 28 }, { key: '8w', label: '8 weeks', days: 56 }, { key: '12w', label: '12 weeks', days: 84 }, { key: '26w', label: '26 weeks', days: 182 }, { key: 'all', label: 'Since May 4', days: 0 }];
 const GRANS = [{ key: 'day', label: 'Day' }, { key: 'week', label: 'Week' }, { key: 'month', label: 'Month' }];
 const lsGet = (k, d) => { try { return localStorage.getItem(k) || d; } catch (_) { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (_) { /* private mode */ } };
@@ -61,16 +61,16 @@ let _loading = null;
 const TTL_MS = 15 * 60e3;
 
 /** The range chip in force. */
-const rangeDef = () => RANGES.find(r => r.key === _range) || RANGES[1];
+const rangeDef = () => RANGES.find(r => r.key === _range) || RANGES.find(r => r.key === '8w');
 const rangeOf = () => { const r = rangeDef(), to = todayYmdLA(); return { from: r.days ? addDays(to, -(r.days - 1)) : WINDOW_START, to }; };
-const cacheKey = (offer, channel) => `${rangeDef().days}@${offer || ''}@${channel || ''}`;
+const cacheKey = (offer, channel, niche) => `${rangeDef().days}@${offer || ''}@${channel || ''}@${niche || ''}`;
 
-function fetchDaily(offer, channel, rerender) {
-  const key = cacheKey(offer, channel);
+function fetchDaily(offer, channel, rerender, niche) {
+  const key = cacheKey(offer, channel, niche);
   if (_loading === key) return;
   _loading = key;
   const headers = { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY };
-  const payload = { ...rangeOf(), ...(offer ? { offer } : {}), ...(channel ? { channel } : {}) };
+  const payload = { ...rangeOf(), ...(offer ? { offer } : {}), ...(channel ? { channel } : {}), ...(niche ? { niche } : {}) };
   authedFetch(`${SUPABASE_URL}/functions/v1/pipeline-daily`, { method: 'POST', headers, body: JSON.stringify(payload) })
     .then(async r => { const text = await r.text(); let j = null; try { j = JSON.parse(text); } catch (_) { /* not JSON */ }
       if (!r.ok || !j || j.ok === false) throw new Error((j && (j.error || j.message)) || ('HTTP ' + r.status));
@@ -82,7 +82,7 @@ function fetchDaily(offer, channel, rerender) {
 /** Forget every cached answer (the Refresh button). */
 export function clearFunnelDaily() { for (const k of Object.keys(_cache)) delete _cache[k]; }
 
-const rerenderNow = () => import('./render.js?v=20261124050540').then(m => m.render());
+const rerenderNow = () => import('./render.js?v=20261124052057').then(m => m.render());
 window.setFunnelDailyRange = (key) => { _range = key; lsSet(RANGE_KEY, key); rerenderNow(); };
 window.setFunnelDailyGran = (key) => { if (GRANS.some(g => g.key === key)) { _gran = key; lsSet(GRAN_KEY, key); rerenderNow(); } };
 window.toggleFunnelDailyStacked = () => { _stacked = !_stacked; lsSet(STACK_KEY, _stacked ? '1' : ''); rerenderNow(); };
@@ -235,12 +235,12 @@ function tableHtml(groups, sel) {
 
 const chip = (on, onclick, label) => `<button onclick="${onclick}" style="padding:4px 11px;border:1px solid ${on ? '#1e1b4b' : 'var(--border)'};border-radius:999px;background:${on ? '#1e1b4b' : 'var(--card)'};color:${on ? '#fff' : 'var(--text)'};font-size:11px;font-weight:600;cursor:pointer">${label}</button>`;
 
-/** The panel. `filterLabel` names the active offer/channel chips for the subtitle. */
-export function renderFunnelDaily(offer, channel, filterLabel) {
-  const key = cacheKey(offer, channel);
+/** The panel. `filterLabel` names the active offer/channel/niche chips for the subtitle. */
+export function renderFunnelDaily(offer, channel, filterLabel, niche) {
+  const key = cacheKey(offer, channel, niche);
   const c = _cache[key];
   const fresh = c && Date.now() - c.at < TTL_MS && (!c.data || c.data.to === todayYmdLA());
-  if (!fresh) fetchDaily(offer, channel, rerenderNow);
+  if (!fresh) fetchDaily(offer, channel, rerenderNow, niche);
   lsSet(METRICS_KEY, JSON.stringify(state.funnelMetrics)); // the dropdown writes state; remember it here
   const sel = picked(), several = sel.length > 1;
 

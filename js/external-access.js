@@ -7,8 +7,8 @@
 // it must sign in with Google, it is always an SDR, and revoking it bans the account and ends its
 // sessions on the spot. This file is just the admin UI for that list — the rules live in the DB
 // (tht-crm-backend migrations-applied-by-hand/20261124120000_approved_gmail_sdr_access.sql).
-import { supabase } from './api.js?v=20261124050540';
-import { esc, jsArg } from './utils.js?v=20261124050540';
+import { supabase } from './api.js?v=20261124052057';
+import { esc, jsArg } from './utils.js?v=20261124052057';
 
 const COMPANY = /@theheadlinetheory\.com$/i;
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;

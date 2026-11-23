@@ -12,8 +12,8 @@
 // Nothing is written: the functions answer from the per-lead ledger and the
 // daily send snapshots. The "All" view keeps reading pipeline_latest.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261124050540';
-import { authedFetch } from './edge-auth.js?v=20261124050540'; // session token, not the anon key (A2#2, S1, 2026-11-13)
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261124052057';
+import { authedFetch } from './edge-auth.js?v=20261124052057'; // session token, not the anon key (A2#2, S1, 2026-11-13)
 
 export const TZ = 'America/Los_Angeles';
 
@@ -105,9 +105,9 @@ export function mondayOf(key) {
 export { addDays };
 
 /** Ask every level for the period; returns rows shaped like pipeline_latest. */
-export async function fetchPeriod(range, levelDefs, offer, channel) {
+export async function fetchPeriod(range, levelDefs, offer, channel, niche) {
   const headers = { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY };
-  const payload = { ...range, ...(offer ? { offer } : {}), ...(channel ? { channel } : {}) }; // PPM vs retainer (Lars, 2026-10-07); channel (2026-10-08)
+  const payload = { ...range, ...(offer ? { offer } : {}), ...(channel ? { channel } : {}), ...(niche ? { niche } : {}) }; // PPM vs retainer (Lars, 2026-10-07); channel (2026-10-08); niche (2026-11-24)
   // A gateway 504 is an HTML page and an auth failure is JSON without `ok`: read the text, then decide (hardening review, 2026-09-15).
   const ask = (n) => authedFetch(`${SUPABASE_URL}/functions/v1/pipeline-level0${n}`, { method: 'POST', headers, body: JSON.stringify(payload) })
     .then(async r => { const text = await r.text(); let j = null; try { j = JSON.parse(text); } catch (_) { /* not JSON */ }

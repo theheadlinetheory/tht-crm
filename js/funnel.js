@@ -19,13 +19,13 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon, jsArg } from './utils.js?v=20261124050540';
-import { supabase } from './supabase-client.js?v=20261124050540';
-import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel, rangeDays, todayYmdLA, requestExactSends } from './funnel-period.js?v=20261124050540';
-import { leadsTable } from './funnel-leads.js?v=20261124050540';
-import { renderFunnelDaily, clearFunnelDaily } from './funnel-daily.js?v=20261124050540';
-import { renderAcqStageGrid } from './dashboard.js?v=20261124050540';
-import { renderFunnelMap } from './funnel-map.js?v=20261124050540';
+import { esc, svgIcon, jsArg } from './utils.js?v=20261124052057';
+import { supabase } from './supabase-client.js?v=20261124052057';
+import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel, rangeDays, todayYmdLA, requestExactSends } from './funnel-period.js?v=20261124052057';
+import { leadsTable } from './funnel-leads.js?v=20261124052057';
+import { renderFunnelDaily, clearFunnelDaily } from './funnel-daily.js?v=20261124052057';
+import { renderAcqStageGrid } from './dashboard.js?v=20261124052057';
+import { renderFunnelMap } from './funnel-map.js?v=20261124052057';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -47,8 +47,14 @@ const OFFERS = [{ key: '', label: 'All offers' }, { key: 'ppm', label: 'PPM' }, 
 const CHANNEL_KEY = 'funnelChannel';
 const CHANNELS = [{ key: '', label: 'All channels' }, { key: 'email', label: 'Email' }, { key: 'linkedin', label: 'LinkedIn' }, { key: 'sms', label: 'SMS' }, { key: 'aeo', label: 'AEO/GEO' }]; // AEO/GEO (Lars, 2026-11-05): inbound bookers on none of our lists
 let _channel = (() => { try { const v = localStorage.getItem(CHANNEL_KEY) || ''; return CHANNELS.some(c => c.key === v) ? v : ''; } catch (_) { return ''; } })();
-const filterLabel = () => [_offer === 'ppm' ? 'PPM' : _offer === 'retainer' ? 'retainer' : '', (CHANNELS.find(c => c.key === _channel) || {}).label || ''].filter(Boolean).join(' · ');
-const ck = (key) => (_offer || _channel) ? `${key}@${_offer}@${_channel}` : key; // cache key: a period under a filter is its own entry
+// Niches (Lars, 2026-11-24): '' = every niche, else the trade the campaign names ("Chicago HVAC Acquisition"). The level
+// functions read it off the lead's campaign name, so it holds through every level. SMS / LinkedIn / inbound cards carry no
+// niche in their campaign name and show only under All niches.
+const NICHE_KEY = 'funnelNiche';
+const NICHES = [{ key: '', label: 'All niches' }, { key: 'landscaping', label: 'Landscaping' }, { key: 'hvac', label: 'HVAC' }, { key: 'cleaning', label: 'Cleaning' }, { key: 'snow', label: 'Snow removal' }, { key: 'holiday', label: 'Holiday lighting' }];
+let _niche = (() => { try { const v = localStorage.getItem(NICHE_KEY) || ''; return NICHES.some(n => n.key === v) ? v : ''; } catch (_) { return ''; } })();
+const filterLabel = () => [_offer === 'ppm' ? 'PPM' : _offer === 'retainer' ? 'retainer' : '', (CHANNELS.find(c => c.key === _channel) || {}).label || '', _niche ? (NICHES.find(n => n.key === _niche) || {}).label || '' : ''].filter(Boolean).join(' · ');
+const ck = (key) => (_offer || _channel || _niche) ? `${key}@${_offer}@${_channel}@${_niche}` : key; // cache key: a period under a filter is its own entry
 /** The earliest Monday the levels cover — from the level 01 card when loaded, else the constant in funnel-period.js. */
 function backfillStart() {
   const l1 = (_levels || []).find(l => l.level === '01');
@@ -110,7 +116,7 @@ export function reloadFunnel(rerender) {
     .then(({ data, error }) => { if (error) _error = error.message; else { _levels = data || []; _error = null; } });
   const g = (_gen[ck(key)] = (_gen[ck(key)] || 0) + 1);
   const period = key !== 'all'
-    ? fetchPeriod(periodRange(key), _levels || [], _offer, _channel).then(rows => { storePeriod(key, rows, g); }).catch(() => {})
+    ? fetchPeriod(periodRange(key), _levels || [], _offer, _channel, _niche).then(rows => { storePeriod(key, rows, g); }).catch(() => {})
     : Promise.resolve();
   Promise.all([cards, period]).finally(() => {
     if (rerender) rerender();
@@ -120,10 +126,10 @@ export function reloadFunnel(rerender) {
 
 function loadPeriod(key, rerender) {
   if (periodRows(key) || _periodLoading === key) return;
-  if (!rerender) rerender = () => import('./render.js?v=20261124050540').then(m => m.render());
+  if (!rerender) rerender = () => import('./render.js?v=20261124052057').then(m => m.render());
   _periodLoading = key;
   const g = (_gen[ck(key)] = (_gen[ck(key)] || 0) + 1);
-  fetchPeriod(periodRange(key), _levels || [], _offer, _channel).then(rows => {
+  fetchPeriod(periodRange(key), _levels || [], _offer, _channel, _niche).then(rows => {
     storePeriod(key, rows, g);
   }).catch(e => {
     storePeriod(key, { error: String(e && e.message || e) }, g);
@@ -155,23 +161,28 @@ window.setFunnelPeriod = (key) => {
     };
     setTimeout(whenLoaded, 500);
   }
-  import('./render.js?v=20261124050540').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+  import('./render.js?v=20261124052057').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
 };
 
 window.setFunnelOffer = (offer) => {
   _offer = offer === 'ppm' || offer === 'retainer' ? offer : '';
   try { localStorage.setItem(OFFER_KEY, _offer); } catch (_) { /* private mode */ }
-  import('./render.js?v=20261124050540').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
+  import('./render.js?v=20261124052057').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
+};
+window.setFunnelNiche = (niche) => {
+  _niche = NICHES.some(n => n.key === niche) ? niche : '';
+  try { localStorage.setItem(NICHE_KEY, _niche); } catch (_) { /* private mode */ }
+  import('./render.js?v=20261124052057').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
 };
 window.setFunnelChannel = (channel) => {
   _channel = CHANNELS.some(c => c.key === channel) ? channel : '';
   try { localStorage.setItem(CHANNEL_KEY, _channel); } catch (_) { /* private mode */ }
-  import('./render.js?v=20261124050540').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
+  import('./render.js?v=20261124052057').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
 };
 
 // ── The calendar: pick any stretch of days (Lars, 2026-09-18) ──
 const _pick = { open: false, month: null, start: null, end: null }; // month 'YYYY-MM'; start/end 'YYYY-MM-DD' while choosing
-const rerenderNow = () => import('./render.js?v=20261124050540').then(m => m.render());
+const rerenderNow = () => import('./render.js?v=20261124052057').then(m => m.render());
 window.funnelPickToggle = () => {
   _pick.open = !_pick.open;
   if (_pick.open) { const r = periodRange(_period); _pick.month = (r ? r.to : todayYmdLA()).slice(0, 7); _pick.start = null; _pick.end = null; }
@@ -503,6 +514,8 @@ function periodBar() {
   OFFERS.forEach(o => { h += chip(_offer === o.key, `setFunnelOffer('${o.key}')`, esc(o.label)); });
   h += `<span style="width:10px"></span>`;
   CHANNELS.forEach(c => { h += chip(_channel === c.key, `setFunnelChannel('${c.key}')`, esc(c.label)); });
+  h += `<span style="width:10px"></span>`;
+  NICHES.forEach(n => { h += chip(_niche === n.key, `setFunnelNiche('${n.key}')`, esc(n.label)); });
   return h + `</div>`;
 }
 
@@ -554,7 +567,7 @@ export function renderFunnel() {
   if (_view === 'map') return h + renderFunnelMap(_levels) + `</div>`; // the map: every statistic, its source, timing and owner (Aidan, 2026-11-17)
   h += periodBar();
   // The trend line: qualified positives per day, under the same offer/channel chips (Lars, 2026-11-10: "start really simple").
-  try { h += renderFunnelDaily(_offer, _channel, filterLabel()); } catch (e) { h += `<div style="padding:10px 0;color:#b91c1c;font-size:12px">Daily line could not render: ${esc(e && e.message || e)}</div>`; }
+  try { h += renderFunnelDaily(_offer, _channel, filterLabel(), _niche); } catch (e) { h += `<div style="padding:10px 0;color:#b91c1c;font-size:12px">Daily line could not render: ${esc(e && e.message || e)}</div>`; }
   h += `<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">`;
   // One level's bad answer must not take the screen down: a card that throws renders as its own error card.
   const safeCard = (r) => { try { return r.error ? levelError(r) : levelCard(r); } catch (e) { return levelError({ ...r, error: 'could not render: ' + (e && e.message || e) }); } };
@@ -565,8 +578,8 @@ export function renderFunnel() {
     const ws = backfillStart(), allKey = ws ? `range:${ws}:${todayYmdLA()}` : null;
     const pr = allKey ? periodRows(allKey) : null;
     if (allKey && !pr) loadPeriod(allKey, null);
-    if (_offer || _channel) {
-      // Under an offer or channel filter the hourly cards do not apply: the whole-window period views are the cards.
+    if (_offer || _channel || _niche) {
+      // Under an offer, channel or niche filter the hourly cards do not apply: the whole-window period views are the cards.
       if (!Array.isArray(pr)) h += `<div style="padding:16px;color:#9ca3af;font-size:13px">Splitting every level by ${esc(filterLabel())} since ${esc(ws || '')}…</div>`;
       else h += pr.map(x => ({ ...x, label: (_levels.find(l => l.level === x.level) || {}).label || x.label, detail: { ...(x.detail || {}), leads_label: `all ${filterLabel()} leads since ${ws}` } })).map(safeCard).join('');
     } else {
@@ -592,5 +605,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20261124050540').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20261124052057').then(m => reloadFunnel(m.render));
 };
