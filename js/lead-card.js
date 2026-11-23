@@ -12,12 +12,12 @@
 // to a deal by email + company. The placeholder itself must stay — the Google
 // Sheet sync (sync-lead-tracker) finds a row's sheet line by that id.
 
-import { state } from './app.js?v=20261122183507';
-import { supabase } from './api.js?v=20261122183507';
-import { escAttr, str, jsArg } from './utils.js?v=20261122183507';
-import { render } from './render.js?v=20261122183507';
-import { openDeal } from './deal-modal.js?v=20261122183507';
-import { openArchivedDeal } from './archive.js?v=20261122183507';
+import { state } from './app.js?v=20261122184015';
+import { supabase } from './api.js?v=20261122184015';
+import { escAttr, str, jsArg } from './utils.js?v=20261122184015';
+import { render } from './render.js?v=20261122184015';
+import { openDeal } from './deal-modal.js?v=20261122184015';
+import { openArchivedDeal } from './archive.js?v=20261122184015';
 
 const isRealDealId = (id) => !!id && !/^migrated-/i.test(id);
 

@@ -8,17 +8,16 @@
 // their targets (6 h dialing, 200 dials). Bookings come from the Lead Tracker
 // (cold-call rows, by setter; blank setter = Ioannis). Math: sdr-metrics.js.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261122183507';
-import { render } from './render.js?v=20261122183507';
-import { esc } from './utils.js?v=20261122183507';
-import { registerActions } from './delegate.js?v=20261122183507';
-import { supabase } from './supabase-client.js?v=20261122183507';
-import { selectAllPages } from './paging.js?v=20261122183507';
-import { scorecard, etDay, GAP_MIN } from './sdr-metrics.js?v=20261122183507';
+import { state } from './app.js?v=20261122184015';
+import { render } from './render.js?v=20261122184015';
+import { esc } from './utils.js?v=20261122184015';
+import { registerActions } from './delegate.js?v=20261122184015';
+import { supabase } from './supabase-client.js?v=20261122184015';
+import { selectAllPages } from './paging.js?v=20261122184015';
+import { scorecard, etDay, GAP_MIN } from './sdr-metrics.js?v=20261122184015';
+import { TREND_WEEKS, rangeOf, shiftAnchor, addDays, trendMondays, neededFrom, loadAction } from './sdr-periods.js?v=20261122184015';
 
 const PERIODS = [{ key: 'day', label: 'Day' }, { key: 'week', label: 'Week' }, { key: 'month', label: 'Month' }];
-const TREND_WEEKS = 8;
-const STALE_MS = 15 * 6e4;
 const DEFAULT_SETTER = 'Ioannis';
 const EXCLUDED_CLIENTS = ['landy rose media'];
 const SDR_COLORS = ['#4f46e5', '#f59e0b', '#10b981', '#ef4444'];
@@ -30,35 +29,14 @@ registerActions({
   sdrShift(el) { state.sdrAnchor = shiftAnchor(anchor(), period(), Number(el.dataset.d)); render(); },
 });
 
-// ─── Dates (ET calendar days as 'YYYY-MM-DD') ───
+// ─── Period (ET calendar days as 'YYYY-MM-DD'; math in sdr-periods.js) ───
 
-const DAY_MS = 864e5;
 const utc = (iso) => Date.parse(iso + 'T00:00:00Z');
-const isoOf = (ms) => new Date(ms).toISOString().slice(0, 10);
-const addDays = (iso, n) => isoOf(utc(iso) + n * DAY_MS);
-const mondayOf = (iso) => addDays(iso, -((new Date(utc(iso)).getUTCDay() + 6) % 7));
+const today = () => etDay(new Date().toISOString());
 const period = () => (PERIODS.some((p) => p.key === state.sdrPeriod) ? state.sdrPeriod : 'week');
-const anchor = () => state.sdrAnchor || etDay(new Date().toISOString());
-
-function rangeOf(iso, p) {
-  if (p === 'day') return { from: iso, to: iso };
-  if (p === 'week') { const m = mondayOf(iso); return { from: m, to: addDays(m, 6) }; }
-  const first = iso.slice(0, 8) + '01';
-  const next = new Date(utc(first)); next.setUTCMonth(next.getUTCMonth() + 1);
-  return { from: first, to: addDays(isoOf(next.getTime()), -1) };
-}
-
-function shiftAnchor(iso, p, dir) {
-  if (p === 'day') return addDays(iso, dir);
-  if (p === 'week') return addDays(iso, 7 * dir);
-  const d = new Date(utc(iso.slice(0, 8) + '01')); d.setUTCMonth(d.getUTCMonth() + dir);
-  return isoOf(d.getTime());
-}
+const anchor = () => state.sdrAnchor || today();
 
 // ─── Data ───
-
-// The earliest day any view of this anchor needs: the trend reaches back TREND_WEEKS.
-const neededFrom = (iso, p) => [rangeOf(iso, p).from, addDays(mondayOf(iso), -7 * (TREND_WEEKS - 1))].sort()[0];
 
 async function load(fromDay) {
   state.sdrData = { ...(state.sdrData || {}), loading: true };
@@ -72,19 +50,21 @@ async function load(fromDay) {
     state.sdrData = {
       from: fromDay, at: Date.now(),
       seats: seats.map((s) => ({ agentId: s.agent_id, setter: s.setter, targetHours: Number(s.target_hours), targetDials: Number(s.target_dials) })),
-      calls: calls.map((c) => ({ agentId: c.agent_id, calledAt: c.called_at, durationS: c.duration_s, disposition: c.disposition })),
+      // ET day worked out once here, not on every render
+      calls: calls.map((c) => ({ agentId: c.agent_id, calledAt: c.called_at, day: etDay(c.called_at), durationS: c.duration_s, disposition: c.disposition })),
     };
   } catch (e) {
     console.error('SDR scorecard load failed', e);
-    state.sdrData = { error: String(e?.message || e) };
+    state.sdrData = { error: String(e?.message || e), at: Date.now() };
   }
   render();
 }
 
+// Fetches when needed and says whether the loaded data can be drawn for this view.
 function ensureLoaded(fromDay) {
-  const d = state.sdrData;
-  if (d?.loading || d?.error) return;
-  if (!d || fromDay < d.from || Date.now() - d.at > STALE_MS) load(fromDay);
+  const action = loadAction(state.sdrData, fromDay, Date.now());
+  if (action === 'load' || action === 'refresh') load(fromDay);
+  return action;
 }
 
 // Lead Tracker "MM/DD/YY" → "YYYY-MM-DD"
@@ -205,9 +185,8 @@ function trendSvg(weeks, value, fmt) {
   return `<div style="${CARD}"><svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;max-height:${H}px">${marks}</svg></div>`;
 }
 
-function trend(seats, calls, bookings, iso) {
-  const lastMon = mondayOf(iso);
-  const weeks = Array.from({ length: TREND_WEEKS }, (_, k) => addDays(lastMon, -7 * (TREND_WEEKS - 1 - k)))
+function trend(seats, calls, bookings, iso, p) {
+  const weeks = trendMondays(iso, p, today())
     .map((from) => ({ from, cards: scorecard({ calls, seats, bookings, from, to: addDays(from, 6) }) }));
   const legend = seats.map((s, j) => `<span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px"><span style="width:10px;height:10px;border-radius:2px;background:${SDR_COLORS[j % SDR_COLORS.length]}"></span>${esc(s.setter)}</span>`).join('');
   const block = (title, svg) => `<div style="min-width:0"><h4 style="font-size:12px;font-weight:700;margin:0 0 6px">${title}</h4>${svg}</div>`;
@@ -232,16 +211,17 @@ function shell(controlsHtml, body) {
 
 export function renderSdrScorecard() {
   const p = period(), iso = anchor(), range = rangeOf(iso, p);
-  ensureLoaded(neededFrom(iso, p));
+  const action = ensureLoaded(neededFrom(iso, p, today()));
   const d = state.sdrData;
   const ctl = controls(p, periodLabel(p, range));
-  if (d?.error) return shell(ctl, `<div style="${CARD};color:${RED};font-size:12px">Couldn't load dialer data: ${esc(d.error)}</div>`);
-  if (!d?.calls) return shell(ctl, `<div style="${CARD};text-align:center;color:var(--text-muted);font-size:12px">Loading dialer data…</div>`);
+  if (action === 'error') return shell(ctl, `<div style="${CARD};color:${RED};font-size:12px">Couldn't load dialer data: ${esc(d.error)} — retrying in a minute.</div>`);
+  // Never draw from data that doesn't cover this view (it would show false zeros)
+  if (action === 'load' || !d?.calls || neededFrom(iso, p, today()) < d.from) return shell(ctl, `<div style="${CARD};text-align:center;color:var(--text-muted);font-size:12px">Loading dialer data…</div>`);
   const bookings = coldCallBookings();
   const cards = scorecard({ calls: d.calls, seats: d.seats, bookings, ...range });
   const empty = cards.every((s) => !s.days.length);
   const body = empty
     ? `<div style="${CARD};text-align:center;color:var(--text-muted);font-size:12px">No dials or bookings in this period.</div>`
     : comparisonTable(cards, p) + (p === 'day' ? '' : dailyTable(cards));
-  return shell(ctl, body + trend(d.seats, d.calls, bookings, iso));
+  return shell(ctl, body + trend(d.seats, d.calls, bookings, iso, p));
 }

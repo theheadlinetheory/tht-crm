@@ -11,10 +11,10 @@
 //     Lars, plus a Claude summary that flags disputes.
 //   - CRM state already in memory: renewal, contacts, pass-offs, meetings.
 
-import { supabase } from './supabase-client.js?v=20261122183507';
-import { str } from './utils.js?v=20261122183507';
-import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20261122183507';
-import { normName, resolveClientName, mdyToIso, localDay } from './weekly-context.js?v=20261122183507';
+import { supabase } from './supabase-client.js?v=20261122184015';
+import { str } from './utils.js?v=20261122184015';
+import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20261122184015';
+import { normName, resolveClientName, mdyToIso, localDay } from './weekly-context.js?v=20261122184015';
 
 const BRIEF_FN_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/checkin-call-brief';
 export const CALL_DAYS = 7;

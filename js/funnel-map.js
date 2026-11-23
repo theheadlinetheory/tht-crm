@@ -12,10 +12,10 @@
 // figure is read from there. A live metric with no row yet still shows,
 // marked "where / when not filled in", so a new metric never goes missing.
 
-import { esc } from './utils.js?v=20261122183507';
-import { supabase } from './supabase-client.js?v=20261122183507';
-import { isAdmin } from './auth.js?v=20261122183507';
-import { showToast } from './api.js?v=20261122183507';
+import { esc } from './utils.js?v=20261122184015';
+import { supabase } from './supabase-client.js?v=20261122184015';
+import { isAdmin } from './auth.js?v=20261122184015';
+import { showToast } from './api.js?v=20261122184015';
 
 const STAGES = { '01': 'Outreach → positive reply', '02': 'Positive → disco booked', '03': 'Disco held', '04': 'Demo booked', '05': 'Demo held', '06': 'Closed', '07': 'Retained' };
 const UNITS = { median_minutes_to_first_call: ' min' };
@@ -29,7 +29,7 @@ let _ownerFilter = '';   // '' = everyone, NONE = unassigned, else a name
 let _adding = null;      // the level whose "add a gap" form is open
 let _levels = [];        // the cards last rendered, for an owner set on a metric with no row yet
 
-const rerender = () => import('./render.js?v=20261122183507').then(m => m.render());
+const rerender = () => import('./render.js?v=20261122184015').then(m => m.render());
 const fmt = (n) => (n === null || n === undefined) ? '—' : Number(n).toLocaleString('en-US');
 
 async function load() {

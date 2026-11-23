@@ -2,7 +2,7 @@
 // SDR METRICS — the SDR Scorecard math. Import-free and pure (tested by
 // scripts/test-sdr-metrics.mjs).
 //
-// calls    { agentId, calledAt (ISO UTC), durationS, disposition }   ← sdr_calls
+// calls    { agentId, calledAt (ISO UTC), durationS, disposition, day? (ET) } ← sdr_calls
 // seats    { agentId, setter, targetHours, targetDials }              ← sdr_seats
 // bookings { setter, day: 'YYYY-MM-DD' }                              ← Lead Tracker cold calls
 //
@@ -18,6 +18,8 @@ const MIN_MS = 6e4;
 
 const ET_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' });
 export const etDay = (isoUtc) => ET_DAY.format(new Date(isoUtc));
+// Callers may set `day` once per call (it is the hot path on every render).
+const dayOf = (c) => c.day || etDay(c.calledAt);
 
 const ratio = (a, b) => (b ? a / b : 0);
 
@@ -95,7 +97,7 @@ export function scorecard({ calls, seats, bookings, from, to }) {
   const inRange = (day) => day >= from && day <= to;
   return seats.map((seat) => {
     const mine = calls.filter((c) => String(c.agentId) === String(seat.agentId));
-    const callsByDay = groupBy(mine.filter((c) => inRange(etDay(c.calledAt))), (c) => etDay(c.calledAt));
+    const callsByDay = groupBy(mine.filter((c) => inRange(dayOf(c))), dayOf);
     const booked = groupBy(bookings.filter((b) => b.setter === seat.setter && inRange(b.day)), (b) => b.day);
     const days = [...new Set([...callsByDay.keys(), ...booked.keys()])].sort()
       .map((day) => dayRow(day, callsByDay.get(day) || [], (booked.get(day) || []).length, seat));

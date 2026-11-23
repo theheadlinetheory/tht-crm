@@ -128,4 +128,10 @@ test('one result per seat, in seat order, carrying targets', () => {
   assert.equal(out[1].targetDials, 200);
 });
 
+test('a precomputed ET day on the call is used as-is (no per-render timezone work)', () => {
+  const c = { ...call('10:00', 60, 'No Answer', 1, '2026-11-20'), day: '2026-11-19' };
+  const [m] = scorecard({ calls: [c], seats: SEATS, bookings: [], from: '2026-11-19', to: '2026-11-19' });
+  assert.equal(m.totals.dials, 1);
+});
+
 console.log(`\n${passed} passed${process.exitCode ? ', some FAILED' : ''}`);

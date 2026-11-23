@@ -17,9 +17,9 @@
 // The body is a copy of the SmartLead templates as of 2026-11-18. If either is edited in SmartLead, update
 // INFO_EMAIL_HTML / CASE_STUDIES here too.
 
-import { state } from './app.js?v=20261122183507';
-import { esc, str } from './utils.js?v=20261122183507';
-import { showToast } from './api.js?v=20261122183507';
+import { state } from './app.js?v=20261122184015';
+import { esc, str } from './utils.js?v=20261122184015';
+import { showToast } from './api.js?v=20261122184015';
 
 const CASE_STUDIES = {
   hvac: {
