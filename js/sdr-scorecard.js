@@ -8,13 +8,13 @@
 // their targets (6 h dialing, 200 dials). Bookings come from the Lead Tracker
 // (cold-call rows, by setter; blank setter = Ioannis). Math: sdr-metrics.js.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261119022015';
-import { render } from './render.js?v=20261119022015';
-import { esc } from './utils.js?v=20261119022015';
-import { registerActions } from './delegate.js?v=20261119022015';
-import { supabase } from './supabase-client.js?v=20261119022015';
-import { selectAllPages } from './paging.js?v=20261119022015';
-import { scorecard, etDay, GAP_MIN } from './sdr-metrics.js?v=20261119022015';
+import { state } from './app.js?v=20261122183258';
+import { render } from './render.js?v=20261122183258';
+import { esc } from './utils.js?v=20261122183258';
+import { registerActions } from './delegate.js?v=20261122183258';
+import { supabase } from './supabase-client.js?v=20261122183258';
+import { selectAllPages } from './paging.js?v=20261122183258';
+import { scorecard, etDay, GAP_MIN } from './sdr-metrics.js?v=20261122183258';
 
 const PERIODS = [{ key: 'day', label: 'Day' }, { key: 'week', label: 'Week' }, { key: 'month', label: 'Month' }];
 const TREND_WEEKS = 8;
