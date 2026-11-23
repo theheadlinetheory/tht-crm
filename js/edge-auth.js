@@ -11,8 +11,8 @@
 // invokeEdgeFunction() in api.js and invokeEdgeFunctionAsUser() here share
 // callEdgeFunction(); they differ only in what counts as a failure.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261123144026';
-import { supabase } from './supabase-client.js?v=20261123144026';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261123150021';
+import { supabase } from './supabase-client.js?v=20261123150021';
 
 /** The signed-in user's access token, or a thrown "Signed out — sign in again". */
 export async function sessionAccessToken() {
