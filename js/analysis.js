@@ -11,20 +11,21 @@
 // /sequence-analytics endpoint the Weekly Updates tab uses, so the two tabs
 // can never report different numbers for the same week.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261122184015';
-import { render } from './render.js?v=20261122184015';
-import { esc, escAttr, str, jsArg } from './utils.js?v=20261122184015';
-import { isAdmin } from './auth.js?v=20261122184015';
-import { showToast } from './api.js?v=20261122184015';
+import { state } from './app.js?v=20261124001657';
+import { render } from './render.js?v=20261124001657';
+import { esc, escAttr, str, jsArg } from './utils.js?v=20261124001657';
+import { isAdmin } from './auth.js?v=20261124001657';
+import { showToast } from './api.js?v=20261124001657';
 import {
   currentWeekKey, weekLabel, shiftWeeks, ymd, weekStartOf,
   getWeeklyKpiStatus, getPpmClients, getRetainerClients,
   PPM_WEEKLY_TARGET, RETAINER_WEEKLY_TARGET,
   PPM_TRAILING_WEEKS, PPM_STALE_DAYS,
   trailingWeeklyDelivery, weekLabelShort,
-} from './dashboard.js?v=20261122184015';
-import { renderMonthlyAnalysis } from './analysis-monthly.js?v=20261122184015';
-import { isLastFridayOfMonth } from './analysis-month-window.js?v=20261122184015';
+} from './dashboard.js?v=20261124001657';
+import { renderMonthlyAnalysis } from './analysis-monthly.js?v=20261124001657';
+import { renderMeetingsScorecard } from './analysis-meetings.js?v=20261124001657';
+import { isLastFridayOfMonth } from './analysis-month-window.js?v=20261124001657';
 
 // Lives on the fulfillment-dashboard Supabase project (verify_jwt=false),
 // same as the Weekly Updates stats proxy.
@@ -346,7 +347,7 @@ export function ownedCampaigns(campaigns, clients) {
 // Friday of the month.
 export function renderPeriodToggle(period) {
   const btn = (key, label) => `<button onclick="analysisSetPeriod('${key}')" style="padding:4px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer;font-family:var(--font);background:${period === key ? 'var(--purple)' : '#f3f4f6'};color:${period === key ? '#fff' : 'var(--text-muted)'}">${label}</button>`;
-  return `<span style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">${btn('week', 'Weekly')}${btn('month', 'Monthly')}</span>`;
+  return `<span style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">${btn('meetings', 'Meetings')}${btn('week', 'Weekly')}${btn('month', 'Monthly')}</span>`;
 }
 
 // ─── Run the analysis ────────────────────────────────────────
@@ -657,6 +658,7 @@ function renderStandingSignals(kpi) {
 
 export function renderAnalysis() {
   if (state.analysisPeriod === 'month') return renderMonthlyAnalysis();
+  if (state.analysisPeriod === 'meetings') return renderMeetingsScorecard();
   const a = getA();
   const week = selectedWeek();
   hydrate(a, week); // restore a previous run for this week/scope, if there is one
@@ -908,7 +910,7 @@ export function buildCsv(rows, delivery) {
 
 // ─── Window handlers ─────────────────────────────────────────
 window.analysisRun = () => runAnalysis();
-window.analysisSetPeriod = (p) => { state.analysisPeriod = p === 'month' ? 'month' : 'week'; render(); };
+window.analysisSetPeriod = (p) => { state.analysisPeriod = ['month', 'meetings'].includes(p) ? p : 'week'; render(); };
 // Switching week or scope re-hydrates from the cache for that key, so flipping
 // between two already-analysed weeks is instant instead of two fresh pulls.
 window.analysisSetWeek = (w) => { const a = getA(); a.week = w; a.hydratedKey = null; render(); };

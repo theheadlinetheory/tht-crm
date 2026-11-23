@@ -4,7 +4,7 @@
 // All mutations go through store.* methods to prevent direct
 // state tampering and ensure consistent re-renders.
 
-import { render, refreshModal } from './render.js?v=20261122184015';
+import { render, refreshModal } from './render.js?v=20261124001657';
 
 // ─── Raw State (private — modules should use store.*) ───
 export const state = {
@@ -81,6 +81,7 @@ export const state = {
   assignableUsers: [],
   myDealsFilter: false,
   trackerEntries: [],
+  analysisPeriod: 'meetings', // Analysis tab opens on the live Meetings view ('week' / 'month' = the Smartlead passes)
   trackerLoaded: false,
   trackerFilters: { client: '', setter: '', paidStatus: '', leadQuality: '', dateFrom: '', dateTo: '', dateBasis: 'appt' },
   trackerSort: { field: 'dateAdded', dir: 'desc' }, // newest lead first
