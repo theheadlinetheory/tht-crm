@@ -49,6 +49,8 @@ console.log(`   checked ${jsFiles.length} files`);
 // Each entry: a substring that MUST still exist in the given file. These are
 // stable structural anchors for whole features/tabs — not cosmetic strings.
 const REQUIRED_FEATURES = [
+  // $ per dial on Cold Calling → Manager (what each rep makes every time they click dial)
+  { file: 'cold-calling-tab.js', needle: 'renderDollarsPerDial(reps.map(', feature: 'Cold Calling Manager: $ per dial' },
   // Service-area map hover: county under the cursor, whole vs part, its ZIPs inside the area
   { file: 'maps.js',           needle: 'attachCountyHover(map, layers, polygon);', feature: 'Service area map: county + ZIP hover' },
   // SDR Scorecard under Setter Performance (admin-only dials/connects/bookings per SDR)

@@ -47,6 +47,7 @@ import { esc, str, svgIcon, getToday, jsArg } from './utils.js?v=20261124033627'
 import { currentUser, isSdr, isAdmin, isEmployee, loadAssignableUsers } from './auth.js?v=20261124033627';
 import { registerActions } from './delegate.js?v=20261124033627';
 import { visibleOnColdCallBoard, renderRepFilter } from './cold-call-owner.js?v=20261124033627';
+import { renderDollarsPerDial } from './cc-dollars-per-dial.js?v=20261124033627';
 
 export const CALLBACK_STAGE = 'Cold Call Callback';
 const NO_CONNECTION = new Set(['no_answer', 'voicemail', 'bad_number', 'desk_dq']);
@@ -643,6 +644,11 @@ function managerHtml() {
       <div style="font-size:11px;color:#94a3b8;margin-top:6px">Green = on quota, amber = within 60%, red = behind. The week's targets count ${days} of 5 working days so far. Show rate is over the last ${LOOKBACK_DAYS} days (it needs the meetings to have happened).</div>`
     : '<div style="font-size:12px;color:#94a3b8">No dials this week yet.</div>');
 
+  const last30 = new Date(Date.now() - 29 * 864e5).toISOString().slice(0, 10);
+  h += section('$ per dial: what each rep makes every time they click dial', renderDollarsPerDial(reps.map(email => {
+    const mine = cc.calls.filter(r => r.agent_email === email);
+    return { name: repName(email), email, periods: { today: tally(mine, today(), today()), week: tally(mine, thisWeek()), last30: tally(mine, last30) } };
+  })));
   h += `<div style="font-size:12px;color:#64748b;margin:-6px 0 14px">Each rep over past weeks (the chart) is on the <a data-action="ccSubTab" data-tab="leaderboard" style="color:var(--purple);font-weight:700;cursor:pointer">Leaderboard</a>, which the SDRs see too.</div>`;
 
   // Dispositions this week, per client: where the dials go (list quality shows up in bad number / desk DQ).
