@@ -8,13 +8,13 @@
 // their targets (6 h dialing, 200 dials). Bookings come from the Lead Tracker
 // (cold-call rows, by setter; blank setter = Ioannis). Math: sdr-metrics.js.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261122183258';
-import { render } from './render.js?v=20261122183258';
-import { esc } from './utils.js?v=20261122183258';
-import { registerActions } from './delegate.js?v=20261122183258';
-import { supabase } from './supabase-client.js?v=20261122183258';
-import { selectAllPages } from './paging.js?v=20261122183258';
-import { scorecard, etDay, GAP_MIN } from './sdr-metrics.js?v=20261122183258';
+import { state } from './app.js?v=20261122183507';
+import { render } from './render.js?v=20261122183507';
+import { esc } from './utils.js?v=20261122183507';
+import { registerActions } from './delegate.js?v=20261122183507';
+import { supabase } from './supabase-client.js?v=20261122183507';
+import { selectAllPages } from './paging.js?v=20261122183507';
+import { scorecard, etDay, GAP_MIN } from './sdr-metrics.js?v=20261122183507';
 
 const PERIODS = [{ key: 'day', label: 'Day' }, { key: 'week', label: 'Week' }, { key: 'month', label: 'Month' }];
 const TREND_WEEKS = 8;
@@ -202,7 +202,7 @@ function trendSvg(weeks, value, fmt) {
     });
     marks += `<text x="${left + i * slot + slot / 2}" y="${H - 6}" text-anchor="middle" font-size="10" fill="var(--text-muted)">${MONTHS[Number(w.from.slice(5, 7)) - 1]} ${Number(w.from.slice(8))}</text>`;
   });
-  return `<div style="${CARD};overflow-x:auto"><svg width="${W}" height="${H}" style="display:block;margin:0 auto">${marks}</svg></div>`;
+  return `<div style="${CARD}"><svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;max-height:${H}px">${marks}</svg></div>`;
 }
 
 function trend(seats, calls, bookings, iso) {
