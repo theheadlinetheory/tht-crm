@@ -18,6 +18,7 @@ import { snapshotRows, diffRows, commitRows, snapshotSettings, diffSettings, com
 import { renderAutoChargeToggle } from './auto-charge.js?v=20261123150021';
 import { showClientEndPicker, clearClientEnd } from './client-end.js?v=20261123150021';
 import { setupBadge, setupBanner } from './client-setup-status.js?v=20261123150021';
+import { renderExternalAccessSettings, loadExternalAccess } from './external-access.js?v=20261123150021';
 import { renderCallSheetSettings, renderCallSheetOnboardingFields, callSheetOnboardingUpdates } from './call-sheet.js?v=20261123150021';
 
 export function getDefaultSettings(){
@@ -919,7 +920,7 @@ function renderUsersSettings(){
   </div>
   <div class="settings-section">
     <h4>Invite someone</h4>
-    <p style="font-size:11px;color:var(--text-muted);margin-bottom:10px">Set a new person's role <b>before</b> their first sign-in, so an SDR lands on the Cold Calling tab and never sees the rest of the CRM. They need an @theheadlinetheory.com Google account.</p>
+    <p style="font-size:11px;color:var(--text-muted);margin-bottom:10px">Set a new person's role <b>before</b> their first sign-in, so an SDR lands on the Cold Calling tab and never sees the rest of the CRM. For a company (@theheadlinetheory.com) account. An SDR on a personal Gmail goes in <b>Approved Gmail accounts</b> below.</p>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       <input id="invite-email" type="email" placeholder="name@theheadlinetheory.com" style="flex:1;min-width:220px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
       <select id="invite-role" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)">
@@ -930,8 +931,8 @@ function renderUsersSettings(){
       <button class="btn btn-primary" onclick="inviteUser()" style="font-size:12px">Invite</button>
     </div>
     <div id="invites-list" style="margin-top:10px"></div>
-  </div>`;
-  setTimeout(()=>{ loadUsersIntoPanel(); loadInvites(); }, 50);
+  </div>` + renderExternalAccessSettings();
+  setTimeout(()=>{ loadUsersIntoPanel(); loadInvites(); loadExternalAccess(); }, 50);
   return h;
 }
 
@@ -1006,7 +1007,7 @@ async function loadInvites(){
 async function inviteUser(){
   const email = (document.getElementById('invite-email')?.value || '').trim().toLowerCase();
   const role = document.getElementById('invite-role')?.value || 'sdr';
-  if(!/^[^@\s]+@theheadlinetheory\.com$/.test(email)){ alert('Use their @theheadlinetheory.com address — the CRM only accepts company Google accounts.'); return; }
+  if(!/^[^@\s]+@theheadlinetheory\.com$/.test(email)){ alert('Use their @theheadlinetheory.com address here. For an SDR\u2019s personal Gmail, use "Approved Gmail accounts" below.'); return; }
   // Already signed in once: the invite would never be read, so change their role directly.
   const users = usersListCache || await loadAllUsers();
   const existing = users.find(u => (u.email||'').toLowerCase() === email);

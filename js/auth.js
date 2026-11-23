@@ -8,7 +8,6 @@ import { getVisiblePipelinesWithArchive } from './search.js?v=20261123150021';
 import { esc, svgIcon } from './utils.js?v=20261123150021';
 import { resolveRoutingOwner } from './routing-rules.js?v=20261123150021';
 
-const ALLOWED_DOMAIN = 'theheadlinetheory.com';
 export let currentUser = null;
 
 export function isAdmin(){ return currentUser && currentUser.role === 'admin'; }
@@ -32,7 +31,9 @@ export async function handleGoogleSignIn(){
     provider: 'google',
     options: {
       redirectTo: window.location.origin + window.location.pathname,
-      queryParams: { hd: ALLOWED_DOMAIN, prompt: 'select_account' }
+      // No hd= lock: approved SDR Gmail accounts sign in here too. Who gets in is decided by the
+      // database (sign-up trigger + RLS), never by this page.
+      queryParams: { prompt: 'select_account' }
     }
   });
   if(error && errEl){ errEl.textContent = error.message || 'Google sign-in failed'; errEl.style.display='block'; }
@@ -51,6 +52,19 @@ function toUser(sessionUser, profile){
   };
 }
 
+const NOT_APPROVED = 'This Google account isn\u2019t approved for the CRM. Ask an admin to approve it.';
+
+// A refused sign-up (the database only creates approved accounts) comes back from Google as
+// ?error_description=Database error saving new user — show that as "not approved".
+function showOAuthRefusal(){
+  const p = new URLSearchParams(location.hash.replace(/^#/, '') || location.search);
+  const desc = p.get('error_description');
+  if(!desc) return;
+  const errEl = document.getElementById('login-error');
+  if(errEl){ errEl.textContent = /saving new user|not approved|must sign in with google/i.test(desc) ? NOT_APPROVED : desc; errEl.style.display='block'; }
+  history.replaceState(null, '', location.pathname);
+}
+
 // ─── Auth state listener (called from app.js) ───
 export function setupAuthListener(onLogin){
   let _bootedUid = null;
@@ -61,11 +75,13 @@ export function setupAuthListener(onLogin){
 
     const user = session && session.user;
     if(user){
-      // Domain gate — reject anything outside the company Google workspace.
-      if(!user.email || !user.email.toLowerCase().endsWith('@'+ALLOWED_DOMAIN)){
+      // Access gate — the database's rule (company account, or a Gmail an admin approved). A revoked
+      // or unapproved account is signed straight back out. RLS enforces the same rule on every read.
+      const { data: allowed, error: accessErr } = await supabase.rpc('has_crm_access');
+      if(accessErr || allowed !== true){
         await supabase.auth.signOut();
         const errEl = document.getElementById('login-error');
-        if(errEl){ errEl.textContent = 'Use your @'+ALLOWED_DOMAIN+' Google account'; errEl.style.display='block'; }
+        if(errEl){ errEl.textContent = accessErr ? 'Could not verify your account — please try again.' : NOT_APPROVED; errEl.style.display='block'; }
         return;
       }
       if(_bootedUid === user.id) return;   // token refresh re-fire — no re-boot
@@ -122,6 +138,7 @@ export function setupAuthListener(onLogin){
     }
   };
 
+  showOAuthRefusal();
   supabase.auth.getSession().then(({ data }) => boot(data.session));
   supabase.auth.onAuthStateChange((_event, session) => boot(session));
 }

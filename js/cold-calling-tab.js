@@ -689,7 +689,7 @@ function managerHtml() {
     <summary style="cursor:pointer;font-size:13px;font-weight:800;color:#0f172a">Industries: keep / watch / cut <span style="font-size:11px;font-weight:400;color:#94a3b8">${cc.calls.length} dials in the last ${LOOKBACK_DAYS} days · click to open</span></summary>
     <div style="margin-top:10px">${industryVerdictTable()}</div></details>`;
 
-  h += section('SDR access', `<div style="font-size:12px;color:#475569">An SDR signs in with their @theheadlinetheory.com Google account and sees only this tab. To set one up: give them the <b>sdr</b> role in Settings → Users, and a JustCall Sales Dialer seat under the same email, so their dials count as theirs.</div>`);
+  h += section('SDR access', `<div style="font-size:12px;color:#475569">An SDR signs in with Google and sees only this tab: a company account invited as <b>sdr</b>, or a personal Gmail added under Settings → Users → <b>Approved Gmail accounts</b>. Give them a JustCall Sales Dialer seat under the same email, so their dials count as theirs.</div>`);
   return h;
 }
 
