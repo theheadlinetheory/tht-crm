@@ -5,16 +5,16 @@
 // inbox when ticked). Ordered, with Retry.
 // Body-level overlay (survives render()).
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261124222949';
-import { str, esc, jsArg, getToday } from './utils.js?v=20261124222949';
-import { createClientRecord, deriveTimezone } from './client-info.js?v=20261124222949';
-import { ensureLeadTrackerSheet } from './lead-tracker-sheet.js?v=20261124222949';
-import { invokeEdgeFunction, showToast } from './api.js?v=20261124222949';
-import { isAdmin } from './auth.js?v=20261124222949';
-import { prepaidNote } from './retainer-billing.js?v=20261124222949';
-import { createSmartleadPortal } from './smartlead-portal.js?v=20261124222949';
-import { createColdCallInbox } from './cold-call-inbox.js?v=20261124222949';
-import { PAYMENT_CADENCES, TERM_UNITS } from './client-terms.js?v=20261124222949';
+import { state } from './app.js?v=20261124111900';
+import { str, esc, jsArg, getToday } from './utils.js?v=20261124111900';
+import { createClientRecord, deriveTimezone } from './client-info.js?v=20261124111900';
+import { ensureLeadTrackerSheet } from './lead-tracker-sheet.js?v=20261124111900';
+import { invokeEdgeFunction, showToast } from './api.js?v=20261124111900';
+import { isAdmin } from './auth.js?v=20261124111900';
+import { prepaidNote } from './retainer-billing.js?v=20261124111900';
+import { createSmartleadPortal } from './smartlead-portal.js?v=20261124111900';
+import { createColdCallInbox } from './cold-call-inbox.js?v=20261124111900';
+import { PAYMENT_CADENCES, TERM_UNITS } from './client-terms.js?v=20261124111900';
 
 let _w = null; // { deal, clientId, archived, sheetId, tagsDone, portal, coldInbox }
 const CURRENCIES = ['USD', 'AUD', 'CAD'];
@@ -122,8 +122,18 @@ function renderBillingFields(type) {
     </div>`;
   } else {
     el.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div>${lbl('Per-meeting cost')}${inp('won-cost', '', 'e.g. 250')}</div>
+      <div>${lbl('Per-meeting cost')}<input id="won-cost" placeholder="e.g. 250" oninput="wonUpdateSetupNote()" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;margin-top:3px"></div>
       <div>${lbl('Payment terms')}<select id="won-terms-sel" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;margin-top:3px">${TERMS_PPL.map((t) => `<option>${t}</option>`).join('')}</select></div>
+      <div style="grid-column:1/3">
+        <label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#64748b"><input type="checkbox" id="won-setup-split" onchange="wonToggleSetupSplit()"> Setup fee split — part paid up front, the rest added to their first meetings</label>
+        <div id="won-setup-row" style="display:none;margin-top:6px;padding:10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            ${[['won-setup-total', 'Total setup fee', '1957'], ['won-setup-deposit', 'Paid up front', '1000'], ['won-setup-spread', 'Spread over # meetings', '4']]
+              .map(([id, t, v]) => `<div>${lbl(t)}<input type="number" id="${id}" value="${v}" min="0" step="any" oninput="wonUpdateSetupNote()" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;margin-top:3px"></div>`).join('')}
+          </div>
+          <div id="won-setup-note" style="font-size:11px;color:#0369a1;margin-top:6px"></div>
+        </div>
+      </div>
     </div>`;
   }
 }
@@ -159,6 +169,43 @@ export function wonUpdatePrepaidNote() {
   if (!note) return;
   const on = document.getElementById('won-prepaid')?.checked;
   note.textContent = on ? prepaidNote(val('won-launch'), val('won-prepaid-months')) : '';
+}
+
+// Setup-fee split (PPL). Same four columns as Settings → Setup Fee Installments;
+// create-stripe-invoice adds the per-meeting share to their first N meetings.
+function readSetupSplit() {
+  if (!document.getElementById('won-setup-split')?.checked) return null;
+  const total = parseFloat(val('won-setup-total')) || 0;
+  const deposit = parseFloat(val('won-setup-deposit')) || 0;
+  const spread = parseInt(val('won-setup-spread'), 10) || 0;
+  return { total, deposit, spread };
+}
+
+function setupSplitError(s) {
+  if (!s) return '';
+  if (!(s.total > 0)) return 'Enter the total setup fee';
+  if (s.deposit < 0 || s.deposit >= s.total) return 'Paid up front must be less than the total';
+  if (!(s.spread > 0)) return 'Enter how many meetings to spread it over';
+  return '';
+}
+
+export function wonToggleSetupSplit() {
+  const row = document.getElementById('won-setup-row');
+  if (row) row.style.display = document.getElementById('won-setup-split')?.checked ? 'block' : 'none';
+  wonUpdateSetupNote();
+}
+
+export function wonUpdateSetupNote() {
+  const note = document.getElementById('won-setup-note');
+  if (!note) return;
+  const s = readSetupSplit();
+  const err = setupSplitError(s);
+  if (!s || err) { note.textContent = err; return; }
+  const remaining = s.total - s.deposit;
+  const perLead = Math.round(remaining / s.spread * 100) / 100;
+  const cost = parseFloat(val('won-cost')) || 0;
+  note.textContent = `$${remaining} on performance ÷ ${s.spread} = $${perLead} added to each of their first ${s.spread} meetings`
+    + (cost ? ` ($${Math.round((cost + perLead) * 100) / 100} each).` : '.');
 }
 
 export function wonModalDismiss() {
@@ -210,6 +257,13 @@ function buildFields() {
   } else {
     f.leadCost = val('won-cost') || '';
     f.paymentTerms = document.getElementById('won-terms-sel')?.value || 'Net 7';
+    const s = readSetupSplit();
+    if (s && !setupSplitError(s)) {
+      f.setupFeeTotal = s.total;
+      f.setupFeeDeposit = s.deposit;
+      f.setupFeeSpreadCount = s.spread;
+      f.setupFeeLeadsBilled = 0;
+    }
   }
   if (_w) _w.closedDate = closedDate; // for the Closed Won mark (runSteps), kept off `f` so it never reaches the clients row
   return f;
@@ -257,6 +311,8 @@ function setFooterProgress(activeIdx, failedIdx) {
 export async function wonModalSubmit() {
   const f = buildFields();
   if (!f.name) { showToast('Client name is required', 'error'); return; }
+  const setupErr = f.billingModel === 'per_lead' ? setupSplitError(readSetupSplit()) : '';
+  if (setupErr) { showToast('Setup fee split: ' + setupErr, 'error'); return; }
   const dup = findDuplicate(f.name);
   if (dup && !document.getElementById('won-dup-override')?.checked) {
     showToast('Duplicate client — check "Create anyway" or Link to existing', 'warning');
@@ -285,7 +341,7 @@ async function runSteps(f, startIdx) {
       // client, then removes it from `deals` — that is what clears the card.
       // The overlay lives on document.body, so it survives the render() this
       // triggers and the remaining steps keep reporting into it.
-      const { deleteDeal } = await import('./deals.js?v=20261124222949');
+      const { deleteDeal } = await import('./deals.js?v=20261124111900');
       await deleteDeal(_w.deal.id, 'Closed Won', f.name, { asOf: _w.closedDate || getToday() });
       _w.archived = true;
     }
@@ -382,7 +438,7 @@ export function wonPortalCopy() {
 export async function wonModalLink(existingName) {
   const dealId = _w.deal.id;
   wonModalDismiss();
-  const { deleteDeal } = await import('./deals.js?v=20261124222949');
+  const { deleteDeal } = await import('./deals.js?v=20261124111900');
   deleteDeal(dealId, 'Closed Won', existingName);
   showToast(`Deal linked to existing client "${existingName}"`, 'success');
 }
@@ -395,5 +451,7 @@ window.wonToggleLaunchTBD = wonToggleLaunchTBD;
 window.wonTogglePrepaid = wonTogglePrepaid;
 window.wonUpdatePrepaidNote = wonUpdatePrepaidNote;
 window.wonModalLink = wonModalLink;
+window.wonToggleSetupSplit = wonToggleSetupSplit;
+window.wonUpdateSetupNote = wonUpdateSetupNote;
 window.wonPortalDismiss = wonPortalDismiss;
 window.wonPortalCopy = wonPortalCopy;

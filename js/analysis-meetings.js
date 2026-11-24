@@ -5,11 +5,11 @@
 // Live: computed from the Lead Tracker already in memory, no Run step, and it
 // re-renders on realtime / background sync (see selfManagedTabActive in api.js).
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261124222949';
-import { esc } from './utils.js?v=20261124222949';
-import { getPpmClients, isEmailMeeting, resolveClientName } from './dashboard.js?v=20261124222949';
-import { buildMeetingsScorecard, MONTH_TARGET, WEEK_TARGET } from './meetings-scorecard.js?v=20261124222949';
-import { renderPeriodToggle } from './analysis.js?v=20261124222949';
+import { state } from './app.js?v=20261124111900';
+import { esc } from './utils.js?v=20261124111900';
+import { getPpmClients, isEmailMeeting, resolveClientName } from './dashboard.js?v=20261124111900';
+import { buildMeetingsScorecard, MONTH_TARGET, WEEK_TARGET } from './meetings-scorecard.js?v=20261124111900';
+import { renderPeriodToggle } from './analysis.js?v=20261124111900';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const MON = MONTHS.map(m => m.slice(0, 3));
