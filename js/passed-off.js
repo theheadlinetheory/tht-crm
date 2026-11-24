@@ -13,13 +13,13 @@
 //   cold-call lead → Cold Calling → Callbacks under its client (it never shows on Client Leads)
 // The meeting it was delivered for stays counted; a new booking counts again (Tim, 2026-11-17).
 // A few old archives have no deal row left: those fall back to the normal Restore.
-import { state } from './app.js?v=20261124113236';
-import { render } from './render.js?v=20261124113236';
-import { supabase } from './supabase-client.js?v=20261124113236';
-import { esc, str, getToday } from './utils.js?v=20261124113236';
-import { currentUser } from './auth.js?v=20261124113236';
-import { registerActions } from './delegate.js?v=20261124113236';
-import { selectAllPages } from './paging.js?v=20261124113236';
+import { state } from './app.js?v=20261124113704';
+import { render } from './render.js?v=20261124113704';
+import { supabase } from './supabase-client.js?v=20261124113704';
+import { esc, str, getToday } from './utils.js?v=20261124113704';
+import { currentUser } from './auth.js?v=20261124113704';
+import { registerActions } from './delegate.js?v=20261124113704';
+import { selectAllPages } from './paging.js?v=20261124113704';
 
 export const CALLBACK_STAGE = 'Cold Call Callback';
 export const DELIVERED = new Set(['Meeting Booked', 'Passed Off']);
@@ -32,10 +32,10 @@ export async function bringBackDeal(r) {
   if (!due) return false;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(due) || isNaN(new Date(due + 'T12:00:00'))) { alert('Use a date like ' + today + '.'); return false; }
   const who = (currentUser && (currentUser.name || currentUser.email)) || 'CRM';
-  const { deletedDealIds } = await import('./app.js?v=20261124113236');
+  const { deletedDealIds } = await import('./app.js?v=20261124113704');
   deletedDealIds.delete(String(r.id));
   try { localStorage.setItem('tht_deletedDeals', JSON.stringify([...deletedDealIds])); } catch {}
-  const api = await import('./api.js?v=20261124113236');
+  const api = await import('./api.js?v=20261124113704');
 
   const { data: row, error: readErr } = await supabase.from('deals').select('id').eq('id', r.id).maybeSingle();
   if (readErr) { alert('Could not bring it back: ' + readErr.message); return false; }

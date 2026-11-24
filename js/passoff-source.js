@@ -8,8 +8,8 @@
 // Before drafting from a call, booking-call-transcript transcribes its recording (Whisper) into the card;
 // it is a separate request because transcription and Claude do not both fit in one.
 
-import { invokeEdgeFunction } from './api.js?v=20261124113236';
-import { esc, jsArg, str } from './utils.js?v=20261124113236';
+import { invokeEdgeFunction } from './api.js?v=20261124113704';
+import { esc, jsArg, str } from './utils.js?v=20261124113704';
 
 /** True for the leads this applies to: client pipeline, not a cold call. */
 export const isClientEmailLead = (deal) => !!deal && deal.pipeline === 'Client' && str(deal.leadSource) !== 'cold_call';

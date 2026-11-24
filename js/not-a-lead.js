@@ -26,12 +26,12 @@
 // Dragging a client lead onto the board's Lost / Delete zone opens this same
 // menu with Lost preselected (deal-modal.js doLostDrop). Only before any call: a lead that had a
 // discovery call or a demo is told to use Archive, which asks how that ended.
-import { state } from './app.js?v=20261124113236';
-import { esc, jsArg } from './utils.js?v=20261124113236';
-import { sbCreateInteraction, showToast } from './api.js?v=20261124113236';
-import { isAdmin, isEmployee } from './auth.js?v=20261124113236';
-import { deleteDeal } from './deals.js?v=20261124113236';
-import { REMOVAL_PREFIX, writeRemovalNote, leadStage } from './removal-reason.js?v=20261124113236';
+import { state } from './app.js?v=20261124113704';
+import { esc, jsArg } from './utils.js?v=20261124113704';
+import { sbCreateInteraction, showToast } from './api.js?v=20261124113704';
+import { isAdmin, isEmployee } from './auth.js?v=20261124113704';
+import { deleteDeal } from './deals.js?v=20261124113704';
+import { REMOVAL_PREFIX, writeRemovalNote, leadStage } from './removal-reason.js?v=20261124113704';
 
 const REASONS = [
   { label: 'Not actually interested',        hint: 'the AI tagged a no / an auto-reply / a question as positive' },

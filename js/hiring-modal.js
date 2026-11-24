@@ -6,18 +6,18 @@
 // Every text field is state-backed (state.hiringDraft) because render()
 // rebuilds #app. Clicking outside, ✕ and Close all save pending edits.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261124113236';
-import { render } from './render.js?v=20261124113236';
-import { showToast } from './api.js?v=20261124113236';
-import { esc, str, svgIcon, fmtTimestamp, getToday, jsArg } from './utils.js?v=20261124113236';
-import { STAGES, CONTACT_TYPES, stageLabel, replyText, findCandidate, saveFields, moveCandidate, toggleStar } from './hiring.js?v=20261124113236';
-import { activitiesFor, loadActivities, addHiringActivity, updateHiringActivity, deleteHiringActivity, findActivity } from './hiring-activity.js?v=20261124113236';
-import { candidateChannel, channelSelectHtml } from './hiring-channel.js?v=20261124113236';
-import { refreshHiringUnread } from './hiring-unread.js?v=20261124113236';
-import { emailStatusHtml } from './hiring-email-box.js?v=20261124113236';
-import { videoButtonHtml } from './hiring-video.js?v=20261124113236';
-import { whatsappUrl } from './hiring-list.js?v=20261124113236';
-import { scorecardSectionHtml } from './hiring-scorecard.js?v=20261124113236';
+import { state } from './app.js?v=20261124113704';
+import { render } from './render.js?v=20261124113704';
+import { showToast } from './api.js?v=20261124113704';
+import { esc, str, svgIcon, fmtTimestamp, getToday, jsArg } from './utils.js?v=20261124113704';
+import { STAGES, CONTACT_TYPES, stageLabel, replyText, findCandidate, saveFields, moveCandidate, toggleStar } from './hiring.js?v=20261124113704';
+import { activitiesFor, loadActivities, addHiringActivity, updateHiringActivity, deleteHiringActivity, findActivity } from './hiring-activity.js?v=20261124113704';
+import { candidateChannel, channelSelectHtml } from './hiring-channel.js?v=20261124113704';
+import { refreshHiringUnread } from './hiring-unread.js?v=20261124113704';
+import { emailStatusHtml } from './hiring-email-box.js?v=20261124113704';
+import { videoButtonHtml } from './hiring-video.js?v=20261124113704';
+import { whatsappUrl } from './hiring-list.js?v=20261124113704';
+import { scorecardSectionHtml } from './hiring-scorecard.js?v=20261124113704';
 
 const LINK_STYLE = 'color:var(--purple);word-break:break-all';
 const INPUT_STYLE = 'padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)';

@@ -19,13 +19,13 @@
 //   detail  the scope and caveats, stored beside the number rather than in a
 //           doc, so a rate can never be read without the conditions on it.
 
-import { esc, svgIcon, jsArg } from './utils.js?v=20261124113236';
-import { supabase } from './supabase-client.js?v=20261124113236';
-import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel, rangeDays, todayYmdLA, requestExactSends } from './funnel-period.js?v=20261124113236';
-import { leadsTable } from './funnel-leads.js?v=20261124113236';
-import { renderFunnelDaily, clearFunnelDaily } from './funnel-daily.js?v=20261124113236';
-import { renderAcqStageGrid } from './dashboard.js?v=20261124113236';
-import { renderFunnelMap } from './funnel-map.js?v=20261124113236';
+import { esc, svgIcon, jsArg } from './utils.js?v=20261124113704';
+import { supabase } from './supabase-client.js?v=20261124113704';
+import { PERIODS, periods, pinKey, periodRange, fetchPeriod, rangeLabel, rangeDays, todayYmdLA, requestExactSends } from './funnel-period.js?v=20261124113704';
+import { leadsTable } from './funnel-leads.js?v=20261124113704';
+import { renderFunnelDaily, clearFunnelDaily } from './funnel-daily.js?v=20261124113704';
+import { renderAcqStageGrid } from './dashboard.js?v=20261124113704';
+import { renderFunnelMap } from './funnel-map.js?v=20261124113704';
 
 let _levels = null;      // null = not loaded, [] = loaded and empty
 const _open = new Set(); // levels whose Details section is expanded (survives re-renders)
@@ -126,7 +126,7 @@ export function reloadFunnel(rerender) {
 
 function loadPeriod(key, rerender) {
   if (periodRows(key) || _periodLoading === key) return;
-  if (!rerender) rerender = () => import('./render.js?v=20261124113236').then(m => m.render());
+  if (!rerender) rerender = () => import('./render.js?v=20261124113704').then(m => m.render());
   _periodLoading = key;
   const g = (_gen[ck(key)] = (_gen[ck(key)] || 0) + 1);
   fetchPeriod(periodRange(key), _levels || [], _offer, _channel, _niche).then(rows => {
@@ -161,28 +161,28 @@ window.setFunnelPeriod = (key) => {
     };
     setTimeout(whenLoaded, 500);
   }
-  import('./render.js?v=20261124113236').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
+  import('./render.js?v=20261124113704').then(m => { if (key !== 'all') loadPeriod(key, m.render); m.render(); });
 };
 
 window.setFunnelOffer = (offer) => {
   _offer = offer === 'ppm' || offer === 'retainer' ? offer : '';
   try { localStorage.setItem(OFFER_KEY, _offer); } catch (_) { /* private mode */ }
-  import('./render.js?v=20261124113236').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
+  import('./render.js?v=20261124113704').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
 };
 window.setFunnelNiche = (niche) => {
   _niche = NICHES.some(n => n.key === niche) ? niche : '';
   try { localStorage.setItem(NICHE_KEY, _niche); } catch (_) { /* private mode */ }
-  import('./render.js?v=20261124113236').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
+  import('./render.js?v=20261124113704').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
 };
 window.setFunnelChannel = (channel) => {
   _channel = CHANNELS.some(c => c.key === channel) ? channel : '';
   try { localStorage.setItem(CHANNEL_KEY, _channel); } catch (_) { /* private mode */ }
-  import('./render.js?v=20261124113236').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
+  import('./render.js?v=20261124113704').then(m => { if (_period !== 'all') loadPeriod(_period, m.render); m.render(); });
 };
 
 // ── The calendar: pick any stretch of days (Lars, 2026-09-18) ──
 const _pick = { open: false, month: null, start: null, end: null }; // month 'YYYY-MM'; start/end 'YYYY-MM-DD' while choosing
-const rerenderNow = () => import('./render.js?v=20261124113236').then(m => m.render());
+const rerenderNow = () => import('./render.js?v=20261124113704').then(m => m.render());
 window.funnelPickToggle = () => {
   _pick.open = !_pick.open;
   if (_pick.open) { const r = periodRange(_period); _pick.month = (r ? r.to : todayYmdLA()).slice(0, 7); _pick.start = null; _pick.end = null; }
@@ -605,5 +605,5 @@ export function renderFunnel() {
 }
 
 window.refreshFunnel = () => {
-  import('./render.js?v=20261124113236').then(m => reloadFunnel(m.render));
+  import('./render.js?v=20261124113704').then(m => reloadFunnel(m.render));
 };

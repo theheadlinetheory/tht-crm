@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════
 // AUTH — Supabase Auth (Google OAuth), roles, campaign assignments
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20261124113236';
-import { state } from './app.js?v=20261124113236';
-import { render } from './render.js?v=20261124113236';
-import { getVisiblePipelinesWithArchive } from './search.js?v=20261124113236';
-import { esc, svgIcon } from './utils.js?v=20261124113236';
-import { resolveRoutingOwner } from './routing-rules.js?v=20261124113236';
+import { supabase } from './supabase-client.js?v=20261124113704';
+import { state } from './app.js?v=20261124113704';
+import { render } from './render.js?v=20261124113704';
+import { getVisiblePipelinesWithArchive } from './search.js?v=20261124113704';
+import { esc, svgIcon } from './utils.js?v=20261124113704';
+import { resolveRoutingOwner } from './routing-rules.js?v=20261124113704';
 
 export let currentUser = null;
 
@@ -218,7 +218,7 @@ async function persistAssignment(campaignName, userName){
     state.campaignAssignments = current;
   } catch(e){
     console.warn('Failed to save campaign assignment:', e);
-    import('./api.js?v=20261124113236').then(m => m.showToast(`Campaign assignment not saved: ${e.message || e}`, 'error')).catch(() => {});
+    import('./api.js?v=20261124113704').then(m => m.showToast(`Campaign assignment not saved: ${e.message || e}`, 'error')).catch(() => {});
   }
 }
 export async function saveCampaignAssignment(campaignName, userName){
