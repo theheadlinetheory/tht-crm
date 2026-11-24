@@ -8,27 +8,30 @@
 // - Applicants: hiring-intake copies new application-form rows in every 15 min.
 // - Partners: replies to the "Recruiting Partners" SmartLead campaigns, routed
 //   here by smartlead-webhook.
-// Moving applicants to Interviewing or Not a Fit opens an editable email box
+// Moving applicants to Invited or Not a Fit opens an editable email box
 // first (hiring-email-box.js): the interview invite or the "not moving forward"
 // email, each sent at most once. Cards and rows can be ticked and moved in bulk
-// (hiring-bulk.js).
+// (hiring-bulk.js). Calendly bookings move people Invited → Interview Booked
+// (backend hiring-interview-sync); moving to Interviewed opens the scorecard
+// (hiring-scorecard.js).
 // A new applicant or reply flags the card (has_new_activity): blue card here,
 // red count on the Hiring tab (hiring-unread.js). The detail modal, timeline
 // and follow-ups live in hiring-modal.js / hiring-activity.js.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261124111900';
-import { render } from './render.js?v=20261124111900';
-import { supabase } from './supabase-client.js?v=20261124111900';
-import { showToast } from './api.js?v=20261124111900';
-import { candidateChannel, channelPill, channelSelectHtml } from './hiring-channel.js?v=20261124111900';
-import { esc, escAttr, safeUrl, str, svgIcon, jsArg } from './utils.js?v=20261124111900';
-import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261124111900';
-import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261124111900';
-import { onHiringChange } from './hiring-unread.js?v=20261124111900';
-import { needsEmailPrompt, openEmailBox, renderEmailBox } from './hiring-email-box.js?v=20261124111900';
-import { tickBoxHtml, bulkBarHtml, pruneTicks } from './hiring-bulk.js?v=20261124111900';
-import { videoButtonHtml } from './hiring-video.js?v=20261124111900';
-import { renderHiringList } from './hiring-list.js?v=20261124111900';
+import { state } from './app.js?v=20261124113236';
+import { render } from './render.js?v=20261124113236';
+import { supabase } from './supabase-client.js?v=20261124113236';
+import { showToast } from './api.js?v=20261124113236';
+import { candidateChannel, channelPill, channelSelectHtml } from './hiring-channel.js?v=20261124113236';
+import { esc, escAttr, safeUrl, str, svgIcon, jsArg } from './utils.js?v=20261124113236';
+import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261124113236';
+import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261124113236';
+import { onHiringChange } from './hiring-unread.js?v=20261124113236';
+import { needsEmailPrompt, openEmailBox, renderEmailBox } from './hiring-email-box.js?v=20261124113236';
+import { tickBoxHtml, bulkBarHtml, pruneTicks } from './hiring-bulk.js?v=20261124113236';
+import { videoButtonHtml } from './hiring-video.js?v=20261124113236';
+import { renderHiringList } from './hiring-list.js?v=20261124113236';
+import { needsScorecard, openScorecard, renderScorecardBox, interviewTagHtml, scoreTagHtml, byScore, INTERVIEWED_STAGE } from './hiring-scorecard.js?v=20261124113236';
 
 // Applicants want a job with us; partners are companies that hire (recruiting
 // partners who could send us candidates). Each gets its own board.
@@ -37,8 +40,10 @@ export const STAGES = {
   applicant: [
     { id: 'Applied', color: '#64748b' },
     { id: 'Shortlist', color: '#8b5cf6' },
-    { id: 'Interviewing', color: '#2563eb' },
-    { id: 'Final Round', color: '#d97706' },
+    { id: 'Invited', color: '#2563eb' },
+    { id: 'Interview Booked', color: '#0891b2' },
+    { id: 'Interviewed', color: '#7c3aed' },
+    { id: 'Contract Sent', color: '#d97706' },
     { id: 'Hired', color: '#059669' },
     { id: 'Not a Fit', color: '#9ca3af' },
   ],
@@ -169,7 +174,9 @@ function cardHtml(c) {
     ...(c.kind === 'partner' ? partnerTags(c) : applicantTags(c)),
     c.linkedin ? `<a class="deal-tag" href="${escAttr(safeUrl(withScheme(c.linkedin)))}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="background:#eff6ff;color:#0a66c2;text-decoration:none">in LinkedIn ↗</a>` : '',
     c.applied_at ? `<span class="deal-tag" style="background:#f1f5f9;color:${waitingDays(c) >= 3 ? '#d97706' : '#475569'}">${esc(shortDate(c.applied_at))}${waitingDays(c) ? ` · ${waitingDays(c)}d waiting` : ''}</span>` : '',
-    c.invite_sent_at ? '<span class="deal-tag" style="background:#eff6ff;color:#1d4ed8">Invite sent</span>' : '',
+    c.invite_sent_at && c.stage === 'Invited' ? '<span class="deal-tag" style="background:#eff6ff;color:#1d4ed8">Invite sent</span>' : '',
+    interviewTagHtml(c),
+    scoreTagHtml(c),
   ].join('');
   const isNew = c.has_new_activity;
   return `<div class="deal-card${isNew ? ' has-reply' : ''}" draggable="true"
@@ -276,11 +283,12 @@ export function renderHiring() {
   const list = visibleCandidates();
   pruneTicks(list);
   const top = toolbarHtml(list.length) + archiveBannerHtml() + bulkBarHtml();
-  const overlays = renderHiringModal() + renderEmailBox();
+  const overlays = renderHiringModal() + renderEmailBox() + renderScorecardBox();
   if (state.hiringView === 'list' || state.hiringShowArchived) return top + renderHiringList(list) + overlays;
   let html = top + '<div class="board">';
   for (const stage of STAGES[state.hiringKind]) {
     const sc = list.filter(c => c.stage === stage.id);
+    if (stage.id === INTERVIEWED_STAGE) sc.sort(byScore);
     const key = encodeURIComponent(stage.id);
     const archive = stage.id === ARCHIVE_STAGE[state.hiringKind];
     html += `<div class="column" ondragover="event.preventDefault();doDragOver(this)" ondragleave="doDragLeave(event,this)" ondrop="hiringDrop('${key}')">
@@ -308,6 +316,7 @@ export async function moveCandidate(id, stage) {
   const c = findCandidate(id);
   if (!c || c.stage === stage) return;
   if (needsEmailPrompt(c, stage)) { openEmailBox([id], stage); return; }
+  if (needsScorecard(c, stage)) { openScorecard(id, stage); return; }
   await applyMove(c, stage);
 }
 
