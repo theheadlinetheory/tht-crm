@@ -10,9 +10,9 @@
 //
 // The CRM's only dialer is the deal card's click-to-call (dialer.js).
 
-import { supabase } from './supabase-client.js?v=20261124113704';
-import { esc } from './utils.js?v=20261124113704';
-import { registerActions } from './delegate.js?v=20261124113704';
+import { supabase } from './supabase-client.js?v=20261124155937';
+import { esc } from './utils.js?v=20261124155937';
+import { registerActions } from './delegate.js?v=20261124155937';
 
 const FN = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/justcall-cold-calls';
 const RATE_LIMIT_WAIT_MS = 15000; // JustCall's limit is account-wide: a script loading a list can exhaust it

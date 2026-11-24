@@ -5,14 +5,15 @@
 // the card. Ticking rows uses the same selection as the board (hiring-bulk.js).
 // Stage dropdowns call hiringMove (the board's path), so the email box still opens.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261124113704';
-import { render } from './render.js?v=20261124113704';
-import { esc, escAttr, safeUrl, str, jsArg } from './utils.js?v=20261124113704';
-import { STAGES, CONTACT_TYPES, stageLabel, shortDate, replyText, waitingDays } from './hiring.js?v=20261124113704';
-import { channelPill } from './hiring-channel.js?v=20261124113704';
-import { withScheme } from './hiring-modal.js?v=20261124113704';
-import { tickBoxHtml } from './hiring-bulk.js?v=20261124113704';
-import { videoButtonHtml } from './hiring-video.js?v=20261124113704';
+import { genderMarkHtml } from './hiring-gender.js?v=20261124155937';
+import { state } from './app.js?v=20261124155937';
+import { render } from './render.js?v=20261124155937';
+import { esc, escAttr, safeUrl, str, jsArg } from './utils.js?v=20261124155937';
+import { STAGES, CONTACT_TYPES, stageLabel, shortDate, replyText, waitingDays } from './hiring.js?v=20261124155937';
+import { channelPill } from './hiring-channel.js?v=20261124155937';
+import { withScheme } from './hiring-modal.js?v=20261124155937';
+import { tickBoxHtml } from './hiring-bulk.js?v=20261124155937';
+import { videoButtonHtml } from './hiring-video.js?v=20261124155937';
 
 export const whatsappUrl = (phone) => `https://wa.me/${str(phone).replace(/\D/g, '')}`;
 
@@ -52,7 +53,7 @@ function rowHtml(c, cols) {
   return `<tr style="${c.has_new_activity ? 'background:#eff6ff' : ''}">
     <td>${tickBoxHtml(c)}</td>
     <td><span onclick="hiringToggleStar(${id})" style="cursor:pointer;color:${c.starred ? '#f59e0b' : '#d1d5db'}">★</span></td>
-    <td style="font-weight:${c.has_new_activity ? 800 : 600};white-space:nowrap"><a href="#" onclick="event.preventDefault();hiringOpen(${id})" style="color:inherit;text-decoration:none">${channelPill(c)}${esc(c.name || c.email || 'Unknown')}</a></td>
+    <td style="font-weight:${c.has_new_activity ? 800 : 600};white-space:nowrap"><a href="#" onclick="event.preventDefault();hiringOpen(${id})" style="color:inherit;text-decoration:none">${channelPill(c)}${esc(c.name || c.email || 'Unknown')}${genderMarkHtml(c)}</a></td>
     <td>${stageSelect(c)}</td>
     ${cols.map(([, cell]) => `<td>${cell(c)}</td>`).join('')}
   </tr>`;

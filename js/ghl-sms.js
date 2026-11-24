@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // GHL SMS — cold-SMS reply cards (created by the ghl-sms-webhook edge fn)
 // ═══════════════════════════════════════════════════════════
-import { esc } from './utils.js?v=20261124113704';
+import { esc } from './utils.js?v=20261124155937';
 
 const SMS_GREEN = '#16a34a';
 // THT's own GoHighLevel sub-account — the one the cold-SMS workflows run in.
