@@ -24,7 +24,7 @@
 // Keep CALL_PREFIX and the " · " separator stable. applyDisposition() matches
 // on them.
 
-import { sbCreateInteraction, sbUpdateInteraction, sbGetInteractions } from './api.js?v=20261124052057';
+import { sbCreateInteraction, sbUpdateInteraction, sbGetInteractions } from './api.js?v=20261124222949';
 
 export const CALL_PREFIX_OUT = 'Outbound call';
 export const CALL_PREFIX_IN  = 'Inbound call';
