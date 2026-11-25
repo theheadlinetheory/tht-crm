@@ -3,8 +3,8 @@
 // 2026-11-24). Shows as ♂/♀ next to the name; set or changed on the card.
 // Never used for scoring, sorting or filtering.
 // ═══════════════════════════════════════════════════════════
-import { jsArg } from './utils.js?v=20261125104050';
-import { findCandidate, saveFields } from './hiring.js?v=20261125104050';
+import { jsArg } from './utils.js?v=20261125121741';
+import { findCandidate, saveFields } from './hiring.js?v=20261125121741';
 
 const GENDERS = { M: { mark: '♂', label: 'Male', color: '#2563eb' }, F: { mark: '♀', label: 'Female', color: '#db2777' } };
 

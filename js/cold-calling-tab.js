@@ -40,14 +40,15 @@
 //   or a hand-picked set of clients. An SDR's Call Queue, callbacks and Pipeline columns show only their clients.
 //   The cap and the "every client has hit the cap" unlock stay global: a client is one client whoever calls it.
 
-import { state } from './app.js?v=20261125104050';
-import { render } from './render.js?v=20261125104050';
-import { supabase } from './supabase-client.js?v=20261125104050';
-import { esc, str, svgIcon, getToday, jsArg } from './utils.js?v=20261125104050';
-import { currentUser, isSdr, isAdmin, isEmployee, loadAssignableUsers } from './auth.js?v=20261125104050';
-import { registerActions } from './delegate.js?v=20261125104050';
-import { visibleOnColdCallBoard, renderRepFilter } from './cold-call-owner.js?v=20261125104050';
-import { renderDollarsPerDial } from './cc-dollars-per-dial.js?v=20261125104050';
+import { state } from './app.js?v=20261125121741';
+import { render } from './render.js?v=20261125121741';
+import { supabase } from './supabase-client.js?v=20261125121741';
+import { esc, str, svgIcon, getToday, jsArg } from './utils.js?v=20261125121741';
+import { currentUser, isSdr, isAdmin, isEmployee, loadAssignableUsers } from './auth.js?v=20261125121741';
+import { registerActions } from './delegate.js?v=20261125121741';
+import { visibleOnColdCallBoard, renderRepFilter } from './cold-call-owner.js?v=20261125121741';
+import { renderDollarsPerDial } from './cc-dollars-per-dial.js?v=20261125121741';
+import { renderMyPay, resetMyPay } from './my-pay.js?v=20261125121741';
 
 export const CALLBACK_STAGE = 'Cold Call Callback';
 const NO_CONNECTION = new Set(['no_answer', 'voicemail', 'bad_number', 'desk_dq']);
@@ -71,6 +72,7 @@ const SUBTABS = [
   { id: 'industries', label: 'Industries' },
   { id: 'feedback', label: 'Feedback' },
   { id: 'manager', label: 'Manager', managerOnly: true },
+  { id: 'mypay', label: 'My Pay', sdrOnly: true },
 ];
 const LOOKBACK_DAYS = 365; // the Industries ranking wants every dial; the call log is small
 const POLL_MS = 120000;
@@ -451,7 +453,7 @@ export function renderColdCallingHeader() {
   const lastTxt = last ? new Date(last).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'never';
   return `<div style="padding:0 20px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
     <div style="display:flex;gap:4px">
-      ${SUBTABS.filter(t => !t.managerOnly || !isSdr()).map(t => `<button data-action="ccSubTab" data-tab="${t.id}" style="${subCs};background:${sub === t.id ? 'var(--purple)' : '#f3f4f6'};color:${sub === t.id ? '#fff' : 'var(--text-muted)'}">${t.label}</button>`).join('')}
+      ${SUBTABS.filter(t => (t.managerOnly ? !isSdr() : !t.sdrOnly || isSdr())).map(t => `<button data-action="ccSubTab" data-tab="${t.id}" style="${subCs};background:${sub === t.id ? 'var(--purple)' : '#f3f4f6'};color:${sub === t.id ? '#fff' : 'var(--text-muted)'}">${t.label}</button>`).join('')}
     </div>
     <div style="display:flex;gap:8px;align-items:center">
       ${sub === 'pipeline' ? renderRepFilter() : ''}
@@ -1145,6 +1147,7 @@ export function renderColdCallingView() {
   else if (sub === 'tracker') body = trackerHtml();
   else if (sub === 'passed') body = passedHtml();
   else if (sub === 'manager' && !isSdr()) body = managerHtml();
+  else if (sub === 'mypay' && isSdr()) body = renderMyPay();
   else if (sub === 'leaderboard') body = leaderboardHtml();
   else if (sub === 'industries') body = industriesHtml();
   else if (sub === 'feedback') body = feedbackHtml();
@@ -1233,7 +1236,7 @@ function passedHtml() {
 async function bringBack(id) {
   const r = Array.isArray(cc.passed) && cc.passed.find(x => x.id === id);
   if (!r) return;
-  const { bringBackDeal } = await import('./passed-off.js?v=20261125104050');
+  const { bringBackDeal } = await import('./passed-off.js?v=20261125121741');
   if (!(await bringBackDeal({ ...r, coldCall: true }))) return;
   cc.passed = cc.passed.filter(x => x.id !== id);
   cc.tracker = null;
@@ -1271,7 +1274,7 @@ async function removeBooking(dealId) {
   if (error) { alert('Could not update the meeting count, nothing was removed: ' + error.message); return; }
   for (const r of cc.calls || []) if (r.deal_id === dealId) r.not_counted = 'Removed: ' + reason;
   const [{ sbCreateInteraction }, { deleteDeal }] = await Promise.all([
-    import('./api.js?v=20261125104050'), import('./deals.js?v=20261125104050')]);
+    import('./api.js?v=20261125121741'), import('./deals.js?v=20261125121741')]);
   try { await sbCreateInteraction({ deal_id: dealId, type: 'Note', content: `Removed — cold-call appointment: ${reason} · ${(rows || []).length} dial(s) no longer counted · marked in the CRM` }); }
   catch (e) { console.warn('[removeBooking] note not saved', e && e.message); }
   await deleteDeal(dealId, 'Removed — ' + reason);
@@ -1304,6 +1307,7 @@ registerActions({
     if (el.dataset.tab === 'tracker') cc.tracker = null; // fresh on every visit
     if (el.dataset.tab === 'passed') cc.passed = null;
     if (el.dataset.tab === 'feedback') cc.feedback = null;
+    if (el.dataset.tab === 'mypay') resetMyPay();
     render();
   },
   ccTrendClient(el, e) { if (e.type !== 'change') return; trend.client = el.value; render(); },
@@ -1344,7 +1348,7 @@ registerActions({
   async ccSync() {
     cc.syncing = true; cc.syncNote = ''; render();
     try {
-      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261125104050');
+      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261125121741');
       const out = await invokeEdgeFunctionAsUser('cold-call-sync', {});
       // One sync at a time (audit A3 #4, 2026-11-13): a Refresh during the 2-minute cron's run is skipped.
       if (out.skipped) {
@@ -1363,7 +1367,7 @@ registerActions({
   ccOpenDeal(el) {
     const id = el.dataset.id;
     if (!state.deals.some(d => String(d.id) === String(id))) { alert('That card is no longer on the board (delivered or archived).'); return; }
-    import('./deal-modal.js?v=20261125104050').then(m => m.openDeal(id));
+    import('./deal-modal.js?v=20261125121741').then(m => m.openDeal(id));
   },
   ccTrackerScope(el) { cc.trackerScope = el.dataset.scope; render(); },
   ccQueueAs(el, e) { if (e.type !== 'change') return; cc.queueAs = el.value; render(); },
@@ -1451,7 +1455,7 @@ registerActions({
   async ccTranscribe(el) {
     el.disabled = true; el.textContent = 'Transcribing…';
     try {
-      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261125104050');
+      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261125121741');
       const out = await invokeEdgeFunctionAsUser('cold-call-sync', { action: 'transcribe', call_id: Number(el.dataset.id) });
       const box = document.createElement('div');
       box.style.cssText = 'white-space:pre-wrap;font-size:11px;max-height:260px;overflow:auto;background:#fff;border-radius:6px;padding:8px;margin-top:4px';

@@ -9,6 +9,7 @@
 const SETTER_BY_EMAIL = {
   'contact@theheadlinetheory.com': 'Ioannis',
   'leads@theheadlinetheory.com': 'Marcell',
+  'marcell.c.tht@gmail.com': 'Marcell',
   'aidan@theheadlinetheory.com': 'Aidan',
 };
 
