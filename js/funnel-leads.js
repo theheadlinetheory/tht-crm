@@ -9,16 +9,16 @@
 // the events of the period for leads from any cohort. Temporary by intent —
 // the tables stay small while the window is a week.
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261125081422';
-import { esc, escAttr, jsArg } from './utils.js?v=20261125081422';
-import { state } from './app.js?v=20261125081422';
-import { openDeal } from './deal-modal.js?v=20261125081422';
-import { openArchivedDeal } from './archive.js?v=20261125081422';
-import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES, DEMO_RESCHEDULING } from './disco-outcome.js?v=20261125081422';
-import { writeRemovalNote, showAcquisitionRemovalPicker, DESK_DQ_REASONS, deskDqNote, lostNote, SAID_NO_REASONS, saidNoNote } from './removal-reason.js?v=20261125081422';
-import { deleteDeal } from './deals.js?v=20261125081422';
-import { showClientEndPicker } from './client-end.js?v=20261125081422';
-import { authedFetch } from './edge-auth.js?v=20261125081422'; // session token, not the anon key (A2#2, S1, 2026-11-13)
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=20261125102725';
+import { esc, escAttr, jsArg } from './utils.js?v=20261125102725';
+import { state } from './app.js?v=20261125102725';
+import { openDeal } from './deal-modal.js?v=20261125102725';
+import { openArchivedDeal } from './archive.js?v=20261125102725';
+import { markDisco, markDemo, DISCO_OUTCOMES, DEMO_OUTCOMES, DEMO_RESCHEDULING } from './disco-outcome.js?v=20261125102725';
+import { writeRemovalNote, showAcquisitionRemovalPicker, DESK_DQ_REASONS, deskDqNote, lostNote, SAID_NO_REASONS, saidNoNote } from './removal-reason.js?v=20261125102725';
+import { deleteDeal } from './deals.js?v=20261125102725';
+import { showClientEndPicker } from './client-end.js?v=20261125102725';
+import { authedFetch } from './edge-auth.js?v=20261125102725'; // session token, not the anon key (A2#2, S1, 2026-11-13)
 
 // ── Record the outcome from the list (Lars, 2026-09-10) ──
 // A flagged row gets the same options the reps use live, and writes through the

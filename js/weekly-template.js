@@ -37,7 +37,15 @@ const splitAddrs = v => (Array.isArray(v) ? v : str(v).split(/[,;\s]+/))
 // person's first name (Denair, Landry's), and a Cc that duplicated a To
 // address was stripped by the sender before it could count (Dallas, Peak,
 // Woody's). Addresses are de-duplicated case-insensitively before counting.
-export function weeklyGreeting(first, toLine, ccList){
+//
+// override = clients.weekly_update_greeting (Settings → Clients → "Weekly
+// Update Greeting"). When set it is the greeting, full stop — it beats both
+// the first name and "Team". Added 2026-11-25 for Gorilla ("Max and Katlyn"):
+// one shared inbox, two people, and Contact First Name could not carry both
+// because pass-offs, SMS and invoices read that field too.
+export function weeklyGreeting(first, toLine, ccList, override){
+  const forced = str(override).trim();
+  if(forced) return forced;
   const people = new Set(splitAddrs(toLine).concat(splitAddrs(ccList || [])).filter(e => !e.endsWith(INTERNAL_DOMAIN)));
   return people.size > 1 ? 'Team' : (str(first).trim() || 'there');
 }

@@ -34,6 +34,16 @@ test('semicolon / whitespace separated To is counted per address', () => {
 test('no first name and a single address → "there"', () => {
   assert.equal(weeklyGreeting('', 'a@x.com', []), 'there');
 });
+test('a set greeting override wins over the first name (Gorilla: one inbox, two people)', () => {
+  assert.equal(weeklyGreeting('Max', 'gorillabroslawn@gmail.com', [], 'Max and Katlyn'), 'Max and Katlyn');
+});
+test('a set greeting override wins over Team too', () => {
+  assert.equal(weeklyGreeting('Max', 'a@x.com, b@x.com', [], ' Max and Katlyn '), 'Max and Katlyn');
+});
+test('a blank / null override falls back to the normal rule', () => {
+  assert.equal(weeklyGreeting('Max', 'a@x.com', [], '  '), 'Max');
+  assert.equal(weeklyGreeting('Max', 'a@x.com, b@x.com', [], null), 'Team');
+});
 test('missing Cc list is tolerated', () => {
   assert.equal(weeklyGreeting('Jon', 'contact@lightninglawncare.co', undefined), 'Jon');
 });

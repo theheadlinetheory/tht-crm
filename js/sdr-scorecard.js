@@ -8,14 +8,14 @@
 // their targets (6 h dialing, 200 dials). Bookings come from the Lead Tracker
 // (cold-call rows, by setter; blank setter = Ioannis). Math: sdr-metrics.js.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261125081422';
-import { render } from './render.js?v=20261125081422';
-import { esc } from './utils.js?v=20261125081422';
-import { registerActions } from './delegate.js?v=20261125081422';
-import { supabase } from './supabase-client.js?v=20261125081422';
-import { selectAllPages } from './paging.js?v=20261125081422';
-import { scorecard, etDay, GAP_MIN } from './sdr-metrics.js?v=20261125081422';
-import { TREND_WEEKS, rangeOf, shiftAnchor, addDays, trendMondays, neededFrom, loadAction } from './sdr-periods.js?v=20261125081422';
+import { state } from './app.js?v=20261125102725';
+import { render } from './render.js?v=20261125102725';
+import { esc } from './utils.js?v=20261125102725';
+import { registerActions } from './delegate.js?v=20261125102725';
+import { supabase } from './supabase-client.js?v=20261125102725';
+import { selectAllPages } from './paging.js?v=20261125102725';
+import { scorecard, etDay, GAP_MIN } from './sdr-metrics.js?v=20261125102725';
+import { TREND_WEEKS, rangeOf, shiftAnchor, addDays, trendMondays, neededFrom, loadAction } from './sdr-periods.js?v=20261125102725';
 
 const PERIODS = [{ key: 'day', label: 'Day' }, { key: 'week', label: 'Week' }, { key: 'month', label: 'Month' }];
 const DEFAULT_SETTER = 'Ioannis';

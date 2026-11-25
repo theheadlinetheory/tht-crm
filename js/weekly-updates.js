@@ -12,13 +12,13 @@
 //   CCs are ALSO editable here, on the idle checklist and on review rows.
 //   Lars's signature appended. The Client Info sheet is NOT used.
 // ═══════════════════════════════════════════════════════════
-import { supabase } from './supabase-client.js?v=20261125081422';
-import { state } from './app.js?v=20261125081422';
-import { render } from './render.js?v=20261125081422';
-import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20261125081422';
-import { esc, str, svgIcon, jsArg } from './utils.js?v=20261125081422';
-import { crmWeekContext, ctxCheckinLines, ctxDay, ctxSummary, ctxSection } from './weekly-context.js?v=20261125081422';
-import { DEFAULT_WEEKLY_UPDATE_TEMPLATE, WEEKLY_TOKENS, PPM_NOTE, applyWeeklyTemplate, weeklyGreeting } from './weekly-template.js?v=20261125081422';
+import { supabase } from './supabase-client.js?v=20261125102725';
+import { state } from './app.js?v=20261125102725';
+import { render } from './render.js?v=20261125102725';
+import { showToast, sbSaveSettings, sbUpdateClient } from './api.js?v=20261125102725';
+import { esc, str, svgIcon, jsArg } from './utils.js?v=20261125102725';
+import { crmWeekContext, ctxCheckinLines, ctxDay, ctxSummary, ctxSection } from './weekly-context.js?v=20261125102725';
+import { DEFAULT_WEEKLY_UPDATE_TEMPLATE, WEEKLY_TOKENS, PPM_NOTE, applyWeeklyTemplate, weeklyGreeting } from './weekly-template.js?v=20261125102725';
 
 // Both live on the fulfillment-dashboard Supabase project (verify_jwt=false)
 const STATS_PROXY_URL = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/smartlead-proxy';
@@ -224,7 +224,7 @@ export async function weeklyPrepare(){
       // More than one client-side person on the email — on To OR Cc — gets a
       // "Hey Team," greeting instead of one person's first name. The rule
       // (and why To counts) lives in weekly-template.js.
-      const greetName = weeklyGreeting(first, p.to, ccList);
+      const greetName = weeklyGreeting(first, p.to, ccList, b.client.weeklyUpdateGreeting);
       const multiStakeholder = greetName === 'Team';
       // Pay-per-meeting clients get the {PPM_NOTE} sentence after the stats;
       // retainers get a blank. Same per_lead/retainer split as dashboard.js.
