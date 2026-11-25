@@ -6,10 +6,10 @@
 // column best-first, and can be edited later from the card modal.
 // Interview times come from Calendly (hiring-interview-sync, backend).
 // ═══════════════════════════════════════════════════════════
-import { render } from './render.js?v=20261124155937';
-import { esc, jsArg } from './utils.js?v=20261124155937';
-import { findCandidate, applyMove, saveFields } from './hiring.js?v=20261124155937';
-import { addHiringActivity } from './hiring-activity.js?v=20261124155937';
+import { render } from './render.js?v=20261124160123';
+import { esc, jsArg } from './utils.js?v=20261124160123';
+import { findCandidate, applyMove, saveFields } from './hiring.js?v=20261124160123';
+import { addHiringActivity } from './hiring-activity.js?v=20261124160123';
 
 export const INTERVIEWED_STAGE = 'Interviewed';
 export const BOOKED_STAGE = 'Interview Booked';

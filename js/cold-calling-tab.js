@@ -40,14 +40,14 @@
 //   or a hand-picked set of clients. An SDR's Call Queue, callbacks and Pipeline columns show only their clients.
 //   The cap and the "every client has hit the cap" unlock stay global: a client is one client whoever calls it.
 
-import { state } from './app.js?v=20261124155937';
-import { render } from './render.js?v=20261124155937';
-import { supabase } from './supabase-client.js?v=20261124155937';
-import { esc, str, svgIcon, getToday, jsArg } from './utils.js?v=20261124155937';
-import { currentUser, isSdr, isAdmin, isEmployee, loadAssignableUsers } from './auth.js?v=20261124155937';
-import { registerActions } from './delegate.js?v=20261124155937';
-import { visibleOnColdCallBoard, renderRepFilter } from './cold-call-owner.js?v=20261124155937';
-import { renderDollarsPerDial } from './cc-dollars-per-dial.js?v=20261124155937';
+import { state } from './app.js?v=20261124160123';
+import { render } from './render.js?v=20261124160123';
+import { supabase } from './supabase-client.js?v=20261124160123';
+import { esc, str, svgIcon, getToday, jsArg } from './utils.js?v=20261124160123';
+import { currentUser, isSdr, isAdmin, isEmployee, loadAssignableUsers } from './auth.js?v=20261124160123';
+import { registerActions } from './delegate.js?v=20261124160123';
+import { visibleOnColdCallBoard, renderRepFilter } from './cold-call-owner.js?v=20261124160123';
+import { renderDollarsPerDial } from './cc-dollars-per-dial.js?v=20261124160123';
 
 export const CALLBACK_STAGE = 'Cold Call Callback';
 const NO_CONNECTION = new Set(['no_answer', 'voicemail', 'bad_number', 'desk_dq']);
@@ -1233,7 +1233,7 @@ function passedHtml() {
 async function bringBack(id) {
   const r = Array.isArray(cc.passed) && cc.passed.find(x => x.id === id);
   if (!r) return;
-  const { bringBackDeal } = await import('./passed-off.js?v=20261124155937');
+  const { bringBackDeal } = await import('./passed-off.js?v=20261124160123');
   if (!(await bringBackDeal({ ...r, coldCall: true }))) return;
   cc.passed = cc.passed.filter(x => x.id !== id);
   cc.tracker = null;
@@ -1271,7 +1271,7 @@ async function removeBooking(dealId) {
   if (error) { alert('Could not update the meeting count, nothing was removed: ' + error.message); return; }
   for (const r of cc.calls || []) if (r.deal_id === dealId) r.not_counted = 'Removed: ' + reason;
   const [{ sbCreateInteraction }, { deleteDeal }] = await Promise.all([
-    import('./api.js?v=20261124155937'), import('./deals.js?v=20261124155937')]);
+    import('./api.js?v=20261124160123'), import('./deals.js?v=20261124160123')]);
   try { await sbCreateInteraction({ deal_id: dealId, type: 'Note', content: `Removed — cold-call appointment: ${reason} · ${(rows || []).length} dial(s) no longer counted · marked in the CRM` }); }
   catch (e) { console.warn('[removeBooking] note not saved', e && e.message); }
   await deleteDeal(dealId, 'Removed — ' + reason);
@@ -1344,7 +1344,7 @@ registerActions({
   async ccSync() {
     cc.syncing = true; cc.syncNote = ''; render();
     try {
-      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261124155937');
+      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261124160123');
       const out = await invokeEdgeFunctionAsUser('cold-call-sync', {});
       // One sync at a time (audit A3 #4, 2026-11-13): a Refresh during the 2-minute cron's run is skipped.
       if (out.skipped) {
@@ -1363,7 +1363,7 @@ registerActions({
   ccOpenDeal(el) {
     const id = el.dataset.id;
     if (!state.deals.some(d => String(d.id) === String(id))) { alert('That card is no longer on the board (delivered or archived).'); return; }
-    import('./deal-modal.js?v=20261124155937').then(m => m.openDeal(id));
+    import('./deal-modal.js?v=20261124160123').then(m => m.openDeal(id));
   },
   ccTrackerScope(el) { cc.trackerScope = el.dataset.scope; render(); },
   ccQueueAs(el, e) { if (e.type !== 'change') return; cc.queueAs = el.value; render(); },
@@ -1451,7 +1451,7 @@ registerActions({
   async ccTranscribe(el) {
     el.disabled = true; el.textContent = 'Transcribing…';
     try {
-      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261124155937');
+      const { invokeEdgeFunctionAsUser } = await import('./edge-auth.js?v=20261124160123');
       const out = await invokeEdgeFunctionAsUser('cold-call-sync', { action: 'transcribe', call_id: Number(el.dataset.id) });
       const box = document.createElement('div');
       box.style.cssText = 'white-space:pre-wrap;font-size:11px;max-height:260px;overflow:auto;background:#fff;border-radius:6px;padding:8px;margin-top:4px';
