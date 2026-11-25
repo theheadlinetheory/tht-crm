@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════
 // BLOOIO — In-CRM texting via Blooio API (thread viewer + send)
 // ═══════════════════════════════════════════════════════════
-import { state, pendingWrites } from './app.js?v=20261125102725';
-import { showToast, sbCreateActivity, sbUpdateDeal, camelToSnake } from './api.js?v=20261125102725';
-import { uid, getToday, esc, applyTemplate } from './utils.js?v=20261125102725';
-import { refreshModal } from './render.js?v=20261125102725';
-import { SEQUENCE_TEMPLATES, CLIENT_LEAD_TEMPLATES } from './config.js?v=20261125102725';
-import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20261125102725';
-import { findClientForDeal } from './client-info.js?v=20261125102725';
+import { state, pendingWrites } from './app.js?v=20261125104050';
+import { showToast, sbCreateActivity, sbUpdateDeal, camelToSnake } from './api.js?v=20261125104050';
+import { uid, getToday, esc, applyTemplate } from './utils.js?v=20261125104050';
+import { refreshModal } from './render.js?v=20261125104050';
+import { SEQUENCE_TEMPLATES, CLIENT_LEAD_TEMPLATES } from './config.js?v=20261125104050';
+import { invokeEdgeFunctionAsUser } from './edge-auth.js?v=20261125104050';
+import { findClientForDeal } from './client-info.js?v=20261125104050';
 
 let cachedFromNumber = null;
 

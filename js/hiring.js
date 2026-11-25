@@ -18,21 +18,21 @@
 // red count on the Hiring tab (hiring-unread.js). The detail modal, timeline
 // and follow-ups live in hiring-modal.js / hiring-activity.js.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261125102725';
-import { render } from './render.js?v=20261125102725';
-import { supabase } from './supabase-client.js?v=20261125102725';
-import { showToast } from './api.js?v=20261125102725';
-import { candidateChannel, channelPill, channelSelectHtml } from './hiring-channel.js?v=20261125102725';
-import { esc, escAttr, safeUrl, str, svgIcon, jsArg } from './utils.js?v=20261125102725';
-import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261125102725';
-import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261125102725';
-import { onHiringChange } from './hiring-unread.js?v=20261125102725';
-import { needsEmailPrompt, openEmailBox, renderEmailBox } from './hiring-email-box.js?v=20261125102725';
-import { tickBoxHtml, bulkBarHtml, pruneTicks } from './hiring-bulk.js?v=20261125102725';
-import { genderMarkHtml } from './hiring-gender.js?v=20261125102725';
-import { videoButtonHtml } from './hiring-video.js?v=20261125102725';
-import { renderHiringList } from './hiring-list.js?v=20261125102725';
-import { needsScorecard, openScorecard, renderScorecardBox, interviewTagHtml, scoreTagHtml, recordingTagHtml, byScore, INTERVIEWED_STAGE } from './hiring-scorecard.js?v=20261125102725';
+import { state } from './app.js?v=20261125104050';
+import { render } from './render.js?v=20261125104050';
+import { supabase } from './supabase-client.js?v=20261125104050';
+import { showToast } from './api.js?v=20261125104050';
+import { candidateChannel, channelPill, channelSelectHtml } from './hiring-channel.js?v=20261125104050';
+import { esc, escAttr, safeUrl, str, svgIcon, jsArg } from './utils.js?v=20261125104050';
+import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261125104050';
+import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261125104050';
+import { onHiringChange } from './hiring-unread.js?v=20261125104050';
+import { needsEmailPrompt, openEmailBox, renderEmailBox } from './hiring-email-box.js?v=20261125104050';
+import { tickBoxHtml, bulkBarHtml, pruneTicks } from './hiring-bulk.js?v=20261125104050';
+import { genderMarkHtml } from './hiring-gender.js?v=20261125104050';
+import { videoButtonHtml } from './hiring-video.js?v=20261125104050';
+import { renderHiringList } from './hiring-list.js?v=20261125104050';
+import { needsScorecard, openScorecard, renderScorecardBox, interviewTagHtml, scoreTagHtml, recordingTagHtml, byScore, INTERVIEWED_STAGE } from './hiring-scorecard.js?v=20261125104050';
 
 // Applicants want a job with us; partners are companies that hire (recruiting
 // partners who could send us candidates). Each gets its own board.

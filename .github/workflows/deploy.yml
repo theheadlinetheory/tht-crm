@@ -42,5 +42,11 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: .
+      # deploy-pages looks the artifact up ~0.4 s after the upload finalizes.
+      # On 2026-11-25 GitHub's artifact listing lagged a few seconds behind, so
+      # five runs in a row failed with "No artifacts named github-pages were
+      # found" although the upload had succeeded. Give the listing time.
+      - name: Wait for the artifact to be listed
+        run: sleep 30
       - id: deployment
         uses: actions/deploy-pages@v4
