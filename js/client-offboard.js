@@ -11,11 +11,11 @@
 // What this does NOT do, by decision: pause campaigns, detach inboxes (Tim and
 // Lars finish those), touch Stripe (the retainer cron already skips inactive
 // clients), or delete Smartlead tags (they cannot be deleted).
-import { state, pendingWrites } from './app.js?v=20261124161643';
-import { esc, str, getToday } from './utils.js?v=20261124161643';
-import { supabase, showToast, sbArchiveDeal, sbDeleteDeal, sbUpdateClient, invokeEdgeFunction } from './api.js?v=20261124161643';
-import { SUPABASE_ANON_KEY } from './config.js?v=20261124161643';
-import { render } from './render.js?v=20261124161643';
+import { state, pendingWrites } from './app.js?v=20261125081422';
+import { esc, str, getToday } from './utils.js?v=20261125081422';
+import { supabase, showToast, sbArchiveDeal, sbDeleteDeal, sbUpdateClient, invokeEdgeFunction } from './api.js?v=20261125081422';
+import { SUPABASE_ANON_KEY } from './config.js?v=20261125081422';
+import { render } from './render.js?v=20261125081422';
 
 const FULFILLMENT_FN = 'https://zrmobsgcfcloufajemxj.supabase.co/functions/v1/crm-client-offboard-record';
 
@@ -66,6 +66,39 @@ async function callFulfillment(body) {
   const data = await resp.json().catch(() => ({ error: `offboard record returned ${resp.status}` }));
   if (!resp.ok || data.error) throw new Error(data.error || `offboard record failed (${resp.status})`);
   return data;
+}
+
+// ── Acquisition markets ───────────────────────────────────────────────
+// Archiving the fulfillment client clears the dashboard's "Client ✓" badge on
+// every acquisition market they alone held. The fulfillment function decides
+// which (one rule, shared with the dashboard); these rows only show its answer.
+const marketName = m => `${str(m.city)} (${str(m.industry)})`;
+const listOf = a => a.length <= 1 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
+
+function marketTasks(markets) {
+  const out = [];
+  const freed = markets?.freed || [];
+  if (freed.length) {
+    out.push({ key: 'markets', market: true, status: 'todo',
+      label: `Free up ${listOf(freed.map(marketName))} for acquisition in the dashboard` });
+  }
+  for (const k of markets?.kept || []) {
+    out.push({ key: 'markets_kept_' + str(k.id), market: true, status: 'todo',
+      label: `${marketName(k)} stays a client market: ${listOf((k.clients || []).map(str))} still covers it` });
+  }
+  return out;
+}
+
+// The record step has answered: show what it actually freed, and turn the rows
+// green — or amber when the client was not archived, because nothing was freed.
+function settleMarkets(rec) {
+  if (rec?.markets?.freed?.length) {
+    const at = _o.tasks.findIndex(t => t.key === 'fulfillment_archive') + 1;
+    _o.tasks = _o.tasks.filter(t => !t.market);
+    _o.tasks.splice(at, 0, ...marketTasks(rec.markets));
+  }
+  for (const t of _o.tasks) if (t.market) t.status = rec?.archived ? 'done' : 'hand';
+  renderTasks();
 }
 
 // The jobs no API of ours can finish. Stored on the record and shown on screen,
@@ -123,6 +156,7 @@ async function runSteps(startIdx) {
       });
       setTask('record', 'done');
       setTask('fulfillment_archive', _o.recorded?.archived ? 'done' : 'hand');
+      settleMarkets(_o.recorded);
     }
 
     if (startIdx <= 2 && !_o.crmDone) {
@@ -289,9 +323,17 @@ export async function openOffboard(clientId, { reason, notes, endedOn, category,
     plan = r?.plan || [];
   } catch (e) { plan = [{ step: 'preview', action: 'Could not reach Drive/Smartlead — ' + e.message }]; }
 
+  // Which acquisition markets open up — a dry run, nothing is written.
+  let markets = null;
+  try {
+    markets = (await callFulfillment({ clientName: str(c.name), dryRun: true }))?.markets || null;
+  } catch (e) { console.warn('[offboard] market preview failed:', e.message); }
+  if (!_o || _o.client !== c) return; // dismissed while the previews loaded
+
   _o.tasks = [
     { key: 'record', label: 'Save the offboarding record to the fulfillment database', status: 'todo' },
     { key: 'fulfillment_archive', label: 'Mark them Archived in the fulfillment dashboard', status: 'todo' },
+    ...marketTasks(markets),
     { key: 'crm', label: 'Mark them inactive in the CRM and turn off forwarding', status: 'todo' },
     { key: 'leads', label: `Archive ${snap.leadsOnBoard.length} lead${snap.leadsOnBoard.length === 1 ? '' : 's'} off the Client Leads board (restorable from Archive)`, status: 'todo' },
     ...plan.map(p => ({ key: str(p.step), label: str(p.action), status: 'todo', plan: true })),

@@ -1,16 +1,16 @@
 // ═══════════════════════════════════════════════════════════
 // DASHBOARD — Dashboard rendering (client fulfillment + acquisition)
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261124161643';
-import { dealsVersion } from './state.js?v=20261124161643';
-import { ACQUISITION_STAGES, NURTURE_STAGES, RENEWAL_STAGES, DEFAULT_CLIENT_STAGES, ALL_PIPELINES } from './config.js?v=20261124161643';
-import { render } from './render.js?v=20261124161643';
-import { esc, fmt$ } from './utils.js?v=20261124161643';
-import { isAdmin, isEmployee } from './auth.js?v=20261124161643';
-import { getOverdueActivities } from './activities.js?v=20261124161643';
-import { renderSetterStats } from './setter-stats.js?v=20261124161643';
-import { renderSdrScorecard } from './sdr-scorecard.js?v=20261124161643';
-import { retentionLevel } from './dashboard-funnel.js?v=20261124161643';
+import { state } from './app.js?v=20261125081422';
+import { dealsVersion } from './state.js?v=20261125081422';
+import { ACQUISITION_STAGES, NURTURE_STAGES, RENEWAL_STAGES, DEFAULT_CLIENT_STAGES, ALL_PIPELINES } from './config.js?v=20261125081422';
+import { render } from './render.js?v=20261125081422';
+import { esc, fmt$ } from './utils.js?v=20261125081422';
+import { isAdmin, isEmployee } from './auth.js?v=20261125081422';
+import { getOverdueActivities } from './activities.js?v=20261125081422';
+import { renderSetterStats } from './setter-stats.js?v=20261125081422';
+import { renderSdrScorecard } from './sdr-scorecard.js?v=20261125081422';
+import { retentionLevel } from './dashboard-funnel.js?v=20261125081422';
 
 function dateAddedToDate(dateAdded) {
   if (!dateAdded) return null;

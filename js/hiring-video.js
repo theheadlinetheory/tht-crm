@@ -3,8 +3,8 @@
 // 2026-11-16): the host's own logo when it's Loom or Google Drive, a plain ▶
 // for anything else. Marks from Simple Icons (simple-icons@13.21.0, CC0).
 // ═══════════════════════════════════════════════════════════
-import { escAttr, safeUrl } from './utils.js?v=20261124161643';
-import { withScheme } from './hiring-modal.js?v=20261124161643';
+import { escAttr, safeUrl } from './utils.js?v=20261125081422';
+import { withScheme } from './hiring-modal.js?v=20261125081422';
 
 const mark = (color, d, size) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true" style="flex-shrink:0"><path fill="${color}" d="${d}"/></svg>`;
 const HOSTS = [
