@@ -18,21 +18,21 @@
 // red count on the Hiring tab (hiring-unread.js). The detail modal, timeline
 // and follow-ups live in hiring-modal.js / hiring-activity.js.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261124161311';
-import { render } from './render.js?v=20261124161311';
-import { supabase } from './supabase-client.js?v=20261124161311';
-import { showToast } from './api.js?v=20261124161311';
-import { candidateChannel, channelPill, channelSelectHtml } from './hiring-channel.js?v=20261124161311';
-import { esc, escAttr, safeUrl, str, svgIcon, jsArg } from './utils.js?v=20261124161311';
-import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261124161311';
-import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261124161311';
-import { onHiringChange } from './hiring-unread.js?v=20261124161311';
-import { needsEmailPrompt, openEmailBox, renderEmailBox } from './hiring-email-box.js?v=20261124161311';
-import { tickBoxHtml, bulkBarHtml, pruneTicks } from './hiring-bulk.js?v=20261124161311';
-import { genderMarkHtml } from './hiring-gender.js?v=20261124161311';
-import { videoButtonHtml } from './hiring-video.js?v=20261124161311';
-import { renderHiringList } from './hiring-list.js?v=20261124161311';
-import { needsScorecard, openScorecard, renderScorecardBox, interviewTagHtml, scoreTagHtml, byScore, INTERVIEWED_STAGE } from './hiring-scorecard.js?v=20261124161311';
+import { state } from './app.js?v=20261124161643';
+import { render } from './render.js?v=20261124161643';
+import { supabase } from './supabase-client.js?v=20261124161643';
+import { showToast } from './api.js?v=20261124161643';
+import { candidateChannel, channelPill, channelSelectHtml } from './hiring-channel.js?v=20261124161643';
+import { esc, escAttr, safeUrl, str, svgIcon, jsArg } from './utils.js?v=20261124161643';
+import { renderHiringModal, openHiringCard, withScheme } from './hiring-modal.js?v=20261124161643';
+import { addHiringActivity, loadActivities } from './hiring-activity.js?v=20261124161643';
+import { onHiringChange } from './hiring-unread.js?v=20261124161643';
+import { needsEmailPrompt, openEmailBox, renderEmailBox } from './hiring-email-box.js?v=20261124161643';
+import { tickBoxHtml, bulkBarHtml, pruneTicks } from './hiring-bulk.js?v=20261124161643';
+import { genderMarkHtml } from './hiring-gender.js?v=20261124161643';
+import { videoButtonHtml } from './hiring-video.js?v=20261124161643';
+import { renderHiringList } from './hiring-list.js?v=20261124161643';
+import { needsScorecard, openScorecard, renderScorecardBox, interviewTagHtml, scoreTagHtml, recordingTagHtml, byScore, INTERVIEWED_STAGE } from './hiring-scorecard.js?v=20261124161643';
 
 // Applicants want a job with us; partners are companies that hire (recruiting
 // partners who could send us candidates). Each gets its own board.
@@ -44,6 +44,8 @@ export const STAGES = {
     { id: 'Invited', color: '#2563eb' },
     { id: 'Interview Booked', color: '#0891b2' },
     { id: 'Interviewed', color: '#7c3aed' },
+    { id: 'Ready to Hire', color: '#059669' },
+    { id: 'Reached Out', color: '#0d9488' },
     { id: 'Contract Sent', color: '#d97706' },
     { id: 'Hired', color: '#059669' },
     { id: 'Not a Fit', color: '#9ca3af' },
@@ -178,6 +180,8 @@ function cardHtml(c) {
     c.invite_sent_at && c.stage === 'Invited' ? '<span class="deal-tag" style="background:#eff6ff;color:#1d4ed8">Invite sent</span>' : '',
     interviewTagHtml(c),
     scoreTagHtml(c),
+    recordingTagHtml(c),
+    recordingTagHtml(c),
   ].join('');
   const isNew = c.has_new_activity;
   return `<div class="deal-card${isNew ? ' has-reply' : ''}" draggable="true"
@@ -289,7 +293,7 @@ export function renderHiring() {
   let html = top + '<div class="board">';
   for (const stage of STAGES[state.hiringKind]) {
     const sc = list.filter(c => c.stage === stage.id);
-    if (stage.id === INTERVIEWED_STAGE) sc.sort(byScore);
+    if (stage.id === INTERVIEWED_STAGE || stage.id === 'Ready to Hire') sc.sort(byScore);
     const key = encodeURIComponent(stage.id);
     const archive = stage.id === ARCHIVE_STAGE[state.hiringKind];
     html += `<div class="column" ondragover="event.preventDefault();doDragOver(this)" ondragleave="doDragLeave(event,this)" ondrop="hiringDrop('${key}')">

@@ -6,10 +6,10 @@
 // column best-first, and can be edited later from the card modal.
 // Interview times come from Calendly (hiring-interview-sync, backend).
 // ═══════════════════════════════════════════════════════════
-import { render } from './render.js?v=20261124161311';
-import { esc, jsArg } from './utils.js?v=20261124161311';
-import { findCandidate, applyMove, saveFields } from './hiring.js?v=20261124161311';
-import { addHiringActivity } from './hiring-activity.js?v=20261124161311';
+import { render } from './render.js?v=20261124161643';
+import { esc, escAttr, jsArg, safeUrl } from './utils.js?v=20261124161643';
+import { findCandidate, applyMove, saveFields } from './hiring.js?v=20261124161643';
+import { addHiringActivity } from './hiring-activity.js?v=20261124161643';
 
 export const INTERVIEWED_STAGE = 'Interviewed';
 export const BOOKED_STAGE = 'Interview Booked';
@@ -117,9 +117,20 @@ export function scoreTagHtml(c) {
   return `<span class="deal-tag" style="background:${s.bg};color:${s.fg};font-weight:700">${sc.overall ? `${sc.overall}/5` : ''}${sc.overall && sc.verdict ? ' · ' : ''}${esc(sc.verdict || '')}</span>`;
 }
 
-const SCORED_STAGES = [INTERVIEWED_STAGE, 'Contract Sent', 'Hired', 'Not a Fit'];
+const SCORED_STAGES = [INTERVIEWED_STAGE, 'Ready to Hire', 'Reached Out', 'Contract Sent', 'Hired', 'Not a Fit'];
 
-// Card modal section: the interview time, the scorecard, and a button to fill or edit it.
+// The Fathom recording of the interview (share link, anyone can view).
+export const recordingTagHtml = (c) => c.fathom_url
+  ? `<a class="deal-tag" href="${escAttr(safeUrl(c.fathom_url))}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="background:#f5f3ff;color:#6d28d9;text-decoration:none">🎥 Recording</a>` : '';
+
+function recordingRowHtml(c) {
+  return `<div style="display:flex;gap:6px;align-items:center;margin-top:6px">
+    ${c.fathom_url ? `<a href="${escAttr(safeUrl(c.fathom_url))}" target="_blank" rel="noopener" style="font-weight:700;color:#6d28d9;white-space:nowrap">🎥 Watch interview</a>` : '<span style="color:var(--text-muted);white-space:nowrap">Fathom link</span>'}
+    <input value="${escAttr(c.fathom_url || '')}" placeholder="https://fathom.video/share/…" onchange="hiringSetFathom(${jsArg(c.id)}, this.value)" style="${INPUT};padding:4px 8px;font-size:12px">
+  </div>`;
+}
+
+// Card modal section: the interview time, the recording, the scorecard, and a button to fill or edit it.
 export function scorecardSectionHtml(c) {
   if (c.kind !== 'applicant' || (!c.interview_at && !c.scorecard && !SCORED_STAGES.includes(c.stage))) return '';
   const sc = c.scorecard;
@@ -129,6 +140,7 @@ export function scorecardSectionHtml(c) {
       <button class="btn btn-ghost" style="font-size:12px" onclick="hiringScoreOpen(${jsArg(c.id)})">${sc ? 'Edit scorecard' : 'Fill scorecard'}</button>
     </div>
     ${c.interview_at ? `<div style="color:var(--text-muted);margin-top:2px">📅 ${esc(fmtWhen(c.interview_at))}</div>` : ''}
+    ${recordingRowHtml(c)}
     ${sc ? `<div style="margin-top:6px">${scoreTagHtml(c)} ${esc(RATINGS.filter(r => sc[r]).map(r => `${r} ${sc[r]}`).join(' · '))}</div>
       ${sc.notes ? `<div style="margin-top:6px;white-space:pre-wrap">${esc(sc.notes)}</div>` : ''}` : ''}
   </div>`;
@@ -141,3 +153,4 @@ window.hiringScoreSave = () => saveBox();
 window.hiringScoreSkip = () => skipBox();
 window.hiringScoreCancel = () => { _box = null; render(); };
 window.hiringScoreOpen = (id) => openScorecard(id);
+window.hiringSetFathom = (id, v) => { const c = findCandidate(id); const url = v.trim() || null; if (c && url !== (c.fathom_url || null)) saveFields(c, { fathom_url: url }); };

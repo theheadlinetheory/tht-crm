@@ -1,22 +1,24 @@
 // ═══════════════════════════════════════════════════════════
 // HIRING EMAIL BOX — the editable box that opens before a hiring email goes out
 // (Aidan, 2026-11-14 / 11-16). Moving applicants (one, or a bulk selection) to
-// Invited or Not a Fit opens it: a "send" checkbox (ticked), the subject,
+// Invited, Ready to Hire, Reached Out or Not a Fit opens it: a "send" checkbox (ticked), the subject,
 // and each person's own message, already greeting them by first name, so a wrong
 // name or anything else can be fixed in place. Confirm moves them and sends each their copy via
 // the stage's edge function. Never twice: invite_sent_at / rejection_sent_at.
 // ═══════════════════════════════════════════════════════════
-import { render } from './render.js?v=20261124161311';
-import { supabase } from './supabase-client.js?v=20261124161311';
-import { showToast } from './api.js?v=20261124161311';
-import { esc, escAttr, jsArg } from './utils.js?v=20261124161311';
-import { findCandidate, applyMove } from './hiring.js?v=20261124161311';
-import { addHiringActivity } from './hiring-activity.js?v=20261124161311';
+import { render } from './render.js?v=20261124161643';
+import { supabase } from './supabase-client.js?v=20261124161643';
+import { showToast } from './api.js?v=20261124161643';
+import { esc, escAttr, jsArg } from './utils.js?v=20261124161643';
+import { findCandidate, applyMove } from './hiring.js?v=20261124161643';
+import { addHiringActivity } from './hiring-activity.js?v=20261124161643';
 
 export const REJECT_STAGE = 'Not a Fit';
 const TOKEN = '{first_name}';
 export const STAGE_EMAILS = {
   Invited: { fn: 'hiring-invite', column: 'invite_sent_at', label: 'interview invite', sentLabel: 'Interview invite sent' },
+  'Ready to Hire': { fn: 'hiring-hold', column: 'hold_sent_at', label: '"you\'re on hold" email', sentLabel: 'On-hold email sent' },
+  'Reached Out': { fn: 'hiring-reachout', column: 'reachout_sent_at', label: '"a seat opened" email', sentLabel: 'Seat-opened email sent' },
   [REJECT_STAGE]: { fn: 'hiring-reject', column: 'rejection_sent_at', label: '"not moving forward" email', sentLabel: 'Rejection email sent' },
 };
 const INPUT = 'width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--font);box-sizing:border-box';

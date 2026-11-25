@@ -6,19 +6,19 @@
 // Every text field is state-backed (state.hiringDraft) because render()
 // rebuilds #app. Clicking outside, ✕ and Close all save pending edits.
 // ═══════════════════════════════════════════════════════════
-import { state } from './app.js?v=20261124161311';
-import { render } from './render.js?v=20261124161311';
-import { showToast } from './api.js?v=20261124161311';
-import { esc, str, svgIcon, fmtTimestamp, getToday, jsArg } from './utils.js?v=20261124161311';
-import { STAGES, CONTACT_TYPES, stageLabel, replyText, findCandidate, saveFields, moveCandidate, toggleStar } from './hiring.js?v=20261124161311';
-import { activitiesFor, loadActivities, addHiringActivity, updateHiringActivity, deleteHiringActivity, findActivity } from './hiring-activity.js?v=20261124161311';
-import { genderSelectHtml } from './hiring-gender.js?v=20261124161311';
-import { candidateChannel, channelSelectHtml } from './hiring-channel.js?v=20261124161311';
-import { refreshHiringUnread } from './hiring-unread.js?v=20261124161311';
-import { emailStatusHtml } from './hiring-email-box.js?v=20261124161311';
-import { videoButtonHtml } from './hiring-video.js?v=20261124161311';
-import { whatsappUrl } from './hiring-list.js?v=20261124161311';
-import { scorecardSectionHtml } from './hiring-scorecard.js?v=20261124161311';
+import { state } from './app.js?v=20261124161643';
+import { render } from './render.js?v=20261124161643';
+import { showToast } from './api.js?v=20261124161643';
+import { esc, str, svgIcon, fmtTimestamp, getToday, jsArg } from './utils.js?v=20261124161643';
+import { STAGES, CONTACT_TYPES, stageLabel, replyText, findCandidate, saveFields, moveCandidate, toggleStar } from './hiring.js?v=20261124161643';
+import { activitiesFor, loadActivities, addHiringActivity, updateHiringActivity, deleteHiringActivity, findActivity } from './hiring-activity.js?v=20261124161643';
+import { genderSelectHtml } from './hiring-gender.js?v=20261124161643';
+import { candidateChannel, channelSelectHtml } from './hiring-channel.js?v=20261124161643';
+import { refreshHiringUnread } from './hiring-unread.js?v=20261124161643';
+import { emailStatusHtml } from './hiring-email-box.js?v=20261124161643';
+import { videoButtonHtml } from './hiring-video.js?v=20261124161643';
+import { whatsappUrl } from './hiring-list.js?v=20261124161643';
+import { scorecardSectionHtml } from './hiring-scorecard.js?v=20261124161643';
 
 const LINK_STYLE = 'color:var(--purple);word-break:break-all';
 const INPUT_STYLE = 'padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font)';
@@ -143,6 +143,7 @@ const FOLLOW_UP_TEMPLATES = {
     { body: 'WhatsApp intro message', days: 0 },
     { body: 'Chase interview booking', days: 2 },
     { body: 'Send decision', days: 1 },
+    { body: 'Chase reach-out reply', days: 2 },
     { body: 'Chase contract signature', days: 2 },
   ],
   partner: [
